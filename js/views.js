@@ -26,9 +26,11 @@ const Views = (() => {
     return Store.visitsOf(shopId).some(v => (v.dishGenres || []).some(g => mapGenreFilter.has(g)));
   }
 
-  // 店の評価3軸フィルタ（カジュアル度・雰囲気・提供の早さ）
-  const AXIS_LABEL = { casual: 'カジュアル度', atmosphere: '雰囲気', speed: '提供の早さ' };
+  // 星評価フィルタ（味＝メイン＋店の評価3軸）
+  const AXIS_LABEL = { taste: '味', casual: 'カジュアル度', atmosphere: '雰囲気', speed: '提供の早さ' };
   function shopMatchesAxes(shop) {
+    const tasteMin = +($('#mf-taste').value || 0);
+    if (tasteMin > 0 && Store.avgRating(shop.id) < tasteMin) return false;
     for (const k of ['casual', 'atmosphere', 'speed']) {
       const min = +($('#mf-' + k).value || 0);
       if (min > 0 && (shop[k] || 0) < min) return false;
@@ -71,8 +73,8 @@ const Views = (() => {
       refreshMap();
     });
 
-    // 店の評価3軸フィルタ
-    ['#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
+    // 星評価フィルタ（味＋店の評価3軸）
+    ['#mf-taste', '#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
       $(sel).addEventListener('change', refreshMap));
 
     $('#map-locate').addEventListener('click', () => {
@@ -92,7 +94,7 @@ const Views = (() => {
     const shops = Store.shops().filter(s =>
       s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s));
     // フィルタ選択中は件数を表示
-    const axisActive = ['casual', 'atmosphere', 'speed']
+    const axisActive = ['taste', 'casual', 'atmosphere', 'speed']
       .filter(k => +($('#mf-' + k).value || 0) > 0)
       .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
     const labels = [...mapGenreFilter, ...axisActive];
@@ -119,7 +121,7 @@ const Views = (() => {
         node.innerHTML = `
             ${rep ? `<img src="${photoUrl(rep)}" alt="">` : ''}
             <div class="p-name">${esc(s.name)}${s.favorite ? ' ⭐' : ''}</div>
-            <div class="p-sub">${starStr(avg)} ${avg || ''}　訪問${vs.length}回</div>
+            <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
             <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
             ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
             <button class="btn small popup-detail">店舗詳細 →</button>`;
@@ -507,7 +509,7 @@ const Views = (() => {
       block.className = 'visit-block';
       block.innerHTML = `
         <div class="v-head">
-          <span class="v-date">${new Date(v.datetime).toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+          <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
           <span class="v-stars">${starStr(v.rating)}</span>
           <span class="chip tag">${esc(v.visitType || '店内飲食')}</span>
           ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}

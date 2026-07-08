@@ -82,9 +82,10 @@ const Register = (() => {
     }
   }
 
+  // 訪問は日付のみ（YYYY-MM-DD）で扱う
   function toLocalInput(d) {
     const p = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
 
   // ---------- 写真の追加・EXIF解析 ----------
@@ -416,7 +417,7 @@ const Register = (() => {
     const name = $('#f-shop-name').value.trim();
     const dtVal = $('#f-datetime').value;
     if (!name) { App.toast('店舗名を入力してください'); return; }
-    if (!dtVal) { App.toast('訪問日時を入力してください'); return; }
+    if (!dtVal) { App.toast('訪問日を入力してください'); return; }
     if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
 
     const btn = $('#save-btn');
@@ -458,7 +459,8 @@ const Register = (() => {
       const dishGenres = [...document.querySelectorAll('#f-dish-genres .chip.on')].map(c => c.dataset.g);
       const visit = Store.addVisit({
         shopId: shop.id,
-        datetime: new Date(dtVal).toISOString(),
+        // 日付のみ入力。タイムゾーンで日付がずれないよう正午として保存
+        datetime: new Date(dtVal + 'T12:00:00').toISOString(),
         dishGenres,
         rating: currentRating,
         comment: $('#f-comment').value.trim(),

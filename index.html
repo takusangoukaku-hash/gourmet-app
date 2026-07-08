@@ -70,8 +70,8 @@
       <label>店舗名 <span class="req">必須</span>
         <input type="text" id="f-shop-name" placeholder="店舗名を入力">
       </label>
-      <label>訪問日時 <span class="req">必須</span>
-        <input type="datetime-local" id="f-datetime">
+      <label>訪問日 <span class="req">必須</span>
+        <input type="date" id="f-datetime">
       </label>
       <label>店舗ジャンル
         <select id="f-shop-genre"></select>
@@ -123,11 +123,17 @@
     <button id="map-heat" class="btn small">🔥 ヒートマップ</button>
     <span id="map-filter-count" class="filter-count"></span>
     <span class="map-legend">
-      <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
+      味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
     </span>
   </div>
   <div id="map-genre-filter" class="map-filter"></div>
   <div class="map-axis-filter">
+    <select id="mf-taste" class="taste-select">
+      <option value="0">味の評価</option>
+      <option value="3">味 ★3以上</option>
+      <option value="4">味 ★4以上</option>
+      <option value="5">味 ★5</option>
+    </select>
     <select id="mf-casual">
       <option value="0">カジュアル度</option>
       <option value="3">気軽さ ★3以上</option>
@@ -182,9 +188,9 @@
       <select id="flt-shop-genre"><option value="">店舗ジャンル</option></select>
       <select id="flt-dish-genre"><option value="">料理ジャンル</option></select>
       <select id="flt-rating">
-        <option value="">評価</option>
-        <option value="5">★5</option><option value="4">★4以上</option>
-        <option value="3">★3以上</option><option value="2">★2以上</option><option value="1">★1以上</option>
+        <option value="">味の評価</option>
+        <option value="5">味★5</option><option value="4">味★4以上</option>
+        <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
       </select>
       <label class="check"><input type="checkbox" id="flt-fav"> ⭐のみ</label>
     </div>

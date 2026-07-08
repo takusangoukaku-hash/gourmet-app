@@ -140,8 +140,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .axis-title { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
 .axis-row { display: flex; align-items: center; gap: 10px; }
 .axis-row > span { width: 92px; font-size: 13px; color: var(--text); }
-.map-axis-filter { display: flex; gap: 6px; margin-bottom: 8px; }
-.map-axis-filter select { flex: 1; font-size: 12px; padding: 6px 4px; }
+.map-axis-filter { display: flex; gap: 6px; margin-bottom: 8px; overflow-x: auto; scrollbar-width: none; }
+.map-axis-filter::-webkit-scrollbar { display: none; }
+.map-axis-filter select { flex: 1; min-width: 100px; font-size: 12px; padding: 6px 4px; }
+.map-axis-filter .taste-select { border-color: var(--accent); color: var(--accent); font-weight: bold; }
 .stars button { border: none; background: none; font-size: 28px; cursor: pointer; color: #d9d2c7; padding: 0 2px; }
 .stars button.on { color: #f5a623; }
 .stars.small button { font-size: 18px; }
