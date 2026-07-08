@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v1';
+const VERSION = 'v2'; // アイコン更新
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
