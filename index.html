@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>グルメ記録</title>
+<meta name="theme-color" content="#e8590c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="グルメ記録">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>🍜 グルメ記録 <button id="settings-btn" class="settings-btn" title="設定">⚙️</button></h1>
+</header>
+
+<main>
+
+<!-- ========== 登録 ========== -->
+<section id="view-register" class="view active">
+  <div class="card">
+    <h2>1. 料理の写真を選ぶ</h2>
+    <p class="hint">写真の撮影日時・位置情報から、訪問日時と店舗候補を自動で解析します。</p>
+    <label class="dropzone" id="dropzone">
+      <input type="file" id="photo-input" accept="image/*" multiple hidden>
+      <span>📷 タップして写真を選択（複数可）</span>
+    </label>
+    <div id="photo-previews" class="photo-previews"></div>
+    <div id="exif-status" class="exif-status hidden"></div>
+    <div id="ai-status" class="exif-status hidden"></div>
+  </div>
+
+  <div class="card" id="shop-select-card">
+    <h2>2. 店舗を選ぶ</h2>
+    <div class="subtabs" id="shop-subtabs">
+      <button class="subtab active" data-subtab="candidates">📍 周辺の候補</button>
+      <button class="subtab" data-subtab="search">🔍 名前で検索</button>
+      <button class="subtab" data-subtab="manual">🗺️ 地図で指定</button>
+    </div>
+    <div id="subtab-candidates" class="subtab-panel active">
+      <p class="hint" id="candidates-hint">写真に位置情報があれば、一番近い店舗を自動で選択します。違う場合だけ候補をタップして変更してください。</p>
+      <div id="shop-candidates" class="candidate-list"></div>
+    </div>
+    <div id="subtab-search" class="subtab-panel">
+      <p class="hint">店舗名や「店名 地名」で検索できます。登録済みの店舗は先頭に表示されます。</p>
+      <div class="search-row">
+        <input type="text" id="shop-search-input" placeholder="例: ○○軒 渋谷">
+        <button id="shop-search-btn" class="btn">検索</button>
+      </div>
+      <div id="shop-search-results" class="candidate-list"></div>
+    </div>
+    <div id="subtab-manual" class="subtab-panel">
+      <p class="hint">地図をタップして店舗の位置を指定し、下のフォームに店舗名を入力してください。</p>
+      <div id="register-map" class="mini-map"></div>
+    </div>
+    <div id="selected-shop-note" class="selected-note hidden"></div>
+  </div>
+
+  <div class="card">
+    <h2>3. 記録の内容</h2>
+    <div class="form-grid">
+      <label>店舗名 <span class="req">必須</span>
+        <input type="text" id="f-shop-name" placeholder="店舗名を入力">
+      </label>
+      <label>訪問日時 <span class="req">必須</span>
+        <input type="datetime-local" id="f-datetime">
+      </label>
+      <label>店舗ジャンル
+        <select id="f-shop-genre"></select>
+      </label>
+      <label>利用形態
+        <select id="f-visit-type">
+          <option value="店内飲食">店内飲食</option>
+          <option value="テイクアウト">テイクアウト</option>
+          <option value="デリバリー">デリバリー</option>
+        </select>
+      </label>
+      <label class="full">料理ジャンル（複数選択可）
+        <div id="f-dish-genres" class="chips"></div>
+      </label>
+      <label class="full">評価 <span class="req">必須</span>
+        <div id="f-rating" class="stars"></div>
+      </label>
+      <label class="full">コメント・感想
+        <textarea id="f-comment" rows="3" placeholder="味の感想、おすすめメニューなど"></textarea>
+      </label>
+      <label>住所
+        <input type="text" id="f-address" placeholder="自動入力されます">
+      </label>
+      <label>最寄駅
+        <input type="text" id="f-station" placeholder="自動入力されます">
+      </label>
+      <label>都道府県
+        <input type="text" id="f-pref">
+      </label>
+      <label>市区町村
+        <input type="text" id="f-city">
+      </label>
+      <label class="check full"><input type="checkbox" id="f-fav"> ⭐ お気に入りに登録</label>
+    </div>
+    <button id="save-btn" class="btn primary big">この内容で記録する</button>
+  </div>
+</section>
+
+<!-- ========== 地図 ========== -->
+<section id="view-map" class="view">
+  <div class="map-toolbar">
+    <button id="map-locate" class="btn small">📍 現在地</button>
+    <button id="map-heat" class="btn small">🔥 ヒートマップ</button>
+    <span class="map-legend">
+      <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
+    </span>
+  </div>
+  <div id="map-canvas"></div>
+</section>
+
+<!-- ========== 一覧 ========== -->
+<section id="view-list" class="view">
+  <div class="card filters">
+    <div class="filter-row">
+      <input type="text" id="flt-keyword" placeholder="🔍 キーワード（店名・コメント・駅・地名）">
+    </div>
+    <div class="filter-row">
+      <select id="flt-group">
+        <option value="">分類: なし</option>
+        <option value="station">最寄駅ごと</option>
+        <option value="pref">都道府県ごと</option>
+        <option value="city">市区町村ごと</option>
+        <option value="shopGenre">店舗ジャンルごと</option>
+        <option value="dishGenre">料理ジャンルごと</option>
+        <option value="rating">評価ごと</option>
+      </select>
+      <select id="flt-sort">
+        <option value="newest">新着順</option>
+        <option value="visitDate">訪問日順</option>
+        <option value="visitCount">訪問回数順</option>
+        <option value="rating">評価順</option>
+        <option value="name">店名順</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <select id="flt-pref"><option value="">都道府県</option></select>
+      <select id="flt-shop-genre"><option value="">店舗ジャンル</option></select>
+      <select id="flt-dish-genre"><option value="">料理ジャンル</option></select>
+      <select id="flt-rating">
+        <option value="">評価</option>
+        <option value="5">★5</option><option value="4">★4以上</option>
+        <option value="3">★3以上</option><option value="2">★2以上</option><option value="1">★1以上</option>
+      </select>
+      <label class="check"><input type="checkbox" id="flt-fav"> ⭐のみ</label>
+    </div>
+  </div>
+  <div id="shop-list" class="shop-list"></div>
+</section>
+
+<!-- ========== 写真 ========== -->
+<section id="view-photos" class="view">
+  <div class="card filters">
+    <div class="filter-row">
+      <select id="ph-type">
+        <option value="">すべての種別</option>
+        <option value="dish">料理写真</option>
+        <option value="exterior">外観写真</option>
+        <option value="interior">店内写真</option>
+        <option value="menu">メニュー写真</option>
+      </select>
+      <select id="ph-dish-genre"><option value="">すべての料理ジャンル</option></select>
+    </div>
+  </div>
+  <div id="photo-grid" class="photo-grid"></div>
+</section>
+
+<!-- ========== 統計 ========== -->
+<section id="view-stats" class="view">
+  <div id="stat-cards" class="stat-cards"></div>
+  <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
+  <div class="chart-pair">
+    <div class="card"><h2>店舗ジャンル別割合</h2><canvas id="chart-shop-genre"></canvas></div>
+    <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
+  </div>
+  <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
+  <div class="card">
+    <h2>🏆 ランキング</h2>
+    <div class="rank-grid">
+      <div><h3>評価ランキング</h3><ol id="rank-rating"></ol></div>
+      <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
+      <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
+      <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
+      <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
+      <div><h3>よく行く店舗ジャンル</h3><ol id="rank-shopgenre"></ol></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- 下部ナビゲーション -->
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="register"><span class="t-icon">➕</span><span class="t-label">登録</span></button>
+  <button class="tab" data-tab="map"><span class="t-icon">🗺️</span><span class="t-label">地図</span></button>
+  <button class="tab" data-tab="list"><span class="t-icon">📋</span><span class="t-label">一覧</span></button>
+  <button class="tab" data-tab="photos"><span class="t-icon">📷</span><span class="t-label">写真</span></button>
+  <button class="tab" data-tab="stats"><span class="t-icon">📊</span><span class="t-label">統計</span></button>
+</nav>
+
+<!-- 店舗詳細モーダル -->
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <button class="modal-close" data-close>✕</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- 設定モーダル -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-box">
+    <button class="modal-close" data-close>✕</button>
+    <h2>⚙️ 設定</h2>
+    <h3>AIによる料理ジャンル判定</h3>
+    <p class="hint">
+      Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、
+      料理ジャンル・店舗ジャンルを自動判定します。<br>
+      キーはこのブラウザ内（localStorage）にのみ保存され、写真はAnthropic APIへ直接送信されます。
+      キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
+    </p>
+    <div class="form-grid">
+      <label class="full">Anthropic APIキー
+        <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
+      </label>
+    </div>
+    <div class="detail-actions">
+      <button id="settings-save" class="btn primary">保存</button>
+      <button id="settings-clear" class="btn danger">キーを削除</button>
+    </div>
+    <p class="hint" id="settings-status"></p>
+  </div>
+</div>
+
+<!-- 写真拡大 -->
+<div id="lightbox" class="modal hidden">
+  <div class="lightbox-box" data-close>
+    <img id="lightbox-img" alt="">
+    <p id="lightbox-caption"></p>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/api.js"></script>
+<script src="js/register.js"></script>
+<script src="js/views.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
