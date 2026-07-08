@@ -18,6 +18,13 @@ const Views = (() => {
 
   // ========== 地図 ==========
   let map = null, cluster = null, heat = null, heatOn = false;
+  // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
+  const mapGenreFilter = new Set();
+
+  function shopMatchesGenre(shopId) {
+    if (!mapGenreFilter.size) return true;
+    return Store.visitsOf(shopId).some(v => (v.dishGenres || []).some(g => mapGenreFilter.has(g)));
+  }
 
   function initMap() {
     if (map) return;
@@ -42,6 +49,18 @@ const Views = (() => {
     });
     map.addLayer(cluster);
 
+    // 料理ジャンルフィルタのチップ（複数選択可）
+    const bar = $('#map-genre-filter');
+    bar.innerHTML = Api.DISH_GENRES.map(g => `<button type="button" class="chip" data-g="${esc(g)}">${esc(g)}</button>`).join('');
+    bar.addEventListener('click', (e) => {
+      const c = e.target.closest('.chip');
+      if (!c) return;
+      const g = c.dataset.g;
+      if (mapGenreFilter.has(g)) { mapGenreFilter.delete(g); c.classList.remove('on'); }
+      else { mapGenreFilter.add(g); c.classList.add('on'); }
+      refreshMap();
+    });
+
     $('#map-locate').addEventListener('click', () => {
       if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
       navigator.geolocation.getCurrentPosition(
@@ -56,7 +75,10 @@ const Views = (() => {
     initMap();
     setTimeout(() => map.invalidateSize(), 60);
     cluster.clearLayers();
-    const shops = Store.shops().filter(s => s.lat != null && s.lon != null);
+    const shops = Store.shops().filter(s => s.lat != null && s.lon != null && shopMatchesGenre(s.id));
+    // フィルタ選択中は件数を表示
+    $('#map-filter-count').textContent = mapGenreFilter.size
+      ? `${[...mapGenreFilter].join('・')}: ${shops.length}件` : '';
     for (const s of shops) {
       const avg = Store.avgRating(s.id);
       const icon = L.divIcon({
@@ -104,6 +126,8 @@ const Views = (() => {
     if (heat) map.removeLayer(heat);
     const pts = [];
     for (const v of Store.visits()) {
+      // ジャンルフィルタ選択中は該当する訪問だけを対象にする
+      if (mapGenreFilter.size && !(v.dishGenres || []).some(g => mapGenreFilter.has(g))) continue;
       const s = Store.getShop(v.shopId);
       if (s && s.lat != null) pts.push([s.lat, s.lon, 1]);
     }
