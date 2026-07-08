@@ -95,6 +95,10 @@ const Store = (() => {
       id: uid(), name: '', address: '', lat: null, lon: null,
       country: '日本', pref: '', city: '', station: '',
       shopGenre: 'その他', favorite: false, status: 'open', osmId: '',
+      // 店の性質の評価（1〜5、0 = 未評価）。訪問ごとではなく店舗に1つ
+      casual: 0,      // カジュアル度（気軽に入れるか）
+      atmosphere: 0,  // 雰囲気
+      speed: 0,       // 提供の早さ
       createdAt: Date.now(),
     }, data);
     shops.push(shop); persist();

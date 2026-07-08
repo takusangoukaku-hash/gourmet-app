@@ -11,7 +11,10 @@ const Register = (() => {
   // 選択中の店舗情報
   let selected = null; // { existingShopId?, osmId, name, address, lat, lon, pref, city, station, country }
   let miniMap = null, miniMarker = null;
-  let currentRating = 0;
+  let currentRating = 0; // 味の評価（訪問ごと・必須）
+  // 店の性質の評価（任意・店舗に1つ）: 0 = 未評価
+  const AXES = ['casual', 'atmosphere', 'speed'];
+  let shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
   // AIが料理ジャンルを判定済みか（OSMタグ推定で上書きしないためのフラグ）
   let aiClassified = false;
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
@@ -48,13 +51,21 @@ const Register = (() => {
       if (c) c.classList.toggle('on');
     });
 
-    // 評価スター
+    // 評価スター（味）＋ 店の評価3軸
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
+    mountAxisStars();
 
     // 訪問日時の初期値 = 現在
     $('#f-datetime').value = toLocalInput(new Date());
 
     $('#save-btn').addEventListener('click', save);
+  }
+
+  // 店の評価3軸のスターを（再）描画する
+  function mountAxisStars() {
+    for (const k of AXES) {
+      mountStars($('#f-ax-' + k), shopRatings[k], v => { shopRatings[k] = v; });
+    }
   }
 
   function mountStars(el, initial, onChange) {
@@ -315,6 +326,9 @@ const Register = (() => {
     $('#f-city').value = shop.city || '';
     $('#f-shop-genre').value = shop.shopGenre || 'その他';
     $('#f-fav').checked = !!shop.favorite;
+    // 店の評価は既存の値を引き継ぐ（再訪時は入力不要）
+    shopRatings = { casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0 };
+    mountAxisStars();
     const auto = autoPicked ? '🤖 一番近い店舗を自動選択しました。違う場合は上の候補から選び直せます。\n' : '';
     note(`${auto}🔁 「${shop.name}」への再訪として記録します（訪問${Store.visitCount(shop.id)}回目 → ${Store.visitCount(shop.id) + 1}回目）`);
     backfillMissing(shop);
@@ -403,7 +417,7 @@ const Register = (() => {
     const dtVal = $('#f-datetime').value;
     if (!name) { App.toast('店舗名を入力してください'); return; }
     if (!dtVal) { App.toast('訪問日時を入力してください'); return; }
-    if (!currentRating) { App.toast('評価（★）を選択してください'); return; }
+    if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
 
     const btn = $('#save-btn');
     btn.disabled = true; btn.textContent = '保存中…';
@@ -427,6 +441,8 @@ const Register = (() => {
         shopGenre: $('#f-shop-genre').value,
         favorite: $('#f-fav').checked,
       };
+      // 店の評価（3軸）: つけた値のみ反映（0のままなら既存値を消さない）
+      for (const k of AXES) if (shopRatings[k] > 0) shopData[k] = shopRatings[k];
       if (shop) {
         Store.updateShop(shop.id, shopData);
       } else {
@@ -488,6 +504,8 @@ const Register = (() => {
     $('#f-datetime').value = toLocalInput(new Date());
     document.querySelectorAll('#f-dish-genres .chip').forEach(c => c.classList.remove('on'));
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
+    shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
+    mountAxisStars();
     if (miniMarker) { miniMarker.remove(); miniMarker = null; }
     switchSubtab('candidates');
   }

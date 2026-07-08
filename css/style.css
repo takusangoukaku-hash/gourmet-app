@@ -134,6 +134,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .chip.tag { cursor: default; background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent); padding: 2px 8px; font-size: 11px; }
 
 .stars { display: flex; gap: 4px; }
+.axis-box {
+  border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 4px;
+}
+.axis-title { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.axis-row { display: flex; align-items: center; gap: 10px; }
+.axis-row > span { width: 92px; font-size: 13px; color: var(--text); }
+.map-axis-filter { display: flex; gap: 6px; margin-bottom: 8px; }
+.map-axis-filter select { flex: 1; font-size: 12px; padding: 6px 4px; }
 .stars button { border: none; background: none; font-size: 28px; cursor: pointer; color: #d9d2c7; padding: 0 2px; }
 .stars button.on { color: #f5a623; }
 .stars.small button { font-size: 18px; }
@@ -163,7 +171,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 2px 0 8px; }
 .dot.r1 { background: var(--r1); } .dot.r2 { background: var(--r2); } .dot.r3 { background: var(--r3); }
 .dot.r4 { background: var(--r4); } .dot.r5 { background: var(--r5); }
-#map-canvas { height: calc(100vh - 280px); min-height: 360px; border-radius: 12px; }
+#map-canvas { height: calc(100vh - 320px); min-height: 340px; border-radius: 12px; }
 
 .pin {
   width: 34px; height: 34px; border-radius: 50% 50% 50% 4px; transform: rotate(0deg);
@@ -286,5 +294,5 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
   .chart-pair { grid-template-columns: 1fr; }
-  #map-canvas { height: calc(100vh - 300px); }
+  #map-canvas { height: calc(100vh - 340px); }
 }

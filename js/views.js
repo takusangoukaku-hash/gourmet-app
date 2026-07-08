@@ -26,6 +26,16 @@ const Views = (() => {
     return Store.visitsOf(shopId).some(v => (v.dishGenres || []).some(g => mapGenreFilter.has(g)));
   }
 
+  // 店の評価3軸フィルタ（カジュアル度・雰囲気・提供の早さ）
+  const AXIS_LABEL = { casual: 'カジュアル度', atmosphere: '雰囲気', speed: '提供の早さ' };
+  function shopMatchesAxes(shop) {
+    for (const k of ['casual', 'atmosphere', 'speed']) {
+      const min = +($('#mf-' + k).value || 0);
+      if (min > 0 && (shop[k] || 0) < min) return false;
+    }
+    return true;
+  }
+
   function initMap() {
     if (map) return;
     map = L.map('map-canvas').setView([35.6812, 139.7671], 12);
@@ -61,6 +71,10 @@ const Views = (() => {
       refreshMap();
     });
 
+    // 店の評価3軸フィルタ
+    ['#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
+      $(sel).addEventListener('change', refreshMap));
+
     $('#map-locate').addEventListener('click', () => {
       if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
       navigator.geolocation.getCurrentPosition(
@@ -75,10 +89,14 @@ const Views = (() => {
     initMap();
     setTimeout(() => map.invalidateSize(), 60);
     cluster.clearLayers();
-    const shops = Store.shops().filter(s => s.lat != null && s.lon != null && shopMatchesGenre(s.id));
+    const shops = Store.shops().filter(s =>
+      s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s));
     // フィルタ選択中は件数を表示
-    $('#map-filter-count').textContent = mapGenreFilter.size
-      ? `${[...mapGenreFilter].join('・')}: ${shops.length}件` : '';
+    const axisActive = ['casual', 'atmosphere', 'speed']
+      .filter(k => +($('#mf-' + k).value || 0) > 0)
+      .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
+    const labels = [...mapGenreFilter, ...axisActive];
+    $('#map-filter-count').textContent = labels.length ? `${labels.join('・')}: ${shops.length}件` : '';
     for (const s of shops) {
       const avg = Store.avgRating(s.id);
       const icon = L.divIcon({
@@ -180,6 +198,9 @@ const Views = (() => {
       visitDate: (a, b) => new Date(Store.lastVisitDate(b.id) || 0) - new Date(Store.lastVisitDate(a.id) || 0),
       visitCount: (a, b) => Store.visitCount(b.id) - Store.visitCount(a.id),
       rating: (a, b) => Store.avgRating(b.id) - Store.avgRating(a.id),
+      casual: (a, b) => (b.casual || 0) - (a.casual || 0),
+      atmosphere: (a, b) => (b.atmosphere || 0) - (a.atmosphere || 0),
+      speed: (a, b) => (b.speed || 0) - (a.speed || 0),
       name: (a, b) => a.name.localeCompare(b.name, 'ja'),
     };
     return list.sort(by[mode] || by.newest);
@@ -248,6 +269,11 @@ const Views = (() => {
 
   function shopCard(s) {
     const avg = Store.avgRating(s.id);
+    const axes = [
+      s.casual ? `気軽★${s.casual}` : '',
+      s.atmosphere ? `雰囲気★${s.atmosphere}` : '',
+      s.speed ? `早さ★${s.speed}` : '',
+    ].filter(Boolean).join('　');
     const div = document.createElement('div');
     div.className = 'shop-card';
     div.dataset.shopOpen = s.id;
@@ -255,8 +281,9 @@ const Views = (() => {
       <div class="thumb" data-thumb="${s.id}">🍽️</div>
       <div class="s-main">
         <div class="s-name">${esc(s.name)}</div>
-        <div class="s-stars">${starStr(avg)} <span class="num">${avg || '－'}　訪問${Store.visitCount(s.id)}回</span></div>
+        <div class="s-stars">${starStr(avg)} <span class="num">味${avg || '－'}　訪問${Store.visitCount(s.id)}回</span></div>
         <div class="s-sub">${esc(s.shopGenre)}${s.station ? '　🚉 ' + esc(s.station) : ''}${s.city ? '　📍 ' + esc(s.city) : ''}</div>
+        ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
         <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
       </div>
       <button class="s-fav ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り">⭐</button>`;
@@ -335,7 +362,7 @@ const Views = (() => {
       [shops.length, '総店舗数'],
       [visits.length, '総訪問回数'],
       [photos.length, '保存写真枚数'],
-      [allAvg || '－', '平均評価'],
+      [allAvg || '－', '味の平均'],
       [yearVisits, `${year}年の訪問`],
       [shops.filter(s => s.favorite).length, 'お気に入り'],
     ].map(([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
@@ -416,10 +443,19 @@ const Views = (() => {
     body.innerHTML = `
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
-        <div class="d-stars">${starStr(avg)} ${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
+        <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
         <div class="d-sub">${esc(s.shopGenre)}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? '🚉 ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
+      </div>
+      <div class="axis-box">
+        <div class="axis-title">お店の評価（タップで変更）</div>
+        ${['casual', 'atmosphere', 'speed'].map(k => `
+          <div class="axis-row"><span>${AXIS_LABEL[k]}</span>
+            <div class="stars small d-axis" data-axis="${k}">
+              ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">★</button>`).join('')}
+            </div>
+          </div>`).join('')}
       </div>
       <div class="detail-actions">
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
@@ -429,6 +465,20 @@ const Views = (() => {
       </div>
       <h3>訪問記録</h3>
       <div id="d-visits"></div>`;
+
+    // 店の評価3軸: タップで即保存（同じ星をもう一度タップすると解除）
+    body.querySelectorAll('.d-axis').forEach(row => {
+      row.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const axis = row.dataset.axis;
+        const v = +btn.dataset.v;
+        const newVal = (s[axis] === v) ? 0 : v;
+        Store.updateShop(shopId, { [axis]: newVal });
+        row.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v <= newVal));
+        s[axis] = newVal;
+      });
+    });
 
     $('#d-add-visit').addEventListener('click', () => {
       closeModal();

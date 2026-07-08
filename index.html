@@ -86,9 +86,15 @@
       <label class="full">料理ジャンル（複数選択可）
         <div id="f-dish-genres" class="chips"></div>
       </label>
-      <label class="full">評価 <span class="req">必須</span>
+      <label class="full">味の評価 <span class="req">必須</span>
         <div id="f-rating" class="stars"></div>
       </label>
+      <div class="full axis-box">
+        <div class="axis-title">お店の評価（任意・一度つければ再訪時は入力不要）</div>
+        <div class="axis-row"><span>カジュアル度</span><div id="f-ax-casual" class="stars small"></div></div>
+        <div class="axis-row"><span>雰囲気</span><div id="f-ax-atmosphere" class="stars small"></div></div>
+        <div class="axis-row"><span>提供の早さ</span><div id="f-ax-speed" class="stars small"></div></div>
+      </div>
       <label class="full">コメント・感想
         <textarea id="f-comment" rows="3" placeholder="味の感想、おすすめメニューなど"></textarea>
       </label>
@@ -121,6 +127,26 @@
     </span>
   </div>
   <div id="map-genre-filter" class="map-filter"></div>
+  <div class="map-axis-filter">
+    <select id="mf-casual">
+      <option value="0">カジュアル度</option>
+      <option value="3">気軽さ ★3以上</option>
+      <option value="4">気軽さ ★4以上</option>
+      <option value="5">気軽さ ★5</option>
+    </select>
+    <select id="mf-atmosphere">
+      <option value="0">雰囲気</option>
+      <option value="3">雰囲気 ★3以上</option>
+      <option value="4">雰囲気 ★4以上</option>
+      <option value="5">雰囲気 ★5</option>
+    </select>
+    <select id="mf-speed">
+      <option value="0">提供の早さ</option>
+      <option value="3">早さ ★3以上</option>
+      <option value="4">早さ ★4以上</option>
+      <option value="5">早さ ★5</option>
+    </select>
+  </div>
   <div id="map-canvas"></div>
 </section>
 
@@ -144,7 +170,10 @@
         <option value="newest">新着順</option>
         <option value="visitDate">訪問日順</option>
         <option value="visitCount">訪問回数順</option>
-        <option value="rating">評価順</option>
+        <option value="rating">味の評価順</option>
+        <option value="casual">カジュアル度順</option>
+        <option value="atmosphere">雰囲気順</option>
+        <option value="speed">提供の早さ順</option>
         <option value="name">店名順</option>
       </select>
     </div>
@@ -192,7 +221,7 @@
   <div class="card">
     <h2>🏆 ランキング</h2>
     <div class="rank-grid">
-      <div><h3>評価ランキング</h3><ol id="rank-rating"></ol></div>
+      <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
       <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
       <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
       <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
