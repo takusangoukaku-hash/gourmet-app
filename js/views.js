@@ -98,27 +98,33 @@ const Views = (() => {
         { id: 'road-mid-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 10,
           filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary']]],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': c.roadCasing, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 18, 12] } },
+          paint: { 'line-color': c.roadCasing,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 13, 2.2, 18, 12] } },
         { id: 'road-mid', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 10,
           filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary']]],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': c.roadMain, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 18, 10] } },
+          paint: { 'line-color': c.roadMain,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 13, 1.5, 18, 10] } },
         { id: 'road-major-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
           filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': c.roadCasing, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.4, 18, 14] } },
+          paint: { 'line-color': c.roadCasing,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.9, 12, 2.2, 14, 4.5, 18, 14] } },
         { id: 'road-major', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
           filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': c.roadMain, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.9, 18, 12] } },
+          paint: { 'line-color': c.roadMain,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 12, 1.5, 14, 3.2, 18, 12] } },
         { id: 'motorway-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6,
           filter: ['==', ['get', 'class'], 'motorway'],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': dark ? '#5c4c22' : '#e8bd50', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 18, 15] } },
+          paint: { 'line-color': dark ? '#5c4c22' : '#e8bd50',
+            'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.7, 10, 1.7, 13, 4.5, 18, 15] } },
         { id: 'motorway', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6,
           filter: ['==', ['get', 'class'], 'motorway'],
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': c.highway, 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.8, 18, 12] } },
+          paint: { 'line-color': c.highway,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.5, 10, 1.2, 13, 3.2, 18, 12] } },
         { id: 'rail', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 11,
           filter: ['==', ['get', 'class'], 'rail'],
           paint: { 'line-color': c.rail, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 16, 2.2] } },
@@ -233,7 +239,9 @@ const Views = (() => {
 
   function initMap() {
     if (map) return;
-    map = L.map('map-canvas', { zoomControl: true, attributionControl: true })
+    // maxZoomの明示は必須: ベクトル層はラスタ層と違い地図へmaxZoomを供給しない
+    // ため、未指定だとマーカークラスタが例外を投げてピンが表示されなくなる
+    map = L.map('map-canvas', { zoomControl: true, attributionControl: true, maxZoom: 20, minZoom: 3 })
       .setView([35.6812, 139.7671], 12);
     addBaseTiles(map);
     // クラスター（重なり）は中で最も評価の高い店舗の色を代表として表示し、
