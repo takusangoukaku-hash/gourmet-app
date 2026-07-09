@@ -1,31 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f97316"/>
-      <stop offset="1" stop-color="#c2410c"/>
+      <stop offset="0" stop-color="#f18a44"/>
+      <stop offset="1" stop-color="#e8641a"/>
     </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4772a"/>
+      <stop offset="1" stop-color="#dd5a10"/>
+    </linearGradient>
+    <clipPath id="mapclip"><circle cx="256" cy="256" r="116"/></clipPath>
+    <filter id="ds" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#7c2d05" flood-opacity="0.35"/>
+    </filter>
   </defs>
+
   <!-- 背景 -->
   <rect width="512" height="512" fill="url(#bg)"/>
-  <!-- カメラ上部（ファインダー部） -->
-  <rect x="186" y="122" width="140" height="64" rx="20" fill="#fff7ed"/>
-  <!-- シャッターボタン -->
-  <rect x="348" y="130" width="56" height="26" rx="13" fill="#ffd9a8"/>
-  <!-- カメラボディ -->
-  <rect x="76" y="168" width="360" height="244" rx="52" fill="#fff7ed"/>
-  <!-- フラッシュのドット -->
-  <circle cx="384" cy="214" r="11" fill="#f4c793"/>
-  <!-- レンズ = お皿 -->
-  <circle cx="256" cy="290" r="95" fill="#ffffff" stroke="#f4c793" stroke-width="8"/>
-  <!-- フォーク -->
-  <g stroke="#c2410c" stroke-width="11" stroke-linecap="round" fill="none">
-    <path d="M206 248 v18 a16 16 0 0 0 32 0 v-18"/>
-    <path d="M222 248 v22"/>
-    <path d="M222 282 v50"/>
+
+  <!-- フォーク（左） -->
+  <g filter="url(#ds)">
+    <g stroke="#ffffff" stroke-linecap="round" fill="none">
+      <path d="M42 112 v40 a20 20 0 0 0 40 0 v-40" stroke-width="13"/>
+      <path d="M62 112 v46" stroke-width="13"/>
+      <path d="M62 172 v230" stroke-width="17"/>
+    </g>
   </g>
-  <!-- ナイフ -->
-  <g>
-    <path d="M294 246 C274 264 272 292 292 306 L300 306 L300 246 Z" fill="#c2410c"/>
-    <path d="M297 306 v26" stroke="#c2410c" stroke-width="11" stroke-linecap="round" fill="none"/>
+
+  <!-- ナイフ（右） -->
+  <g filter="url(#ds)">
+    <path d="M446 108 C414 140 410 240 442 310 L456 310 L456 108 Z" fill="#ffffff"/>
+    <path d="M449 310 v92" stroke="#ffffff" stroke-width="17" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- お皿 -->
+  <g filter="url(#ds)">
+    <circle cx="256" cy="256" r="150" fill="#ffffff"/>
+  </g>
+  <circle cx="256" cy="256" r="126" fill="none" stroke="#efe2cc" stroke-width="6"/>
+  <circle cx="256" cy="256" r="116" fill="#f3e7d3"/>
+
+  <!-- 地図の街路（皿の中） -->
+  <g clip-path="url(#mapclip)">
+    <g stroke="#d8bd93" stroke-width="3" fill="none">
+      <path d="M150 200 L370 184"/>
+      <path d="M142 262 L372 252"/>
+      <path d="M158 322 L362 332"/>
+      <path d="M206 142 L198 372"/>
+      <path d="M330 148 L322 364"/>
+      <path d="M368 200 L306 300"/>
+    </g>
+    <g stroke="#ffffff" stroke-width="11" fill="none">
+      <path d="M140 232 L374 222"/>
+      <path d="M266 140 L252 374"/>
+      <path d="M152 330 L348 168"/>
+    </g>
+  </g>
+
+  <!-- 位置ピン -->
+  <g filter="url(#ds)">
+    <path d="M256 336 C238 306 210 276 210 232 A46 46 0 1 1 302 232 C302 276 274 306 256 336 Z" fill="url(#pin)"/>
+    <circle cx="256" cy="228" r="18" fill="#ffffff"/>
   </g>
 </svg>
