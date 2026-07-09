@@ -7,6 +7,12 @@ const Views = (() => {
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const starStr = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
+  // date input用 YYYY-MM-DD（ローカル日付）
+  const toDateInput = (iso) => {
+    const d = new Date(iso);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
 
   // object URL のキャッシュ（photoId → url）
   const urlCache = new Map();
@@ -508,9 +514,34 @@ const Views = (() => {
       </div>
       <div class="detail-actions">
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
+        <button class="btn small" id="d-edit-shop">✏️ 店舗情報を編集</button>
         <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>
         <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
         <button class="btn small danger" id="d-delete">店舗を削除</button>
+      </div>
+      <div id="d-shop-edit" class="axis-box hidden">
+        <div class="axis-title">店舗情報の編集</div>
+        <div class="form-grid">
+          <label>店舗名
+            <input type="text" id="de-name" value="${esc(s.name)}">
+          </label>
+          <label>店舗ジャンル
+            <select id="de-genre">${Api.SHOP_GENRES.map(g => `<option${g === s.shopGenre ? ' selected' : ''}>${esc(g)}</option>`).join('')}</select>
+          </label>
+          <label>最寄駅
+            <input type="text" id="de-station" value="${esc(s.station || '')}">
+          </label>
+          <label>都道府県
+            <input type="text" id="de-pref" value="${esc(s.pref || '')}">
+          </label>
+          <label>市区町村
+            <input type="text" id="de-city" value="${esc(s.city || '')}">
+          </label>
+          <label>住所
+            <input type="text" id="de-address" value="${esc(s.address || '')}">
+          </label>
+        </div>
+        <button class="btn small primary" id="de-save" style="margin-top:8px">店舗情報を保存</button>
       </div>
       <h3>訪問記録</h3>
       <div id="d-visits"></div>`;
@@ -527,6 +558,26 @@ const Views = (() => {
         row.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v <= newVal));
         s[axis] = newVal;
       });
+    });
+
+    // 店舗情報の編集（一覧から登録データを修正できるように）
+    $('#d-edit-shop').addEventListener('click', () => {
+      $('#d-shop-edit').classList.toggle('hidden');
+    });
+    $('#de-save').addEventListener('click', () => {
+      const name = $('#de-name').value.trim();
+      if (!name) { App.toast('店舗名は空にできません'); return; }
+      Store.updateShop(shopId, {
+        name,
+        shopGenre: $('#de-genre').value,
+        station: $('#de-station').value.trim(),
+        pref: $('#de-pref').value.trim(),
+        city: $('#de-city').value.trim(),
+        address: $('#de-address').value.trim(),
+      });
+      App.toast('✅ 店舗情報を更新しました');
+      showShop(shopId);
+      App.refreshCurrent(); // 背後の一覧・地図にも反映
     });
 
     $('#d-add-visit').addEventListener('click', () => {
@@ -568,8 +619,12 @@ const Views = (() => {
           <button class="btn small danger v-del">削除</button>
         </div>
         <div class="visit-edit hidden">
-          <div class="stars small v-edit-stars"></div>
-          <textarea rows="2" class="v-edit-comment" style="margin-top:6px">${esc(v.comment || '')}</textarea>
+          <div class="ve-row">訪問日 <input type="date" class="v-edit-date" value="${toDateInput(v.datetime)}"></div>
+          <div class="ve-row">味の評価 <span class="stars small v-edit-stars"></span></div>
+          <div class="chips v-edit-genres" style="margin-top:6px">
+            ${Api.DISH_GENRES.map(g => `<button type="button" class="chip${(v.dishGenres || []).includes(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}
+          </div>
+          <textarea rows="2" class="v-edit-comment" style="margin-top:6px" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
           <button class="btn small primary v-edit-save" style="margin-top:6px">保存</button>
         </div>`;
       vbox.appendChild(block);
@@ -585,7 +640,7 @@ const Views = (() => {
         });
       });
 
-      // 編集（評価・コメントは後から変更可能 — §10）
+      // 編集（訪問日・味・料理ジャンル・コメントを後から変更可能）
       let editRating = v.rating;
       const editBox = block.querySelector('.visit-edit');
       block.querySelector('.v-edit').addEventListener('click', () => {
@@ -603,9 +658,23 @@ const Views = (() => {
           starsEl.appendChild(b);
         }
       });
+      // 料理ジャンルのチップはタップで切り替え
+      editBox.querySelector('.v-edit-genres').addEventListener('click', (e) => {
+        const c = e.target.closest('.chip');
+        if (c) c.classList.toggle('on');
+      });
       block.querySelector('.v-edit-save').addEventListener('click', () => {
-        Store.updateVisit(v.id, { rating: editRating, comment: editBox.querySelector('.v-edit-comment').value.trim() });
+        const dateVal = editBox.querySelector('.v-edit-date').value;
+        if (!dateVal) { App.toast('訪問日を入力してください'); return; }
+        Store.updateVisit(v.id, {
+          rating: editRating,
+          comment: editBox.querySelector('.v-edit-comment').value.trim(),
+          datetime: new Date(dateVal + 'T12:00:00').toISOString(),
+          dishGenres: [...editBox.querySelectorAll('.v-edit-genres .chip.on')].map(c => c.dataset.g),
+        });
+        App.toast('✅ 訪問記録を更新しました');
         showShop(shopId);
+        App.refreshCurrent();
       });
       block.querySelector('.v-del').addEventListener('click', async () => {
         if (!confirm('この訪問記録を削除しますか？')) return;
