@@ -34,17 +34,20 @@ const Views = (() => {
   function addBaseTiles(m) {
     const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const style = dark ? 'dark_all' : 'rastertiles/voyager';
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, {
+    // ズーム中はタイルを差し替えず、周辺タイルを多めにキャッシュして
+    // 拡大途中にグレーの余白（白黒のちらつき）が出ないようにする
+    const smooth = { updateWhenZooming: false, keepBuffer: 4 };
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, Object.assign({
       subdomains: 'abcd',
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 20,
-    }).addTo(m);
-    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+    }, smooth)).addTo(m);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', Object.assign({
       tileSize: 128, zoomOffset: 1,
       minZoom: 4, maxZoom: 20, maxNativeZoom: 18,
       className: dark ? 'gsi-tiles gsi-dark' : 'gsi-tiles',
       attribution: '地理院タイル',
-    }).addTo(m);
+    }, smooth)).addTo(m);
   }
 
   // ズームレベルに応じたピンの直径（Apple Maps風の小さめの点）
