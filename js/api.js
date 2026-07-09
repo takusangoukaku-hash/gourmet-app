@@ -244,9 +244,22 @@ out center 25;`;
   }
 
   // ---------- 高速検索: Google Places + Photon + Nominatim（即時表示用） ----------
+  // Google検索の直近の状態（画面での原因表示用）
+  let lastGoogleStatus = { state: 'disabled' }; // disabled | ok | error
+  const googleSearchStatus = () => lastGoogleStatus;
+
   async function searchShopsFast(fullQuery, nameQuery, ref) {
+    const googleJob = hasGoogleKey()
+      ? googlePlacesSearch(fullQuery, ref)
+          .then(r => { lastGoogleStatus = { state: 'ok', count: r.length }; return r; })
+          .catch(e => {
+            console.warn('Google Places:', e);
+            lastGoogleStatus = { state: 'error', message: String(e && e.message || e) };
+            return [];
+          })
+      : (lastGoogleStatus = { state: 'disabled' }, Promise.resolve([]));
     const [google, photon, nomi] = await Promise.all([
-      googlePlacesSearch(fullQuery, ref).catch(e => { console.warn('Google Places:', e); return []; }),
+      googleJob,
       photonSearch(nameQuery, ref && ref.lat, ref && ref.lon).catch(() => []),
       searchPlaces(fullQuery).catch(() => []),
     ]);
@@ -322,7 +335,11 @@ out center 25;`;
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error('Google Places error ' + res.status);
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      const msg = (j && j.error && j.error.message) ? j.error.message : '';
+      throw new Error('HTTP ' + res.status + (msg ? ' — ' + msg : ''));
+    }
     const j = await res.json();
     return (j.places || []).map(p => ({
       osmId: '',
@@ -457,6 +474,6 @@ out center 25;`;
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
     guessGenres, compressImage,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
-    getGoogleKey, setGoogleKey, hasGoogleKey,
+    getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus,
   };
 })();

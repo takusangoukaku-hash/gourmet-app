@@ -3,6 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
+  const APP_VERSION = 'v11'; // sw.js の VERSION と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -45,6 +46,7 @@ const App = (() => {
       const parts = [];
       parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
       parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
+      parts.push('アプリ ' + APP_VERSION);
       return parts.join(' ／ ');
     };
     $('#settings-btn').addEventListener('click', () => {

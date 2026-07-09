@@ -335,6 +335,20 @@ const Register = (() => {
     if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
     renderCandidates(box, existing, results, emptyMsg);
 
+    // Google検索の状態を表示（エラー原因の切り分け用）
+    const gs = Api.googleSearchStatus();
+    if (gs.state === 'error') {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = `⚠️ Googleマップ検索でエラー: ${gs.message}｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。`;
+      box.appendChild(p);
+    } else if (gs.state === 'disabled' && !results.length && !existing.length) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = '💡 ⚙️からGoogle Maps APIキーを設定すると、Googleマップのデータからも検索できるようになります（個人店に強い）。';
+      box.appendChild(p);
+    }
+
     // 周辺の詳細検索（個人店に強いが遅い）を裏で実行し、結果が来たら追加表示
     if (ref) {
       const note = document.createElement('p');

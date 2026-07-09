@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v10'; // Google Places検索を追加（キー設定時）
+const VERSION = 'v11'; // Google検索の状態表示・バージョン表示を追加
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
