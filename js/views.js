@@ -18,6 +18,27 @@ const Views = (() => {
 
   // ========== 地図 ==========
   let map = null, cluster = null, heat = null, heatOn = false;
+  let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
+
+  // ズームレベルに応じたピンの直径（広域=点、拡大=大きく）
+  function pinSize() {
+    const z = map ? map.getZoom() : 12;
+    return Math.round(Math.max(8, Math.min(32, (z - 5) * 3.2)));
+  }
+
+  // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
+  function makePinIcon(avg, fav, count) {
+    const size = count ? Math.round(pinSize() * 1.3) : pinSize();
+    const r = Math.round(avg) || 0;
+    const favBadge = (fav && size >= 18) ? '<span class="pin-fav">⭐</span>' : '';
+    const countBadge = (count && size >= 14)
+      ? `<span class="pin-count" style="font-size:${Math.max(9, Math.round(size * 0.38))}px">${count}</span>` : '';
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px">${favBadge}${countBadge}</div>`,
+      iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+    });
+  }
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
 
@@ -44,22 +65,23 @@ const Views = (() => {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
     }).addTo(map);
-    // クラスター（重なり）は中で最も評価の高い店舗のピンを代表として表示し、
+    // クラスター（重なり）は中で最も評価の高い店舗の色を代表として表示し、
     // 右上に件数バッジを付ける
     cluster = L.markerClusterGroup({
       iconCreateFunction: (cl) => {
         const children = cl.getAllChildMarkers();
         let best = 0;
         for (const ch of children) best = Math.max(best, ch._avgRating || 0);
-        const r = Math.round(best) || 0;
-        return L.divIcon({
-          className: '',
-          html: `<div class="pin r${r}" style="position:relative">${best ? best.toFixed(1) : '－'}<span class="pin-count">${children.length}</span></div>`,
-          iconSize: [34, 34], iconAnchor: [17, 17],
-        });
+        return makePinIcon(best, false, children.length);
       },
     });
     map.addLayer(cluster);
+
+    // ズームに応じてピンの大きさを更新（広域=点、拡大=大きく）
+    map.on('zoomend', () => {
+      pinMarkers.forEach(m => m.setIcon(makePinIcon(m._avgRating, m._fav)));
+      cluster.refreshClusters();
+    });
 
     // 料理ジャンルフィルタのチップ（複数選択可）
     const bar = $('#map-genre-filter');
@@ -99,16 +121,17 @@ const Views = (() => {
       .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
     const labels = [...mapGenreFilter, ...axisActive];
     $('#map-filter-count').textContent = labels.length ? `${labels.join('・')}: ${shops.length}件` : '';
+    pinMarkers = [];
     for (const s of shops) {
       const avg = Store.avgRating(s.id);
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="pin r${Math.round(avg) || 0}${s.favorite ? ' fav' : ''}" style="position:relative">${avg ? avg.toFixed(1) : '－'}</div>`,
-        iconSize: [34, 34], iconAnchor: [17, 17],
-      });
       // 評価が高いピンほど手前に描画（部分的な重なり対策）
-      const m = L.marker([s.lat, s.lon], { icon, zIndexOffset: Math.round((avg || 0) * 100) });
-      m._avgRating = avg; // クラスターの代表ピン選定に使用
+      const m = L.marker([s.lat, s.lon], {
+        icon: makePinIcon(avg, s.favorite),
+        zIndexOffset: Math.round((avg || 0) * 100),
+      });
+      m._avgRating = avg; // クラスターの代表色・ズーム時の再描画に使用
+      m._fav = s.favorite;
+      pinMarkers.push(m);
       m.bindPopup('<div class="popup">読み込み中…</div>');
       m.on('popupopen', async () => {
         const vs = Store.visitsOf(s.id);

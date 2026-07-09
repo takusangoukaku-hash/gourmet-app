@@ -176,19 +176,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 #map-canvas { height: calc(100vh - 320px); min-height: 340px; border-radius: 12px; }
 
 .pin {
-  width: 34px; height: 34px; border-radius: 50% 50% 50% 4px; transform: rotate(0deg);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 12px; font-weight: bold;
-  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35);
-  background: var(--r3);
+  border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  background: var(--r3); box-sizing: border-box;
 }
 .pin.r0 { background: var(--r1); } .pin.r1 { background: var(--r1); } .pin.r2 { background: var(--r2); }
 .pin.r3 { background: var(--r3); } .pin.r4 { background: var(--r4); } .pin.r5 { background: var(--r5); }
-.pin.fav::after { content: "⭐"; position: absolute; top: -10px; right: -8px; font-size: 13px; }
+.pin-fav { position: absolute; top: -9px; right: -7px; font-size: 12px; }
 .pin-count {
-  position: absolute; top: -8px; right: -10px;
+  position: absolute; top: -7px; right: -9px;
   background: #fff; color: var(--text); border: 1px solid var(--border);
-  border-radius: 10px; font-size: 10px; line-height: 1; padding: 3px 5px;
+  border-radius: 10px; line-height: 1; padding: 2px 4px;
   font-weight: bold; box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
 }
 
