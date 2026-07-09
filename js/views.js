@@ -20,7 +20,11 @@ const Views = (() => {
   let map = null, cluster = null, heat = null, heatOn = false;
   let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
 
-  // Apple Maps風のクリーンな地図タイル（CartoDB Voyager／ダーク対応）
+  // 地図タイル:
+  //  - 日本国内: 国土地理院「淡色地図」（日本語ラベル・クリーンな配色）
+  //    tileSize:128 + zoomOffset:1 で半分に縮小描画 → 文字が小さく高精細になる
+  //  - 日本国外: CartoDB（世界カバーの下敷き）
+  //  - ダークモード時はCSSフィルタで暗色化
   function addBaseTiles(m) {
     const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const style = dark ? 'dark_all' : 'rastertiles/voyager';
@@ -29,13 +33,19 @@ const Views = (() => {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 20,
     }).addTo(m);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+      tileSize: 128, zoomOffset: 1,
+      minZoom: 4, maxZoom: 20, maxNativeZoom: 18,
+      className: dark ? 'gsi-tiles gsi-dark' : 'gsi-tiles',
+      attribution: '地理院タイル',
+    }).addTo(m);
   }
 
   // ズームレベルに応じたピンの直径（Apple Maps風の小さめの点）
-  // 広域は極小の点(3px)、拡大しても最大16pxまで
+  // 広域は極小の点(3px)、拡大しても最大12pxまで
   function pinSize() {
     const z = map ? map.getZoom() : 12;
-    return Math.round(Math.max(3, Math.min(16, (z - 8) * 2.2)));
+    return Math.round(Math.max(3, Math.min(12, (z - 8) * 1.8)));
   }
 
   // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
@@ -44,10 +54,10 @@ const Views = (() => {
     const size = count ? Math.max(base + 1, Math.round(base * 1.15)) : base;
     const r = Math.round(avg) || 0;
     // 極小サイズでは白フチが色を潰すため段階的に細く
-    const border = size <= 5 ? 0 : (size < 10 ? 1 : 1.5);
-    const favBadge = (fav && size >= 12) ? '<span class="pin-fav">⭐</span>' : '';
-    const countBadge = (count && size >= 11)
-      ? `<span class="pin-count" style="font-size:${Math.max(8, Math.round(size * 0.42))}px">${count}</span>` : '';
+    const border = size <= 5 ? 0 : 1;
+    const favBadge = (fav && size >= 11) ? '<span class="pin-fav">⭐</span>' : '';
+    const countBadge = (count && size >= 9)
+      ? `<span class="pin-count" style="font-size:8px">${count}</span>` : '';
     return L.divIcon({
       className: '',
       html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px;border-width:${border}px">${favBadge}${countBadge}</div>`,
