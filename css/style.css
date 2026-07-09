@@ -173,11 +173,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 2px 0 8px; }
 .dot.r1 { background: var(--r1); } .dot.r2 { background: var(--r2); } .dot.r3 { background: var(--r3); }
 .dot.r4 { background: var(--r4); } .dot.r5 { background: var(--r5); }
-#map-canvas { height: calc(100vh - 320px); min-height: 340px; border-radius: 12px; }
+#map-canvas { height: calc(100vh - 320px); min-height: 340px; border-radius: 14px; overflow: hidden; }
+/* Apple Maps風に地図の操作系を丸く柔らかく */
+.leaflet-control-zoom a {
+  border-radius: 8px !important; color: var(--text) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.leaflet-bar { border: none !important; }
+.leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+.leaflet-control-attribution { font-size: 9px; opacity: .7; }
 
 .pin {
   border-radius: 50%;
-  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  border: 1.5px solid #fff; box-shadow: 0 1px 2.5px rgba(0, 0, 0, .3);
   background: var(--r3); box-sizing: border-box;
 }
 .pin.r0 { background: var(--r1); } .pin.r1 { background: var(--r1); } .pin.r2 { background: var(--r2); }

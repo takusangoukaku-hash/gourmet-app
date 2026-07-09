@@ -20,10 +20,22 @@ const Views = (() => {
   let map = null, cluster = null, heat = null, heatOn = false;
   let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
 
-  // ズームレベルに応じたピンの直径（広域=極小の点3px、拡大=最大32px）
+  // Apple Maps風のクリーンな地図タイル（CartoDB Voyager／ダーク対応）
+  function addBaseTiles(m) {
+    const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const style = dark ? 'dark_all' : 'rastertiles/voyager';
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, {
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      maxZoom: 20,
+    }).addTo(m);
+  }
+
+  // ズームレベルに応じたピンの直径（Apple Maps風の小さめの点）
+  // 広域は極小の点(3px)、拡大しても最大16pxまで
   function pinSize() {
     const z = map ? map.getZoom() : 12;
-    return Math.round(Math.max(3, Math.min(32, (z - 8) * 4)));
+    return Math.round(Math.max(3, Math.min(16, (z - 8) * 2.2)));
   }
 
   // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
@@ -32,10 +44,10 @@ const Views = (() => {
     const size = count ? Math.max(base + 1, Math.round(base * 1.15)) : base;
     const r = Math.round(avg) || 0;
     // 極小サイズでは白フチが色を潰すため段階的に細く
-    const border = size <= 5 ? 0 : (size < 10 ? 1 : 2);
-    const favBadge = (fav && size >= 18) ? '<span class="pin-fav">⭐</span>' : '';
-    const countBadge = (count && size >= 14)
-      ? `<span class="pin-count" style="font-size:${Math.max(9, Math.round(size * 0.38))}px">${count}</span>` : '';
+    const border = size <= 5 ? 0 : (size < 10 ? 1 : 1.5);
+    const favBadge = (fav && size >= 12) ? '<span class="pin-fav">⭐</span>' : '';
+    const countBadge = (count && size >= 11)
+      ? `<span class="pin-count" style="font-size:${Math.max(8, Math.round(size * 0.42))}px">${count}</span>` : '';
     return L.divIcon({
       className: '',
       html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px;border-width:${border}px">${favBadge}${countBadge}</div>`,
@@ -64,10 +76,9 @@ const Views = (() => {
 
   function initMap() {
     if (map) return;
-    map = L.map('map-canvas').setView([35.6812, 139.7671], 12);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
-    }).addTo(map);
+    map = L.map('map-canvas', { zoomControl: true, attributionControl: true })
+      .setView([35.6812, 139.7671], 12);
+    addBaseTiles(map);
     // クラスター（重なり）は中で最も評価の高い店舗の色を代表として表示し、
     // 右上に件数バッジを付ける
     cluster = L.markerClusterGroup({
@@ -600,5 +611,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, showShop, closeModal, openLightbox, getMap: () => map };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles };
 })();

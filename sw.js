@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v11'; // Google検索の状態表示・バージョン表示を追加
+const VERSION = 'v12'; // 地図をApple Maps風タイルに変更・ピン小型化
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
@@ -15,7 +15,7 @@ const SHELL = [
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
 
-const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tile.openstreetmap.org'];
+const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tile.openstreetmap.org', 'basemaps.cartocdn.com'];
 const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com'];
 
 self.addEventListener('install', (e) => {

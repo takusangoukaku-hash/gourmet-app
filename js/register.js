@@ -370,9 +370,7 @@ const Register = (() => {
   function initMiniMap() {
     if (miniMap) { setTimeout(() => miniMap.invalidateSize(), 50); return; }
     miniMap = L.map('register-map').setView([35.6812, 139.7671], 13);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
-    }).addTo(miniMap);
+    Views.addBaseTiles(miniMap); // 地図タブと同じApple Maps風のクリーンなタイル
     miniMap.on('click', async (e) => {
       const { lat, lng } = e.latlng;
       if (miniMarker) miniMarker.setLatLng(e.latlng);
