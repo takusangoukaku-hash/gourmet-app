@@ -260,6 +260,7 @@ const Views = (() => {
     map.on('zoomend', () => {
       pinMarkers.forEach(m => m.setIcon(makePinIcon(m._avgRating, m._fav)));
       cluster.refreshClusters();
+      updatePinLabels();
     });
 
     // 料理ジャンルフィルタのチップ（複数選択可）
@@ -288,6 +289,34 @@ const Views = (() => {
     $('#map-heat').addEventListener('click', toggleHeat);
   }
 
+  // ある程度拡大したとき（z14以上）だけ、ピンの上に店名＋ジャンルを表示
+  const LABEL_MIN_ZOOM = 14;
+
+  // 店の代表ジャンル: よく食べる料理ジャンル → なければ店舗ジャンル
+  function shopLabelGenre(s) {
+    const tally = new Map();
+    for (const v of Store.visitsOf(s.id)) {
+      for (const g of (v.dishGenres || [])) tally.set(g, (tally.get(g) || 0) + 1);
+    }
+    const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+    return top ? top[0] : (s.shopGenre || '');
+  }
+
+  function updatePinLabels() {
+    if (!map) return;
+    const show = map.getZoom() >= LABEL_MIN_ZOOM;
+    pinMarkers.forEach(m => {
+      if (show && !m.getTooltip()) {
+        m.bindTooltip(m._labelHtml, {
+          permanent: true, direction: 'top', offset: [0, -8],
+          className: 'pin-label', opacity: 1,
+        });
+      } else if (!show && m.getTooltip()) {
+        m.unbindTooltip();
+      }
+    });
+  }
+
   function refreshMap() {
     initMap();
     setTimeout(() => map.invalidateSize(), 60);
@@ -310,6 +339,8 @@ const Views = (() => {
       });
       m._avgRating = avg; // クラスターの代表色・ズーム時の再描画に使用
       m._fav = s.favorite;
+      const genre = shopLabelGenre(s);
+      m._labelHtml = `<span class="pl-name">${esc(s.name)}</span>${genre ? `<span class="pl-genre">${esc(genre)}</span>` : ''}`;
       pinMarkers.push(m);
       m.bindPopup('<div class="popup">読み込み中…</div>');
       m.on('popupopen', async () => {
@@ -335,6 +366,7 @@ const Views = (() => {
     if (shops.length) {
       try { map.fitBounds(cluster.getBounds().pad(0.2)); } catch { /* noop */ }
     }
+    updatePinLabels();
     if (heatOn) buildHeat();
   }
 
