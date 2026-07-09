@@ -26,28 +26,166 @@ const Views = (() => {
   let map = null, cluster = null, heat = null, heatOn = false;
   let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
 
-  // 地図タイル:
-  //  - 日本国内: 国土地理院「淡色地図」（日本語ラベル・クリーンな配色）
-  //    tileSize:128 + zoomOffset:1 で半分に縮小描画 → 文字が小さく高精細になる
-  //  - 日本国外: CartoDB（世界カバーの下敷き）
-  //  - ダークモード時はCSSフィルタで暗色化
-  function addBaseTiles(m) {
-    const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const style = dark ? 'dark_all' : 'rastertiles/voyager';
-    // ズーム中はタイルを差し替えず、周辺タイルを多めにキャッシュして
-    // 拡大途中にグレーの余白（白黒のちらつき）が出ないようにする
+  // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
+  //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
+  //  - 道路名・番地・細かな地名は非表示ですっきりさせる
+  //  - ベクトル描画なのでズーム中のちらつき（白黒タイル）も起きない
+  const JA_NAME = ['coalesce', ['get', 'name:ja'], ['get', 'name']];
+  const FONT = ['NotoSansCJKjp-Regular'];
+
+  function baseMapStyle(dark) {
+    // Apple Maps参考の配色（ライト/ダーク）
+    const c = dark ? {
+      bg: '#212227', water: '#17344d', park: '#26372a', wood: '#223125',
+      building: '#2a2b31', roadMinor: '#33353b', roadMain: '#43464e',
+      roadCasing: '#1b1c20', highway: '#8d7439', rail: '#45464c',
+      boundary: '#4a4658', text: '#c9c7c2', halo: '#1a1b1f',
+      station: '#8fb0e8', poi: '#98938a',
+    } : {
+      bg: '#f5f4ef', water: '#a9d1e6', park: '#c8e2ae', wood: '#b9d8a0',
+      building: '#e8e4db', roadMinor: '#ffffff', roadMain: '#ffffff',
+      roadCasing: '#e2ddd2', highway: '#f9d975', rail: '#cfc9bf',
+      boundary: '#bcb2cb', text: '#55524c', halo: '#ffffff',
+      station: '#3a6db4', poi: '#85806f',
+    };
+    const label = (id, layer, filter, minzoom, size, color, haloW) => ({
+      id, type: 'symbol', source: 'omt', 'source-layer': layer, minzoom,
+      filter,
+      layout: {
+        'text-field': JA_NAME, 'text-font': FONT, 'text-size': size,
+        'text-max-width': 9, 'text-padding': 4,
+      },
+      paint: {
+        'text-color': color,
+        'text-halo-color': c.halo, 'text-halo-width': haloW,
+      },
+    });
+    return {
+      version: 8,
+      glyphs: 'https://maps.gsi.go.jp/xyz/noto-jp/{fontstack}/{range}.pbf',
+      sources: {
+        omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
+      },
+      layers: [
+        { id: 'bg', type: 'background', paint: { 'background-color': c.bg } },
+        { id: 'landcover-wood', type: 'fill', source: 'omt', 'source-layer': 'landcover',
+          filter: ['==', ['get', 'class'], 'wood'], paint: { 'fill-color': c.wood, 'fill-opacity': 0.6 } },
+        { id: 'landcover-grass', type: 'fill', source: 'omt', 'source-layer': 'landcover',
+          filter: ['==', ['get', 'class'], 'grass'], paint: { 'fill-color': c.park, 'fill-opacity': 0.5 } },
+        { id: 'landuse-green', type: 'fill', source: 'omt', 'source-layer': 'landuse',
+          filter: ['in', ['get', 'class'], ['literal', ['pitch', 'cemetery', 'stadium']]],
+          paint: { 'fill-color': c.park, 'fill-opacity': 0.6 } },
+        { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park',
+          paint: { 'fill-color': c.park, 'fill-opacity': 0.75 } },
+        { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water',
+          paint: { 'fill-color': c.water } },
+        { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway',
+          paint: { 'line-color': c.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.7, 16, 3] } },
+        { id: 'building', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 14,
+          paint: { 'fill-color': c.building, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 16, 0.9] } },
+        // 道路（細い順に重ねる）
+        { id: 'road-service', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 14,
+          filter: ['in', ['get', 'class'], ['literal', ['service', 'track', 'path']]],
+          paint: { 'line-color': c.roadMinor, 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.6, 18, 4] } },
+        { id: 'road-minor-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 13,
+          filter: ['==', ['get', 'class'], 'minor'],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadCasing, 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.6, 18, 9] } },
+        { id: 'road-minor', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12,
+          filter: ['==', ['get', 'class'], 'minor'],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadMinor, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.7, 13, 1, 18, 7.5] } },
+        { id: 'road-mid-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 10,
+          filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary']]],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadCasing, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 18, 12] } },
+        { id: 'road-mid', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 10,
+          filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary']]],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadMain, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 18, 10] } },
+        { id: 'road-major-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
+          filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadCasing, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.4, 18, 14] } },
+        { id: 'road-major', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
+          filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.roadMain, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.9, 18, 12] } },
+        { id: 'motorway-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6,
+          filter: ['==', ['get', 'class'], 'motorway'],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': dark ? '#5c4c22' : '#e8bd50', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 18, 15] } },
+        { id: 'motorway', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6,
+          filter: ['==', ['get', 'class'], 'motorway'],
+          layout: { 'line-cap': 'round' },
+          paint: { 'line-color': c.highway, 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.8, 18, 12] } },
+        { id: 'rail', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 11,
+          filter: ['==', ['get', 'class'], 'rail'],
+          paint: { 'line-color': c.rail, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 16, 2.2] } },
+        { id: 'boundary', type: 'line', source: 'omt', 'source-layer': 'boundary', minzoom: 5,
+          filter: ['<=', ['get', 'admin_level'], 4],
+          paint: { 'line-color': c.boundary, 'line-width': 1, 'line-dasharray': [3, 2] } },
+        // ===== ラベル（都市名・駅名・主要施設のみ）=====
+        label('place-city', 'place',
+          ['==', ['get', 'class'], 'city'], 4,
+          ['interpolate', ['linear'], ['zoom'], 5, 10, 12, 13], c.text, 1.4),
+        label('place-town', 'place',
+          ['==', ['get', 'class'], 'town'], 9,
+          ['interpolate', ['linear'], ['zoom'], 9, 9.5, 14, 12], c.text, 1.3),
+        // 駅名: ある程度拡大したとき（z12〜）のみ表示
+        label('station-label', 'poi',
+          ['==', ['get', 'class'], 'railway'], 12,
+          ['interpolate', ['linear'], ['zoom'], 12, 9.5, 16, 12], c.station, 1.2),
+        // 主要施設のみ: 大学・スタジアム・博物館・動物園・遊園地・城など
+        // （病院はOSM上でクリニックとの区別が曖昧なため表示しない）
+        label('poi-major', 'poi',
+          ['any',
+            ['all', ['==', ['get', 'class'], 'college'], ['==', ['get', 'subclass'], 'university']],
+            ['in', ['get', 'class'], ['literal', ['stadium', 'museum', 'zoo', 'aquarium', 'theme_park', 'castle']]],
+          ], 14,
+          10.5, c.poi, 1.2),
+        // 空港
+        label('airport-label', 'aerodrome_label',
+          ['has', 'iata'], 9, 10.5, c.poi, 1.2),
+      ],
+    };
+  }
+
+  // フォールバック用のラスタ地図（ベクトル地図が使えない端末向け）
+  function addRasterFallback(m, dark) {
     const smooth = { updateWhenZooming: false, keepBuffer: 4 };
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, Object.assign({
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`, Object.assign({
       subdomains: 'abcd',
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 20,
     }, smooth)).addTo(m);
-    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', Object.assign({
-      tileSize: 128, zoomOffset: 1,
-      minZoom: 4, maxZoom: 20, maxNativeZoom: 18,
-      className: dark ? 'gsi-tiles gsi-dark' : 'gsi-tiles',
-      attribution: '地理院タイル',
-    }, smooth)).addTo(m);
+  }
+
+  function addBaseTiles(m) {
+    const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    try {
+      const gl = L.maplibreGL({
+        style: baseMapStyle(dark),
+        attribution: '&copy; OpenStreetMap contributors &copy; OpenMapTiles / OpenFreeMap 地理院フォント',
+      });
+      gl.addTo(m);
+      m._glLayer = gl; // 動作確認用の参照
+      const glMap = gl.getMaplibreMap();
+      let loaded = false;
+      glMap.on('load', () => { loaded = true; });
+      glMap.on('error', (e) => console.warn('MapLibre:', e && e.error));
+      // 保険: 画面表示中なのに20秒で初回描画が来なければラスタ地図へ切り替え
+      setTimeout(() => {
+        if (!loaded && !document.hidden) {
+          console.warn('ベクトル地図の描画がタイムアウト。ラスタ地図に切り替えます。');
+          try { m.removeLayer(gl); } catch (e) { /* noop */ }
+          addRasterFallback(m, dark);
+        }
+      }, 20000);
+    } catch (e) {
+      console.warn('ベクトル地図の初期化に失敗:', e);
+      addRasterFallback(m, dark);
+    }
   }
 
   // ズームレベルに応じたピンの直径（Apple Maps風の小さめの点）
@@ -693,5 +831,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles, baseMapStyle };
 })();

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v16'; // sw.js の VERSION と合わせる
+  const APP_VERSION = 'v17'; // sw.js の VERSION と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -78,8 +78,10 @@ const App = (() => {
       navigator.serviceWorker.register('./sw.js').catch(() => { /* 非対応環境では何もしない */ });
     }
 
-    // 起動時: データがあれば一覧、なければ登録タブ
-    switchTab(Store.shops().length ? 'list' : 'register');
+    // 起動時: URLの?tab=指定 → データがあれば一覧 → なければ登録タブ
+    const urlTab = new URLSearchParams(location.search).get('tab');
+    switchTab(urlTab && document.querySelector('#view-' + urlTab)
+      ? urlTab : (Store.shops().length ? 'list' : 'register'));
   }
 
   function switchTab(name) {

@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v16'; // 地図ズーム中の白黒ちらつきを修正
+const VERSION = 'v17'; // ベクトル地図に変更（Apple風配色・駅名/主要施設のみ表示）
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
@@ -15,7 +15,7 @@ const SHELL = [
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
 
-const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tile.openstreetmap.org', 'basemaps.cartocdn.com', 'cyberjapandata.gsi.go.jp'];
+const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tiles.openfreemap.org', 'maps.gsi.go.jp'];
 const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com'];
 
 self.addEventListener('install', (e) => {
