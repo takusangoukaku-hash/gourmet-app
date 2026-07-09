@@ -74,9 +74,6 @@
       <label>訪問日 <span class="req">必須</span>
         <input type="date" id="f-datetime">
       </label>
-      <label>店舗ジャンル
-        <select id="f-shop-genre"></select>
-      </label>
       <label>利用形態
         <select id="f-visit-type">
           <option value="店内飲食">店内飲食</option>
@@ -169,7 +166,6 @@
         <option value="station">最寄駅ごと</option>
         <option value="pref">都道府県ごと</option>
         <option value="city">市区町村ごと</option>
-        <option value="shopGenre">店舗ジャンルごと</option>
         <option value="dishGenre">料理ジャンルごと</option>
         <option value="rating">評価ごと</option>
       </select>
@@ -186,7 +182,6 @@
     </div>
     <div class="filter-row">
       <select id="flt-pref"><option value="">都道府県</option></select>
-      <select id="flt-shop-genre"><option value="">店舗ジャンル</option></select>
       <select id="flt-dish-genre"><option value="">料理ジャンル</option></select>
       <select id="flt-rating">
         <option value="">味の評価</option>
@@ -220,10 +215,7 @@
 <section id="view-stats" class="view">
   <div id="stat-cards" class="stat-cards"></div>
   <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
-  <div class="chart-pair">
-    <div class="card"><h2>店舗ジャンル別割合</h2><canvas id="chart-shop-genre"></canvas></div>
-    <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
-  </div>
+  <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
   <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
   <div class="card">
     <h2>🏆 ランキング</h2>
@@ -233,7 +225,6 @@
       <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
       <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
       <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
-      <div><h3>よく行く店舗ジャンル</h3><ol id="rank-shopgenre"></ol></div>
     </div>
   </div>
 </section>

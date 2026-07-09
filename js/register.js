@@ -17,6 +17,8 @@ const Register = (() => {
   let shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
   // AIが料理ジャンルを判定済みか（OSMタグ推定で上書きしないためのフラグ）
   let aiClassified = false;
+  // AI/OSM由来の店舗ジャンル（UIには出さず内部保持。地図ラベルのフォールバック用）
+  let derivedShopGenre = '';
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
   let autoPicked = false;
   // 直近に解析した写真のGPS（名前検索の基準位置に使う）
@@ -53,11 +55,6 @@ const Register = (() => {
 
     $('#shop-search-btn').addEventListener('click', doSearch);
     $('#shop-search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
-
-    // 店舗ジャンル select
-    const sg = $('#f-shop-genre');
-    sg.innerHTML = Api.SHOP_GENRES.map(g => `<option value="${g}">${g}</option>`).join('');
-    sg.value = 'その他';
 
     // 料理ジャンル chips
     const dg = $('#f-dish-genres');
@@ -192,9 +189,8 @@ const Register = (() => {
         aiClassified = true;
         document.querySelectorAll('#f-dish-genres .chip').forEach(ch =>
           ch.classList.toggle('on', result.dishGenres.includes(ch.dataset.g)));
-        if (result.shopGenre) $('#f-shop-genre').value = result.shopGenre;
+        if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
-          + (result.shopGenre ? `（店舗ジャンル: ${esc(result.shopGenre)}）` : '')
           + ' — 違っていたら下のフォームで修正できます。';
       } else {
         ai.classList.add('warn');
@@ -253,7 +249,7 @@ const Register = (() => {
       div.innerHTML = `
         <div class="c-main">
           <div class="c-name">${esc(shop.name)}<span class="badge">登録済み・再訪</span></div>
-          <div class="c-sub">${esc(shop.shopGenre)}　訪問${Store.visitCount(shop.id)}回　★${Store.avgRating(shop.id) || '－'}</div>
+          <div class="c-sub">訪問${Store.visitCount(shop.id)}回　味★${Store.avgRating(shop.id) || '－'}</div>
         </div>
         <div class="c-dist">${distance != null ? Math.round(distance) + 'm' : ''}</div>`;
       div.addEventListener('click', () => { autoPicked = false; markSelected(div); chooseExisting(shop); });
@@ -389,7 +385,7 @@ const Register = (() => {
     $('#f-station').value = shop.station || '';
     $('#f-pref').value = shop.pref || '';
     $('#f-city').value = shop.city || '';
-    $('#f-shop-genre').value = shop.shopGenre || 'その他';
+    derivedShopGenre = ''; // 既存店舗のジャンルはそのまま維持
     $('#f-fav').checked = !!shop.favorite;
     // 店の評価は既存の値を引き継ぐ（再訪時は入力不要）
     shopRatings = { casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0 };
@@ -435,7 +431,7 @@ const Register = (() => {
     // OSMタグからのジャンル推定（AIが判定済みの場合は上書きしない — §5）
     if (!aiClassified) {
       const g = Api.guessGenres(c);
-      if (g.shop) $('#f-shop-genre').value = g.shop;
+      if (g.shop) derivedShopGenre = g.shop; // 内部保持のみ
       if (g.dish) {
         document.querySelectorAll('#f-dish-genres .chip').forEach(ch => ch.classList.toggle('on', ch.dataset.g === g.dish));
       }
@@ -503,9 +499,10 @@ const Register = (() => {
         station: $('#f-station').value.trim(),
         pref: $('#f-pref').value.trim(),
         city: $('#f-city').value.trim(),
-        shopGenre: $('#f-shop-genre').value,
         favorite: $('#f-fav').checked,
       };
+      // AI/OSM由来の店舗ジャンル（UI廃止後も地図ラベルのフォールバック用に内部保存）
+      if (derivedShopGenre) shopData.shopGenre = derivedShopGenre;
       // 店の評価（3軸）: つけた値のみ反映（0のままなら既存値を消さない）
       for (const k of AXES) if (shopRatings[k] > 0) shopData[k] = shopRatings[k];
       if (shop) {
@@ -565,7 +562,7 @@ const Register = (() => {
     $('#shop-search-input').value = '';
     $('#selected-shop-note').classList.add('hidden');
     ['#f-shop-name', '#f-address', '#f-station', '#f-pref', '#f-city', '#f-comment'].forEach(s => { $(s).value = ''; });
-    $('#f-shop-genre').value = 'その他';
+    derivedShopGenre = '';
     $('#f-visit-type').value = '店内飲食';
     $('#f-fav').checked = false;
     $('#f-datetime').value = toLocalInput(new Date());
