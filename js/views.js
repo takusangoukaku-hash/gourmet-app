@@ -21,14 +21,15 @@ const Views = (() => {
   let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
 
   // ズームレベルに応じたピンの直径（広域=点、拡大=大きく）
+  // 最小は凡例の点(11px)より少し小さい9px
   function pinSize() {
     const z = map ? map.getZoom() : 12;
-    return Math.round(Math.max(8, Math.min(32, (z - 5) * 3.2)));
+    return Math.round(Math.max(9, Math.min(32, (z - 6) * 3.2)));
   }
 
   // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
   function makePinIcon(avg, fav, count) {
-    const size = count ? Math.round(pinSize() * 1.3) : pinSize();
+    const size = count ? Math.round(pinSize() * 1.15) : pinSize();
     const r = Math.round(avg) || 0;
     const favBadge = (fav && size >= 18) ? '<span class="pin-fav">⭐</span>' : '';
     const countBadge = (count && size >= 14)
