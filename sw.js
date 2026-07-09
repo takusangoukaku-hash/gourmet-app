@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v9'; // 店名検索の精度向上（Photon＋Overpass周辺検索を統合）
+const VERSION = 'v10'; // Google Places検索を追加（キー設定時）
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
@@ -16,7 +16,7 @@ const SHELL = [
 ];
 
 const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tile.openstreetmap.org'];
-const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com'];
+const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

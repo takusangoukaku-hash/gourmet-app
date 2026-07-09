@@ -73,6 +73,6 @@ PWAのインストールにはhttpsが必要。`gourmet-app/` フォルダを無
 | データ保存 | ブラウザ内（localStorage/IndexedDB） | クラウド（§12・§14） |
 | アカウント・認証（§3） | なし（単一利用者） | Apple/Googleサインイン |
 | オフライン同期（§14.1） | ブラウザ内保存のため常にローカル | ローカル→クラウド自動同期 |
-| 店舗検索API | Overpass/Nominatim（無料・キー不要） | Google Places等も候補（§15） |
+| 店舗検索API | Overpass/Nominatim/Photon（無料・キー不要）＋ Google Places（⚙️でキー設定時。OSM未登録の個人店もヒット） | サーバー経由でキーを秘匿 |
 
 ※ ブラウザのサイトデータを消去すると記録も消えるので注意。

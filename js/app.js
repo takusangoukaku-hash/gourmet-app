@@ -41,23 +41,32 @@ const App = (() => {
     });
 
     // 設定モーダル（Anthropic APIキー — AI料理ジャンル判定用）
+    const settingsStatus = () => {
+      const parts = [];
+      parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
+      parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
+      return parts.join(' ／ ');
+    };
     $('#settings-btn').addEventListener('click', () => {
       $('#settings-api-key').value = Api.getApiKey();
-      $('#settings-status').textContent = Api.hasApiKey() ? '✅ APIキーは設定済みです。' : 'APIキーは未設定です。';
+      $('#settings-google-key').value = Api.getGoogleKey();
+      $('#settings-status').textContent = settingsStatus();
       $('#settings-modal').classList.remove('hidden');
     });
     $('#settings-save').addEventListener('click', () => {
-      const key = $('#settings-api-key').value.trim();
-      Api.setApiKey(key);
+      Api.setApiKey($('#settings-api-key').value.trim());
       Api.resetAnthropicClient();
+      Api.setGoogleKey($('#settings-google-key').value.trim());
       $('#settings-modal').classList.add('hidden');
-      toast(key ? '✅ APIキーを保存しました。AI判定が有効になります。' : 'APIキーを削除しました。');
+      toast('✅ 設定を保存しました。');
     });
     $('#settings-clear').addEventListener('click', () => {
       Api.setApiKey('');
       Api.resetAnthropicClient();
+      Api.setGoogleKey('');
       $('#settings-api-key').value = '';
-      $('#settings-status').textContent = 'APIキーを削除しました。';
+      $('#settings-google-key').value = '';
+      $('#settings-status').textContent = settingsStatus();
       toast('APIキーを削除しました。');
     });
 

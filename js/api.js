@@ -221,11 +221,17 @@ out center 25;`;
       .replace('relation', 'r').replace('node', 'n').replace('way', 'w');
     const seen = new Set();
     const out = [];
+    // 情報源をまたぐ同一店舗の判定（座標が微妙に違うため、近接＋名前の包含で判定）
+    const isDup = (c) => out.some(o =>
+      o.lat != null && c.lat != null &&
+      Store.distMeters(o.lat, o.lon, c.lat, c.lon) < 150 &&
+      (o.name === c.name || o.name.includes(c.name) || c.name.includes(o.name)));
     for (const list of lists) {
       for (const c of list) {
-        const key = c.osmId ? norm(c.osmId)
+        const key = c.googleId ? 'g/' + c.googleId
+          : c.osmId ? norm(c.osmId)
           : c.name + '@' + (c.lat || 0).toFixed(3) + ',' + (c.lon || 0).toFixed(3);
-        if (seen.has(key)) continue;
+        if (seen.has(key) || isDup(c)) continue;
         seen.add(key);
         if (ref && c.lat != null && c.distance == null) {
           c.distance = Store.distMeters(ref.lat, ref.lon, c.lat, c.lon);
@@ -237,13 +243,15 @@ out center 25;`;
     return out.slice(0, 15);
   }
 
-  // ---------- 高速検索: Photon + Nominatim（即時表示用） ----------
+  // ---------- 高速検索: Google Places + Photon + Nominatim（即時表示用） ----------
   async function searchShopsFast(fullQuery, nameQuery, ref) {
-    const [photon, nomi] = await Promise.all([
+    const [google, photon, nomi] = await Promise.all([
+      googlePlacesSearch(fullQuery, ref).catch(e => { console.warn('Google Places:', e); return []; }),
       photonSearch(nameQuery, ref && ref.lat, ref && ref.lon).catch(() => []),
       searchPlaces(fullQuery).catch(() => []),
     ]);
-    return mergeCandidates([photon, nomi], ref);
+    // Googleが最も網羅的なので優先
+    return mergeCandidates([google, photon, nomi], ref);
   }
 
   // ---------- 周辺の詳細検索: Overpass部分一致（個人店に強い・遅いので後追い用） ----------
@@ -276,6 +284,59 @@ out center 25;`;
     else localStorage.removeItem(API_KEY_STORAGE);
   }
   const hasApiKey = () => !!getApiKey();
+
+  // ---------- Google Maps APIキー管理（店舗検索の強化用・任意） ----------
+  const GOOGLE_KEY_STORAGE = 'gourmet.googleKey';
+  const getGoogleKey = () => localStorage.getItem(GOOGLE_KEY_STORAGE) || '';
+  function setGoogleKey(key) {
+    if (key) localStorage.setItem(GOOGLE_KEY_STORAGE, key.trim());
+    else localStorage.removeItem(GOOGLE_KEY_STORAGE);
+  }
+  const hasGoogleKey = () => !!getGoogleKey();
+
+  // ---------- Google Places (New) テキスト検索 ----------
+  // Googleマップのデータからほぼすべての飲食店を検索できる（キー設定時のみ）
+  async function googlePlacesSearch(query, ref) {
+    const key = getGoogleKey();
+    if (!key) return [];
+    const body = {
+      textQuery: query,
+      languageCode: 'ja',
+      regionCode: 'JP',
+      pageSize: 10,
+      includedType: 'restaurant',
+    };
+    // includedTypeで絞ると喫茶店などが漏れるため指定しない
+    delete body.includedType;
+    if (ref) {
+      body.locationBias = {
+        circle: { center: { latitude: ref.lat, longitude: ref.lon }, radius: 30000 },
+      };
+    }
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.types',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('Google Places error ' + res.status);
+    const j = await res.json();
+    return (j.places || []).map(p => ({
+      osmId: '',
+      googleId: p.id,
+      name: (p.displayName && p.displayName.text) || '',
+      address: String(p.formattedAddress || '').replace(/^日本、?\s*/, '').replace(/^〒?\d{3}-\d{4}\s*/, ''),
+      lat: p.location && p.location.latitude,
+      lon: p.location && p.location.longitude,
+      // Googleのtype（例: ramen_restaurant）をcuisine相当に変換してジャンル推定に使う
+      cuisine: (p.types || []).map(t => t.replace(/_restaurant$/, '')).join(';'),
+      amenity: 'restaurant',
+      distance: null,
+    })).filter(c => c.name && c.lat != null);
+  }
 
   // 公式SDK（@anthropic-ai/sdk）を遅延ロードしてクライアントを生成
   let anthropicClientPromise = null;
@@ -396,5 +457,6 @@ out center 25;`;
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
     guessGenres, compressImage,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
+    getGoogleKey, setGoogleKey, hasGoogleKey,
   };
 })();

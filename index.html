@@ -273,6 +273,18 @@
         <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
       </label>
     </div>
+    <h3>店舗検索の強化（Googleマップ）</h3>
+    <p class="hint">
+      Google MapsのAPIキーを設定すると、店名検索にGoogleマップのデータが加わり、
+      無料の地図データに載っていない個人店もほぼ確実に見つかるようになります。
+      キーは <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>
+      で「Places API (New)」を有効にして取得します（無料枠あり）。
+    </p>
+    <div class="form-grid">
+      <label class="full">Google Maps APIキー
+        <input type="password" id="settings-google-key" placeholder="AIza...">
+      </label>
+    </div>
     <div class="detail-actions">
       <button id="settings-save" class="btn primary">保存</button>
       <button id="settings-clear" class="btn danger">キーを削除</button>
