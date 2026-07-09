@@ -57,18 +57,22 @@ const Api = (() => {
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
   ];
-  async function overpass(query) {
+  async function overpass(query, abortMs, endpoints) {
     let lastErr;
-    for (const url of OVERPASS_ENDPOINTS) {
+    for (const url of (endpoints || OVERPASS_ENDPOINTS)) {
+      const ctrl = abortMs ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), abortMs) : null;
       try {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: 'data=' + encodeURIComponent(query),
+          signal: ctrl ? ctrl.signal : undefined,
         });
-        if (res.ok) return await res.json();
+        if (res.ok) { if (timer) clearTimeout(timer); return await res.json(); }
         lastErr = new Error('Overpass error ' + res.status);
       } catch (e) { lastErr = e; }
+      finally { if (timer) clearTimeout(timer); }
     }
     throw lastErr;
   }
@@ -145,6 +149,107 @@ out center 40;`;
         city: a.city || a.town || a.village || a.municipality || a.county || '',
       };
     } catch { return {}; }
+  }
+
+  // ---------- Overpass: 周辺の店名部分一致検索（個人店に強い） ----------
+  function escapeOverpassRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/"/g, '\\"');
+  }
+  async function overpassNameSearch(name, lat, lon, radius = 4000) {
+    const n = escapeOverpassRegex(name.trim());
+    if (!n) return [];
+    // 重要: amenityは等価フィルタで（正規表現だとクエリプランが崩れ
+    // サーバー側タイムアウト→空配列が返る）。node限定・半径4kmで20〜30秒
+    // 後追い表示専用なので長めに待つ。ミラーはこのクエリに弱いため本家のみ
+    const q = `[out:json][timeout:25];
+(
+node(around:${radius},${lat},${lon})[amenity=restaurant][name~"${n}"];
+node(around:${radius},${lat},${lon})[amenity=fast_food][name~"${n}"];
+node(around:${radius},${lat},${lon})[amenity=cafe][name~"${n}"];
+);
+out center 25;`;
+    const json = await overpass(q, 40000, [OVERPASS_ENDPOINTS[0]]);
+    return (json.elements || []).map(e => {
+      const la = e.lat != null ? e.lat : (e.center && e.center.lat);
+      const lo = e.lon != null ? e.lon : (e.center && e.center.lon);
+      const t = e.tags || {};
+      return {
+        osmId: e.type + '/' + e.id,
+        name: t['name:ja'] || t.name || '(名称不明)',
+        lat: la, lon: lo,
+        cuisine: t.cuisine || '',
+        amenity: t.amenity || t.shop || '',
+        address: '',
+        distance: (la != null) ? Store.distMeters(lat, lon, la, lo) : null,
+      };
+    }).filter(s => s.lat != null && s.name !== '(名称不明)');
+  }
+
+  // ---------- Photon: あいまい一致に強いOSM検索 ----------
+  async function photonSearch(query, lat, lon) {
+    let url = 'https://photon.komoot.io/api/?limit=12&q=' + encodeURIComponent(query);
+    if (lat != null && lon != null) url += `&lat=${lat}&lon=${lon}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const j = await res.json();
+    // 飲食関連のみ（地名・駅・病院・マッサージ店などを除外）
+    const FOOD_AMENITY = ['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream', 'izakaya', 'biergarten'];
+    const FOOD_SHOP = ['bakery', 'confectionery', 'pastry', 'deli', 'seafood', 'butcher', 'coffee', 'tea',
+      'alcohol', 'beverages', 'ice_cream', 'chocolate', 'wine', 'convenience'];
+    return (j.features || [])
+      .filter(f => {
+        const p = f.properties;
+        if (!p || !p.name) return false;
+        if (p.osm_key === 'amenity') return FOOD_AMENITY.includes(p.osm_value);
+        if (p.osm_key === 'shop') return FOOD_SHOP.includes(p.osm_value);
+        return false;
+      })
+      .map(f => ({
+        osmId: ({ N: 'node', W: 'way', R: 'relation' }[f.properties.osm_type] || 'node') + '/' + f.properties.osm_id,
+        name: f.properties.name,
+        address: [f.properties.state, f.properties.county, f.properties.city, f.properties.district, f.properties.street]
+          .filter(Boolean).join(''),
+        lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+        cuisine: '', amenity: f.properties.osm_value || '',
+        distance: null,
+      }));
+  }
+
+  // ---------- 検索結果の統合（重複除去・距離計算・近い順ソート） ----------
+  function mergeCandidates(lists, ref) {
+    const norm = id => String(id || '').toLowerCase()
+      .replace('relation', 'r').replace('node', 'n').replace('way', 'w');
+    const seen = new Set();
+    const out = [];
+    for (const list of lists) {
+      for (const c of list) {
+        const key = c.osmId ? norm(c.osmId)
+          : c.name + '@' + (c.lat || 0).toFixed(3) + ',' + (c.lon || 0).toFixed(3);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (ref && c.lat != null && c.distance == null) {
+          c.distance = Store.distMeters(ref.lat, ref.lon, c.lat, c.lon);
+        }
+        out.push(c);
+      }
+    }
+    if (ref) out.sort((a, b) => (a.distance != null ? a.distance : 1e12) - (b.distance != null ? b.distance : 1e12));
+    return out.slice(0, 15);
+  }
+
+  // ---------- 高速検索: Photon + Nominatim（即時表示用） ----------
+  async function searchShopsFast(fullQuery, nameQuery, ref) {
+    const [photon, nomi] = await Promise.all([
+      photonSearch(nameQuery, ref && ref.lat, ref && ref.lon).catch(() => []),
+      searchPlaces(fullQuery).catch(() => []),
+    ]);
+    return mergeCandidates([photon, nomi], ref);
+  }
+
+  // ---------- 周辺の詳細検索: Overpass部分一致（個人店に強い・遅いので後追い用） ----------
+  async function searchShopsNearby(nameQuery, ref) {
+    if (!ref) return [];
+    return overpassNameSearch(nameQuery, ref.lat, ref.lon);
   }
 
   // ---------- Nominatim: 名前検索 ----------
@@ -288,7 +393,8 @@ out center 40;`;
 
   return {
     DISH_GENRES, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
-    reverseGeocode, searchPlaces, guessGenres, compressImage,
+    reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
+    guessGenres, compressImage,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
   };
 })();

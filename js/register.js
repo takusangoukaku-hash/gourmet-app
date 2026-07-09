@@ -19,6 +19,22 @@ const Register = (() => {
   let aiClassified = false;
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
   let autoPicked = false;
+  // 直近に解析した写真のGPS（名前検索の基準位置に使う）
+  let lastGps = null;
+  // 検索の世代番号（古い検索の遅延結果で新しい結果を上書きしないため）
+  let searchSeq = 0;
+
+  // 現在地の取得（拒否・失敗時は null。検索精度向上のための任意情報）
+  function getCurrentPos(timeout = 3500) {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => resolve(null),
+        { timeout, maximumAge: 300000 }
+      );
+    });
+  }
 
   // ---------- 初期化 ----------
   function init() {
@@ -137,6 +153,7 @@ const Register = (() => {
       if (!gps && ex.lat != null && ex.lon != null) gps = { lat: ex.lat, lon: ex.lon };
       if (ex.date && (!earliest || ex.date < earliest)) earliest = ex.date;
     }
+    lastGps = gps; // 名前検索の基準位置としても使う
 
     // 訪問日時の初期値（撮影日時＝訪問日時とは限らないため編集可能 — §4.5）
     if (earliest) $('#f-datetime').value = toLocalInput(new Date(earliest));
@@ -282,22 +299,57 @@ const Register = (() => {
     }, 600);
   }
 
-  // ---------- フローB: 名前検索 ----------
+  // ---------- フローB: 名前検索（複数の情報源を統合、個人店対応） ----------
   async function doSearch() {
     const q = $('#shop-search-input').value.trim();
     const box = $('#shop-search-results');
     if (!q) { box.innerHTML = '<p class="hint">キーワードを入力してください。</p>'; return; }
-    box.innerHTML = '<p class="hint">検索中…</p>';
+    box.innerHTML = '<p class="hint">🔎 検索中…（周辺の店舗情報も含めて探しています）</p>';
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
     const existing = Store.shops()
       .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
       .map(s => ({ shop: s, distance: null }));
 
+    // 基準位置の決定: 写真のGPS →「店名 地名」の地名 → 現在地
+    let ref = lastGps;
+    let nameQuery = q;
+    if (!ref) {
+      const parts = q.split(/[\s　]+/);
+      if (parts.length >= 2) {
+        const loc = await Api.searchPlaces(parts[parts.length - 1]).catch(() => []);
+        if (loc.length && loc[0].lat != null) {
+          ref = { lat: loc[0].lat, lon: loc[0].lon };
+          nameQuery = parts.slice(0, -1).join(' ');
+        }
+      }
+    }
+    if (!ref) ref = await getCurrentPos();
+
+    const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で再検索するか、「🗺️ 地図で指定」から位置を指定して店舗名を入力してください。';
+    const mySeq = ++searchSeq;
+
+    // まず高速な検索（Photon + Nominatim）を即表示
     let results = [];
-    try { results = await Api.searchPlaces(q); } catch { /* 通信エラー時は登録済みのみ */ }
-    renderCandidates(box, existing, results,
-      '見つかりませんでした。新しい店舗は「🗺️ 地図で指定」から位置を指定し、店舗名を入力して登録できます。');
+    try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
+    if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
+    renderCandidates(box, existing, results, emptyMsg);
+
+    // 周辺の詳細検索（個人店に強いが遅い）を裏で実行し、結果が来たら追加表示
+    if (ref) {
+      const note = document.createElement('p');
+      note.className = 'hint';
+      note.textContent = '🔎 周辺の店舗をさらに検索中…';
+      box.appendChild(note);
+      const more = await Api.searchShopsNearby(nameQuery, ref).catch(() => []);
+      note.remove();
+      if (mySeq !== searchSeq) return;      // 別の検索が始まった
+      if (selected) return;                  // すでに店舗選択済みなら邪魔しない
+      if (more.length) {
+        results = Api.mergeCandidates([more, results], ref);
+        renderCandidates(box, existing, results, emptyMsg);
+      }
+    }
   }
 
   // ---------- フローB: 地図で指定 ----------
@@ -491,6 +543,7 @@ const Register = (() => {
     currentRating = 0;
     aiClassified = false;
     autoPicked = false;
+    lastGps = null;
     renderPreviews();
     $('#photo-input').value = '';
     $('#exif-status').classList.add('hidden');

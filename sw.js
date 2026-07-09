@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v8'; // 最小ピンを3px（従来の1/3）に縮小
+const VERSION = 'v9'; // 店名検索の精度向上（Photon＋Overpass周辺検索を統合）
 const CACHE = 'gourmet-' + VERSION;
 
 const SHELL = [
