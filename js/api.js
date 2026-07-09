@@ -8,31 +8,80 @@
 // =====================================================
 const Api = (() => {
 
-  const DISH_GENRES = ['ラーメン', 'つけ麺', 'チャーハン', '寿司', '焼肉', 'カレー',
-    'ハンバーガー', 'パスタ', 'ピザ', '定食', '丼もの', 'カフェメニュー', 'スイーツ', 'ドリンク', 'その他'];
+  // 食べログのジャンル体系に準拠した料理ジャンル
+  const DISH_GENRES = [
+    // 麺類
+    'ラーメン', 'つけ麺', '油そば・まぜそば', '担々麺', '焼きそば', 'うどん', 'そば', 'パスタ',
+    // 和食
+    '寿司', '海鮮・魚介', '海鮮丼', '日本料理', '天ぷら', 'とんかつ', '串揚げ', '焼鳥', 'うなぎ',
+    'お好み焼き', 'たこ焼き', 'もんじゃ焼き', '鍋', 'もつ鍋', 'しゃぶしゃぶ', 'すき焼き', 'おでん',
+    '釜飯', '郷土料理', '沖縄料理', '定食', '弁当', '丼もの', '牛丼', '親子丼',
+    // 肉料理
+    '焼肉', 'ホルモン', 'ジンギスカン', 'ステーキ', 'ハンバーグ',
+    // 中華
+    '中華料理', 'チャーハン', '餃子', '小籠包',
+    // アジア・エスニック
+    '韓国料理', 'タイ料理', 'ベトナム料理', 'インド料理', 'エスニック',
+    // カレー
+    'カレー', 'スープカレー',
+    // 洋食
+    'イタリアン', 'ピザ', 'フレンチ', 'スペイン料理', '洋食', 'ハンバーガー', 'サンドイッチ', 'パン',
+    // カフェ・スイーツ
+    'カフェメニュー', 'パンケーキ', 'ケーキ', 'パフェ', 'クレープ', 'アイス・ジェラート',
+    'ドーナツ', 'かき氷', '和菓子', 'タピオカ', 'スイーツ', 'ドリンク',
+    // その他
+    'ビュッフェ', 'その他',
+  ];
   const SHOP_GENRES = ['ラーメン店', '焼肉店', '寿司店', '中華料理店', 'イタリアン',
     'カフェ', '居酒屋', 'ファミリーレストラン', 'バー', 'その他'];
 
   const CUISINE_MAP = {
     ramen: { dish: 'ラーメン', shop: 'ラーメン店' },
     noodle: { dish: 'ラーメン', shop: 'ラーメン店' },
+    udon: { dish: 'うどん', shop: 'その他' },
+    soba: { dish: 'そば', shop: 'その他' },
     sushi: { dish: '寿司', shop: '寿司店' },
+    seafood: { dish: '海鮮・魚介', shop: 'その他' },
+    fish: { dish: '海鮮・魚介', shop: 'その他' },
     yakiniku: { dish: '焼肉', shop: '焼肉店' },
     barbecue: { dish: '焼肉', shop: '焼肉店' },
-    korean: { dish: '焼肉', shop: '焼肉店' },
-    chinese: { dish: 'チャーハン', shop: '中華料理店' },
+    korean: { dish: '韓国料理', shop: 'その他' },
+    thai: { dish: 'タイ料理', shop: 'その他' },
+    vietnamese: { dish: 'ベトナム料理', shop: 'その他' },
+    indian: { dish: 'インド料理', shop: 'その他' },
+    chinese: { dish: '中華料理', shop: '中華料理店' },
+    gyoza: { dish: '餃子', shop: '中華料理店' },
     italian: { dish: 'パスタ', shop: 'イタリアン' },
     pasta: { dish: 'パスタ', shop: 'イタリアン' },
     pizza: { dish: 'ピザ', shop: 'イタリアン' },
+    french: { dish: 'フレンチ', shop: 'その他' },
+    spanish: { dish: 'スペイン料理', shop: 'その他' },
+    steak_house: { dish: 'ステーキ', shop: 'その他' },
+    steak: { dish: 'ステーキ', shop: 'その他' },
     curry: { dish: 'カレー', shop: 'その他' },
-    indian: { dish: 'カレー', shop: 'その他' },
     burger: { dish: 'ハンバーガー', shop: 'その他' },
+    sandwich: { dish: 'サンドイッチ', shop: 'カフェ' },
+    kebab: { dish: 'エスニック', shop: 'その他' },
+    yakitori: { dish: '焼鳥', shop: '居酒屋' },
+    tempura: { dish: '天ぷら', shop: 'その他' },
+    tonkatsu: { dish: 'とんかつ', shop: 'その他' },
+    unagi: { dish: 'うなぎ', shop: 'その他' },
+    eel: { dish: 'うなぎ', shop: 'その他' },
+    okonomiyaki: { dish: 'お好み焼き', shop: 'その他' },
+    takoyaki: { dish: 'たこ焼き', shop: 'その他' },
+    hot_pot: { dish: '鍋', shop: 'その他' },
     coffee_shop: { dish: 'カフェメニュー', shop: 'カフェ' },
     dessert: { dish: 'スイーツ', shop: 'カフェ' },
-    ice_cream: { dish: 'スイーツ', shop: 'カフェ' },
-    cake: { dish: 'スイーツ', shop: 'カフェ' },
+    ice_cream: { dish: 'アイス・ジェラート', shop: 'カフェ' },
+    cake: { dish: 'ケーキ', shop: 'カフェ' },
+    crepe: { dish: 'クレープ', shop: 'カフェ' },
+    donut: { dish: 'ドーナツ', shop: 'カフェ' },
+    pancake: { dish: 'パンケーキ', shop: 'カフェ' },
+    bubble_tea: { dish: 'タピオカ', shop: 'カフェ' },
     japanese: { dish: '定食', shop: 'その他' },
     donburi: { dish: '丼もの', shop: 'その他' },
+    beef_bowl: { dish: '牛丼', shop: 'その他' },
+    buffet: { dish: 'ビュッフェ', shop: 'ファミリーレストラン' },
   };
   const AMENITY_SHOP = {
     cafe: 'カフェ', bar: 'バー', pub: '居酒屋', izakaya: '居酒屋',
