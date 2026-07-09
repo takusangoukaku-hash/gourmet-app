@@ -20,23 +20,25 @@ const Views = (() => {
   let map = null, cluster = null, heat = null, heatOn = false;
   let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
 
-  // ズームレベルに応じたピンの直径（広域=点、拡大=大きく）
-  // 最小は凡例の点(11px)より少し小さい9px
+  // ズームレベルに応じたピンの直径（広域=極小の点3px、拡大=最大32px）
   function pinSize() {
     const z = map ? map.getZoom() : 12;
-    return Math.round(Math.max(9, Math.min(32, (z - 6) * 3.2)));
+    return Math.round(Math.max(3, Math.min(32, (z - 8) * 4)));
   }
 
   // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
   function makePinIcon(avg, fav, count) {
-    const size = count ? Math.round(pinSize() * 1.15) : pinSize();
+    const base = pinSize();
+    const size = count ? Math.max(base + 1, Math.round(base * 1.15)) : base;
     const r = Math.round(avg) || 0;
+    // 極小サイズでは白フチが色を潰すため段階的に細く
+    const border = size <= 5 ? 0 : (size < 10 ? 1 : 2);
     const favBadge = (fav && size >= 18) ? '<span class="pin-fav">⭐</span>' : '';
     const countBadge = (count && size >= 14)
       ? `<span class="pin-count" style="font-size:${Math.max(9, Math.round(size * 0.38))}px">${count}</span>` : '';
     return L.divIcon({
       className: '',
-      html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px">${favBadge}${countBadge}</div>`,
+      html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px;border-width:${border}px">${favBadge}${countBadge}</div>`,
       iconSize: [size, size], iconAnchor: [size / 2, size / 2],
     });
   }
