@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=32">
+<link rel="stylesheet" href="css/style.css?v=33">
 </head>
 <body>
 
@@ -51,21 +51,9 @@
         </div>
         <p class="hint">見つからないときは「店名 地名」（例: ○○軒 渋谷）で検索してください。</p>
         <div id="shop-candidates" class="candidate-list"></div>
-        <button type="button" id="map-pick-toggle" class="btn detail-toggle">▸ 🗺️ 地図で位置を指定</button>
-        <div id="register-map" class="mini-map hidden"></div>
         <div id="selected-shop-note" class="selected-note hidden"></div>
       </div>
       <label class="check full fav-check"><input type="checkbox" id="f-fav"> ⭐ この店をお気に入りに登録</label>
-      <label>訪問日 <span class="req">必須</span>
-        <input type="date" id="f-datetime">
-      </label>
-      <label>利用形態
-        <select id="f-visit-type">
-          <option value="店内飲食">店内飲食</option>
-          <option value="テイクアウト">テイクアウト</option>
-          <option value="デリバリー">デリバリー</option>
-        </select>
-      </label>
       <!-- 注意: ボタン群を <label> で包まないこと。ラベルの隙間をタップすると
            先頭のボタンにクリックが転送され、意図しない選択になる（スマホで顕在化） -->
       <div class="full flabel">料理ジャンル（複数選択可）
@@ -291,10 +279,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=32"></script>
-<script src="js/api.js?v=32"></script>
-<script src="js/register.js?v=32"></script>
-<script src="js/views.js?v=32"></script>
-<script src="js/app.js?v=32"></script>
+<script src="js/store.js?v=33"></script>
+<script src="js/api.js?v=33"></script>
+<script src="js/register.js?v=33"></script>
+<script src="js/views.js?v=33"></script>
+<script src="js/app.js?v=33"></script>
 </body>
 </html>

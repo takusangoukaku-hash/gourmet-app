@@ -10,7 +10,8 @@ const Register = (() => {
   let pendingPhotos = [];
   // 選択中の店舗情報
   let selected = null; // { existingShopId?, osmId, name, address, lat, lon, pref, city, station, country }
-  let miniMap = null, miniMarker = null;
+  // 訪問日（YYYY-MM-DD）: 入力欄は廃止し、写真の撮影日→なければ当日を自動記録
+  let visitDate = '';
   let currentRating = 0; // 味の評価（訪問ごと・必須）
   // 店の性質の評価（任意・店舗に1つ）: 0 = 未評価
   const AXES = ['casual', 'atmosphere', 'speed'];
@@ -53,12 +54,6 @@ const Register = (() => {
     $('#shop-search-btn').addEventListener('click', doSearch);
     $('#f-shop-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
 
-    // 地図で位置を指定（開いたときだけ地図を初期化）
-    $('#map-pick-toggle').addEventListener('click', () => {
-      const closed = $('#register-map').classList.toggle('hidden');
-      $('#map-pick-toggle').textContent = closed ? '▸ 🗺️ 地図で位置を指定' : '▾ 🗺️ 地図を閉じる';
-      if (!closed) initMiniMap();
-    });
 
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
     dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
@@ -88,8 +83,8 @@ const Register = (() => {
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     mountAxisStars();
 
-    // 訪問日時の初期値 = 現在
-    $('#f-datetime').value = toLocalInput(new Date());
+    // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
+    visitDate = toLocalInput(new Date());
 
     $('#save-btn').addEventListener('click', save);
   }
@@ -196,8 +191,8 @@ const Register = (() => {
     }
     lastGps = gps; // 名前検索の基準位置としても使う
 
-    // 訪問日時の初期値（撮影日時＝訪問日時とは限らないため編集可能 — §4.5）
-    if (earliest) $('#f-datetime').value = toLocalInput(new Date(earliest));
+    // 訪問日 = 撮影日として自動記録（あとから一覧の✏️編集で修正可能）
+    if (earliest) visitDate = toLocalInput(new Date(earliest));
 
     if (gps) {
       status.innerHTML = `✅ 撮影日時: <b>${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}</b> ／ 位置情報あり → 周辺の店舗候補を検索中…`;
@@ -404,21 +399,6 @@ const Register = (() => {
     }
   }
 
-  // ---------- フローB: 地図で指定 ----------
-  function initMiniMap() {
-    if (miniMap) { setTimeout(() => miniMap.invalidateSize(), 50); return; }
-    miniMap = L.map('register-map').setView([35.6812, 139.7671], 13);
-    Views.addBaseTiles(miniMap); // 地図タブと同じApple Maps風のクリーンなタイル
-    miniMap.on('click', async (e) => {
-      const { lat, lng } = e.latlng;
-      if (miniMarker) miniMarker.setLatLng(e.latlng);
-      else miniMarker = L.marker(e.latlng).addTo(miniMap);
-      await applyLocation({ osmId: '', name: $('#f-shop-name').value, lat, lon: lng }, { keepName: true });
-      note('📍 位置を指定しました。店舗名を入力して保存してください。');
-    });
-    setTimeout(() => miniMap.invalidateSize(), 50);
-  }
-
   // ---------- 店舗の選択 ----------
   function chooseExisting(shop) {
     selected = { existingShopId: shop.id, osmId: shop.osmId, name: shop.name, address: shop.address, lat: shop.lat, lon: shop.lon, pref: shop.pref, city: shop.city, station: shop.station, country: shop.country };
@@ -487,9 +467,9 @@ const Register = (() => {
     await applyLocation(c);
   }
 
-  async function applyLocation(c, opts = {}) {
+  async function applyLocation(c) {
     selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '', station: '', country: '日本' };
-    if (!opts.keepName) $('#f-shop-name').value = c.name || '';
+    $('#f-shop-name').value = c.name || '';
     if (c.address) $('#f-address').value = c.address;
 
     if (c.lat != null && c.lon != null) {
@@ -521,9 +501,9 @@ const Register = (() => {
   // ---------- 保存 ----------
   async function save() {
     const name = $('#f-shop-name').value.trim();
-    const dtVal = $('#f-datetime').value;
+    // 訪問日は自動記録（写真の撮影日→なければ当日）。編集画面から修正可能
+    const dtVal = visitDate || toLocalInput(new Date());
     if (!name) { App.toast('店舗名を入力してください'); return; }
-    if (!dtVal) { App.toast('訪問日を入力してください'); return; }
     if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
 
     const btn = $('#save-btn');
@@ -571,7 +551,7 @@ const Register = (() => {
         dishGenres,
         rating: currentRating,
         comment: $('#f-comment').value.trim(),
-        visitType: $('#f-visit-type').value,
+        visitType: '店内飲食', // 入力欄は廃止（データ互換のため既定値を保存）
       });
 
       // --- 写真（圧縮して保存 — §9.1） ---
@@ -606,17 +586,13 @@ const Register = (() => {
     $('#ai-status').classList.add('hidden');
     $('#shop-candidates').innerHTML = '';
     $('#selected-shop-note').classList.add('hidden');
-    // 地図は閉じた状態に戻す
-    $('#register-map').classList.add('hidden');
-    $('#map-pick-toggle').textContent = '▸ 🗺️ 地図で位置を指定';
     ['#f-shop-name', '#f-address', '#f-station', '#f-pref', '#f-city', '#f-comment'].forEach(s => { $(s).value = ''; });
     derivedShopGenre = '';
-    $('#f-visit-type').value = '店内飲食';
     $('#f-fav').checked = false;
     // 詳細欄は閉じた状態に戻す
     $('#detail-fields').classList.add('hidden');
     $('#detail-toggle').textContent = '▸ もっと見る（住所・最寄駅など）';
-    $('#f-datetime').value = toLocalInput(new Date());
+    visitDate = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;
     autoFilledGenres = false;
@@ -624,7 +600,6 @@ const Register = (() => {
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
-    if (miniMarker) { miniMarker.remove(); miniMarker = null; }
   }
 
   // 店舗詳細から「訪問を追加」（§4.4 再訪の登録）
