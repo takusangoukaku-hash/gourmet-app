@@ -19,6 +19,9 @@ const Register = (() => {
   let aiClassified = false;
   // AI/OSM由来の店舗ジャンル（UIには出さず内部保持。地図ラベルのフォールバック用）
   let derivedShopGenre = '';
+  // 料理ジャンルの選択状態（2段階ピッカーと共有）
+  const selectedDishGenres = new Set();
+  let dishPicker = null;
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
   let autoPicked = false;
   // 直近に解析した写真のGPS（名前検索の基準位置に使う）
@@ -56,13 +59,8 @@ const Register = (() => {
     $('#shop-search-btn').addEventListener('click', doSearch);
     $('#shop-search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
 
-    // 料理ジャンル chips
-    const dg = $('#f-dish-genres');
-    dg.innerHTML = Api.DISH_GENRES.map(g => `<button type="button" class="chip" data-g="${g}">${g}</button>`).join('');
-    dg.addEventListener('click', (e) => {
-      const c = e.target.closest('.chip');
-      if (c) c.classList.toggle('on');
-    });
+    // 料理ジャンル: カテゴリ→ジャンルの2段階選択
+    dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
 
     // 評価スター（味）＋ 店の評価3軸
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
@@ -187,8 +185,9 @@ const Register = (() => {
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (result && (result.dishGenres.length || result.shopGenre)) {
         aiClassified = true;
-        document.querySelectorAll('#f-dish-genres .chip').forEach(ch =>
-          ch.classList.toggle('on', result.dishGenres.includes(ch.dataset.g)));
+        selectedDishGenres.clear();
+        result.dishGenres.forEach(g => selectedDishGenres.add(g));
+        dishPicker.reset();
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
           + ' — 違っていたら下のフォームで修正できます。';
@@ -433,7 +432,9 @@ const Register = (() => {
       const g = Api.guessGenres(c);
       if (g.shop) derivedShopGenre = g.shop; // 内部保持のみ
       if (g.dish) {
-        document.querySelectorAll('#f-dish-genres .chip').forEach(ch => ch.classList.toggle('on', ch.dataset.g === g.dish));
+        selectedDishGenres.clear();
+        selectedDishGenres.add(g.dish);
+        dishPicker.reset();
       }
     }
     const auto = autoPicked ? '🤖 一番近い店舗を自動選択しました。違う場合は上の候補から選び直せます。\n' : '';
@@ -517,7 +518,7 @@ const Register = (() => {
       }
 
       // --- 訪問記録 ---
-      const dishGenres = [...document.querySelectorAll('#f-dish-genres .chip.on')].map(c => c.dataset.g);
+      const dishGenres = [...selectedDishGenres];
       const visit = Store.addVisit({
         shopId: shop.id,
         // 日付のみ入力。タイムゾーンで日付がずれないよう正午として保存
@@ -566,7 +567,8 @@ const Register = (() => {
     $('#f-visit-type').value = '店内飲食';
     $('#f-fav').checked = false;
     $('#f-datetime').value = toLocalInput(new Date());
-    document.querySelectorAll('#f-dish-genres .chip').forEach(c => c.classList.remove('on'));
+    selectedDishGenres.clear();
+    dishPicker.reset();
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();

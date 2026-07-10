@@ -126,6 +126,19 @@ input[type="text"], input[type="datetime-local"], select, textarea {
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 2段階ジャンル選択（カテゴリ → ジャンル） */
+.cat-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+.cat-chips::-webkit-scrollbar { display: none; }
+.cat-chips .chip.cat {
+  flex-shrink: 0; background: var(--bg); border-style: dashed; font-weight: 600;
+}
+.cat-chips .chip.cat.on { background: var(--text); border-color: var(--text); border-style: solid; color: #fff; }
+.cat-count {
+  display: inline-block; margin-left: 4px; background: var(--accent); color: #fff;
+  border-radius: 9px; font-size: 10px; padding: 1px 5px; vertical-align: middle;
+}
+.genre-chips { margin-top: 2px; }
+.sel-genres { font-size: 12px; color: var(--accent); margin-top: 6px; font-weight: 600; }
 .chip {
   border: 1px solid var(--border); background: #fff; border-radius: 16px;
   padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--text);

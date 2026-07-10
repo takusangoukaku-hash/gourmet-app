@@ -9,29 +9,54 @@
 const Api = (() => {
 
   // 食べログのジャンル体系に準拠した料理ジャンル
-  const DISH_GENRES = [
-    // 麺類
-    'ラーメン', 'つけ麺', '油そば・まぜそば', '担々麺', '焼きそば', 'うどん', 'そば', 'パスタ',
-    // 和食
-    '寿司', '海鮮・魚介', '海鮮丼', '日本料理', '天ぷら', 'とんかつ', '串揚げ', '焼鳥', 'うなぎ',
-    'お好み焼き', 'たこ焼き', 'もんじゃ焼き', '鍋', 'もつ鍋', 'しゃぶしゃぶ', 'すき焼き', 'おでん',
-    '釜飯', '郷土料理', '沖縄料理', '定食', '弁当', '丼もの', '牛丼', '親子丼',
-    // 肉料理
-    '焼肉', 'ホルモン', 'ジンギスカン', 'ステーキ', 'ハンバーグ',
-    // 中華
-    '中華料理', 'チャーハン', '餃子', '小籠包',
-    // アジア・エスニック
-    '韓国料理', 'タイ料理', 'ベトナム料理', 'インド料理', 'エスニック',
-    // カレー
-    'カレー', 'スープカレー',
-    // 洋食
-    'イタリアン', 'ピザ', 'フレンチ', 'スペイン料理', '洋食', 'ハンバーガー', 'サンドイッチ', 'パン',
-    // カフェ・スイーツ
-    'カフェメニュー', 'パンケーキ', 'ケーキ', 'パフェ', 'クレープ', 'アイス・ジェラート',
-    'ドーナツ', 'かき氷', '和菓子', 'タピオカ', 'スイーツ', 'ドリンク',
-    // その他
-    'ビュッフェ', 'その他',
+  // 料理ジャンル: カテゴリ → ジャンルの2段階（選択UIもこの構造で表示）
+  const DISH_CATEGORIES = [
+    { name: '麺類', genres: ['ラーメン', 'つけ麺', '油そば・まぜそば', '担々麺', '焼きそば', 'うどん', 'そば', 'パスタ'] },
+    { name: '和食', genres: ['寿司', '海鮮・魚介', '海鮮丼', '日本料理', '天ぷら', 'とんかつ', '串揚げ', '焼鳥', 'うなぎ',
+      'お好み焼き', 'たこ焼き', 'もんじゃ焼き', '鍋', 'もつ鍋', 'しゃぶしゃぶ', 'すき焼き', 'おでん',
+      '釜飯', '郷土料理', '沖縄料理', '定食', '弁当', '丼もの', '牛丼', '親子丼'] },
+    { name: '肉料理', genres: ['焼肉', 'ホルモン', 'ジンギスカン', 'ステーキ', 'ハンバーグ'] },
+    { name: '中華', genres: ['中華料理', 'チャーハン', '餃子', '小籠包'] },
+    { name: 'アジア', genres: ['韓国料理', 'タイ料理', 'ベトナム料理', 'インド料理', 'エスニック'] },
+    { name: 'カレー', genres: ['カレー', 'スープカレー'] },
+    { name: '洋食', genres: ['イタリアン', 'ピザ', 'フレンチ', 'スペイン料理', '洋食', 'ハンバーガー', 'サンドイッチ', 'パン'] },
+    { name: 'カフェ・スイーツ', genres: ['カフェメニュー', 'パンケーキ', 'ケーキ', 'パフェ', 'クレープ', 'アイス・ジェラート',
+      'ドーナツ', 'かき氷', '和菓子', 'タピオカ', 'スイーツ', 'ドリンク'] },
+    { name: 'その他', genres: ['ビュッフェ', 'その他'] },
   ];
+  const DISH_GENRES = DISH_CATEGORIES.flatMap(c => c.genres);
+
+  // 2段階ジャンル選択UI（カテゴリ → ジャンル）。selected は Set<string>
+  function buildGenrePicker(container, selected) {
+    let active = null;
+    const escH = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    const render = () => {
+      if (active == null) {
+        active = DISH_CATEGORIES.find(c => c.genres.some(g => selected.has(g))) || DISH_CATEGORIES[0];
+      }
+      container.innerHTML =
+        '<div class="cat-chips">' + DISH_CATEGORIES.map(c => {
+          const count = c.genres.filter(g => selected.has(g)).length;
+          return `<button type="button" class="chip cat${c === active ? ' on' : ''}" data-cat="${escH(c.name)}">${escH(c.name)}${count ? `<span class="cat-count">${count}</span>` : ''}</button>`;
+        }).join('') + '</div>' +
+        '<div class="chips genre-chips">' + active.genres.map(g =>
+          `<button type="button" class="chip${selected.has(g) ? ' on' : ''}" data-g="${escH(g)}">${escH(g)}</button>`).join('') + '</div>' +
+        (selected.size ? `<div class="sel-genres">選択中: ${[...selected].map(escH).join('・')}</div>` : '');
+    };
+    container.onclick = (e) => {
+      const cat = e.target.closest('.chip.cat');
+      if (cat) { active = DISH_CATEGORIES.find(c => c.name === cat.dataset.cat) || active; render(); return; }
+      const chip = e.target.closest('.chip[data-g]');
+      if (chip) {
+        const g = chip.dataset.g;
+        if (selected.has(g)) selected.delete(g); else selected.add(g);
+        render();
+      }
+    };
+    render();
+    // reset(): 選択状態に合わせてカテゴリを選び直して再描画
+    return { render, reset: () => { active = null; render(); } };
+  }
   const SHOP_GENRES = ['ラーメン店', '焼肉店', '寿司店', '中華料理店', 'イタリアン',
     'カフェ', '居酒屋', 'ファミリーレストラン', 'バー', 'その他'];
 
@@ -519,7 +544,7 @@ out center 25;`;
   }
 
   return {
-    DISH_GENRES, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
+    DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
     guessGenres, compressImage,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,

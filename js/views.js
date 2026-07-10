@@ -663,6 +663,9 @@ const Views = (() => {
   }
 
   // ========== 店舗詳細モーダル ==========
+  // 編集モードの料理ジャンル選択状態（vid → Set）
+  let editGenreSets = new Map();
+
   async function showShop(shopId, editMode = false) {
     const s = Store.getShop(shopId);
     if (!s) return;
@@ -746,9 +749,7 @@ const Views = (() => {
         <div class="axis-title">料理ジャンル</div>
         ${vs.map(v => `
           ${multi ? `<div class="ve-sub">${vLabel(v)}</div>` : ''}
-          <div class="chips ve-genres" data-vid="${v.id}" style="margin-bottom:6px">
-            ${Api.DISH_GENRES.map(g => `<button type="button" class="chip${(v.dishGenres || []).includes(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}
-          </div>`).join('')}
+          <div class="ve-genres" data-vid="${v.id}" style="margin-bottom:6px"></div>`).join('')}
       </div>
       ${shopFormHtml}
       <div class="axis-box">
@@ -799,12 +800,13 @@ const Views = (() => {
         }
         paint(+starsEl.dataset.rating || 0);
       });
-      // 料理ジャンルのチップ（訪問ごと）
+      // 料理ジャンル: カテゴリ→ジャンルの2段階選択（訪問ごとにSetで管理）
+      editGenreSets = new Map();
       body.querySelectorAll('.ve-genres').forEach(box => {
-        box.addEventListener('click', (e) => {
-          const c = e.target.closest('.chip');
-          if (c) c.classList.toggle('on');
-        });
+        const v = vs.find(x => x.id === box.dataset.vid);
+        const set = new Set((v && v.dishGenres) || []);
+        editGenreSets.set(box.dataset.vid, set);
+        Api.buildGenrePicker(box, set);
       });
       // 訪問の削除
       body.querySelectorAll('.ve-del').forEach(btn => {
@@ -858,11 +860,10 @@ const Views = (() => {
       for (const row of visitRows) {
         const vid = row.dataset.vid;
         const starsEl = document.querySelector(`.ve-stars[data-vid="${vid}"]`);
-        const genresEl = document.querySelector(`.ve-genres[data-vid="${vid}"]`);
         Store.updateVisit(vid, {
           datetime: new Date(row.querySelector('.ve-date').value + 'T12:00:00').toISOString(),
           rating: +(starsEl && starsEl.dataset.rating || 3),
-          dishGenres: genresEl ? [...genresEl.querySelectorAll('.chip.on')].map(c => c.dataset.g) : [],
+          dishGenres: [...(editGenreSets.get(vid) || [])],
           comment: row.querySelector('.ve-comment').value.trim(),
         });
       }

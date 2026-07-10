@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v21'; // sw.js の VERSION と合わせる
+  const APP_VERSION = 'v22'; // sw.js の VERSION と合わせる
   let currentTab = 'register';
 
   function init() {
