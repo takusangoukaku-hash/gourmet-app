@@ -580,7 +580,8 @@ const Views = (() => {
     if (charts[id]) charts[id].destroy();
     charts[id] = new Chart(document.getElementById(id), cfg);
   }
-  const PALETTE = ['#e8590c', '#f5a623', '#4caf50', '#2196f3', '#9c27b0', '#795548', '#607d8b', '#e91e63', '#00bcd4', '#8bc34a', '#ff5722', '#3f51b5', '#cddc39', '#9e9e9e', '#f44336'];
+  // Instagram風パレット（CSSのアクセントと統一）
+  const PALETTE = ['#e1306c', '#fa7e1e', '#962fbf', '#4f5bd5', '#feda75', '#fd5949', '#8a3ab9', '#f77737', '#c13584', '#5851db', '#ffdc80', '#e95950', '#bc2a8d', '#9e9e9e', '#4caf50'];
 
   async function renderStats() {
     const shops = Store.shops();
@@ -613,7 +614,7 @@ const Views = (() => {
     }
     chart('chart-monthly', {
       type: 'bar',
-      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#e8590c' }] },
+      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#e1306c', borderRadius: 6 }] },
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
@@ -634,7 +635,7 @@ const Views = (() => {
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
     chart('chart-pref', {
       type: 'bar',
-      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#f5a623' }] },
+      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#fa7e1e', borderRadius: 6 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
