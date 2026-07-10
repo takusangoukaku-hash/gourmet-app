@@ -107,6 +107,13 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .mini-map { height: 300px; border-radius: 10px; }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* お気に入り: 店舗名の直下に目立つチェックとして表示 */
+.fav-check {
+  border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px;
+  background: #fffdf5;
+}
+.fav-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
 /* 登録フォームの詳細欄（住所など）: 「もっと見る」で開閉 */
 .form-grid .detail-toggle, .form-grid .detail-fields { grid-column: 1 / -1; }
 .detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

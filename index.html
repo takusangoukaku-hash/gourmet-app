@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 
@@ -55,6 +55,7 @@
         <div id="register-map" class="mini-map hidden"></div>
         <div id="selected-shop-note" class="selected-note hidden"></div>
       </div>
+      <label class="check full fav-check"><input type="checkbox" id="f-fav"> ⭐ この店をお気に入りに登録</label>
       <label>訪問日 <span class="req">必須</span>
         <input type="date" id="f-datetime">
       </label>
@@ -97,7 +98,6 @@
           <input type="text" id="f-city">
         </label>
       </div>
-      <label class="check full"><input type="checkbox" id="f-fav"> ⭐ お気に入りに登録</label>
     </div>
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
   </div>
@@ -291,10 +291,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=30"></script>
-<script src="js/api.js?v=30"></script>
-<script src="js/register.js?v=30"></script>
-<script src="js/views.js?v=30"></script>
-<script src="js/app.js?v=30"></script>
+<script src="js/store.js?v=31"></script>
+<script src="js/api.js?v=31"></script>
+<script src="js/register.js?v=31"></script>
+<script src="js/views.js?v=31"></script>
+<script src="js/app.js?v=31"></script>
 </body>
 </html>
