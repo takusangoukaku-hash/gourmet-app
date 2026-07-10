@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v37'; // ヘッダー中央タイトル＋右上の＋ボタンで登録（下バーの登録タブ廃止）
+const VERSION = 'v38'; // ヘッダーの＋と⚙️の左右を入れ替え（＋が左・設定が右）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=37',
-  './js/store.js?v=37', './js/api.js?v=37', './js/register.js?v=37', './js/views.js?v=37', './js/app.js?v=37',
+  './', './index.html', './css/style.css?v=38',
+  './js/store.js?v=38', './js/api.js?v=38', './js/register.js?v=38', './js/views.js?v=38', './js/app.js?v=38',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
