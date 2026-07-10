@@ -5,12 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v25'; // 新バージョン検出時の自動リロード＋ジャンルカテゴリの番号照合
+const VERSION = 'v26'; // 自動入力ジャンルと手動選択の混在を解消＋キャッシュ混在対策
 const CACHE = 'gourmet-' + VERSION;
 
+// index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css',
-  './js/store.js', './js/api.js', './js/register.js', './js/views.js', './js/app.js',
+  './', './index.html', './css/style.css?v=26',
+  './js/store.js?v=26', './js/api.js?v=26', './js/register.js?v=26', './js/views.js?v=26', './js/app.js?v=26',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
@@ -45,7 +46,8 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then(c => c.put(e.request, copy));
         return res;
       }).catch(() =>
-        caches.match(e.request).then(m => m || caches.match('./index.html'))
+        // ignoreSearch: ?v= の違いでオフライン時にキャッシュを取り逃さないように
+        caches.match(e.request, { ignoreSearch: true }).then(m => m || caches.match('./index.html'))
       )
     );
   } else if (CDN_HOSTS.some(h => url.hostname.endsWith(h))) {

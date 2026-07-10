@@ -24,6 +24,8 @@ const Register = (() => {
   let dishPicker = null;
   // 利用者が手動でジャンルを触ったか。trueの間はAI判定・OSM推定で上書きしない
   let userTouchedGenres = false;
+  // 現在の選択がAI判定・OSM推定による自動入力か（手動選択が始まったら破棄する）
+  let autoFilledGenres = false;
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
   let autoPicked = false;
   // 直近に解析した写真のGPS（名前検索の基準位置に使う）
@@ -63,10 +65,18 @@ const Register = (() => {
 
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
     dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
-    // 手動選択を検知（ピッカーのハンドラとは別に併走するリスナー）
+    // 手動操作を検知（capture指定でピッカー本体の処理より先に実行される）
     $('#f-dish-genres').addEventListener('click', (e) => {
-      if (e.target.closest('.chip[data-g]')) userTouchedGenres = true;
-    });
+      if (e.target.closest('.chip[data-g]')) {
+        userTouchedGenres = true;
+        // AI判定・自動推定で入った初期値は、手動で選び始めた時点で消す
+        // （自動のラーメン等が残って手動の選択と混ざるのを防ぐ）
+        if (autoFilledGenres) { selectedDishGenres.clear(); autoFilledGenres = false; }
+      } else if (e.target.closest('.chip.cat')) {
+        // カテゴリを開いた＝選択操作中。以降はAI判定・自動推定で上書きしない
+        userTouchedGenres = true;
+      }
+    }, true);
 
     // 評価スター（味）＋ 店の評価3軸
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
@@ -193,9 +203,10 @@ const Register = (() => {
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         if (userTouchedGenres) {
           // 手動選択を優先: AIの結果では上書きしない（参考として表示のみ）
-          ai.innerHTML = `🤖 AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択済みのためそのままにしています）。`;
+          ai.innerHTML = `🤖 AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択中のためそのままにしています）。`;
         } else {
           aiClassified = true;
+          autoFilledGenres = true;
           selectedDishGenres.clear();
           result.dishGenres.forEach(g => selectedDishGenres.add(g));
           dishPicker.reset();
@@ -446,6 +457,7 @@ const Register = (() => {
       // （手動選択・AI判定を上書きしない）
       if (g.dish && !aiClassified && !userTouchedGenres && selectedDishGenres.size === 0) {
         selectedDishGenres.add(g.dish);
+        autoFilledGenres = true;
         dishPicker.reset();
       }
     }
@@ -581,6 +593,7 @@ const Register = (() => {
     $('#f-datetime').value = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;
+    autoFilledGenres = false;
     dishPicker.reset();
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };

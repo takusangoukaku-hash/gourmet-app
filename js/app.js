@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v25'; // sw.js の VERSION と合わせる
+  const APP_VERSION = 'v26'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -46,7 +46,9 @@ const App = (() => {
       const parts = [];
       parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
       parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
-      parts.push('アプリ ' + APP_VERSION);
+      // 部品(api.js)のバージョンも表示: アプリと違えば古いキャッシュ混在のサイン
+      const partVer = Api.FILE_VERSION || '旧';
+      parts.push('アプリ ' + APP_VERSION + (partVer !== APP_VERSION ? '（⚠️部品 ' + partVer + '）' : ''));
       return parts.join(' ／ ');
     };
     $('#settings-btn').addEventListener('click', () => {

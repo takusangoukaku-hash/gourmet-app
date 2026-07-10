@@ -550,6 +550,8 @@ out center 25;`;
   }
 
   return {
+    // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
+    FILE_VERSION: 'v26',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
     guessGenres, compressImage,
