@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=26">
+<link rel="stylesheet" href="css/style.css?v=27">
 </head>
 <body>
 
@@ -82,12 +82,14 @@
           <option value="デリバリー">デリバリー</option>
         </select>
       </label>
-      <label class="full">料理ジャンル（複数選択可）
+      <!-- 注意: ボタン群を <label> で包まないこと。ラベルの隙間をタップすると
+           先頭のボタンにクリックが転送され、意図しない選択になる（スマホで顕在化） -->
+      <div class="full flabel">料理ジャンル（複数選択可）
         <div id="f-dish-genres" class="chips"></div>
-      </label>
-      <label class="full">味の評価 <span class="req">必須</span>
+      </div>
+      <div class="full flabel">味の評価 <span class="req">必須</span>
         <div id="f-rating" class="stars"></div>
-      </label>
+      </div>
       <div class="full axis-box">
         <div class="axis-title">お店の評価（任意・一度つければ再訪時は入力不要）</div>
         <div class="axis-row"><span>カジュアル度</span><div id="f-ax-casual" class="stars small"></div></div>
@@ -303,10 +305,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=26"></script>
-<script src="js/api.js?v=26"></script>
-<script src="js/register.js?v=26"></script>
-<script src="js/views.js?v=26"></script>
-<script src="js/app.js?v=26"></script>
+<script src="js/store.js?v=27"></script>
+<script src="js/api.js?v=27"></script>
+<script src="js/register.js?v=27"></script>
+<script src="js/views.js?v=27"></script>
+<script src="js/app.js?v=27"></script>
 </body>
 </html>
