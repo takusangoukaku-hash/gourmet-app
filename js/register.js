@@ -300,7 +300,7 @@ const Register = (() => {
       div.innerHTML = `
         <div class="c-main">
           <div class="c-name">${esc(c.name)}</div>
-          <div class="c-sub">${esc(c.amenity || '')}${c.cuisine ? '・' + esc(c.cuisine) : ''}${c.address ? '・' + esc(c.address) : ''}</div>
+          <div class="c-sub">${esc(c.amenity || '')}${c.cuisine ? '・' + esc(String(c.cuisine).split(/[;,]/).join('・')) : ''}${c.address ? '・' + esc(c.address) : ''}</div>
         </div>
         <div class="c-dist">${c.distance != null && isFinite(c.distance) ? Math.round(c.distance) + 'm' : ''}</div>`;
       div.addEventListener('click', () => { autoPicked = false; markSelected(div); chooseCandidate(c); });

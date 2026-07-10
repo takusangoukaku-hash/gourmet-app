@@ -440,7 +440,13 @@ out center 25;`;
       lat: p.location && p.location.latitude,
       lon: p.location && p.location.longitude,
       // Googleのtype（例: ramen_restaurant）をcuisine相当に変換してジャンル推定に使う
-      cuisine: (p.types || []).map(t => t.replace(/_restaurant$/, '')).join(';'),
+      // point_of_interest 等の汎用typeは除外（候補表示にそのまま出て見づらいため）
+      cuisine: (p.types || [])
+        .filter(t => !['point_of_interest', 'food', 'establishment', 'restaurant',
+          'store', 'meal_takeaway', 'meal_delivery'].includes(t))
+        .map(t => t.replace(/_restaurant$/, ''))
+        .slice(0, 3)
+        .join(';'),
       amenity: 'restaurant',
       distance: null,
     })).filter(c => c.name && c.lat != null);
@@ -562,7 +568,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v33',
+    FILE_VERSION: 'v34',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
     guessGenres, compressImage, fileHash,

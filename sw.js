@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v33'; // 登録フォームから地図指定・利用形態・訪問日入力を削除（訪問日は自動記録）
+const VERSION = 'v34'; // 検索候補の長い説明文による横はみ出しを修正
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=33',
-  './js/store.js?v=33', './js/api.js?v=33', './js/register.js?v=33', './js/views.js?v=33', './js/app.js?v=33',
+  './', './index.html', './css/style.css?v=34',
+  './js/store.js?v=34', './js/api.js?v=34', './js/register.js?v=34', './js/views.js?v=34', './js/app.js?v=34',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

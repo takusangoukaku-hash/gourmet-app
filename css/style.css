@@ -14,6 +14,7 @@ html, body { margin: 0; padding: 0; }
 body {
   font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
   background: var(--bg); color: var(--text); font-size: 15px;
+  overflow-x: hidden; /* 横スクロール・横はみ出しの防止（保険） */
 }
 
 /* ---------- ヘッダー ---------- */
@@ -107,6 +108,8 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .mini-map { height: 300px; border-radius: 10px; }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* 長い文字列（検索候補の説明など）がグリッド幅を押し広げないようにする */
+.form-grid > * { min-width: 0; }
 /* お気に入り: 店舗名の直下に目立つチェックとして表示 */
 .fav-check {
   border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px;
