@@ -27,25 +27,30 @@ const Api = (() => {
   const DISH_GENRES = DISH_CATEGORIES.flatMap(c => c.genres);
 
   // 2段階ジャンル選択UI（カテゴリ → ジャンル）。selected は Set<string>
+  // 初期状態はカテゴリのみを全件表示し、タップしたカテゴリのジャンルを展開する
   function buildGenrePicker(container, selected) {
-    let active = null;
+    let active = null; // null = どのカテゴリも開いていない
     const escH = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     const render = () => {
-      if (active == null) {
-        active = DISH_CATEGORIES.find(c => c.genres.some(g => selected.has(g))) || DISH_CATEGORIES[0];
-      }
       container.innerHTML =
         '<div class="cat-chips">' + DISH_CATEGORIES.map(c => {
           const count = c.genres.filter(g => selected.has(g)).length;
           return `<button type="button" class="chip cat${c === active ? ' on' : ''}" data-cat="${escH(c.name)}">${escH(c.name)}${count ? `<span class="cat-count">${count}</span>` : ''}</button>`;
         }).join('') + '</div>' +
-        '<div class="chips genre-chips">' + active.genres.map(g =>
-          `<button type="button" class="chip${selected.has(g) ? ' on' : ''}" data-g="${escH(g)}">${escH(g)}</button>`).join('') + '</div>' +
+        (active
+          ? '<div class="chips genre-chips">' + active.genres.map(g =>
+              `<button type="button" class="chip${selected.has(g) ? ' on' : ''}" data-g="${escH(g)}">${escH(g)}</button>`).join('') + '</div>'
+          : '<div class="picker-hint">カテゴリをタップするとジャンルが表示されます</div>') +
         (selected.size ? `<div class="sel-genres">選択中: ${[...selected].map(escH).join('・')}</div>` : '');
     };
     container.onclick = (e) => {
       const cat = e.target.closest('.chip.cat');
-      if (cat) { active = DISH_CATEGORIES.find(c => c.name === cat.dataset.cat) || active; render(); return; }
+      if (cat) {
+        const c = DISH_CATEGORIES.find(x => x.name === cat.dataset.cat);
+        active = (c === active) ? null : c; // 同じカテゴリを再タップで閉じる
+        render();
+        return;
+      }
       const chip = e.target.closest('.chip[data-g]');
       if (chip) {
         const g = chip.dataset.g;
@@ -54,7 +59,7 @@ const Api = (() => {
       }
     };
     render();
-    // reset(): 選択状態に合わせてカテゴリを選び直して再描画
+    // reset(): カテゴリを閉じた初期状態に戻して再描画
     return { render, reset: () => { active = null; render(); } };
   }
   const SHOP_GENRES = ['ラーメン店', '焼肉店', '寿司店', '中華料理店', 'イタリアン',
