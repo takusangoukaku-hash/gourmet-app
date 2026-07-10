@@ -22,6 +22,8 @@ const Register = (() => {
   // 料理ジャンルの選択状態（2段階ピッカーと共有）
   const selectedDishGenres = new Set();
   let dishPicker = null;
+  // 利用者が手動でジャンルを触ったか。trueの間はAI判定・OSM推定で上書きしない
+  let userTouchedGenres = false;
   // 店舗が自動選択されたか（案内メッセージの出し分けに使用）
   let autoPicked = false;
   // 直近に解析した写真のGPS（名前検索の基準位置に使う）
@@ -61,6 +63,10 @@ const Register = (() => {
 
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
     dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
+    // 手動選択を検知（ピッカーのハンドラとは別に併走するリスナー）
+    $('#f-dish-genres').addEventListener('click', (e) => {
+      if (e.target.closest('.chip[data-g]')) userTouchedGenres = true;
+    });
 
     // 評価スター（味）＋ 店の評価3軸
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
@@ -184,13 +190,18 @@ const Register = (() => {
     try {
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (result && (result.dishGenres.length || result.shopGenre)) {
-        aiClassified = true;
-        selectedDishGenres.clear();
-        result.dishGenres.forEach(g => selectedDishGenres.add(g));
-        dishPicker.reset();
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
-        ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
-          + ' — 違っていたら下のフォームで修正できます。';
+        if (userTouchedGenres) {
+          // 手動選択を優先: AIの結果では上書きしない（参考として表示のみ）
+          ai.innerHTML = `🤖 AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択済みのためそのままにしています）。`;
+        } else {
+          aiClassified = true;
+          selectedDishGenres.clear();
+          result.dishGenres.forEach(g => selectedDishGenres.add(g));
+          dishPicker.reset();
+          ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
+            + ' — 違っていたら下のフォームで修正できます。';
+        }
       } else {
         ai.classList.add('warn');
         ai.textContent = '🤖 AIはこの写真からジャンルを特定できませんでした。下のフォームから選択してください。';
@@ -428,11 +439,12 @@ const Register = (() => {
 
   async function chooseCandidate(c) {
     // OSMタグからのジャンル推定（AIが判定済みの場合は上書きしない — §5）
-    if (!aiClassified) {
+    {
       const g = Api.guessGenres(c);
       if (g.shop) derivedShopGenre = g.shop; // 内部保持のみ
-      if (g.dish) {
-        selectedDishGenres.clear();
+      // 地図データからの推定は「まだ何も選ばれていないとき」だけ初期値として設定
+      // （手動選択・AI判定を上書きしない）
+      if (g.dish && !aiClassified && !userTouchedGenres && selectedDishGenres.size === 0) {
         selectedDishGenres.add(g.dish);
         dishPicker.reset();
       }
@@ -568,6 +580,7 @@ const Register = (() => {
     $('#f-fav').checked = false;
     $('#f-datetime').value = toLocalInput(new Date());
     selectedDishGenres.clear();
+    userTouchedGenres = false;
     dishPicker.reset();
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
