@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=29">
+<link rel="stylesheet" href="css/style.css?v=30">
 </head>
 <body>
 
@@ -41,38 +41,20 @@
     <div id="ai-status" class="exif-status hidden"></div>
   </div>
 
-  <div class="card" id="shop-select-card">
-    <h2>2. 店舗を選ぶ</h2>
-    <div class="subtabs" id="shop-subtabs">
-      <button class="subtab active" data-subtab="candidates">📍 周辺の候補</button>
-      <button class="subtab" data-subtab="search">🔍 名前で検索</button>
-      <button class="subtab" data-subtab="manual">🗺️ 地図で指定</button>
-    </div>
-    <div id="subtab-candidates" class="subtab-panel active">
-      <p class="hint" id="candidates-hint">写真に位置情報があれば、一番近い店舗を自動で選択します。違う場合だけ候補をタップして変更してください。</p>
-      <div id="shop-candidates" class="candidate-list"></div>
-    </div>
-    <div id="subtab-search" class="subtab-panel">
-      <p class="hint">店名だけで見つからないときは「店名 地名」（例: ○○軒 渋谷）で検索してください。写真の位置情報や現在地の周辺を優先して、個人店も含めて探します。</p>
-      <div class="search-row">
-        <input type="text" id="shop-search-input" placeholder="例: ○○軒 渋谷">
-        <button id="shop-search-btn" class="btn">検索</button>
-      </div>
-      <div id="shop-search-results" class="candidate-list"></div>
-    </div>
-    <div id="subtab-manual" class="subtab-panel">
-      <p class="hint">地図をタップして店舗の位置を指定し、下のフォームに店舗名を入力してください。</p>
-      <div id="register-map" class="mini-map"></div>
-    </div>
-    <div id="selected-shop-note" class="selected-note hidden"></div>
-  </div>
-
   <div class="card">
-    <h2>3. 記録の内容</h2>
+    <h2>2. 記録の内容</h2>
     <div class="form-grid">
-      <label>店舗名 <span class="req">必須</span>
-        <input type="text" id="f-shop-name" placeholder="店舗名を入力">
-      </label>
+      <div class="full flabel">店舗名 <span class="req">必須</span>
+        <div class="search-row">
+          <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
+          <button type="button" id="shop-search-btn" class="btn">🔍 検索</button>
+        </div>
+        <p class="hint">写真に位置情報があれば候補を自動表示・自動選択します。見つからないときは「店名 地名」（例: ○○軒 渋谷）で検索してください。</p>
+        <div id="shop-candidates" class="candidate-list"></div>
+        <button type="button" id="map-pick-toggle" class="btn detail-toggle">▸ 🗺️ 地図で位置を指定</button>
+        <div id="register-map" class="mini-map hidden"></div>
+        <div id="selected-shop-note" class="selected-note hidden"></div>
+      </div>
       <label>訪問日 <span class="req">必須</span>
         <input type="date" id="f-datetime">
       </label>
@@ -309,10 +291,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=29"></script>
-<script src="js/api.js?v=29"></script>
-<script src="js/register.js?v=29"></script>
-<script src="js/views.js?v=29"></script>
-<script src="js/app.js?v=29"></script>
+<script src="js/store.js?v=30"></script>
+<script src="js/api.js?v=30"></script>
+<script src="js/register.js?v=30"></script>
+<script src="js/views.js?v=30"></script>
+<script src="js/app.js?v=30"></script>
 </body>
 </html>

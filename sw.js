@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v29'; // 登録フォームの住所・最寄駅などを「もっと見る」で開閉に変更
+const VERSION = 'v30'; // 「店舗を選ぶ」カードを廃止し、店舗検索を店舗名欄に統合
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=29',
-  './js/store.js?v=29', './js/api.js?v=29', './js/register.js?v=29', './js/views.js?v=29', './js/app.js?v=29',
+  './', './index.html', './css/style.css?v=30',
+  './js/store.js?v=30', './js/api.js?v=30', './js/register.js?v=30', './js/views.js?v=30', './js/app.js?v=30',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

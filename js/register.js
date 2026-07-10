@@ -49,19 +49,16 @@ const Register = (() => {
   function init() {
     $('#photo-input').addEventListener('change', (e) => addFiles(e.target.files));
 
-    // サブタブ切り替え
-    document.querySelectorAll('#shop-subtabs .subtab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#shop-subtabs .subtab').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.subtab-panel').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        $('#subtab-' + btn.dataset.subtab).classList.add('active');
-        if (btn.dataset.subtab === 'manual') initMiniMap();
-      });
-    });
-
+    // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
-    $('#shop-search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    $('#f-shop-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+    // 地図で位置を指定（開いたときだけ地図を初期化）
+    $('#map-pick-toggle').addEventListener('click', () => {
+      const closed = $('#register-map').classList.toggle('hidden');
+      $('#map-pick-toggle').textContent = closed ? '▸ 🗺️ 地図で位置を指定' : '▾ 🗺️ 地図を閉じる';
+      if (!closed) initMiniMap();
+    });
 
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
     dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
@@ -208,8 +205,7 @@ const Register = (() => {
       status.innerHTML = `✅ 撮影日時: <b>${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}</b> ／ 位置情報から周辺の店舗候補を表示しました。下から選択してください。`;
     } else {
       status.classList.add('warn');
-      status.innerHTML = `ℹ️ この写真に位置情報はありません（撮影日時: ${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}）。「🔍 名前で検索」または「🗺️ 地図で指定」で店舗を選んでください。`;
-      switchSubtab('search');
+      status.innerHTML = `ℹ️ この写真に位置情報はありません（撮影日時: ${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}）。店舗名を入力して🔍検索するか、🗺️地図で位置を指定してください。`;
     }
 
     await classifyPhotos();
@@ -260,18 +256,10 @@ const Register = (() => {
     }
   }
 
-  function switchSubtab(name) {
-    document.querySelectorAll('#shop-subtabs .subtab').forEach(b => b.classList.toggle('active', b.dataset.subtab === name));
-    document.querySelectorAll('.subtab-panel').forEach(p => p.classList.remove('active'));
-    $('#subtab-' + name).classList.add('active');
-    if (name === 'manual') initMiniMap();
-  }
-
   // ---------- フローA: 周辺候補 ----------
   async function loadCandidates(lat, lon) {
     const box = $('#shop-candidates');
     box.innerHTML = '<p class="hint">検索中…</p>';
-    switchSubtab('candidates');
     try {
       // 登録済み店舗（200m以内）を先頭に表示
       const existing = Store.shops()
@@ -351,9 +339,9 @@ const Register = (() => {
 
   // ---------- フローB: 名前検索（複数の情報源を統合、個人店対応） ----------
   async function doSearch() {
-    const q = $('#shop-search-input').value.trim();
-    const box = $('#shop-search-results');
-    if (!q) { box.innerHTML = '<p class="hint">キーワードを入力してください。</p>'; return; }
+    const q = $('#f-shop-name').value.trim();
+    const box = $('#shop-candidates');
+    if (!q) { box.innerHTML = '<p class="hint">店舗名を入力してから🔍検索を押してください。</p>'; return; }
     box.innerHTML = '<p class="hint">🔎 検索中…（周辺の店舗情報も含めて探しています）</p>';
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
@@ -617,9 +605,10 @@ const Register = (() => {
     $('#exif-status').classList.add('hidden');
     $('#ai-status').classList.add('hidden');
     $('#shop-candidates').innerHTML = '';
-    $('#shop-search-results').innerHTML = '';
-    $('#shop-search-input').value = '';
     $('#selected-shop-note').classList.add('hidden');
+    // 地図は閉じた状態に戻す
+    $('#register-map').classList.add('hidden');
+    $('#map-pick-toggle').textContent = '▸ 🗺️ 地図で位置を指定';
     ['#f-shop-name', '#f-address', '#f-station', '#f-pref', '#f-city', '#f-comment'].forEach(s => { $(s).value = ''; });
     derivedShopGenre = '';
     $('#f-visit-type').value = '店内飲食';
@@ -636,7 +625,6 @@ const Register = (() => {
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
     if (miniMarker) { miniMarker.remove(); miniMarker = null; }
-    switchSubtab('candidates');
   }
 
   // 店舗詳細から「訪問を追加」（§4.4 再訪の登録）

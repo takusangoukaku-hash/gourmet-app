@@ -76,15 +76,6 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .exif-status { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; background: #eef6ff; border: 1px solid #cfe3f7; }
 .exif-status.warn { background: #fff8e6; border-color: #f2e2b3; }
 
-.subtabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-.subtab {
-  border: 1px solid var(--border); background: var(--card); border-radius: 20px;
-  padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
-}
-.subtab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.subtab-panel { display: none; }
-.subtab-panel.active { display: block; }
-
 .search-row { display: flex; gap: 8px; }
 .search-row input { flex: 1; }
 
