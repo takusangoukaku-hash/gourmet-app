@@ -311,6 +311,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .visit-edit { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .visit-edit .ve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .visit-edit .ve-row input[type="date"] { width: auto; }
+/* 一括編集モードのセクション */
+.ve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.ve-row input[type="date"] { width: auto; }
+.ve-sub { font-size: 12px; color: var(--muted); font-weight: 600; margin: 6px 0 2px; }
+.ve-visit { border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px; }
+.ve-visit:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 
 .lightbox-box { text-align: center; margin: auto; }
 .lightbox-box img { max-width: 92vw; max-height: 80vh; border-radius: 10px; }

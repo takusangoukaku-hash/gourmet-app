@@ -670,11 +670,21 @@ const Views = (() => {
     const avg = Store.avgRating(shopId);
     const body = $('#modal-body');
 
-    // ヘッダー: 表示モード=店舗情報の表示 / 編集モード=入力フォーム
+    // ヘッダー
     const headHtml = editMode ? `
       <div class="detail-head"><h2>✏️ ${esc(s.name)} の編集</h2>
-        <div class="d-sub">店舗情報とすべての訪問記録をまとめて編集し、最後に「保存」を押してください。</div>
-      </div>
+        <div class="d-sub">内容を変更して、最後に一番下の「💾 保存」を押してください。</div>
+      </div>` : `
+      <div class="detail-head">
+        <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
+        <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
+        <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
+        <div class="d-sub">${s.station ? '🚉 ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
+        <div class="d-sub">${esc(s.address || '')}</div>
+      </div>`;
+
+    // 店舗情報の入力フォーム（編集モードのみ・一番下に配置）
+    const shopFormHtml = editMode ? `
       <div class="axis-box">
         <div class="axis-title">店舗情報</div>
         <div class="form-grid">
@@ -694,13 +704,17 @@ const Views = (() => {
             <input type="text" id="de-address" value="${esc(s.address || '')}">
           </label>
         </div>
-      </div>` : `
-      <div class="detail-head">
-        <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
-        <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
-        <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
-        <div class="d-sub">${s.station ? '🚉 ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
-        <div class="d-sub">${esc(s.address || '')}</div>
+      </div>` : '';
+
+    const axisHtml = `
+      <div class="axis-box">
+        <div class="axis-title">お店の評価（タップで変更・その場で保存されます）</div>
+        ${['casual', 'atmosphere', 'speed'].map(k => `
+          <div class="axis-row"><span>${AXIS_LABEL[k]}</span>
+            <div class="stars small d-axis" data-axis="${k}">
+              ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">★</button>`).join('')}
+            </div>
+          </div>`).join('')}
       </div>`;
 
     const actionsHtml = editMode ? `
@@ -716,17 +730,43 @@ const Views = (() => {
         <button class="btn small danger" id="d-delete">店舗を削除</button>
       </div>`;
 
-    body.innerHTML = `
-      ${headHtml}
+    // 編集モードの並び: 味の評価 → お店の評価 → ジャンル → 店舗情報 → 訪問日・コメント → 保存
+    const multi = vs.length > 1;
+    const vLabel = (v) => multi ? `${fmtDate(v.datetime)}` : '';
+    const editSections = editMode ? `
       <div class="axis-box">
-        <div class="axis-title">お店の評価（タップで変更・その場で保存されます）</div>
-        ${['casual', 'atmosphere', 'speed'].map(k => `
-          <div class="axis-row"><span>${AXIS_LABEL[k]}</span>
-            <div class="stars small d-axis" data-axis="${k}">
-              ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">★</button>`).join('')}
-            </div>
+        <div class="axis-title">味の評価</div>
+        ${vs.map(v => `
+          <div class="axis-row">${multi ? `<span>${vLabel(v)}</span>` : ''}
+            <span class="stars small ve-stars" data-vid="${v.id}" data-rating="${v.rating}"></span>
           </div>`).join('')}
       </div>
+      ${axisHtml}
+      <div class="axis-box">
+        <div class="axis-title">料理ジャンル</div>
+        ${vs.map(v => `
+          ${multi ? `<div class="ve-sub">${vLabel(v)}</div>` : ''}
+          <div class="chips ve-genres" data-vid="${v.id}" style="margin-bottom:6px">
+            ${Api.DISH_GENRES.map(g => `<button type="button" class="chip${(v.dishGenres || []).includes(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}
+          </div>`).join('')}
+      </div>
+      ${shopFormHtml}
+      <div class="axis-box">
+        <div class="axis-title">訪問日・コメント</div>
+        ${vs.map(v => `
+          <div class="ve-visit" data-vid="${v.id}">
+            <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
+            <textarea rows="2" class="ve-comment" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
+            <div class="v-btns"><button type="button" class="btn small danger ve-del" data-vid="${v.id}">この訪問を削除</button></div>
+          </div>`).join('')}
+      </div>` : '';
+
+    body.innerHTML = editMode ? `
+      ${headHtml}
+      ${editSections}
+      ${actionsHtml}` : `
+      ${headHtml}
+      ${axisHtml}
       ${actionsHtml}
       <h3>訪問記録</h3>
       <div id="d-visits"></div>`;
@@ -748,6 +788,33 @@ const Views = (() => {
     if (editMode) {
       $('#d-save-all').addEventListener('click', saveAll);
       $('#d-cancel').addEventListener('click', () => showShop(shopId, false));
+      // 味の評価スター（訪問ごと）
+      body.querySelectorAll('.ve-stars').forEach(starsEl => {
+        const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
+        for (let i = 1; i <= 5; i++) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = '★';
+          b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
+          starsEl.appendChild(b);
+        }
+        paint(+starsEl.dataset.rating || 0);
+      });
+      // 料理ジャンルのチップ（訪問ごと）
+      body.querySelectorAll('.ve-genres').forEach(box => {
+        box.addEventListener('click', (e) => {
+          const c = e.target.closest('.chip');
+          if (c) c.classList.toggle('on');
+        });
+      });
+      // 訪問の削除
+      body.querySelectorAll('.ve-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('この訪問記録を削除しますか？')) return;
+          await Store.deleteVisit(btn.dataset.vid);
+          showShop(shopId, true);
+          App.refreshCurrent();
+        });
+      });
     } else {
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
@@ -773,12 +840,13 @@ const Views = (() => {
     }
 
     // 一括保存: 店舗情報＋すべての訪問記録
+    // （味・ジャンル・訪問日/コメントはセクション別に並ぶため data-vid で対応づけ）
     function saveAll() {
       const name = $('#de-name').value.trim();
       if (!name) { App.toast('店舗名は空にできません'); return; }
-      const blocks = [...document.querySelectorAll('#d-visits .visit-block')];
-      for (const b of blocks) {
-        if (!b.querySelector('.v-edit-date').value) { App.toast('訪問日を入力してください'); return; }
+      const visitRows = [...document.querySelectorAll('.ve-visit')];
+      for (const row of visitRows) {
+        if (!row.querySelector('.ve-date').value) { App.toast('訪問日を入力してください'); return; }
       }
       Store.updateShop(shopId, {
         name,
@@ -787,12 +855,15 @@ const Views = (() => {
         city: $('#de-city').value.trim(),
         address: $('#de-address').value.trim(),
       });
-      for (const b of blocks) {
-        Store.updateVisit(b.dataset.vid, {
-          datetime: new Date(b.querySelector('.v-edit-date').value + 'T12:00:00').toISOString(),
-          rating: +(b.querySelector('.v-edit-stars').dataset.rating || 3),
-          dishGenres: [...b.querySelectorAll('.v-edit-genres .chip.on')].map(c => c.dataset.g),
-          comment: b.querySelector('.v-edit-comment').value.trim(),
+      for (const row of visitRows) {
+        const vid = row.dataset.vid;
+        const starsEl = document.querySelector(`.ve-stars[data-vid="${vid}"]`);
+        const genresEl = document.querySelector(`.ve-genres[data-vid="${vid}"]`);
+        Store.updateVisit(vid, {
+          datetime: new Date(row.querySelector('.ve-date').value + 'T12:00:00').toISOString(),
+          rating: +(starsEl && starsEl.dataset.rating || 3),
+          dishGenres: genresEl ? [...genresEl.querySelectorAll('.chip.on')].map(c => c.dataset.g) : [],
+          comment: row.querySelector('.ve-comment').value.trim(),
         });
       }
       App.toast('✅ 保存しました');
@@ -800,44 +871,13 @@ const Views = (() => {
       App.refreshCurrent(); // 背後の一覧・地図にも反映
     }
 
-    const vbox = $('#d-visits');
-    for (const v of vs) {
-      const block = document.createElement('div');
-      block.className = 'visit-block';
-      block.dataset.vid = v.id;
-
-      if (editMode) {
-        // 編集モード: すべての項目をその場で編集（保存は上の「💾 保存」で一括）
-        block.innerHTML = `
-          <div class="ve-row">訪問日 <input type="date" class="v-edit-date" value="${toDateInput(v.datetime)}"></div>
-          <div class="ve-row">味の評価 <span class="stars small v-edit-stars" data-rating="${v.rating}"></span></div>
-          <div class="chips v-edit-genres" style="margin-top:6px">
-            ${Api.DISH_GENRES.map(g => `<button type="button" class="chip${(v.dishGenres || []).includes(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}
-          </div>
-          <textarea rows="2" class="v-edit-comment" style="margin-top:6px" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
-          <div class="v-btns"><button class="btn small danger v-del">この訪問を削除</button></div>`;
-
-        const starsEl = block.querySelector('.v-edit-stars');
-        const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
-        for (let i = 1; i <= 5; i++) {
-          const b = document.createElement('button');
-          b.type = 'button'; b.textContent = '★';
-          b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
-          starsEl.appendChild(b);
-        }
-        paint(v.rating);
-        block.querySelector('.v-edit-genres').addEventListener('click', (e) => {
-          const c = e.target.closest('.chip');
-          if (c) c.classList.toggle('on');
-        });
-        block.querySelector('.v-del').addEventListener('click', async () => {
-          if (!confirm('この訪問記録を削除しますか？')) return;
-          await Store.deleteVisit(v.id);
-          showShop(shopId, true);
-          App.refreshCurrent();
-        });
-      } else {
-        // 表示モード
+    // 訪問記録の一覧表示（表示モードのみ。編集モードは上のセクション式）
+    if (!editMode) {
+      const vbox = $('#d-visits');
+      for (const v of vs) {
+        const block = document.createElement('div');
+        block.className = 'visit-block';
+        block.dataset.vid = v.id;
         block.innerHTML = `
           <div class="v-head">
             <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
@@ -856,8 +896,8 @@ const Views = (() => {
             row.appendChild(img);
           });
         });
+        vbox.appendChild(block);
       }
-      vbox.appendChild(block);
     }
 
     $('#modal').classList.remove('hidden');
