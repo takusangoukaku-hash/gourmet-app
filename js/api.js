@@ -119,6 +119,17 @@ const Api = (() => {
     fast_food: 'その他', restaurant: 'その他', food_court: 'その他', ice_cream: 'カフェ',
   };
 
+  // ---------- 写真の指紋（二重登録防止） ----------
+  // 元ファイルのSHA-256（16進文字列）。https/localhost以外では計算不可なので空を返す
+  async function fileHash(file) {
+    try {
+      if (!crypto.subtle) return '';
+      const buf = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', buf);
+      return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch { return ''; }
+  }
+
   // ---------- EXIF ----------
   async function parseExif(file) {
     try {
@@ -551,10 +562,10 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v27',
+    FILE_VERSION: 'v28',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
-    guessGenres, compressImage,
+    guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus,
   };

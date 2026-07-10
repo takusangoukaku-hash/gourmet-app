@@ -5,9 +5,18 @@
 const Store = (() => {
   const SHOPS_KEY = 'gourmet.shops.v1';
   const VISITS_KEY = 'gourmet.visits.v1';
+  const HASHES_KEY = 'gourmet.photoHashes.v1'; // 写真の指紋 → {shopId, visitId}（二重登録防止）
 
   let shops = load(SHOPS_KEY);
   let visits = load(VISITS_KEY);
+  let photoHashes = loadObj(HASHES_KEY);
+
+  function loadObj(k) {
+    try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; }
+  }
+  function persistHashes() {
+    localStorage.setItem(HASHES_KEY, JSON.stringify(photoHashes));
+  }
 
   function load(k) {
     try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; }
@@ -37,17 +46,23 @@ const Store = (() => {
     return dbPromise;
   }
 
-  // photo = { id, shopId, visitId, type('dish'|'exterior'|'interior'|'menu'), blob, createdAt }
-  async function addPhoto(shopId, visitId, type, blob) {
-    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, createdAt: Date.now() };
+  // photo = { id, shopId, visitId, type('dish'|'exterior'|'interior'|'menu'), blob, hash, createdAt }
+  // hash は圧縮前の元ファイルのSHA-256（同じ写真の二重登録を検出するための指紋）
+  async function addPhoto(shopId, visitId, type, blob, hash) {
+    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, hash: hash || '', createdAt: Date.now() };
     const d = await db();
     return new Promise((resolve, reject) => {
       const tx = d.transaction('photos', 'readwrite');
       tx.objectStore('photos').put(rec);
-      tx.oncomplete = () => resolve(rec.id);
+      tx.oncomplete = () => {
+        if (rec.hash) { photoHashes[rec.hash] = { shopId, visitId }; persistHashes(); }
+        resolve(rec.id);
+      };
       tx.onerror = () => reject(tx.error);
     });
   }
+  // 指紋が一致する登録済み写真を探す（なければ null）
+  const findPhotoByHash = (hash) => (hash && photoHashes[hash]) || null;
   async function allPhotos() {
     const d = await db();
     return new Promise((resolve, reject) => {
@@ -76,7 +91,13 @@ const Store = (() => {
     const all = await allPhotos();
     const d = await db();
     const tx = d.transaction('photos', 'readwrite');
-    for (const p of all) if (pred(p)) tx.objectStore('photos').delete(p.id);
+    for (const p of all) {
+      if (pred(p)) {
+        tx.objectStore('photos').delete(p.id);
+        if (p.hash) delete photoHashes[p.hash]; // 削除した写真は再登録できるように指紋も消す
+      }
+    }
+    persistHashes();
     return new Promise((resolve) => { tx.oncomplete = resolve; tx.onerror = resolve; });
   }
   // 代表写真: 最新の訪問の写真（料理写真を優先）
@@ -175,6 +196,6 @@ const Store = (() => {
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash,
   };
 })();

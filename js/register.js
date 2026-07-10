@@ -117,9 +117,33 @@ const Register = (() => {
 
   // ---------- 写真の追加・EXIF解析 ----------
   async function addFiles(fileList) {
+    const dupMsgs = [];
     for (const f of fileList) {
       if (!f.type.startsWith('image/')) continue;
-      pendingPhotos.push({ file: f, url: URL.createObjectURL(f), type: 'dish' });
+      const hash = await Api.fileHash(f);
+      // 二重登録の防止: 登録済みの写真・選択済みの写真は追加しない
+      if (hash) {
+        const dup = Store.findPhotoByHash(hash);
+        if (dup) {
+          const shop = Store.getShop(dup.shopId);
+          const visit = Store.visits().find(v => v.id === dup.visitId);
+          const when = visit ? new Date(visit.datetime).toLocaleDateString('ja-JP') : '';
+          dupMsgs.push(`「${f.name}」は${shop ? `「${shop.name}」${when ? `（${when}）` : ''}に` : ''}すでに登録されています`);
+          continue;
+        }
+        if (pendingPhotos.some(p => p.hash === hash)) {
+          dupMsgs.push(`「${f.name}」はすでに選択されています`);
+          continue;
+        }
+      }
+      pendingPhotos.push({ file: f, url: URL.createObjectURL(f), type: 'dish', hash });
+    }
+    const dupBox = $('#dup-status');
+    if (dupMsgs.length) {
+      dupBox.classList.remove('hidden');
+      dupBox.textContent = '⚠️ ' + dupMsgs.join(' ／ ');
+    } else {
+      dupBox.classList.add('hidden');
     }
     renderPreviews();
     await analyzeExif();
@@ -556,7 +580,7 @@ const Register = (() => {
       // --- 写真（圧縮して保存 — §9.1） ---
       for (const p of pendingPhotos) {
         const blob = await Api.compressImage(p.file);
-        await Store.addPhoto(shop.id, visit.id, p.type, blob);
+        await Store.addPhoto(shop.id, visit.id, p.type, blob, p.hash);
       }
 
       App.toast(`✅ 「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
@@ -580,6 +604,7 @@ const Register = (() => {
     lastGps = null;
     renderPreviews();
     $('#photo-input').value = '';
+    $('#dup-status').classList.add('hidden');
     $('#exif-status').classList.add('hidden');
     $('#ai-status').classList.add('hidden');
     $('#shop-candidates').innerHTML = '';

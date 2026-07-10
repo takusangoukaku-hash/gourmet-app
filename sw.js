@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v27'; // label要素のクリック転送でジャンル/評価が誤選択される不具合を修正
+const VERSION = 'v28'; // 同じ写真の二重登録を検出して防止する機能を追加
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=27',
-  './js/store.js?v=27', './js/api.js?v=27', './js/register.js?v=27', './js/views.js?v=27', './js/app.js?v=27',
+  './', './index.html', './css/style.css?v=28',
+  './js/store.js?v=28', './js/api.js?v=28', './js/register.js?v=28', './js/views.js?v=28', './js/app.js?v=28',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
