@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v36'; // Instagram風デザインに全面リニューアル（白背景）
+const VERSION = 'v37'; // ヘッダー中央タイトル＋右上の＋ボタンで登録（下バーの登録タブ廃止）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=36',
-  './js/store.js?v=36', './js/api.js?v=36', './js/register.js?v=36', './js/views.js?v=36', './js/app.js?v=36',
+  './', './index.html', './css/style.css?v=37',
+  './js/store.js?v=37', './js/api.js?v=37', './js/register.js?v=37', './js/views.js?v=37', './js/app.js?v=37',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
