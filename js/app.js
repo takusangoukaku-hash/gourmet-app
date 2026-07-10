@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v24'; // sw.js の VERSION と合わせる
+  const APP_VERSION = 'v25'; // sw.js の VERSION と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -75,7 +75,17 @@ const App = (() => {
     // サービスワーカー登録（PWA: ホーム画面追加・オフライン起動）
     // ※ https または localhost でのみ有効。LANのhttpでは無視される
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => { /* 非対応環境では何もしない */ });
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        // 起動のたびに新バージョンを確認（PWAはこれをしないと古いSWが残り続ける）
+        reg.update().catch(() => {});
+        // 新しいSWに切り替わったら一度だけ自動リロードして、全ファイルを最新に揃える
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloaded) return;
+          reloaded = true;
+          location.reload();
+        });
+      }).catch(() => { /* 非対応環境では何もしない */ });
     }
 
     // 起動時: URLの?tab=指定 → データがあれば一覧 → なければ登録タブ

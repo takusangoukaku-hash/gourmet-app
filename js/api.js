@@ -33,9 +33,9 @@ const Api = (() => {
     const escH = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     const render = () => {
       container.innerHTML =
-        '<div class="cat-chips">' + DISH_CATEGORIES.map(c => {
+        '<div class="cat-chips">' + DISH_CATEGORIES.map((c, i) => {
           const count = c.genres.filter(g => selected.has(g)).length;
-          return `<button type="button" class="chip cat${c === active ? ' on' : ''}" data-cat="${escH(c.name)}">${escH(c.name)}${count ? `<span class="cat-count">${count}</span>` : ''}</button>`;
+          return `<button type="button" class="chip cat${c === active ? ' on' : ''}" data-ci="${i}" data-cat="${escH(c.name)}">${escH(c.name)}${count ? `<span class="cat-count">${count}</span>` : ''}</button>`;
         }).join('') + '</div>' +
         (active
           ? '<div class="chips genre-chips">' + active.genres.map(g =>
@@ -46,7 +46,8 @@ const Api = (() => {
     container.onclick = (e) => {
       const cat = e.target.closest('.chip.cat');
       if (cat) {
-        const c = DISH_CATEGORIES.find(x => x.name === cat.dataset.cat);
+        // 文字列一致ではなく番号で照合（端末による文字の扱い差の影響を受けない）
+        const c = DISH_CATEGORIES[Number(cat.dataset.ci)] || null;
         active = (c === active) ? null : c; // 同じカテゴリを再タップで閉じる
         render();
         return;
