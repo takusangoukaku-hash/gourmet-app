@@ -78,6 +78,15 @@ const Register = (() => {
       }
     }, true);
 
+    // 詳細欄（住所・最寄駅など）の開閉
+    $('#detail-toggle').addEventListener('click', () => {
+      const fields = $('#detail-fields');
+      const open = fields.classList.toggle('hidden'); // true = 閉じた
+      $('#detail-toggle').textContent = open
+        ? '▸ もっと見る（住所・最寄駅など）'
+        : '▾ 閉じる（住所・最寄駅など）';
+    });
+
     // 評価スター（味）＋ 店の評価3軸
     mountStars($('#f-rating'), 0, v => { currentRating = v; });
     mountAxisStars();
@@ -615,6 +624,9 @@ const Register = (() => {
     derivedShopGenre = '';
     $('#f-visit-type').value = '店内飲食';
     $('#f-fav').checked = false;
+    // 詳細欄は閉じた状態に戻す
+    $('#detail-fields').classList.add('hidden');
+    $('#detail-toggle').textContent = '▸ もっと見る（住所・最寄駅など）';
     $('#f-datetime').value = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;

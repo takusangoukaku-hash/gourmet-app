@@ -116,6 +116,11 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .mini-map { height: 300px; border-radius: 10px; }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* 登録フォームの詳細欄（住所など）: 「もっと見る」で開閉 */
+.form-grid .detail-toggle, .form-grid .detail-fields { grid-column: 1 / -1; }
+.detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.detail-toggle { text-align: left; font-size: 13px; color: var(--muted); }
+
 /* .flabel: ラベルと同じ見た目のdiv（ボタン群を包む欄はlabel要素を使わない） */
 .form-grid label, .form-grid .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .form-grid label.full, .form-grid .flabel.full { grid-column: 1 / -1; }

@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=28">
+<link rel="stylesheet" href="css/style.css?v=29">
 </head>
 <body>
 
@@ -100,18 +100,21 @@
       <label class="full">コメント・感想
         <textarea id="f-comment" rows="3" placeholder="味の感想、おすすめメニューなど"></textarea>
       </label>
-      <label>住所
-        <input type="text" id="f-address" placeholder="自動入力されます">
-      </label>
-      <label>最寄駅
-        <input type="text" id="f-station" placeholder="自動入力されます">
-      </label>
-      <label>都道府県
-        <input type="text" id="f-pref">
-      </label>
-      <label>市区町村
-        <input type="text" id="f-city">
-      </label>
+      <button type="button" id="detail-toggle" class="btn full detail-toggle">▸ もっと見る（住所・最寄駅など）</button>
+      <div id="detail-fields" class="full detail-fields hidden">
+        <label>住所
+          <input type="text" id="f-address" placeholder="自動入力されます">
+        </label>
+        <label>最寄駅
+          <input type="text" id="f-station" placeholder="自動入力されます">
+        </label>
+        <label>都道府県
+          <input type="text" id="f-pref">
+        </label>
+        <label>市区町村
+          <input type="text" id="f-city">
+        </label>
+      </div>
       <label class="check full"><input type="checkbox" id="f-fav"> ⭐ お気に入りに登録</label>
     </div>
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
@@ -306,10 +309,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=28"></script>
-<script src="js/api.js?v=28"></script>
-<script src="js/register.js?v=28"></script>
-<script src="js/views.js?v=28"></script>
-<script src="js/app.js?v=28"></script>
+<script src="js/store.js?v=29"></script>
+<script src="js/api.js?v=29"></script>
+<script src="js/register.js?v=29"></script>
+<script src="js/views.js?v=29"></script>
+<script src="js/app.js?v=29"></script>
 </body>
 </html>

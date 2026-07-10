@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v28'; // 同じ写真の二重登録を検出して防止する機能を追加
+const VERSION = 'v29'; // 登録フォームの住所・最寄駅などを「もっと見る」で開閉に変更
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=28',
-  './js/store.js?v=28', './js/api.js?v=28', './js/register.js?v=28', './js/views.js?v=28', './js/app.js?v=28',
+  './', './index.html', './css/style.css?v=29',
+  './js/store.js?v=29', './js/api.js?v=29', './js/register.js?v=29', './js/views.js?v=29', './js/app.js?v=29',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
