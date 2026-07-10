@@ -33,6 +33,10 @@ const Register = (() => {
   let lastGps = null;
   // 検索の世代番号（古い検索の遅延結果で新しい結果を上書きしないため）
   let searchSeq = 0;
+  // 予測検索の状態（入力が止まったら自動で候補を出す）
+  let suggestSeq = 0;
+  let suggestTimer = null;
+  let suggestRef = null; // 予測検索の基準位置（一度だけ取得して使い回す）
 
   // 現在地の取得（拒否・失敗時は null。検索精度向上のための任意情報）
   function getCurrentPos(timeout = 3500) {
@@ -53,6 +57,20 @@ const Register = (() => {
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
     $('#f-shop-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+    // 予測検索: 入力が止まったら自動で候補を表示（Chromeの検索補完風）
+    // 日本語入力の変換中（composition中）は発火させず、確定したタイミングで検索する
+    const nameInput = $('#f-shop-name');
+    let composing = false;
+    const queueSuggest = () => {
+      clearTimeout(suggestTimer);
+      const q = nameInput.value.trim();
+      if (q.length < 2) { suggestSeq++; return; } // 短すぎる入力では出さない
+      suggestTimer = setTimeout(() => suggest(q), 400);
+    };
+    nameInput.addEventListener('compositionstart', () => { composing = true; });
+    nameInput.addEventListener('compositionend', () => { composing = false; queueSuggest(); });
+    nameInput.addEventListener('input', () => { if (!composing) queueSuggest(); });
 
 
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
@@ -332,8 +350,38 @@ const Register = (() => {
     }, 600);
   }
 
+  // ---------- 予測検索（入力中の自動候補） ----------
+  async function suggest(q) {
+    const mySeq = ++suggestSeq;
+    const box = $('#shop-candidates');
+
+    // 登録済み店舗は即時に出せる（再訪の最短導線）
+    const existing = Store.shops()
+      .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
+      .slice(0, 3)
+      .map(s => ({ shop: s, distance: null }));
+
+    // 基準位置: 写真のGPS → 現在地（1回だけ取得して以後使い回す）
+    if (!suggestRef) suggestRef = lastGps || await getCurrentPos(2500);
+    if (mySeq !== suggestSeq) return;
+
+    let results = [];
+    try { results = await Api.suggestShops(q, suggestRef); } catch { /* 通信エラー時は登録済みのみ */ }
+    if (mySeq !== suggestSeq) return;                        // 入力が進んだ・手動検索が始まった
+    if ($('#f-shop-name').value.trim() !== q) return;        // 入力値が変わっていたら破棄
+
+    if (!existing.length && !results.length) return; // 何もなければ表示を変えない
+    renderCandidates(box, existing, results, '');
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = '💡 入力に合わせた予測候補です。見つからないときは🔍検索でさらに広く探せます。';
+    box.appendChild(p);
+  }
+
   // ---------- フローB: 名前検索（複数の情報源を統合、個人店対応） ----------
   async function doSearch() {
+    clearTimeout(suggestTimer);
+    suggestSeq++; // 進行中の予測検索を無効化（手動検索を優先）
     const q = $('#f-shop-name').value.trim();
     const box = $('#shop-candidates');
     if (!q) { box.innerHTML = '<p class="hint">店舗名を入力してから🔍検索を押してください。</p>'; return; }
@@ -586,6 +634,8 @@ const Register = (() => {
     $('#ai-status').classList.add('hidden');
     $('#shop-candidates').innerHTML = '';
     $('#selected-shop-note').classList.add('hidden');
+    clearTimeout(suggestTimer);
+    suggestSeq++; // 進行中の予測検索を無効化
     ['#f-shop-name', '#f-address', '#f-station', '#f-pref', '#f-city', '#f-comment'].forEach(s => { $(s).value = ''; });
     derivedShopGenre = '';
     $('#f-fav').checked = false;

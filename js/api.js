@@ -358,6 +358,19 @@ out center 25;`;
     return mergeCandidates([google, photon, nomi], ref);
   }
 
+  // ---------- 予測検索: 入力中のリアルタイム候補（検索ボタンを押す前に表示） ----------
+  // Google + Photon のみ使用（Nominatimは利用規約で自動補完への使用が禁止されているため使わない）
+  async function suggestShops(query, ref) {
+    const googleJob = hasGoogleKey()
+      ? googlePlacesSearch(query, ref).catch(() => [])
+      : Promise.resolve([]);
+    const [google, photon] = await Promise.all([
+      googleJob,
+      photonSearch(query, ref && ref.lat, ref && ref.lon).catch(() => []),
+    ]);
+    return mergeCandidates([google, photon], ref).slice(0, 6);
+  }
+
   // ---------- 周辺の詳細検索: Overpass部分一致（個人店に強い・遅いので後追い用） ----------
   async function searchShopsNearby(nameQuery, ref) {
     if (!ref) return [];
@@ -568,9 +581,9 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v34',
+    FILE_VERSION: 'v35',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
-    reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, mergeCandidates,
+    reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus,

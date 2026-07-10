@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v34'; // 検索候補の長い説明文による横はみ出しを修正
+const VERSION = 'v35'; // 店舗名の入力中に予測候補を自動表示（Chrome検索補完風）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=34',
-  './js/store.js?v=34', './js/api.js?v=34', './js/register.js?v=34', './js/views.js?v=34', './js/app.js?v=34',
+  './', './index.html', './css/style.css?v=35',
+  './js/store.js?v=35', './js/api.js?v=35', './js/register.js?v=35', './js/views.js?v=35', './js/app.js?v=35',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
