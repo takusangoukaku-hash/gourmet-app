@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v40'; // 絞り込みパネルの外側タップで自動的に閉じるように変更
+const VERSION = 'v41'; // 入力欄タップ時の自動ズームで画面が拡大したままになる問題を解消
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=40',
-  './js/store.js?v=40', './js/api.js?v=40', './js/register.js?v=40', './js/views.js?v=40', './js/app.js?v=40',
+  './', './index.html', './css/style.css?v=41',
+  './js/store.js?v=41', './js/api.js?v=41', './js/register.js?v=41', './js/views.js?v=41', './js/app.js?v=41',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

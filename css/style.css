@@ -147,7 +147,8 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .form-grid label.check { flex-direction: row; align-items: center; font-size: 14px; color: var(--text); }
 input[type="text"], input[type="datetime-local"], select, textarea {
   border: 1px solid var(--border); border-radius: 10px; padding: 10px 11px;
-  font-size: 14px; font-family: inherit; background: var(--field); color: var(--text); width: 100%;
+  /* 16px未満だとiOSが入力欄タップ時に画面を自動ズームしてしまう */
+  font-size: 16px; font-family: inherit; background: var(--field); color: var(--text); width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
 
