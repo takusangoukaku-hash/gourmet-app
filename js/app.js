@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v50'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v51'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -16,8 +16,6 @@ const App = (() => {
     document.querySelectorAll('#tabs .tab').forEach(btn => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
-    // ヘッダー右上の＋ボタン → 登録画面（下のバーから登録タブは廃止）
-    $('#add-btn').addEventListener('click', () => switchTab('register'));
 
     // 共通イベント委譲（店舗詳細を開く / お気に入り切替 / モーダルを閉じる）
     document.addEventListener('click', (e) => {
