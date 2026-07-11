@@ -601,10 +601,11 @@ const Views = (() => {
     }
     box.innerHTML = '';
     for (const { p, shop, visit } of cells) {
+      // 拡大表示は店名＋日付、写真の下のキャプションは店名のみ
       const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
       div.className = 'photo-cell';
-      div.innerHTML = `<img src="${photoUrl(p)}" alt=""><div class="cap">${esc(TYPE_LABEL[p.type] || '')}｜${esc(cap)}</div>`;
+      div.innerHTML = `<img src="${photoUrl(p)}" alt=""><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       div.addEventListener('click', () => openLightbox(photoUrl(p), cap));
       box.appendChild(div);
     }
@@ -718,7 +719,7 @@ const Views = (() => {
       const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
       div.className = 'photo-cell';
-      div.innerHTML = `<img src="${photoUrl(ph)}" alt="">`;
+      div.innerHTML = `<img src="${photoUrl(ph)}" alt=""><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       div.addEventListener('click', () => openLightbox(photoUrl(ph), cap));
       box.appendChild(div);
     }

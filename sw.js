@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v57'; // 検索バーをピクトグラム＋「検索」表記に、検索/写真ジャンル/プロフィールの外枠を削除
+const VERSION = 'v58'; // 写真の下のキャプションを店名のみに（写真タブ・プロフィール両方）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=57',
-  './js/store.js?v=57', './js/api.js?v=57', './js/cloud.js?v=57', './js/register.js?v=57', './js/views.js?v=57', './js/app.js?v=57',
+  './', './index.html', './css/style.css?v=58',
+  './js/store.js?v=58', './js/api.js?v=58', './js/cloud.js?v=58', './js/register.js?v=58', './js/views.js?v=58', './js/app.js?v=58',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
