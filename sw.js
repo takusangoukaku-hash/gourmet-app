@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v46'; // 統計をプロフィール内へ移動し、プロフィールの「最近の写真」を削除
+const VERSION = 'v47'; // 地図タブを下のバーに復帰（一番左）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=46',
-  './js/store.js?v=46', './js/api.js?v=46', './js/register.js?v=46', './js/views.js?v=46', './js/app.js?v=46',
+  './', './index.html', './css/style.css?v=47',
+  './js/store.js?v=47', './js/api.js?v=47', './js/register.js?v=47', './js/views.js?v=47', './js/app.js?v=47',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
