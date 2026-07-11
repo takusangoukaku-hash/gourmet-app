@@ -687,6 +687,41 @@ const Views = (() => {
     });
     // 一覧の詳細検索から地図を開けるように
     $('#list-open-map').addEventListener('click', () => App.switchTab('map'));
+
+    // プロフィール内の 写真 / 統計 タブ切り替え（ヘッダーは常に表示）
+    document.querySelectorAll('#profile-subtabs .psub').forEach(b =>
+      b.addEventListener('click', () => showProfileTab(b.dataset.ptab)));
+  }
+
+  function showProfileTab(name) {
+    document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
+    $('#ptab-photos').classList.toggle('hidden', name !== 'photos');
+    $('#ptab-stats').classList.toggle('hidden', name !== 'stats');
+    // グラフは表示中のcanvasでないと大きさが0になるため、表示時に描画する
+    if (name === 'stats') renderStats();
+    else renderProfilePhotos();
+  }
+
+  // プロフィールの写真グリッド（全写真・新しい順・タップで拡大）
+  async function renderProfilePhotos() {
+    const box = $('#pf-photo-grid');
+    const photos = await Store.allPhotos();
+    photos.sort((a, b) => b.createdAt - a.createdAt);
+    box.innerHTML = '';
+    if (!photos.length) {
+      box.innerHTML = '<div class="empty"><p>まだ写真がありません。＋から最初の一皿を記録しましょう。</p></div>';
+      return;
+    }
+    for (const ph of photos) {
+      const shop = Store.getShop(ph.shopId);
+      const visit = Store.visits().find(v => v.id === ph.visitId);
+      const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
+      const div = document.createElement('div');
+      div.className = 'photo-cell';
+      div.innerHTML = `<img src="${photoUrl(ph)}" alt="">`;
+      div.addEventListener('click', () => openLightbox(photoUrl(ph), cap));
+      box.appendChild(div);
+    }
   }
 
   async function renderProfile() {
@@ -702,8 +737,8 @@ const Views = (() => {
     // フォロー/フォロワーは将来機能（今は0固定のプレースホルダ）
     $('#pf-following').textContent = p.following || 0;
     $('#pf-followers').textContent = p.followers || 0;
-    // 統計（月別訪問件数・ジャンル割合・ランキング等）もプロフィール内に表示
-    await renderStats();
+    // プロフィールを開いたときは「写真」を表示（要望）。統計は統計タブで表示
+    showProfileTab('photos');
   }
 
   // ========== 統計・ランキング ==========

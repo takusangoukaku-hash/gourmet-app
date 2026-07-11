@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=55">
+<link rel="stylesheet" href="css/style.css?v=56">
 </head>
 <body>
 
@@ -233,19 +233,40 @@
       <button id="pf-save" class="btn primary small">保存</button>
     </div>
   </div>
-  <!-- 統計（プロフィール内に表示） -->
-  <div id="stat-cards" class="stat-cards"></div>
-  <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
-  <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
-  <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
-  <div class="card">
-    <h2>🏆 ランキング</h2>
-    <div class="rank-grid">
-      <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
-      <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
-      <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
-      <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
-      <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
+  <!-- 写真 / 統計の切り替え（ヘッダーは常に上に表示、下だけ入れ替わる） -->
+  <div class="profile-subtabs" id="profile-subtabs">
+    <button class="psub active" data-ptab="photos" title="写真" aria-label="写真">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    </button>
+    <button class="psub" data-ptab="stats" title="統計" aria-label="統計">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- 写真パネル（初期表示） -->
+  <div id="ptab-photos" class="ptab-panel">
+    <div id="pf-photo-grid" class="photo-grid"></div>
+  </div>
+
+  <!-- 統計パネル -->
+  <div id="ptab-stats" class="ptab-panel hidden">
+    <div id="stat-cards" class="stat-cards"></div>
+    <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
+    <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
+    <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
+    <div class="card">
+      <h2>🏆 ランキング</h2>
+      <div class="rank-grid">
+        <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
+        <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
+        <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
+        <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
+        <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
+      </div>
     </div>
   </div>
 </section>
@@ -356,11 +377,11 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=55"></script>
-<script src="js/api.js?v=55"></script>
-<script src="js/cloud.js?v=55"></script>
-<script src="js/register.js?v=55"></script>
-<script src="js/views.js?v=55"></script>
-<script src="js/app.js?v=55"></script>
+<script src="js/store.js?v=56"></script>
+<script src="js/api.js?v=56"></script>
+<script src="js/cloud.js?v=56"></script>
+<script src="js/register.js?v=56"></script>
+<script src="js/views.js?v=56"></script>
+<script src="js/app.js?v=56"></script>
 </body>
 </html>
