@@ -304,6 +304,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   width: 18px; height: 18px; stroke: var(--muted); stroke-width: 2; pointer-events: none;
 }
 .search-field input { padding-left: 38px; }
+/* 一覧の検索枠は左右の余白をなくし、下の店舗リストの幅に合わせる */
+#view-list .filters { padding-left: 0; padding-right: 0; }
+/* テキスト内に置く白黒ピクトグラム（駅・住所・地図・検索など） */
+.ic { width: 14px; height: 14px; vertical-align: -2px; stroke-width: 2; flex-shrink: 0; }
+.btn .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 2px; }
+/* 地図上の検索バーもピクトグラム付きに */
+.map-search-field .search-ico { stroke: var(--muted); }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
 .filter-row:last-child { margin-bottom: 0; }
 .filter-row select { width: auto; flex: 1; min-width: 110px; }

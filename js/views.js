@@ -6,6 +6,9 @@ const Views = (() => {
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const starStr = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+  // 白黒ピクトグラム（駅・住所）
+  const IC_STATION = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><path d="M9 20l1.5-4"/><path d="M15 20l-1.5-4"/></svg>';
+  const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
@@ -557,7 +560,7 @@ const Views = (() => {
       <div class="s-main">
         <div class="s-name">${esc(s.name)}</div>
         <div class="s-stars">${starStr(avg)} <span class="num">味${avg || '－'}　訪問${Store.visitCount(s.id)}回</span></div>
-        <div class="s-sub">${esc(shopLabelGenre(s) || '')}${s.station ? '　🚉 ' + esc(s.station) : ''}${s.city ? '　📍 ' + esc(s.city) : ''}</div>
+        <div class="s-sub">${esc(shopLabelGenre(s) || '')}${s.station ? '　' + IC_STATION + ' ' + esc(s.station) : ''}${s.city ? '　' + IC_PIN + ' ' + esc(s.city) : ''}</div>
         ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
         <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
       </div>
@@ -851,7 +854,7 @@ const Views = (() => {
         <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
         <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
-        <div class="d-sub">${s.station ? '🚉 ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
+        <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
       </div>`;
 
