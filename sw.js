@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v58'; // 写真の下のキャプションを店名のみに（写真タブ・プロフィール両方）
+const VERSION = 'v59'; // 一覧の店舗を枠囲みから画面いっぱいの横線区切りに変更
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=58',
-  './js/store.js?v=58', './js/api.js?v=58', './js/cloud.js?v=58', './js/register.js?v=58', './js/views.js?v=58', './js/app.js?v=58',
+  './', './index.html', './css/style.css?v=59',
+  './js/store.js?v=59', './js/api.js?v=59', './js/cloud.js?v=59', './js/register.js?v=59', './js/views.js?v=59', './js/app.js?v=59',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
