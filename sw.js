@@ -5,18 +5,18 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v59'; // 一覧の店舗を枠囲みから画面いっぱいの横線区切りに変更
+const VERSION = 'v60'; // アプリ名をBITEMAPにリブランド（Poppins Bold・ラーメンのイラスト削除）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=59',
-  './js/store.js?v=59', './js/api.js?v=59', './js/cloud.js?v=59', './js/register.js?v=59', './js/views.js?v=59', './js/app.js?v=59',
+  './', './index.html', './css/style.css?v=60',
+  './js/store.js?v=60', './js/api.js?v=60', './js/cloud.js?v=60', './js/register.js?v=60', './js/views.js?v=60', './js/app.js?v=60',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
 
-const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tiles.openfreemap.org', 'maps.gsi.go.jp', 'www.gstatic.com'];
+const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tiles.openfreemap.org', 'maps.gsi.go.jp', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 // Firebase（認証・DB・写真保存）は常にネットワークへ（キャッシュしない）
 const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com',
   'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];

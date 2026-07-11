@@ -1,6 +1,6 @@
 {
-  "name": "グルメ記録",
-  "short_name": "グルメ記録",
+  "name": "BITEMAP",
+  "short_name": "BITEMAP",
   "description": "料理の写真を登録するだけの自分専用グルメアルバム",
   "lang": "ja",
   "start_url": "./",
