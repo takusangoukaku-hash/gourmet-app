@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v42'; // 下部ナビのアイコンを白黒のピクトグラム（SVG線画）に変更
+const VERSION = 'v43'; // 下部ナビのラベル文字を削除（アイコンのみ表示）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=42',
-  './js/store.js?v=42', './js/api.js?v=42', './js/register.js?v=42', './js/views.js?v=42', './js/app.js?v=42',
+  './', './index.html', './css/style.css?v=43',
+  './js/store.js?v=43', './js/api.js?v=43', './js/register.js?v=43', './js/views.js?v=43', './js/app.js?v=43',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
