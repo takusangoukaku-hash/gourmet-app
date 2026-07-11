@@ -464,10 +464,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .cam-shutter:active { transform: scale(.94); }
 .cam-library {
-  border-radius: 12px; border: 2px solid rgba(255,255,255,.8);
-  background: rgba(255,255,255,.15); color: #fff; font-size: 24px; cursor: pointer;
+  border: none; background: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
+.cam-library svg { width: 30px; height: 30px; stroke: #fff; stroke-width: 1.8; }
 .cam-error {
   position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%);
   color: #fff; background: rgba(0,0,0,.6); border-radius: 12px; padding: 16px;
