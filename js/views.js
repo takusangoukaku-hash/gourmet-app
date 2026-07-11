@@ -424,6 +424,19 @@ const Views = (() => {
     // 検索バーをタップしたら詳細な絞り込みを開く（地図と同じ操作感）
     $('#flt-keyword').addEventListener('focus', () => $('#list-filter-panel').classList.remove('hidden'));
     $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
+
+    // パネルの外側をタップしたら閉じて検索バーだけに戻す（地図・一覧共通）
+    // captureで登録: 地図などがタップイベントの伝播を止めても先に検知できる
+    document.addEventListener('pointerdown', (e) => {
+      const mapPanel = $('#map-filter-panel');
+      if (mapPanel && !mapPanel.classList.contains('hidden') && !e.target.closest('.map-overlay')) {
+        mapPanel.classList.add('hidden');
+      }
+      const listPanel = $('#list-filter-panel');
+      if (listPanel && !listPanel.classList.contains('hidden') && !e.target.closest('.filters')) {
+        listPanel.classList.add('hidden');
+      }
+    }, true);
   }
 
   function refreshPrefOptions() {
