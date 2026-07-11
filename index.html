@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=38">
+<link rel="stylesheet" href="css/style.css?v=39">
 </head>
 <body>
 
@@ -93,52 +93,61 @@
   </div>
 </section>
 
-<!-- ========== 地図 ========== -->
+<!-- ========== 地図（全画面＋地図上の検索バー） ========== -->
 <section id="view-map" class="view">
-  <div class="map-toolbar">
-    <button id="map-locate" class="btn small">📍 現在地</button>
-    <button id="map-heat" class="btn small">🔥 ヒートマップ</button>
-    <span id="map-filter-count" class="filter-count"></span>
-    <span class="map-legend">
-      味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
-    </span>
-  </div>
-  <div id="map-genre-filter" class="map-filter"></div>
-  <div class="map-axis-filter">
-    <select id="mf-taste" class="taste-select">
-      <option value="0">味の評価</option>
-      <option value="3">味 ★3以上</option>
-      <option value="4">味 ★4以上</option>
-      <option value="5">味 ★5</option>
-    </select>
-    <select id="mf-casual">
-      <option value="0">カジュアル度</option>
-      <option value="3">気軽さ ★3以上</option>
-      <option value="4">気軽さ ★4以上</option>
-      <option value="5">気軽さ ★5</option>
-    </select>
-    <select id="mf-atmosphere">
-      <option value="0">雰囲気</option>
-      <option value="3">雰囲気 ★3以上</option>
-      <option value="4">雰囲気 ★4以上</option>
-      <option value="5">雰囲気 ★5</option>
-    </select>
-    <select id="mf-speed">
-      <option value="0">提供の早さ</option>
-      <option value="3">早さ ★3以上</option>
-      <option value="4">早さ ★4以上</option>
-      <option value="5">早さ ★5</option>
-    </select>
-  </div>
   <div id="map-canvas"></div>
+  <div class="map-overlay">
+    <input type="text" id="map-search" placeholder="🔍 店名・駅・ジャンルで検索（タップで絞り込み）" autocomplete="off">
+    <div id="map-filter-panel" class="map-panel hidden">
+      <div class="map-toolbar">
+        <button id="map-locate" class="btn small">📍 現在地</button>
+        <button id="map-heat" class="btn small">🔥 ヒートマップ</button>
+        <button id="map-panel-close" class="btn small map-close">✕ 閉じる</button>
+      </div>
+      <div id="map-genre-filter" class="map-filter"></div>
+      <div class="map-axis-filter">
+        <select id="mf-taste" class="taste-select">
+          <option value="0">味の評価</option>
+          <option value="3">味 ★3以上</option>
+          <option value="4">味 ★4以上</option>
+          <option value="5">味 ★5</option>
+        </select>
+        <select id="mf-casual">
+          <option value="0">カジュアル度</option>
+          <option value="3">気軽さ ★3以上</option>
+          <option value="4">気軽さ ★4以上</option>
+          <option value="5">気軽さ ★5</option>
+        </select>
+        <select id="mf-atmosphere">
+          <option value="0">雰囲気</option>
+          <option value="3">雰囲気 ★3以上</option>
+          <option value="4">雰囲気 ★4以上</option>
+          <option value="5">雰囲気 ★5</option>
+        </select>
+        <select id="mf-speed">
+          <option value="0">提供の早さ</option>
+          <option value="3">早さ ★3以上</option>
+          <option value="4">早さ ★4以上</option>
+          <option value="5">早さ ★5</option>
+        </select>
+      </div>
+      <div class="panel-foot">
+        <span id="map-filter-count" class="filter-count"></span>
+        <span class="map-legend">
+          味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
+        </span>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ========== 一覧 ========== -->
 <section id="view-list" class="view">
   <div class="card filters">
     <div class="filter-row">
-      <input type="text" id="flt-keyword" placeholder="🔍 キーワード（店名・コメント・駅・地名）">
+      <input type="text" id="flt-keyword" placeholder="🔍 キーワード（店名・コメント・駅・地名）タップで絞り込み">
     </div>
+    <div id="list-filter-panel" class="hidden">
     <div class="filter-row">
       <select id="flt-group">
         <option value="">分類: なし</option>
@@ -169,6 +178,10 @@
       </select>
       <label class="check"><input type="checkbox" id="flt-fav"> ⭐のみ</label>
     </div>
+    <div class="filter-row">
+      <button type="button" id="list-panel-close" class="btn small">▲ 絞り込みを閉じる</button>
+    </div>
+    </div>
   </div>
   <div id="shop-list" class="shop-list"></div>
 </section>
@@ -177,14 +190,7 @@
 <section id="view-photos" class="view">
   <div class="card filters">
     <div class="filter-row">
-      <select id="ph-type">
-        <option value="">すべての種別</option>
-        <option value="dish">料理写真</option>
-        <option value="exterior">外観写真</option>
-        <option value="interior">店内写真</option>
-        <option value="menu">メニュー写真</option>
-      </select>
-      <select id="ph-dish-genre"><option value="">すべての料理ジャンル</option></select>
+      <select id="ph-dish-genre"><option value="">ジャンル</option></select>
     </div>
   </div>
   <div id="photo-grid" class="photo-grid"></div>
@@ -280,10 +286,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=38"></script>
-<script src="js/api.js?v=38"></script>
-<script src="js/register.js?v=38"></script>
-<script src="js/views.js?v=38"></script>
-<script src="js/app.js?v=38"></script>
+<script src="js/store.js?v=39"></script>
+<script src="js/api.js?v=39"></script>
+<script src="js/register.js?v=39"></script>
+<script src="js/views.js?v=39"></script>
+<script src="js/app.js?v=39"></script>
 </body>
 </html>

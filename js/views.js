@@ -225,6 +225,16 @@ const Views = (() => {
     return Store.visitsOf(shopId).some(v => (v.dishGenres || []).some(g => mapGenreFilter.has(g)));
   }
 
+  // 地図上の検索バーによるキーワード絞り込み（店名・駅・地名・ジャンル）
+  let mapKeyword = '';
+  function shopMatchesKeyword(s) {
+    const kw = mapKeyword.toLowerCase();
+    if (!kw) return true;
+    const hay = [s.name, s.station, s.city, s.pref, s.address, s.shopGenre,
+      ...Store.visitsOf(s.id).flatMap(v => v.dishGenres || [])].join(' ').toLowerCase();
+    return hay.includes(kw);
+  }
+
   // 星評価フィルタ（味＝メイン＋店の評価3軸）
   const AXIS_LABEL = { taste: '味', casual: 'カジュアル度', atmosphere: '雰囲気', speed: '提供の早さ' };
   function shopMatchesAxes(shop) {
@@ -241,8 +251,10 @@ const Views = (() => {
     if (map) return;
     // maxZoomの明示は必須: ベクトル層はラスタ層と違い地図へmaxZoomを供給しない
     // ため、未指定だとマーカークラスタが例外を投げてピンが表示されなくなる
-    map = L.map('map-canvas', { zoomControl: true, attributionControl: true, maxZoom: 20, minZoom: 3 })
+    // ズームボタンは右下へ（左上は検索バーが重なるため）
+    map = L.map('map-canvas', { zoomControl: false, attributionControl: true, maxZoom: 20, minZoom: 3 })
       .setView([35.6812, 139.7671], 12);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
     addBaseTiles(map);
     // クラスター（重なり）は中で最も評価の高い店舗の色を代表として表示し、
     // 右上に件数バッジを付ける
@@ -278,6 +290,21 @@ const Views = (() => {
     // 星評価フィルタ（味＋店の評価3軸）
     ['#mf-taste', '#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
       $(sel).addEventListener('change', refreshMap));
+
+    // 検索バー: タップで絞り込みパネルを開き、入力でピンをキーワード絞り込み
+    $('#map-search').addEventListener('focus', () => $('#map-filter-panel').classList.remove('hidden'));
+    let mapKwTimer = null;
+    $('#map-search').addEventListener('input', () => {
+      clearTimeout(mapKwTimer);
+      mapKwTimer = setTimeout(() => {
+        mapKeyword = $('#map-search').value.trim();
+        refreshMap();
+      }, 300);
+    });
+    $('#map-panel-close').addEventListener('click', () => {
+      $('#map-filter-panel').classList.add('hidden');
+      $('#map-search').blur();
+    });
 
     $('#map-locate').addEventListener('click', () => {
       if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
@@ -322,7 +349,7 @@ const Views = (() => {
     setTimeout(() => map.invalidateSize(), 60);
     cluster.clearLayers();
     const shops = Store.shops().filter(s =>
-      s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s));
+      s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
     // フィルタ選択中は件数を表示
     const axisActive = ['taste', 'casual', 'atmosphere', 'speed']
       .filter(k => +($('#mf-' + k).value || 0) > 0)
@@ -383,7 +410,7 @@ const Views = (() => {
       // ジャンルフィルタ選択中は該当する訪問だけを対象にする
       if (mapGenreFilter.size && !(v.dishGenres || []).some(g => mapGenreFilter.has(g))) continue;
       const s = Store.getShop(v.shopId);
-      if (s && s.lat != null) pts.push([s.lat, s.lon, 1]);
+      if (s && s.lat != null && shopMatchesKeyword(s)) pts.push([s.lat, s.lon, 1]);
     }
     heat = L.heatLayer(pts, { radius: 32, blur: 22 }).addTo(map);
   }
@@ -394,6 +421,9 @@ const Views = (() => {
       .forEach(sel => $(sel).addEventListener($(sel).tagName === 'INPUT' && $(sel).type === 'text' ? 'input' : 'change', renderList));
     // フィルタ選択肢
     $('#flt-dish-genre').innerHTML = '<option value="">料理ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
+    // 検索バーをタップしたら詳細な絞り込みを開く（地図と同じ操作感）
+    $('#flt-keyword').addEventListener('focus', () => $('#list-filter-panel').classList.remove('hidden'));
+    $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
   }
 
   function refreshPrefOptions() {
@@ -531,8 +561,7 @@ const Views = (() => {
 
   // ========== 写真ギャラリー ==========
   function initPhotos() {
-    $('#ph-dish-genre').innerHTML = '<option value="">すべての料理ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
-    $('#ph-type').addEventListener('change', renderPhotos);
+    $('#ph-dish-genre').innerHTML = '<option value="">ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
     $('#ph-dish-genre').addEventListener('change', renderPhotos);
   }
 
@@ -540,7 +569,7 @@ const Views = (() => {
 
   async function renderPhotos() {
     const box = $('#photo-grid');
-    const type = $('#ph-type').value;
+    const type = ''; // 種別フィルタは廃止（すべての写真を表示）
     const dg = $('#ph-dish-genre').value;
     let photos = await Store.allPhotos();
     photos.sort((a, b) => b.createdAt - a.createdAt);

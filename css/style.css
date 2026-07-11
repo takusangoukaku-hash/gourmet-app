@@ -214,7 +214,28 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 2px 0 8px; }
 .dot.r1 { background: var(--r1); } .dot.r2 { background: var(--r2); } .dot.r3 { background: var(--r3); }
 .dot.r4 { background: var(--r4); } .dot.r5 { background: var(--r5); }
-#map-canvas { height: calc(100vh - 320px); min-height: 340px; border-radius: 16px; overflow: hidden; }
+/* 地図タブ: 全画面表示（mainの余白を打ち消して端まで広げる） */
+#view-map { position: relative; margin: -16px -16px -84px; }
+#map-canvas {
+  height: calc(100vh - 112px);
+  height: calc(100dvh - 112px - env(safe-area-inset-bottom));
+  min-height: 300px; border-radius: 0; overflow: hidden;
+}
+/* 地図の上に重ねる検索バー＋絞り込みパネル */
+.map-overlay { position: absolute; top: 10px; left: 12px; right: 12px; z-index: 1050; }
+#map-search {
+  border-radius: 999px; background: #fff; border: 1px solid var(--border-lite);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .14); padding: 11px 16px;
+}
+#map-search:focus { background: #fff; }
+.map-panel {
+  background: #fff; border: 1px solid var(--border-lite); border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .16); padding: 12px; margin-top: 8px;
+  max-height: 58vh; overflow-y: auto;
+}
+.map-close { margin-left: auto; }
+.panel-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.panel-foot .map-legend { margin-left: 0; }
 /* タイル読み込み前の下地を地図に馴染む淡色に（グレーのちらつき防止） */
 .leaflet-container { background: #f0efed; }
 @media (prefers-color-scheme: dark) { .leaflet-container { background: #23252b; } }
@@ -381,5 +402,4 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
   .chart-pair { grid-template-columns: 1fr; }
-  #map-canvas { height: calc(100vh - 340px); }
 }
