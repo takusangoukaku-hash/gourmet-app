@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v62'; // 検索枠の横幅拡張＋検索/駅/住所/地図の絵文字を白黒ピクトグラムに
+const VERSION = 'v63'; // 地図検索の文字と虫眼鏡の重なりを修正＋一覧検索バーを写真ジャンルバーと同じ幅に
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=62',
-  './js/store.js?v=62', './js/api.js?v=62', './js/cloud.js?v=62', './js/register.js?v=62', './js/views.js?v=62', './js/app.js?v=62',
+  './', './index.html', './css/style.css?v=63',
+  './js/store.js?v=63', './js/api.js?v=63', './js/cloud.js?v=63', './js/register.js?v=63', './js/views.js?v=63', './js/app.js?v=63',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

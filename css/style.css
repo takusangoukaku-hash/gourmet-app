@@ -229,7 +229,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .map-overlay { position: absolute; top: 10px; left: 12px; right: 12px; z-index: 1050; }
 #map-search {
   border-radius: 999px; background: #fff; border: 1px solid var(--border-lite);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, .14); padding: 11px 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .14); padding: 11px 16px 11px 40px; /* 左は虫眼鏡の分を空ける */
 }
 #map-search:focus { background: #fff; }
 .map-panel {
@@ -298,14 +298,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 外枠なし（カード風の枠・背景を消す） */
 .card.frameless { border: none; background: none; }
 /* 検索フィールド: 左にピクトグラム、枠は入力欄のみ */
-.search-field { position: relative; }
+.search-field { position: relative; flex: 1; } /* 検索欄が行幅いっぱいに広がる（写真のジャンルバーと同じ幅） */
 .search-field .search-ico {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
   width: 18px; height: 18px; stroke: var(--muted); stroke-width: 2; pointer-events: none;
 }
 .search-field input { padding-left: 38px; }
-/* 一覧の検索枠は左右の余白をなくし、下の店舗リストの幅に合わせる */
-#view-list .filters { padding-left: 0; padding-right: 0; }
 /* テキスト内に置く白黒ピクトグラム（駅・住所・地図・検索など） */
 .ic { width: 14px; height: 14px; vertical-align: -2px; stroke-width: 2; flex-shrink: 0; }
 .btn .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 2px; }
