@@ -225,15 +225,7 @@ const Register = (() => {
       div.className = 'photo-preview';
       div.innerHTML = `
         <img src="${p.url}" alt="">
-        <button type="button" class="remove" data-i="${i}">✕</button>
-        <select data-i="${i}">
-          <option value="dish">料理写真</option>
-          <option value="exterior">外観写真</option>
-          <option value="interior">店内写真</option>
-          <option value="menu">メニュー写真</option>
-        </select>`;
-      div.querySelector('select').value = p.type;
-      div.querySelector('select').addEventListener('change', (e) => { p.type = e.target.value; });
+        <button type="button" class="remove" data-i="${i}">✕</button>`;
       div.querySelector('.remove').addEventListener('click', () => {
         URL.revokeObjectURL(p.url);
         pendingPhotos.splice(i, 1);
@@ -262,12 +254,12 @@ const Register = (() => {
     if (earliest) visitDate = toLocalInput(new Date(earliest));
 
     if (gps) {
-      status.innerHTML = `✅ 撮影日時: <b>${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}</b> ／ 位置情報あり → 周辺の店舗候補を検索中…`;
+      status.classList.remove('hidden');
+      status.innerHTML = `位置情報から周辺の店舗候補を検索中…`;
       await loadCandidates(gps.lat, gps.lon);
-      status.innerHTML = `✅ 撮影日時: <b>${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}</b> ／ 位置情報から周辺の店舗候補を表示しました。下から選択してください。`;
+      status.classList.add('hidden'); // 案内は消し、候補だけ表示する
     } else {
-      status.classList.add('warn');
-      status.innerHTML = `ℹ️ この写真に位置情報はありません（撮影日時: ${earliest ? new Date(earliest).toLocaleString('ja-JP') : '不明'}）。店舗名を入力して🔍検索するか、🗺️地図で位置を指定してください。`;
+      status.classList.add('hidden'); // 位置情報なしの案内は表示しない
     }
 
     await classifyPhotos();
@@ -279,12 +271,7 @@ const Register = (() => {
     const dishPhoto = pendingPhotos.find(p => p.type === 'dish') || pendingPhotos[0];
     if (!dishPhoto) { ai.classList.add('hidden'); return; }
 
-    if (!Api.hasApiKey()) {
-      ai.classList.remove('hidden');
-      ai.classList.add('warn');
-      ai.innerHTML = '💡 AIによる料理ジャンル判定を使うには、右上の ⚙️ からAnthropic APIキーを設定してください（未設定でも店舗情報からの推定は動作します）。';
-      return;
-    }
+    if (!Api.hasApiKey()) { ai.classList.add('hidden'); return; } // キー未設定時は案内を出さない
 
     ai.classList.remove('hidden', 'warn');
     ai.textContent = '🤖 AIが料理ジャンルを判定しています…';
