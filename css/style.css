@@ -58,10 +58,11 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 9px 0 10px; color: var(--muted); font-weight: 600; font-family: inherit;
 }
-.tab .t-icon { font-size: 21px; line-height: 1; filter: grayscale(1) opacity(.55); }
+.tab .t-icon { line-height: 0; }
+.tab .t-icon svg { width: 24px; height: 24px; stroke-width: 1.7; }
 .tab .t-label { font-size: 10px; letter-spacing: .04em; }
 .tab.active { color: var(--text); }
-.tab.active .t-icon { filter: none; }
+.tab.active .t-icon svg { stroke-width: 2.4; }
 
 main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .view { display: none; }
