@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=47">
+<link rel="stylesheet" href="css/style.css?v=48">
 </head>
 <body>
 
@@ -201,6 +201,13 @@
 <!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
 <section id="view-profile" class="view">
   <div class="card">
+    <div id="pf-account" class="pf-account">
+      <button id="pf-login" class="btn small">🔗 Googleでログインして同期</button>
+      <div id="pf-account-in" class="hidden">
+        <span id="pf-sync" class="pf-sync">同期中…</span>
+        <button id="pf-logout" class="btn small">ログアウト</button>
+      </div>
+    </div>
     <div class="profile-head">
       <div class="avatar-ring"><div class="avatar">🍜</div></div>
       <div class="profile-stats">
@@ -326,10 +333,11 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=47"></script>
-<script src="js/api.js?v=47"></script>
-<script src="js/register.js?v=47"></script>
-<script src="js/views.js?v=47"></script>
-<script src="js/app.js?v=47"></script>
+<script src="js/store.js?v=48"></script>
+<script src="js/api.js?v=48"></script>
+<script src="js/cloud.js?v=48"></script>
+<script src="js/register.js?v=48"></script>
+<script src="js/views.js?v=48"></script>
+<script src="js/app.js?v=48"></script>
 </body>
 </html>

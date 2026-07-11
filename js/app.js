@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v47'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v48'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -76,6 +76,9 @@ const App = (() => {
       $('#settings-status').textContent = settingsStatus();
       toast('APIキーを削除しました。');
     });
+
+    // クラウド同期の初期化（既存ログインがあればセッションを復元して同期）
+    if (typeof Cloud !== 'undefined') Cloud.init();
 
     // サービスワーカー登録（PWA: ホーム画面追加・オフライン起動）
     // ※ https または localhost でのみ有効。LANのhttpでは無視される

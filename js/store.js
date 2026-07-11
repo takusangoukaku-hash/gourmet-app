@@ -1,6 +1,8 @@
 // =====================================================
 // データ層: 店舗(Shop)/訪問記録(Visit) は localStorage、
 // 写真は IndexedDB に保存する（仕様書v2 §2 のデータモデル）
+//  - クラウド同期(Cloud)が購読できるよう、変更をemit()で通知する
+//  - クラウドからの取り込みは applyRemote()/putPhotoRaw() で行い、通知しない（ループ防止）
 // =====================================================
 const Store = (() => {
   const SHOPS_KEY = 'gourmet.shops.v1';
@@ -11,6 +13,15 @@ const Store = (() => {
   let shops = load(SHOPS_KEY);
   let visits = load(VISITS_KEY);
   let photoHashes = loadObj(HASHES_KEY);
+
+  // ---------- クラウド同期のための変更通知 ----------
+  let syncHook = null;      // Cloud が購読する変更通知の関数
+  let remoteApply = false;  // クラウドから取り込み中は通知しない（同期ループ防止）
+  function setSyncHook(fn) { syncHook = fn; }
+  function emit(kind, action, obj) {
+    if (remoteApply || !syncHook) return;
+    try { syncHook(kind, action, obj); } catch { /* 同期失敗はローカル動作に影響させない */ }
+  }
 
   function loadObj(k) {
     try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; }
@@ -57,9 +68,31 @@ const Store = (() => {
       tx.objectStore('photos').put(rec);
       tx.oncomplete = () => {
         if (rec.hash) { photoHashes[rec.hash] = { shopId, visitId }; persistHashes(); }
+        emit('photo', 'put', rec); // クラウドへ（Cloud側でblobをStorageへアップロード）
         resolve(rec.id);
       };
       tx.onerror = () => reject(tx.error);
+    });
+  }
+  // クラウドから取り込んだ写真をそのまま保存（通知しない）
+  async function putPhotoRaw(rec) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const tx = d.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put(rec);
+      tx.oncomplete = () => {
+        if (rec.hash) { photoHashes[rec.hash] = { shopId: rec.shopId, visitId: rec.visitId }; persistHashes(); }
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function photoIds() {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('photos').objectStore('photos').getAllKeys();
+      req.onsuccess = () => resolve(new Set(req.result || []));
+      req.onerror = () => reject(req.error);
     });
   }
   // 指紋が一致する登録済み写真を探す（なければ null）
@@ -92,14 +125,19 @@ const Store = (() => {
     const all = await allPhotos();
     const d = await db();
     const tx = d.transaction('photos', 'readwrite');
+    const removed = [];
     for (const p of all) {
       if (pred(p)) {
         tx.objectStore('photos').delete(p.id);
         if (p.hash) delete photoHashes[p.hash]; // 削除した写真は再登録できるように指紋も消す
+        removed.push(p);
       }
     }
     persistHashes();
-    return new Promise((resolve) => { tx.oncomplete = resolve; tx.onerror = resolve; });
+    return new Promise((resolve) => {
+      tx.oncomplete = () => { for (const p of removed) emit('photo', 'del', { id: p.id, hash: p.hash }); resolve(); };
+      tx.onerror = resolve;
+    });
   }
   // 代表写真: 最新の訪問の写真（料理写真を優先）
   async function repPhoto(shopId) {
@@ -111,7 +149,7 @@ const Store = (() => {
 
   // ---------- 店舗（Shop） ----------
   // shop = { id, name, address, lat, lon, country, pref, city, station,
-  //          shopGenre, favorite, status, osmId, createdAt }
+  //          shopGenre, favorite, status, osmId, createdAt, updatedAt }
   function addShop(data) {
     const shop = Object.assign({
       id: uid(), name: '', address: '', lat: null, lon: null,
@@ -121,20 +159,24 @@ const Store = (() => {
       casual: 0,      // カジュアル度（気軽に入れるか）
       atmosphere: 0,  // 雰囲気
       speed: 0,       // 提供の早さ
-      createdAt: Date.now(),
+      createdAt: Date.now(), updatedAt: Date.now(),
     }, data);
     shops.push(shop); persist();
+    emit('shop', 'put', shop);
     return shop;
   }
   function updateShop(id, patch) {
     const s = shops.find(x => x.id === id);
-    if (s) { Object.assign(s, patch); persist(); }
+    if (s) { Object.assign(s, patch, { updatedAt: Date.now() }); persist(); emit('shop', 'put', s); }
     return s;
   }
   async function deleteShop(id) {
+    const removedVisits = visits.filter(v => v.shopId === id);
     shops = shops.filter(s => s.id !== id);
     visits = visits.filter(v => v.shopId !== id);
     persist();
+    emit('shop', 'del', { id });
+    for (const v of removedVisits) emit('visit', 'del', { id: v.id });
     await deletePhotosWhere(p => p.shopId === id);
   }
   const getShop = (id) => shops.find(s => s.id === id) || null;
@@ -162,34 +204,56 @@ const Store = (() => {
     catch { return { name: 'グルメ記録', bio: '' }; }
   }
   function setProfile(patch) {
-    const p = Object.assign(getProfile(), patch);
+    const p = Object.assign(getProfile(), patch, { updatedAt: Date.now() });
     localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    emit('profile', 'put', p);
     return p;
   }
 
   // ---------- 訪問記録（Visit） ----------
-  // visit = { id, shopId, datetime(ISO), dishGenres[], rating, comment, visitType, createdAt }
+  // visit = { id, shopId, datetime(ISO), dishGenres[], rating, comment, visitType, createdAt, updatedAt }
   function addVisit(data) {
     const visit = Object.assign({
       id: uid(), shopId: '', datetime: new Date().toISOString(),
       dishGenres: [], rating: 3, comment: '', visitType: '店内飲食',
-      createdAt: Date.now(),
+      createdAt: Date.now(), updatedAt: Date.now(),
     }, data);
     visits.push(visit); persist();
+    emit('visit', 'put', visit);
     return visit;
   }
   function updateVisit(id, patch) {
     const v = visits.find(x => x.id === id);
-    if (v) { Object.assign(v, patch); persist(); }
+    if (v) { Object.assign(v, patch, { updatedAt: Date.now() }); persist(); emit('visit', 'put', v); }
     return v;
   }
   async function deleteVisit(id) {
     visits = visits.filter(v => v.id !== id);
     persist();
+    emit('visit', 'del', { id });
     await deletePhotosWhere(p => p.visitId === id);
   }
   const visitsOf = (shopId) =>
     visits.filter(v => v.shopId === shopId).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+
+  // ---------- クラウドからの取り込み（通知しない） ----------
+  // 新しい方（updatedAtが新しい）を採用してローカルへ反映する
+  function applyRemote(kind, obj) {
+    remoteApply = true;
+    try {
+      if (kind === 'shop') {
+        const i = shops.findIndex(s => s.id === obj.id);
+        if (i >= 0) shops[i] = obj; else shops.push(obj);
+        persist();
+      } else if (kind === 'visit') {
+        const i = visits.findIndex(v => v.id === obj.id);
+        if (i >= 0) visits[i] = obj; else visits.push(obj);
+        persist();
+      } else if (kind === 'profile') {
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(obj));
+      }
+    } finally { remoteApply = false; }
+  }
 
   // ---------- 集計（保存せず算出 — 仕様書v2 §2.3） ----------
   const visitCount = (shopId) => visitsOf(shopId).length;
@@ -210,5 +274,8 @@ const Store = (() => {
     visitCount, avgRating, lastVisitDate,
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash,
     getProfile, setProfile,
+    // クラウド同期用
+    setSyncHook, applyRemote, putPhotoRaw, photoIds,
+    rawShops: () => shops, rawVisits: () => visits,
   };
 })();

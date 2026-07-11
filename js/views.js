@@ -621,6 +621,32 @@ const Views = (() => {
     // 実績カウントのタップで各画面へ
     document.querySelectorAll('.pstat').forEach(b =>
       b.addEventListener('click', () => App.switchTab(b.dataset.goto)));
+
+    // クラウド同期（Googleログイン）
+    if (typeof Cloud !== 'undefined' && Cloud.isSupported()) {
+      $('#pf-login').addEventListener('click', async () => {
+        $('#pf-login').textContent = 'ログイン中…';
+        try { await Cloud.login(); }
+        catch (e) {
+          $('#pf-login').textContent = '🔗 Googleでログインして同期';
+          App.toast('⚠️ ログインに失敗しました: ' + (e && e.message || e));
+        }
+      });
+      $('#pf-logout').addEventListener('click', () => Cloud.logout());
+      // 同期状態の表示更新
+      const SYNC_MSG = { loading: 'ログイン中…', syncing: '☁️ 同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー（時間をおいて再度お試しください）' };
+      Cloud.onStatus((state, u) => {
+        const inNow = !!u;
+        $('#pf-login').classList.toggle('hidden', inNow);
+        $('#pf-account-in').classList.toggle('hidden', !inNow);
+        if (inNow) $('#pf-sync').textContent = (u.email ? u.email + '　' : '') + (SYNC_MSG[state] || '');
+        if (state === 'synced') renderProfile(); // 復元されたデータを反映
+      });
+    } else {
+      $('#pf-login').textContent = 'この端末では同期を利用できません';
+      $('#pf-login').disabled = true;
+    }
+
     $('#pf-map').addEventListener('click', () => App.switchTab('map'));
     $('#pf-edit').addEventListener('click', () => {
       const p = Store.getProfile();

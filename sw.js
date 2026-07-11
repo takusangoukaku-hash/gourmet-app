@@ -5,19 +5,21 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v47'; // 地図タブを下のバーに復帰（一番左）
+const VERSION = 'v48'; // Googleアカウントでログイン→記録・写真をFirebaseへクラウド同期
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=47',
-  './js/store.js?v=47', './js/api.js?v=47', './js/register.js?v=47', './js/views.js?v=47', './js/app.js?v=47',
+  './', './index.html', './css/style.css?v=48',
+  './js/store.js?v=48', './js/api.js?v=48', './js/cloud.js?v=48', './js/register.js?v=48', './js/views.js?v=48', './js/app.js?v=48',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
 
-const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tiles.openfreemap.org', 'maps.gsi.go.jp'];
-const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com'];
+const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'esm.sh', 'tiles.openfreemap.org', 'maps.gsi.go.jp', 'www.gstatic.com'];
+// Firebase（認証・DB・写真保存）は常にネットワークへ（キャッシュしない）
+const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com',
+  'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
