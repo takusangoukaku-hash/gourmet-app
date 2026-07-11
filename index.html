@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=56">
+<link rel="stylesheet" href="css/style.css?v=57">
 </head>
 <body>
 
@@ -141,9 +141,14 @@
 
 <!-- ========== 一覧 ========== -->
 <section id="view-list" class="view">
-  <div class="card filters">
+  <div class="card filters frameless">
     <div class="filter-row">
-      <input type="text" id="flt-keyword" placeholder="🔍 キーワード（店名・コメント・駅・地名）タップで絞り込み">
+      <div class="search-field">
+        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        <input type="text" id="flt-keyword" placeholder="検索">
+      </div>
     </div>
     <div id="list-filter-panel" class="hidden">
     <div class="filter-row">
@@ -187,7 +192,7 @@
 
 <!-- ========== 写真 ========== -->
 <section id="view-photos" class="view">
-  <div class="card filters">
+  <div class="card filters frameless">
     <div class="filter-row">
       <select id="ph-dish-genre"><option value="">ジャンル</option></select>
     </div>
@@ -197,7 +202,7 @@
 
 <!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
 <section id="view-profile" class="view">
-  <div class="card">
+  <div class="card frameless">
     <div id="pf-account" class="pf-account">
       <button id="pf-login" class="btn small">🔗 Googleでログインして同期</button>
       <div id="pf-account-in" class="hidden">
@@ -377,11 +382,11 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=56"></script>
-<script src="js/api.js?v=56"></script>
-<script src="js/cloud.js?v=56"></script>
-<script src="js/register.js?v=56"></script>
-<script src="js/views.js?v=56"></script>
-<script src="js/app.js?v=56"></script>
+<script src="js/store.js?v=57"></script>
+<script src="js/api.js?v=57"></script>
+<script src="js/cloud.js?v=57"></script>
+<script src="js/register.js?v=57"></script>
+<script src="js/views.js?v=57"></script>
+<script src="js/app.js?v=57"></script>
 </body>
 </html>
