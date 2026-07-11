@@ -53,6 +53,7 @@ const Register = (() => {
   // ---------- 初期化 ----------
   function init() {
     $('#photo-input').addEventListener('change', (e) => addFiles(e.target.files));
+    $('#camera-input').addEventListener('change', (e) => addFiles(e.target.files));
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
@@ -135,7 +136,9 @@ const Register = (() => {
   }
 
   // 下のバー中央の＋から呼ぶ: 写真の撮影/選択画面（端末のカメラ・ライブラリ）を開く
-  function openPhotoPicker() { $('#photo-input').click(); }
+  // 下のバー中央の＋から呼ぶ: 端末のカメラを直接起動する（インスタ風）
+  // ライブラリから選びたい場合は登録画面の写真エリア（#photo-input）から
+  function openPhotoPicker() { $('#camera-input').click(); }
 
   // ---------- 写真の追加・EXIF解析 ----------
   async function addFiles(fileList) {
@@ -638,6 +641,7 @@ const Register = (() => {
     lastGps = null;
     renderPreviews();
     $('#photo-input').value = '';
+    $('#camera-input').value = '';
     $('#dup-status').classList.add('hidden');
     $('#exif-status').classList.add('hidden');
     $('#ai-status').classList.add('hidden');
