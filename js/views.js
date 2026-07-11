@@ -616,6 +616,57 @@ const Views = (() => {
     $('#lightbox').classList.remove('hidden');
   }
 
+  // ========== プロフィール（インスタ風・将来の共有機能の土台） ==========
+  function initProfile() {
+    // 実績カウントのタップで各画面へ
+    document.querySelectorAll('.pstat').forEach(b =>
+      b.addEventListener('click', () => App.switchTab(b.dataset.goto)));
+    $('#pf-map').addEventListener('click', () => App.switchTab('map'));
+    $('#pf-edit').addEventListener('click', () => {
+      const p = Store.getProfile();
+      $('#pf-name-input').value = p.name;
+      $('#pf-bio-input').value = p.bio;
+      $('#pf-edit-form').classList.toggle('hidden');
+    });
+    $('#pf-save').addEventListener('click', () => {
+      Store.setProfile({
+        name: $('#pf-name-input').value.trim() || 'グルメ記録',
+        bio: $('#pf-bio-input').value.trim(),
+      });
+      $('#pf-edit-form').classList.add('hidden');
+      renderProfile();
+      App.toast('✅ プロフィールを保存しました');
+    });
+    // 一覧の詳細検索から地図を開けるように
+    $('#list-open-map').addEventListener('click', () => App.switchTab('map'));
+  }
+
+  async function renderProfile() {
+    const p = Store.getProfile();
+    $('#pf-name').textContent = p.name;
+    $('#pf-bio').textContent = p.bio;
+    $('#pf-bio').classList.toggle('hidden', !p.bio);
+    $('#pf-shops').textContent = Store.shops().length;
+    $('#pf-visits').textContent = Store.visits().length;
+    const photos = await Store.allPhotos();
+    $('#pf-photos').textContent = photos.length;
+    // 最近の写真グリッド（最新9枚・タップで写真タブへ）
+    photos.sort((a, b) => b.createdAt - a.createdAt);
+    const box = $('#pf-photo-grid');
+    box.innerHTML = '';
+    if (!photos.length) {
+      box.innerHTML = '<div class="empty"><p>まだ写真がありません。＋から最初の一皿を記録しましょう。</p></div>';
+      return;
+    }
+    for (const ph of photos.slice(0, 9)) {
+      const div = document.createElement('div');
+      div.className = 'photo-cell';
+      div.innerHTML = `<img src="${photoUrl(ph)}" alt="">`;
+      div.addEventListener('click', () => App.switchTab('photos'));
+      box.appendChild(div);
+    }
+  }
+
   // ========== 統計・ランキング ==========
   const charts = {};
   function chart(id, cfg) {
@@ -951,5 +1002,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles, baseMapStyle };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles, baseMapStyle };
 })();

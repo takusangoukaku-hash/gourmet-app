@@ -3,13 +3,14 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v44'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v45'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
     Register.init();
     Views.initList();
     Views.initPhotos();
+    Views.initProfile();
 
     // タブ切り替え
     document.querySelectorAll('#tabs .tab').forEach(btn => {
@@ -111,6 +112,7 @@ const App = (() => {
     else if (currentTab === 'list') Views.renderList();
     else if (currentTab === 'photos') Views.renderPhotos();
     else if (currentTab === 'stats') Views.renderStats();
+    else if (currentTab === 'profile') Views.renderProfile();
   }
 
   // ---------- トースト ----------

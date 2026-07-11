@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=44">
+<link rel="stylesheet" href="css/style.css?v=45">
 </head>
 <body>
 
@@ -180,6 +180,7 @@
       <label class="check"><input type="checkbox" id="flt-fav"> ⭐のみ</label>
     </div>
     <div class="filter-row">
+      <button type="button" id="list-open-map" class="btn small">🗺️ 地図で見る</button>
       <button type="button" id="list-panel-close" class="btn small">▲ 絞り込みを閉じる</button>
     </div>
     </div>
@@ -215,14 +216,43 @@
   </div>
 </section>
 
+<!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
+<section id="view-profile" class="view">
+  <div class="card">
+    <div class="profile-head">
+      <div class="avatar-ring"><div class="avatar">🍜</div></div>
+      <div class="profile-stats">
+        <button type="button" class="pstat" data-goto="list"><b id="pf-shops">0</b><span>店舗</span></button>
+        <button type="button" class="pstat" data-goto="list"><b id="pf-visits">0</b><span>訪問</span></button>
+        <button type="button" class="pstat" data-goto="photos"><b id="pf-photos">0</b><span>写真</span></button>
+      </div>
+    </div>
+    <div class="profile-name" id="pf-name">グルメ記録</div>
+    <div class="profile-bio" id="pf-bio"></div>
+    <div class="profile-actions">
+      <button id="pf-edit" class="btn small">プロフィールを編集</button>
+      <button id="pf-map" class="btn small">🗺️ 地図を見る</button>
+    </div>
+    <div id="pf-edit-form" class="pf-edit-form hidden">
+      <label>名前
+        <input type="text" id="pf-name-input" maxlength="30">
+      </label>
+      <label>自己紹介
+        <textarea id="pf-bio-input" rows="2" maxlength="150" placeholder="好きな食べ物、よく行くエリアなど"></textarea>
+      </label>
+      <button id="pf-save" class="btn primary small">保存</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>最近の写真</h2>
+    <div id="pf-photo-grid" class="photo-grid"></div>
+  </div>
+</section>
+
 </main>
 
 <!-- 下部ナビゲーション -->
 <nav class="tabs" id="tabs">
-  <button class="tab" data-tab="map" title="地図" aria-label="地図"><span class="t-icon">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/>
-    </svg></span></button>
   <button class="tab" data-tab="list" title="一覧" aria-label="一覧"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
@@ -234,6 +264,10 @@
   <button class="tab" data-tab="stats" title="統計" aria-label="統計"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
+    </svg></span></button>
+  <button class="tab" data-tab="profile" title="プロフィール" aria-label="プロフィール"><span class="t-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
     </svg></span></button>
 </nav>
 
@@ -299,10 +333,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=44"></script>
-<script src="js/api.js?v=44"></script>
-<script src="js/register.js?v=44"></script>
-<script src="js/views.js?v=44"></script>
-<script src="js/app.js?v=44"></script>
+<script src="js/store.js?v=45"></script>
+<script src="js/api.js?v=45"></script>
+<script src="js/register.js?v=45"></script>
+<script src="js/views.js?v=45"></script>
+<script src="js/app.js?v=45"></script>
 </body>
 </html>

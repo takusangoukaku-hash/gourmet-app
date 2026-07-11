@@ -6,6 +6,7 @@ const Store = (() => {
   const SHOPS_KEY = 'gourmet.shops.v1';
   const VISITS_KEY = 'gourmet.visits.v1';
   const HASHES_KEY = 'gourmet.photoHashes.v1'; // 写真の指紋 → {shopId, visitId}（二重登録防止）
+  const PROFILE_KEY = 'gourmet.profile.v1';    // プロフィール（将来の共有機能の土台）
 
   let shops = load(SHOPS_KEY);
   let visits = load(VISITS_KEY);
@@ -155,6 +156,17 @@ const Store = (() => {
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
+  // ---------- プロフィール ----------
+  function getProfile() {
+    try { return Object.assign({ name: 'グルメ記録', bio: '' }, JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}); }
+    catch { return { name: 'グルメ記録', bio: '' }; }
+  }
+  function setProfile(patch) {
+    const p = Object.assign(getProfile(), patch);
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    return p;
+  }
+
   // ---------- 訪問記録（Visit） ----------
   // visit = { id, shopId, datetime(ISO), dishGenres[], rating, comment, visitType, createdAt }
   function addVisit(data) {
@@ -197,5 +209,6 @@ const Store = (() => {
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash,
+    getProfile, setProfile,
   };
 })();

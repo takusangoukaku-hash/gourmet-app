@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v44'; // 一覧タブのアイコンを虫眼鏡に変更
+const VERSION = 'v45'; // インスタ風プロフィール画面を追加。地図はバーから外しプロフィール・詳細検索から
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=44',
-  './js/store.js?v=44', './js/api.js?v=44', './js/register.js?v=44', './js/views.js?v=44', './js/app.js?v=44',
+  './', './index.html', './css/style.css?v=45',
+  './js/store.js?v=45', './js/api.js?v=45', './js/register.js?v=45', './js/views.js?v=45', './js/app.js?v=45',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
