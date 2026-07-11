@@ -358,11 +358,21 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pf-sync { flex: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pf-account-in .btn { width: auto; flex-shrink: 0; }
 .profile-head { display: flex; align-items: center; gap: 20px; margin-bottom: 12px; }
-.avatar-ring { padding: 3px; border-radius: 50%; background: var(--grad); flex-shrink: 0; }
+.avatar-ring {
+  padding: 3px; border-radius: 50%; background: var(--grad); flex-shrink: 0;
+  border: none; cursor: pointer; position: relative; line-height: 0;
+}
 .avatar {
   width: 68px; height: 68px; border-radius: 50%; background: #fff;
   border: 2px solid #fff; display: flex; align-items: center; justify-content: center;
-  font-size: 32px;
+  font-size: 32px; overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-cam {
+  position: absolute; right: -2px; bottom: -2px; font-size: 12px;
+  background: #fff; border-radius: 50%; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .profile-stats { display: flex; flex: 1; justify-content: space-around; }
 .pstat {

@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v48'; // Googleアカウントでログイン→記録・写真をFirebaseへクラウド同期
+const VERSION = 'v49'; // プロフィール写真の変更＋フォロー/フォロワー表示（将来機能の土台）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=48',
-  './js/store.js?v=48', './js/api.js?v=48', './js/cloud.js?v=48', './js/register.js?v=48', './js/views.js?v=48', './js/app.js?v=48',
+  './', './index.html', './css/style.css?v=49',
+  './js/store.js?v=49', './js/api.js?v=49', './js/cloud.js?v=49', './js/register.js?v=49', './js/views.js?v=49', './js/app.js?v=49',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

@@ -618,9 +618,31 @@ const Views = (() => {
 
   // ========== プロフィール（インスタ風・将来の共有機能の土台） ==========
   function initProfile() {
-    // 実績カウントのタップで各画面へ
+    // カウントのタップ: 画面移動（店舗）／フォロー・フォロワーは近日公開の案内
     document.querySelectorAll('.pstat').forEach(b =>
-      b.addEventListener('click', () => App.switchTab(b.dataset.goto)));
+      b.addEventListener('click', () => {
+        if (b.dataset.goto) App.switchTab(b.dataset.goto);
+        else App.toast('👥 フォロー機能は近日公開予定です');
+      }));
+
+    // プロフィール写真の変更（端末から選択 → 小さく圧縮して保存）
+    $('#pf-avatar-btn').addEventListener('click', () => $('#pf-avatar-input').click());
+    $('#pf-avatar-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const blob = await Api.compressImage(file, 256, 0.85); // アイコン用に小さく
+        const dataUrl = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result); r.onerror = () => rej(r.error);
+          r.readAsDataURL(blob);
+        });
+        Store.setProfile({ avatar: dataUrl });
+        renderProfile();
+        App.toast('✅ プロフィール写真を変更しました');
+      } catch { App.toast('⚠️ 写真の設定に失敗しました'); }
+      e.target.value = '';
+    });
 
     // クラウド同期（Googleログイン）
     if (typeof Cloud !== 'undefined' && Cloud.isSupported()) {
@@ -672,9 +694,14 @@ const Views = (() => {
     $('#pf-name').textContent = p.name;
     $('#pf-bio').textContent = p.bio;
     $('#pf-bio').classList.toggle('hidden', !p.bio);
+    // プロフィール写真（未設定なら🍜）
+    const av = $('#pf-avatar');
+    if (p.avatar) av.innerHTML = `<img src="${esc(p.avatar)}" alt="">`;
+    else av.textContent = '🍜';
     $('#pf-shops').textContent = Store.shops().length;
-    $('#pf-visits').textContent = Store.visits().length;
-    $('#pf-photos').textContent = (await Store.allPhotos()).length;
+    // フォロー/フォロワーは将来機能（今は0固定のプレースホルダ）
+    $('#pf-following').textContent = p.following || 0;
+    $('#pf-followers').textContent = p.followers || 0;
     // 統計（月別訪問件数・ジャンル割合・ランキング等）もプロフィール内に表示
     await renderStats();
   }

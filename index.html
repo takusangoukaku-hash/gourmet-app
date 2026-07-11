@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=48">
+<link rel="stylesheet" href="css/style.css?v=49">
 </head>
 <body>
 
@@ -209,11 +209,15 @@
       </div>
     </div>
     <div class="profile-head">
-      <div class="avatar-ring"><div class="avatar">🍜</div></div>
+      <button type="button" class="avatar-ring" id="pf-avatar-btn" title="プロフィール写真を変更">
+        <div class="avatar" id="pf-avatar">🍜</div>
+        <span class="avatar-cam">📷</span>
+      </button>
+      <input type="file" id="pf-avatar-input" accept="image/*" hidden>
       <div class="profile-stats">
         <button type="button" class="pstat" data-goto="list"><b id="pf-shops">0</b><span>店舗</span></button>
-        <button type="button" class="pstat" data-goto="list"><b id="pf-visits">0</b><span>訪問</span></button>
-        <button type="button" class="pstat" data-goto="photos"><b id="pf-photos">0</b><span>写真</span></button>
+        <button type="button" class="pstat" data-social="following"><b id="pf-following">0</b><span>フォロー</span></button>
+        <button type="button" class="pstat" data-social="followers"><b id="pf-followers">0</b><span>フォロワー</span></button>
       </div>
     </div>
     <div class="profile-name" id="pf-name">グルメ記録</div>
@@ -333,11 +337,11 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=48"></script>
-<script src="js/api.js?v=48"></script>
-<script src="js/cloud.js?v=48"></script>
-<script src="js/register.js?v=48"></script>
-<script src="js/views.js?v=48"></script>
-<script src="js/app.js?v=48"></script>
+<script src="js/store.js?v=49"></script>
+<script src="js/api.js?v=49"></script>
+<script src="js/cloud.js?v=49"></script>
+<script src="js/register.js?v=49"></script>
+<script src="js/views.js?v=49"></script>
+<script src="js/app.js?v=49"></script>
 </body>
 </html>
