@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=45">
+<link rel="stylesheet" href="css/style.css?v=46">
 </head>
 <body>
 
@@ -198,24 +198,6 @@
   <div id="photo-grid" class="photo-grid"></div>
 </section>
 
-<!-- ========== 統計 ========== -->
-<section id="view-stats" class="view">
-  <div id="stat-cards" class="stat-cards"></div>
-  <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
-  <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
-  <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
-  <div class="card">
-    <h2>🏆 ランキング</h2>
-    <div class="rank-grid">
-      <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
-      <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
-      <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
-      <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
-      <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
-    </div>
-  </div>
-</section>
-
 <!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
 <section id="view-profile" class="view">
   <div class="card">
@@ -243,9 +225,20 @@
       <button id="pf-save" class="btn primary small">保存</button>
     </div>
   </div>
+  <!-- 統計（プロフィール内に表示） -->
+  <div id="stat-cards" class="stat-cards"></div>
+  <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
+  <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
+  <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
   <div class="card">
-    <h2>最近の写真</h2>
-    <div id="pf-photo-grid" class="photo-grid"></div>
+    <h2>🏆 ランキング</h2>
+    <div class="rank-grid">
+      <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
+      <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
+      <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
+      <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
+      <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
+    </div>
   </div>
 </section>
 
@@ -260,10 +253,6 @@
   <button class="tab" data-tab="photos" title="写真" aria-label="写真"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m3 17 5-4 4 3 4-3 5 4"/>
-    </svg></span></button>
-  <button class="tab" data-tab="stats" title="統計" aria-label="統計"><span class="t-icon">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
     </svg></span></button>
   <button class="tab" data-tab="profile" title="プロフィール" aria-label="プロフィール"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -333,10 +322,10 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=45"></script>
-<script src="js/api.js?v=45"></script>
-<script src="js/register.js?v=45"></script>
-<script src="js/views.js?v=45"></script>
-<script src="js/app.js?v=45"></script>
+<script src="js/store.js?v=46"></script>
+<script src="js/api.js?v=46"></script>
+<script src="js/register.js?v=46"></script>
+<script src="js/views.js?v=46"></script>
+<script src="js/app.js?v=46"></script>
 </body>
 </html>

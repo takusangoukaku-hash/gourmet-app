@@ -648,23 +648,9 @@ const Views = (() => {
     $('#pf-bio').classList.toggle('hidden', !p.bio);
     $('#pf-shops').textContent = Store.shops().length;
     $('#pf-visits').textContent = Store.visits().length;
-    const photos = await Store.allPhotos();
-    $('#pf-photos').textContent = photos.length;
-    // 最近の写真グリッド（最新9枚・タップで写真タブへ）
-    photos.sort((a, b) => b.createdAt - a.createdAt);
-    const box = $('#pf-photo-grid');
-    box.innerHTML = '';
-    if (!photos.length) {
-      box.innerHTML = '<div class="empty"><p>まだ写真がありません。＋から最初の一皿を記録しましょう。</p></div>';
-      return;
-    }
-    for (const ph of photos.slice(0, 9)) {
-      const div = document.createElement('div');
-      div.className = 'photo-cell';
-      div.innerHTML = `<img src="${photoUrl(ph)}" alt="">`;
-      div.addEventListener('click', () => App.switchTab('photos'));
-      box.appendChild(div);
-    }
+    $('#pf-photos').textContent = (await Store.allPhotos()).length;
+    // 統計（月別訪問件数・ジャンル割合・ランキング等）もプロフィール内に表示
+    await renderStats();
   }
 
   // ========== 統計・ランキング ==========

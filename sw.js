@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v45'; // インスタ風プロフィール画面を追加。地図はバーから外しプロフィール・詳細検索から
+const VERSION = 'v46'; // 統計をプロフィール内へ移動し、プロフィールの「最近の写真」を削除
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=45',
-  './js/store.js?v=45', './js/api.js?v=45', './js/register.js?v=45', './js/views.js?v=45', './js/app.js?v=45',
+  './', './index.html', './css/style.css?v=46',
+  './js/store.js?v=46', './js/api.js?v=46', './js/register.js?v=46', './js/views.js?v=46', './js/app.js?v=46',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
