@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v51'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v52'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -14,7 +14,12 @@ const App = (() => {
 
     // タブ切り替え
     document.querySelectorAll('#tabs .tab').forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      btn.addEventListener('click', () => {
+        switchTab(btn.dataset.tab);
+        // 下のバー中央の＋（登録）は、押した流れでそのままカメラ／写真選択を開く
+        // ※input.click()はこのタップ操作（ユーザー操作）内で呼ぶ必要がある
+        if (btn.dataset.tab === 'register') Register.openPhotoPicker();
+      });
     });
 
     // 共通イベント委譲（店舗詳細を開く / お気に入り切替 / モーダルを閉じる）

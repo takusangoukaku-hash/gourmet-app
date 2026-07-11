@@ -134,8 +134,12 @@ const Register = (() => {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
 
+  // 下のバー中央の＋から呼ぶ: 写真の撮影/選択画面（端末のカメラ・ライブラリ）を開く
+  function openPhotoPicker() { $('#photo-input').click(); }
+
   // ---------- 写真の追加・EXIF解析 ----------
   async function addFiles(fileList) {
+    const before = pendingPhotos.length;
     const dupMsgs = [];
     for (const f of fileList) {
       if (!f.type.startsWith('image/')) continue;
@@ -165,6 +169,11 @@ const Register = (() => {
       dupBox.classList.add('hidden');
     }
     renderPreviews();
+    // 写真を選んだら「記録の内容」の入力へ画面を進める（撮影→入力の流れ）
+    if (pendingPhotos.length > before) {
+      const rec = $('#record-card');
+      if (rec) rec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     await analyzeExif();
   }
 
@@ -661,5 +670,5 @@ const Register = (() => {
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-  return { init, preselectShop };
+  return { init, preselectShop, openPhotoPicker };
 })();
