@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=53">
+<link rel="stylesheet" href="css/style.css?v=54">
 </head>
 <body>
 
@@ -35,23 +35,14 @@
 
 <!-- ========== 登録 ========== -->
 <section id="view-register" class="view active">
-  <div class="card">
-    <h2>1. 料理の写真を選ぶ</h2>
-    <p class="hint">写真の撮影日時・位置情報から、訪問日時と店舗候補を自動で解析します。</p>
-    <label class="dropzone" id="dropzone">
-      <input type="file" id="photo-input" accept="image/*" multiple hidden>
-      <span>📷 タップして写真を選択（複数可）</span>
-    </label>
-    <!-- ＋ボタン用: capture付きで端末のカメラを直接起動する -->
-    <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+  <!-- 写真は＋ボタンのカメラ／写真から選択で取得。入力欄はプログラムから使う -->
+  <input type="file" id="photo-input" accept="image/*" multiple hidden>
+  <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+  <div class="card" id="record-card">
     <div id="photo-previews" class="photo-previews"></div>
     <div id="dup-status" class="exif-status warn hidden"></div>
     <div id="exif-status" class="exif-status hidden"></div>
     <div id="ai-status" class="exif-status hidden"></div>
-  </div>
-
-  <div class="card" id="record-card">
-    <h2>2. 記録の内容</h2>
     <div class="form-grid">
       <div class="full flabel">店舗名 <span class="req">必須</span>
         <div class="search-row">
@@ -331,6 +322,19 @@
   </div>
 </div>
 
+<!-- 独自カメラ画面（＋から起動。撮影ボタン＋右下に写真から選択＋×で閉じる） -->
+<div id="camera-overlay" class="camera-overlay hidden">
+  <video id="cam-video" autoplay playsinline muted></video>
+  <canvas id="cam-canvas" hidden></canvas>
+  <button id="cam-close" class="cam-close" aria-label="閉じる">✕</button>
+  <div id="cam-error" class="cam-error hidden"></div>
+  <div class="cam-controls">
+    <span class="cam-spacer"></span>
+    <button id="cam-shutter" class="cam-shutter" aria-label="撮影"></button>
+    <button id="cam-library" class="cam-library" aria-label="写真から選択">🖼️</button>
+  </div>
+</div>
+
 <!-- 写真拡大 -->
 <div id="lightbox" class="modal hidden">
   <div class="lightbox-box" data-close>
@@ -348,11 +352,11 @@
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=53"></script>
-<script src="js/api.js?v=53"></script>
-<script src="js/cloud.js?v=53"></script>
-<script src="js/register.js?v=53"></script>
-<script src="js/views.js?v=53"></script>
-<script src="js/app.js?v=53"></script>
+<script src="js/store.js?v=54"></script>
+<script src="js/api.js?v=54"></script>
+<script src="js/cloud.js?v=54"></script>
+<script src="js/register.js?v=54"></script>
+<script src="js/views.js?v=54"></script>
+<script src="js/app.js?v=54"></script>
 </body>
 </html>

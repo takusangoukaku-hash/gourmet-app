@@ -54,6 +54,10 @@ const Register = (() => {
   function init() {
     $('#photo-input').addEventListener('change', (e) => addFiles(e.target.files));
     $('#camera-input').addEventListener('change', (e) => addFiles(e.target.files));
+    // 独自カメラ画面の操作
+    $('#cam-shutter').addEventListener('click', capturePhoto);
+    $('#cam-library').addEventListener('click', () => { stopCamera(); $('#photo-input').click(); });
+    $('#cam-close').addEventListener('click', () => { stopCamera(); App.switchTab('profile'); });
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
@@ -136,9 +140,42 @@ const Register = (() => {
   }
 
   // 下のバー中央の＋から呼ぶ: 写真の撮影/選択画面（端末のカメラ・ライブラリ）を開く
-  // 下のバー中央の＋から呼ぶ: 端末のカメラを直接起動する（インスタ風）
-  // ライブラリから選びたい場合は登録画面の写真エリア（#photo-input）から
-  function openPhotoPicker() { $('#camera-input').click(); }
+  // ---------- 独自カメラ画面（＋から起動） ----------
+  let camStream = null;
+  // ＋タップで呼ぶ: アプリ内カメラを開く。撮影ボタン＋右下に「写真から選択」＋×
+  function openCamera() {
+    const overlay = $('#camera-overlay');
+    const video = $('#cam-video');
+    $('#cam-error').classList.add('hidden');
+    overlay.classList.remove('hidden');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      overlay.classList.add('hidden'); $('#camera-input').click(); return; // 非対応→端末カメラ
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(stream => { camStream = stream; video.srcObject = stream; video.play().catch(() => {}); })
+      .catch(() => {
+        // 権限拒否・非対応 → 端末標準のカメラにフォールバック
+        overlay.classList.add('hidden');
+        $('#camera-input').click();
+      });
+  }
+  function stopCamera() {
+    if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+    $('#cam-video').srcObject = null;
+    $('#camera-overlay').classList.add('hidden');
+  }
+  function capturePhoto() {
+    const video = $('#cam-video'), canvas = $('#cam-canvas');
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return; // まだ映像が来ていない
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    canvas.toBlob((blob) => {
+      stopCamera();
+      const file = new File([blob], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+      addFiles([file]); // 記録の入力画面へ進む（addFiles内でタブ切替）
+    }, 'image/jpeg', 0.9);
+  }
 
   // ---------- 写真の追加・EXIF解析 ----------
   async function addFiles(fileList) {
@@ -172,10 +209,10 @@ const Register = (() => {
       dupBox.classList.add('hidden');
     }
     renderPreviews();
-    // 写真を選んだら「記録の内容」の入力へ画面を進める（撮影→入力の流れ）
+    // 写真を撮った／選んだら、記録の入力画面へ進める
     if (pendingPhotos.length > before) {
-      const rec = $('#record-card');
-      if (rec) rec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      App.switchTab('register');
+      window.scrollTo({ top: 0 });
     }
     await analyzeExif();
   }
@@ -674,5 +711,5 @@ const Register = (() => {
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-  return { init, preselectShop, openPhotoPicker };
+  return { init, preselectShop, openCamera };
 })();

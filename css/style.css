@@ -440,6 +440,40 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .lightbox-box img { max-width: 92vw; max-height: 80vh; border-radius: 10px; }
 .lightbox-box p { color: #fff; font-size: 13px; }
 
+/* ---------- 独自カメラ画面 ---------- */
+.camera-overlay {
+  position: fixed; inset: 0; z-index: 4000; background: #000;
+  display: flex; align-items: center; justify-content: center;
+}
+#cam-video { width: 100%; height: 100%; object-fit: cover; }
+.cam-close {
+  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 16px;
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,.45); color: #fff; font-size: 18px; cursor: pointer; z-index: 2;
+}
+.cam-controls {
+  position: absolute; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; z-index: 2;
+}
+.cam-spacer, .cam-library { width: 54px; height: 54px; }
+.cam-shutter {
+  width: 72px; height: 72px; border-radius: 50%; cursor: pointer;
+  background: #fff; border: 4px solid rgba(255,255,255,.55);
+  box-shadow: 0 0 0 2px #000 inset;
+}
+.cam-shutter:active { transform: scale(.94); }
+.cam-library {
+  border-radius: 12px; border: 2px solid rgba(255,255,255,.8);
+  background: rgba(255,255,255,.15); color: #fff; font-size: 24px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.cam-error {
+  position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%);
+  color: #fff; background: rgba(0,0,0,.6); border-radius: 12px; padding: 16px;
+  text-align: center; font-size: 14px; z-index: 2;
+}
+
 /* ---------- トースト ---------- */
 .toast {
   position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
