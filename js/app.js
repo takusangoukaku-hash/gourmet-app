@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v49'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v50'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -54,10 +54,28 @@ const App = (() => {
       parts.push('アプリ ' + APP_VERSION + (partVer !== APP_VERSION ? '（⚠️部品 ' + partVer + '）' : ''));
       return parts.join(' ／ ');
     };
+    // このアカウントに紐づくメールアドレスを表示（ログイン中のみ）
+    const renderSettingsAccount = () => {
+      const user = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+      const box = $('#settings-account');
+      box.innerHTML = '<span class="sa-icon">👤</span><div class="sa-main">'
+        + '<div class="sa-label"></div><div class="sa-value"></div></div>';
+      const label = box.querySelector('.sa-label');
+      const value = box.querySelector('.sa-value');
+      if (user) {
+        label.textContent = 'ログイン中のアカウント';
+        value.textContent = user.email || user.displayName || 'Googleアカウント';
+      } else {
+        label.textContent = 'アカウント';
+        value.textContent = '未ログイン（プロフィール画面からログインできます）';
+        value.style.fontWeight = '400'; value.style.color = 'var(--muted)';
+      }
+    };
     $('#settings-btn').addEventListener('click', () => {
       $('#settings-api-key').value = Api.getApiKey();
       $('#settings-google-key').value = Api.getGoogleKey();
       $('#settings-status').textContent = settingsStatus();
+      renderSettingsAccount();
       $('#settings-modal').classList.remove('hidden');
     });
     $('#settings-save').addEventListener('click', () => {

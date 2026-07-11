@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v49'; // プロフィール写真の変更＋フォロー/フォロワー表示（将来機能の土台）
+const VERSION = 'v50'; // 設定を「設定とアクティビティ」に（ハンバーガー＋登録もピクトグラム化）＋アカウントのメール表示＋アバターの縁を削除
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=49',
-  './js/store.js?v=49', './js/api.js?v=49', './js/cloud.js?v=49', './js/register.js?v=49', './js/views.js?v=49', './js/app.js?v=49',
+  './', './index.html', './css/style.css?v=50',
+  './js/store.js?v=50', './js/api.js?v=50', './js/cloud.js?v=50', './js/register.js?v=50', './js/views.js?v=50', './js/app.js?v=50',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
