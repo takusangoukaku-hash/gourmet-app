@@ -200,8 +200,8 @@ const Store = (() => {
 
   // ---------- プロフィール ----------
   function getProfile() {
-    try { return Object.assign({ name: 'グルメ記録', bio: '' }, JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}); }
-    catch { return { name: 'グルメ記録', bio: '' }; }
+    try { return Object.assign({ name: 'BITEMAP', bio: '' }, JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}); }
+    catch { return { name: 'BITEMAP', bio: '' }; }
   }
   function setProfile(patch) {
     const p = Object.assign(getProfile(), patch, { updatedAt: Date.now() });

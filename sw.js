@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v60'; // アプリ名をBITEMAPにリブランド（Poppins Bold・ラーメンのイラスト削除）
+const VERSION = 'v61'; // プロフィールの既定表示名もBITEMAPに統一
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=60',
-  './js/store.js?v=60', './js/api.js?v=60', './js/cloud.js?v=60', './js/register.js?v=60', './js/views.js?v=60', './js/app.js?v=60',
+  './', './index.html', './css/style.css?v=61',
+  './js/store.js?v=61', './js/api.js?v=61', './js/cloud.js?v=61', './js/register.js?v=61', './js/views.js?v=61', './js/app.js?v=61',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

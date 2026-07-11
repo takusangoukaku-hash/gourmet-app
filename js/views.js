@@ -679,7 +679,7 @@ const Views = (() => {
     });
     $('#pf-save').addEventListener('click', () => {
       Store.setProfile({
-        name: $('#pf-name-input').value.trim() || 'グルメ記録',
+        name: $('#pf-name-input').value.trim() || 'BITEMAP',
         bio: $('#pf-bio-input').value.trim(),
       });
       $('#pf-edit-form').classList.add('hidden');
