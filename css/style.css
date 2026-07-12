@@ -163,11 +163,15 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .detail-toggle { text-align: left; font-size: 13px; color: var(--muted); }
 /* 店舗名の見出し行＋お気に入り★ */
 .flabel-head { display: flex; align-items: center; gap: 6px; }
-.fav-star {
-  margin-left: auto; border: none; background: none; cursor: pointer;
-  font-size: 22px; line-height: 1; color: #d0ccc4; padding: 0 2px;
+.fav-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  border: 1px solid var(--border); background: none; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; font-family: inherit;
 }
-.fav-star.on { color: var(--star); }
+.fav-btn .heart-ic { width: 15px; height: 15px; fill: none; }
+.fav-btn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.fav-btn.on .heart-ic { fill: currentColor; }
 
 /* .flabel: ラベルと同じ見た目のdiv（ボタン群を包む欄はlabel要素を使わない） */
 .form-grid label, .form-grid .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); font-weight: 600; }

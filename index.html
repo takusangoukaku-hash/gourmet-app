@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=72">
+<link rel="stylesheet" href="css/style.css?v=73">
 </head>
 <body>
 
@@ -49,7 +49,10 @@
           <div id="photo-previews" class="photo-previews"></div>
           <div class="reg-top-main">
             <div class="flabel-head">店舗名 <span class="req">必須</span>
-              <button type="button" id="f-fav-btn" class="fav-star" aria-label="お気に入り" aria-pressed="false">☆</button>
+              <button type="button" id="f-fav-btn" class="fav-btn" aria-label="お気に入りに登録" aria-pressed="false">
+                <svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>
+                <span>お気に入り</span>
+              </button>
             </div>
             <div class="search-row">
               <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
@@ -390,11 +393,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=72"></script>
-<script src="js/api.js?v=72"></script>
-<script src="js/cloud.js?v=72"></script>
-<script src="js/register.js?v=72"></script>
-<script src="js/views.js?v=72"></script>
-<script src="js/app.js?v=72"></script>
+<script src="js/store.js?v=73"></script>
+<script src="js/api.js?v=73"></script>
+<script src="js/cloud.js?v=73"></script>
+<script src="js/register.js?v=73"></script>
+<script src="js/views.js?v=73"></script>
+<script src="js/app.js?v=73"></script>
 </body>
 </html>

@@ -119,12 +119,11 @@ const Register = (() => {
     $('#save-btn').addEventListener('click', save);
   }
 
-  // お気に入り★（店名右）の表示を #f-fav の状態に合わせる
+  // お気に入りハート（店名右）の表示を #f-fav の状態に合わせる
   function updateFavStar() {
     const on = $('#f-fav').checked;
     const btn = $('#f-fav-btn');
-    btn.textContent = on ? '★' : '☆';
-    btn.classList.toggle('on', on);
+    btn.classList.toggle('on', on); // 塗りつぶし＋色はCSSで切り替え
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 
