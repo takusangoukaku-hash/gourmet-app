@@ -139,6 +139,14 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 /* 登録の候補行は詰める（選択後は1件に絞られるので短く） */
 #view-register .candidate-list { margin-top: 6px; }
 #view-register .candidate { padding: 8px 12px; margin-bottom: 4px; }
+/* 案1: 写真は小さいサムネイルにして店舗名の左に横並び（1画面に収める） */
+.reg-top { display: flex; gap: 10px; align-items: flex-start; }
+.reg-top-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#view-register .photo-previews { margin-top: 2px; gap: 6px; flex-direction: column; flex-shrink: 0; }
+#view-register .photo-previews:empty { display: none; }
+#view-register .photo-preview { width: 64px; }
+#view-register .photo-preview img { width: 64px; height: 64px; }
+#view-register .photo-preview .remove { margin: -62px -4px 0 0; width: 18px; height: 18px; font-size: 10px; }
 /* 長い文字列（検索候補の説明など）がグリッド幅を押し広げないようにする */
 .form-grid > * { min-width: 0; }
 /* お気に入り: 店舗名の直下に目立つチェックとして表示 */
