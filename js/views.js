@@ -660,12 +660,22 @@ const Views = (() => {
       });
       $('#pf-logout').addEventListener('click', () => Cloud.logout());
       // 同期状態の表示更新
-      const SYNC_MSG = { loading: 'ログイン中…', syncing: '☁️ 同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー（時間をおいて再度お試しください）' };
-      Cloud.onStatus((state, u) => {
+      const SYNC_MSG = { loading: 'ログイン中…', syncing: '☁️ 同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
+      Cloud.onStatus((state, u, detail) => {
         const inNow = !!u;
         $('#pf-login').classList.toggle('hidden', inNow);
         $('#pf-account-in').classList.toggle('hidden', !inNow);
-        if (inNow) $('#pf-sync').textContent = (u.email ? u.email + '　' : '') + (SYNC_MSG[state] || '');
+        if (inNow) {
+          let msg = (u.email ? u.email + '　' : '') + (SYNC_MSG[state] || '');
+          if (state === 'error' && detail) {
+            const code = detail.code || detail.message || String(detail);
+            // 原因の切り分け用にエラーコードを表示。権限エラーはルール未設定の案内を出す
+            msg += /permission|denied/i.test(code)
+              ? '（アクセス権の設定が必要です: Firebaseのルール設定を確認）'
+              : `（${String(code).slice(0, 60)}）`;
+          }
+          $('#pf-sync').textContent = msg;
+        }
         if (state === 'synced') renderProfile(); // 復元されたデータを反映
       });
     } else {
