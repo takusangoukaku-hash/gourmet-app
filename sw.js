@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v65'; // 同期エラー時に原因（エラーコード）を表示するように改善
+const VERSION = 'v66'; // 地図をMapLibre GLネイティブ化（2本指で回転可能に）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=65',
-  './js/store.js?v=65', './js/api.js?v=65', './js/cloud.js?v=65', './js/register.js?v=65', './js/views.js?v=65', './js/app.js?v=65',
+  './', './index.html', './css/style.css?v=66',
+  './js/store.js?v=66', './js/api.js?v=66', './js/cloud.js?v=66', './js/register.js?v=66', './js/views.js?v=66', './js/app.js?v=66',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

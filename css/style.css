@@ -241,18 +241,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .panel-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .panel-foot .map-legend { margin-left: 0; }
 /* タイル読み込み前の下地を地図に馴染む淡色に（グレーのちらつき防止） */
-.leaflet-container { background: #f0efed; }
-@media (prefers-color-scheme: dark) { .leaflet-container { background: #23252b; } }
-/* 地図の操作系を丸く柔らかく */
-.leaflet-control-zoom a {
-  border-radius: 8px !important; color: var(--text) !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,.15);
-}
-.leaflet-bar { border: none !important; }
-.leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
-.leaflet-control-attribution { font-size: 9px; opacity: .7; }
-/* 地理院タイルのダークモード（CSSフィルタで反転） */
-.gsi-dark { filter: invert(1) hue-rotate(180deg) brightness(.95) contrast(.9); }
+#map-canvas { background: #f0efed; }
+@media (prefers-color-scheme: dark) { #map-canvas { background: #23252b; } }
+/* MapLibreの操作系（ズーム・コンパス）とポップアップを丸く柔らかく */
+.maplibregl-ctrl-group { border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.15); overflow: hidden; }
+.maplibregl-popup-content { border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2); padding: 12px; }
+.maplibregl-ctrl-attrib { font-size: 9px; opacity: .75; }
 
 /* ピン上の店名ラベル（ズーム時のみ表示） */
 .pin-label {

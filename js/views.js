@@ -25,9 +25,8 @@ const Views = (() => {
     return urlCache.get(rec.id);
   }
 
-  // ========== 地図 ==========
-  let map = null, cluster = null, heat = null, heatOn = false;
-  let pinMarkers = []; // ズーム変更時にアイコンを作り直すための参照
+  // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
+  let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
 
   // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
@@ -160,66 +159,18 @@ const Views = (() => {
     };
   }
 
-  // フォールバック用のラスタ地図（ベクトル地図が使えない端末向け）
-  function addRasterFallback(m, dark) {
-    const smooth = { updateWhenZooming: false, keepBuffer: 4 };
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`, Object.assign({
-      subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 20,
-    }, smooth)).addTo(m);
-  }
-
-  function addBaseTiles(m) {
-    const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    try {
-      const gl = L.maplibreGL({
-        style: baseMapStyle(dark),
-        attribution: '&copy; OpenStreetMap contributors &copy; OpenMapTiles / OpenFreeMap 地理院フォント',
-      });
-      gl.addTo(m);
-      m._glLayer = gl; // 動作確認用の参照
-      const glMap = gl.getMaplibreMap();
-      let loaded = false;
-      glMap.on('load', () => { loaded = true; });
-      glMap.on('error', (e) => console.warn('MapLibre:', e && e.error));
-      // 保険: 画面表示中なのに20秒で初回描画が来なければラスタ地図へ切り替え
-      setTimeout(() => {
-        if (!loaded && !document.hidden) {
-          console.warn('ベクトル地図の描画がタイムアウト。ラスタ地図に切り替えます。');
-          try { m.removeLayer(gl); } catch (e) { /* noop */ }
-          addRasterFallback(m, dark);
-        }
-      }, 20000);
-    } catch (e) {
-      console.warn('ベクトル地図の初期化に失敗:', e);
-      addRasterFallback(m, dark);
-    }
-  }
-
-  // ズームレベルに応じたピンの直径（Apple Maps風の小さめの点）
-  // 広域は極小の点(3px)、拡大しても最大12pxまで
-  function pinSize() {
-    const z = map ? map.getZoom() : 12;
-    return Math.round(Math.max(3, Math.min(12, (z - 8) * 1.8)));
-  }
-
-  // ピンのアイコン生成（数字なし・色で味を表現）。count指定でクラスター用
-  function makePinIcon(avg, fav, count) {
-    const base = pinSize();
-    const size = count ? Math.max(base + 1, Math.round(base * 1.15)) : base;
-    const r = Math.round(avg) || 0;
-    // 極小サイズでは白フチが色を潰すため段階的に細く
-    const border = size <= 5 ? 0 : 1;
-    const favBadge = (fav && size >= 11) ? '<span class="pin-fav">⭐</span>' : '';
-    const countBadge = (count && size >= 9)
-      ? `<span class="pin-count" style="font-size:8px">${count}</span>` : '';
-    return L.divIcon({
-      className: '',
-      html: `<div class="pin r${r}" style="position:relative;width:${size}px;height:${size}px;border-width:${border}px">${favBadge}${countBadge}</div>`,
-      iconSize: [size, size], iconAnchor: [size / 2, size / 2],
-    });
-  }
+  // 味の評価(0〜5)→ピンの色（凡例のr1〜r5と同じ）
+  const PIN_COLORS = ['#9e9e9e', '#9e9e9e', '#64b5f6', '#4caf50', '#ff9800', '#e53935'];
+  const colorByR = (prop) => ['match', ['get', prop],
+    0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
+    PIN_COLORS[3]];
+  // ズームに応じたピンの半径（広域=極小の点、拡大しても控えめ。従来の直径3〜12pxと同等）
+  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'], 8, 1.5, 10, 1.8, 12, 3.6, 14, 5.4, 15, 6, 20, 6];
+  // zoom式は最上位のinterpolateにしか置けないため、件数による加算は出力側に入れる
+  const CSTEP = ['step', ['get', 'point_count'], 1, 10, 2, 30, 3];
+  const CLUSTER_RADIUS = ['interpolate', ['linear'], ['zoom'],
+    8, ['+', 2, CSTEP], 10, ['+', 2.4, CSTEP], 12, ['+', 4.4, CSTEP],
+    14, ['+', 6.2, CSTEP], 15, ['+', 7, CSTEP], 20, ['+', 7, CSTEP]];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
 
@@ -252,30 +203,70 @@ const Views = (() => {
 
   function initMap() {
     if (map) return;
-    // maxZoomの明示は必須: ベクトル層はラスタ層と違い地図へmaxZoomを供給しない
-    // ため、未指定だとマーカークラスタが例外を投げてピンが表示されなくなる
-    // ズームボタンは右下へ（左上は検索バーが重なるため）
-    map = L.map('map-canvas', { zoomControl: false, attributionControl: true, maxZoom: 20, minZoom: 3 })
-      .setView([35.6812, 139.7671], 12);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    addBaseTiles(map);
-    // クラスター（重なり）は中で最も評価の高い店舗の色を代表として表示し、
-    // 右上に件数バッジを付ける
-    cluster = L.markerClusterGroup({
-      iconCreateFunction: (cl) => {
-        const children = cl.getAllChildMarkers();
-        let best = 0;
-        for (const ch of children) best = Math.max(best, ch._avgRating || 0);
-        return makePinIcon(best, false, children.length);
-      },
+    const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // MapLibre GLネイティブ: 2本指ドラッグ（スマホ）/右ドラッグ（PC）で回転できる
+    map = new maplibregl.Map({
+      container: 'map-canvas',
+      style: baseMapStyle(dark),
+      center: [139.7671, 35.6812], zoom: 11, minZoom: 3, maxZoom: 20,
+      attributionControl: { compact: true },
     });
-    map.addLayer(cluster);
+    // ズーム＋コンパス（回転リセット）は右下へ（左上は検索バーが重なるため）
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    map.on('error', (e) => console.warn('MapLibre:', e && e.error));
 
-    // ズームに応じてピンの大きさを更新（広域=点、拡大=大きく）
-    map.on('zoomend', () => {
-      pinMarkers.forEach(m => m.setIcon(makePinIcon(m._avgRating, m._fav)));
-      cluster.refreshClusters();
-      updatePinLabels();
+    map.on('load', () => {
+      mapLoaded = true;
+      // 店舗ピン（クラスター付き）。クラスターの色は中で一番評価の高い店の色
+      map.addSource('shops', {
+        type: 'geojson', data: { type: 'FeatureCollection', features: [] },
+        cluster: true, clusterMaxZoom: 16, clusterRadius: 40,
+        clusterProperties: { maxR: ['max', ['get', 'r']] },
+      });
+      map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
+        filter: ['has', 'point_count'],
+        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
+          'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
+      map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops', minzoom: 13,
+        filter: ['has', 'point_count'],
+        layout: { 'text-field': ['to-string', ['get', 'point_count']], 'text-font': FONT, 'text-size': 9, 'text-allow-overlap': true },
+        paint: { 'text-color': '#fff' } });
+      map.addLayer({ id: 'pins', type: 'circle', source: 'shops',
+        filter: ['!', ['has', 'point_count']],
+        paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
+          'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
+      // お気に入り★（拡大時のみ）
+      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 14,
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
+        layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 11,
+          'text-offset': [0.8, -0.8], 'text-allow-overlap': true },
+        paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
+      // 店名＋ジャンルのラベル（z14以上）
+      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 14,
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
+            ['concat', ['get', 'name'], '\n', ['get', 'genre']]],
+          'text-font': FONT, 'text-size': 10, 'text-anchor': 'bottom',
+          'text-offset': [0, -0.9], 'text-max-width': 12,
+        },
+        paint: { 'text-color': dark ? '#e8e6e1' : '#3a3833',
+          'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
+
+      // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン
+      map.on('click', 'pins', (e) => openPinPopup(e.features[0]));
+      map.on('click', 'clusters', (e) => {
+        const f = e.features[0];
+        map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
+          .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
+      });
+      ['pins', 'clusters'].forEach(id => {
+        map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+      });
+
+      refreshMapData(true);
+      if (pendingRefresh) { pendingRefresh = false; }
     });
 
     // 料理ジャンルフィルタのチップ（複数選択可）
@@ -312,15 +303,12 @@ const Views = (() => {
     $('#map-locate').addEventListener('click', () => {
       if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
       navigator.geolocation.getCurrentPosition(
-        (pos) => map.setView([pos.coords.latitude, pos.coords.longitude], 15),
+        (pos) => map.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 }),
         () => App.toast('現在地を取得できませんでした')
       );
     });
     $('#map-heat').addEventListener('click', toggleHeat);
   }
-
-  // ある程度拡大したとき（z14以上）だけ、ピンの上に店名＋ジャンルを表示
-  const LABEL_MIN_ZOOM = 14;
 
   // 店の代表ジャンル: よく食べる料理ジャンル → なければ店舗ジャンル
   function shopLabelGenre(s) {
@@ -332,25 +320,31 @@ const Views = (() => {
     return top ? top[0] : (s.shopGenre || '');
   }
 
-  function updatePinLabels() {
-    if (!map) return;
-    const show = map.getZoom() >= LABEL_MIN_ZOOM;
-    pinMarkers.forEach(m => {
-      if (show && !m.getTooltip()) {
-        m.bindTooltip(m._labelHtml, {
-          permanent: true, direction: 'top', offset: [0, -8],
-          className: 'pin-label', opacity: 1,
-        });
-      } else if (!show && m.getTooltip()) {
-        m.unbindTooltip();
-      }
-    });
+  // ピンをタップ → 店舗ポップアップ（写真・評価・詳細ボタン）
+  async function openPinPopup(feature) {
+    const s = Store.getShop(feature.properties.id);
+    if (!s) return;
+    const avg = Store.avgRating(s.id);
+    const vs = Store.visitsOf(s.id);
+    const rep = await Store.repPhoto(s.id);
+    const last = vs[0];
+    const node = document.createElement('div');
+    node.className = 'popup';
+    node.innerHTML = `
+        ${rep ? `<img src="${photoUrl(rep)}" alt="">` : ''}
+        <div class="p-name">${esc(s.name)}${s.favorite ? ' ⭐' : ''}</div>
+        <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
+        <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
+        ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
+        <button class="btn small popup-detail">店舗詳細 →</button>`;
+    node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
+    if (mapPopup) mapPopup.remove();
+    mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
+      .setLngLat([s.lon, s.lat]).setDOMContent(node).addTo(map);
   }
 
-  function refreshMap() {
-    initMap();
-    setTimeout(() => map.invalidateSize(), 60);
-    cluster.clearLayers();
+  // フィルタ適用後の店舗一覧 → GeoJSONに変換して地図へ反映
+  function refreshMapData(fit) {
     const shops = Store.shops().filter(s =>
       s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
     // フィルタ選択中は件数を表示
@@ -359,63 +353,57 @@ const Views = (() => {
       .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
     const labels = [...mapGenreFilter, ...axisActive];
     $('#map-filter-count').textContent = labels.length ? `${labels.join('・')}: ${shops.length}件` : '';
-    pinMarkers = [];
-    for (const s of shops) {
+
+    const features = shops.map(s => {
       const avg = Store.avgRating(s.id);
-      // 評価が高いピンほど手前に描画（部分的な重なり対策）
-      const m = L.marker([s.lat, s.lon], {
-        icon: makePinIcon(avg, s.favorite),
-        zIndexOffset: Math.round((avg || 0) * 100),
-      });
-      m._avgRating = avg; // クラスターの代表色・ズーム時の再描画に使用
-      m._fav = s.favorite;
-      const genre = shopLabelGenre(s);
-      m._labelHtml = `<span class="pl-name">${esc(s.name)}</span>${genre ? `<span class="pl-genre">${esc(genre)}</span>` : ''}`;
-      pinMarkers.push(m);
-      m.bindPopup('<div class="popup">読み込み中…</div>');
-      m.on('popupopen', async () => {
-        const vs = Store.visitsOf(s.id);
-        const rep = await Store.repPhoto(s.id);
-        const last = vs[0];
-        // DOMノードで渡す（Leafletポップアップはクリック伝播を止めるため、
-        // documentへの委譲ではなく直接リスナーを付ける必要がある）
-        const node = document.createElement('div');
-        node.className = 'popup';
-        node.innerHTML = `
-            ${rep ? `<img src="${photoUrl(rep)}" alt="">` : ''}
-            <div class="p-name">${esc(s.name)}${s.favorite ? ' ⭐' : ''}</div>
-            <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
-            <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
-            ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
-            <button class="btn small popup-detail">店舗詳細 →</button>`;
-        node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
-        m.setPopupContent(node);
-      });
-      cluster.addLayer(m);
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+        properties: { id: s.id, name: s.name, genre: shopLabelGenre(s),
+          r: Math.round(avg) || 0, fav: s.favorite ? 1 : 0 } };
+    });
+    map.getSource('shops').setData({ type: 'FeatureCollection', features });
+
+    if (fit && shops.length) {
+      const b = new maplibregl.LngLatBounds();
+      shops.forEach(s => b.extend([s.lon, s.lat]));
+      try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
     }
-    if (shops.length) {
-      try { map.fitBounds(cluster.getBounds().pad(0.2)); } catch { /* noop */ }
-    }
-    updatePinLabels();
     if (heatOn) buildHeat();
+  }
+
+  function refreshMap() {
+    initMap();
+    map.resize(); // タブ切り替えで表示された直後はキャンバスサイズが0のため
+    if (!mapLoaded) { pendingRefresh = true; return; } // load後に反映される
+    refreshMapData(true);
   }
 
   function toggleHeat() {
     heatOn = !heatOn;
     $('#map-heat').classList.toggle('primary', heatOn);
     if (heatOn) buildHeat();
-    else if (heat) { map.removeLayer(heat); heat = null; }
+    else {
+      if (map.getLayer('heat')) map.removeLayer('heat');
+      if (map.getSource('heat')) map.removeSource('heat');
+    }
   }
   function buildHeat() {
-    if (heat) map.removeLayer(heat);
-    const pts = [];
+    const features = [];
     for (const v of Store.visits()) {
       // ジャンルフィルタ選択中は該当する訪問だけを対象にする
       if (mapGenreFilter.size && !(v.dishGenres || []).some(g => mapGenreFilter.has(g))) continue;
       const s = Store.getShop(v.shopId);
-      if (s && s.lat != null && shopMatchesKeyword(s)) pts.push([s.lat, s.lon, 1]);
+      if (s && s.lat != null && shopMatchesKeyword(s)) {
+        features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] }, properties: {} });
+      }
     }
-    heat = L.heatLayer(pts, { radius: 32, blur: 22 }).addTo(map);
+    const data = { type: 'FeatureCollection', features };
+    if (map.getSource('heat')) { map.getSource('heat').setData(data); return; }
+    map.addSource('heat', { type: 'geojson', data });
+    map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat',
+      paint: {
+        'heatmap-radius': 32, 'heatmap-opacity': 0.6,
+        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 15, 2],
+      } }, 'clusters'); // ピンの下に描画
   }
 
   // ========== 一覧 ==========
@@ -1090,5 +1078,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, getMap: () => map, addBaseTiles, baseMapStyle };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, getMap: () => map, baseMapStyle };
 })();
