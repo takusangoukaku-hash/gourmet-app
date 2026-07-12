@@ -602,7 +602,13 @@ const Views = (() => {
     const type = ''; // 種別フィルタは廃止（すべての写真を表示）
     const dg = $('#ph-dish-genre').value;
     let photos = await Store.allPhotos();
-    photos.sort((a, b) => b.createdAt - a.createdAt);
+    // 味の評価が高い順（同点は新しい順）
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    photos.sort((a, b) => {
+      const ra = (vById.get(a.visitId) || {}).rating || 0;
+      const rb = (vById.get(b.visitId) || {}).rating || 0;
+      return rb - ra || b.createdAt - a.createdAt;
+    });
 
     const cells = [];
     for (const p of photos) {
