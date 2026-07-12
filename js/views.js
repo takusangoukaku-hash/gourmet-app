@@ -62,6 +62,19 @@ const Views = (() => {
         'text-halo-color': c.halo, 'text-halo-width': haloW,
       },
     });
+    // 周辺施設（POI）: Google/Apple地図のように拡大すると店舗・コンビニ等を表示
+    //  種別で色分け（飲食=オレンジ / 買い物・コンビニ=青 / その他=緑）
+    const POI_COLOR = ['match', ['get', 'class'],
+      ['restaurant', 'fast_food', 'cafe', 'bar', 'beer', 'pub', 'ice_cream', 'food_court'], '#ef6c34',
+      ['convenience', 'grocery', 'supermarket', 'shop', 'clothing_store', 'bakery',
+        'books', 'gift', 'florist', 'butcher', 'bicycle', 'car', 'laundry', 'department_store'], '#3478f6',
+      '#12a56b'];
+    // 名前があり、かつ別途表示している種別（駅・大学・公園など）を除いたPOIのみ
+    const POI_FILTER = ['all',
+      ['has', 'name'],
+      ['!', ['in', ['get', 'class'],
+        ['literal', ['railway', 'bus', 'college', 'stadium', 'museum', 'zoo', 'aquarium',
+          'theme_park', 'castle', 'airport', 'park', 'cemetery', 'ferry_terminal', 'harbor']]]]];
     return {
       version: 8,
       glyphs: 'https://maps.gsi.go.jp/xyz/noto-jp/{fontstack}/{range}.pbf',
@@ -133,6 +146,14 @@ const Views = (() => {
         { id: 'boundary', type: 'line', source: 'omt', 'source-layer': 'boundary', minzoom: 5,
           filter: ['<=', ['get', 'admin_level'], 4],
           paint: { 'line-color': c.boundary, 'line-width': 1, 'line-dasharray': [3, 2] } },
+        // 周辺施設の点（拡大時）。ラベルより下に描く
+        { id: 'poi-dots', type: 'circle', source: 'omt', 'source-layer': 'poi', minzoom: 15,
+          filter: POI_FILTER,
+          paint: {
+            'circle-color': POI_COLOR,
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 2.2, 18, 4],
+            'circle-stroke-color': c.halo, 'circle-stroke-width': 1,
+          } },
         // ===== ラベル（都市名・駅名・主要施設のみ）=====
         label('place-city', 'place',
           ['==', ['get', 'class'], 'city'], 4,
@@ -155,6 +176,17 @@ const Views = (() => {
         // 空港
         label('airport-label', 'aerodrome_label',
           ['has', 'iata'], 9, 10.5, c.poi, 1.2),
+        // 周辺施設の名前（さらに拡大したz16〜）。駅名などより優先度は低く、重なると隠れる
+        { id: 'poi-labels', type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom: 16,
+          filter: POI_FILTER,
+          layout: {
+            'text-field': JA_NAME, 'text-font': FONT, 'text-size': 10.5,
+            'text-anchor': 'top', 'text-offset': [0, 0.5], 'text-max-width': 8,
+            'symbol-sort-key': ['coalesce', ['get', 'rank'], 100], // rankが小さい=重要を優先
+          },
+          paint: {
+            'text-color': c.poi, 'text-halo-color': c.halo, 'text-halo-width': 1.1,
+          } },
       ],
     };
   }

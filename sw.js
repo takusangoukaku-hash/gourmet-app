@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v66'; // 地図をMapLibre GLネイティブ化（2本指で回転可能に）
+const VERSION = 'v67'; // 拡大時に周辺施設（コンビニ・店舗等）のPOIを表示（Google/Apple地図風）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=66',
-  './js/store.js?v=66', './js/api.js?v=66', './js/cloud.js?v=66', './js/register.js?v=66', './js/views.js?v=66', './js/app.js?v=66',
+  './', './index.html', './css/style.css?v=67',
+  './js/store.js?v=67', './js/api.js?v=67', './js/cloud.js?v=67', './js/register.js?v=67', './js/views.js?v=67', './js/app.js?v=67',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
