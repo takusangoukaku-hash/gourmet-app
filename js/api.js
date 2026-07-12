@@ -40,7 +40,7 @@ const Api = (() => {
         (active
           ? '<div class="chips genre-chips">' + active.genres.map(g =>
               `<button type="button" class="chip${selected.has(g) ? ' on' : ''}" data-g="${escH(g)}">${escH(g)}</button>`).join('') + '</div>'
-          : '<div class="picker-hint">カテゴリをタップするとジャンルが表示されます</div>') +
+          : '') +
         (selected.size ? `<div class="sel-genres">選択中: ${[...selected].map(escH).join('・')}</div>` : '');
     };
     container.onclick = (e) => {
@@ -581,7 +581,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v68',
+    FILE_VERSION: 'v69',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

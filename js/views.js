@@ -861,7 +861,7 @@ const Views = (() => {
   // 編集モードの料理ジャンル選択状態（vid → Set）
   let editGenreSets = new Map();
 
-  async function showShop(shopId, editMode = false) {
+  async function showShop(shopId, editMode = false, editVid = null) {
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
@@ -870,8 +870,8 @@ const Views = (() => {
 
     // ヘッダー
     const headHtml = editMode ? `
-      <div class="detail-head"><h2>✏️ ${esc(s.name)} の編集</h2>
-        <div class="d-sub">内容を変更して、最後に一番下の「💾 保存」を押してください。</div>
+      <div class="detail-head"><h2>✏️ 店舗情報の編集</h2>
+        <div class="d-sub">店名・住所などを変更して「💾 保存」を押してください。</div>
       </div>` : `
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
@@ -922,44 +922,16 @@ const Views = (() => {
       </div>` : `
       <div class="detail-actions">
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
-        <button class="btn small" id="d-edit">✏️ 編集</button>
+        <button class="btn small" id="d-edit">✏️ 店舗情報</button>
         <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>
         <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
         <button class="btn small danger" id="d-delete">店舗を削除</button>
       </div>`;
 
-    // 編集モードの並び: 味の評価 → お店の評価 → ジャンル → 店舗情報 → 訪問日・コメント → 保存
-    const multi = vs.length > 1;
-    const vLabel = (v) => multi ? `${fmtDate(v.datetime)}` : '';
-    const editSections = editMode ? `
-      <div class="axis-box">
-        <div class="axis-title">味の評価</div>
-        ${vs.map(v => `
-          <div class="axis-row">${multi ? `<span>${vLabel(v)}</span>` : ''}
-            <span class="stars small ve-stars" data-vid="${v.id}" data-rating="${v.rating}"></span>
-          </div>`).join('')}
-      </div>
-      ${axisHtml}
-      <div class="axis-box">
-        <div class="axis-title">料理ジャンル</div>
-        ${vs.map(v => `
-          ${multi ? `<div class="ve-sub">${vLabel(v)}</div>` : ''}
-          <div class="ve-genres" data-vid="${v.id}" style="margin-bottom:6px"></div>`).join('')}
-      </div>
-      ${shopFormHtml}
-      <div class="axis-box">
-        <div class="axis-title">訪問日・コメント</div>
-        ${vs.map(v => `
-          <div class="ve-visit" data-vid="${v.id}">
-            <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
-            <textarea rows="2" class="ve-comment" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
-            <div class="v-btns"><button type="button" class="btn small danger ve-del" data-vid="${v.id}">この訪問を削除</button></div>
-          </div>`).join('')}
-      </div>` : '';
-
+    // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
     body.innerHTML = editMode ? `
       ${headHtml}
-      ${editSections}
+      ${shopFormHtml}
       ${actionsHtml}` : `
       ${headHtml}
       ${axisHtml}
@@ -982,36 +954,8 @@ const Views = (() => {
     });
 
     if (editMode) {
-      $('#d-save-all').addEventListener('click', saveAll);
+      $('#d-save-all').addEventListener('click', saveShopInfo);
       $('#d-cancel').addEventListener('click', () => showShop(shopId, false));
-      // 味の評価スター（訪問ごと）
-      body.querySelectorAll('.ve-stars').forEach(starsEl => {
-        const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
-        for (let i = 1; i <= 5; i++) {
-          const b = document.createElement('button');
-          b.type = 'button'; b.textContent = '★';
-          b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
-          starsEl.appendChild(b);
-        }
-        paint(+starsEl.dataset.rating || 0);
-      });
-      // 料理ジャンル: カテゴリ→ジャンルの2段階選択（訪問ごとにSetで管理）
-      editGenreSets = new Map();
-      body.querySelectorAll('.ve-genres').forEach(box => {
-        const v = vs.find(x => x.id === box.dataset.vid);
-        const set = new Set((v && v.dishGenres) || []);
-        editGenreSets.set(box.dataset.vid, set);
-        Api.buildGenrePicker(box, set);
-      });
-      // 訪問の削除
-      body.querySelectorAll('.ve-del').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('この訪問記録を削除しますか？')) return;
-          await Store.deleteVisit(btn.dataset.vid);
-          showShop(shopId, true);
-          App.refreshCurrent();
-        });
-      });
     } else {
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
@@ -1036,15 +980,10 @@ const Views = (() => {
       });
     }
 
-    // 一括保存: 店舗情報＋すべての訪問記録
-    // （味・ジャンル・訪問日/コメントはセクション別に並ぶため data-vid で対応づけ）
-    function saveAll() {
+    // 店舗情報のみ保存（店名・住所など。各訪問は訪問カードから個別に編集）
+    function saveShopInfo() {
       const name = $('#de-name').value.trim();
       if (!name) { App.toast('店舗名は空にできません'); return; }
-      const visitRows = [...document.querySelectorAll('.ve-visit')];
-      for (const row of visitRows) {
-        if (!row.querySelector('.ve-date').value) { App.toast('訪問日を入力してください'); return; }
-      }
       Store.updateShop(shopId, {
         name,
         station: $('#de-station').value.trim(),
@@ -1052,47 +991,88 @@ const Views = (() => {
         city: $('#de-city').value.trim(),
         address: $('#de-address').value.trim(),
       });
-      for (const row of visitRows) {
-        const vid = row.dataset.vid;
-        const starsEl = document.querySelector(`.ve-stars[data-vid="${vid}"]`);
-        Store.updateVisit(vid, {
-          datetime: new Date(row.querySelector('.ve-date').value + 'T12:00:00').toISOString(),
-          rating: +(starsEl && starsEl.dataset.rating || 3),
-          dishGenres: [...(editGenreSets.get(vid) || [])],
-          comment: row.querySelector('.ve-comment').value.trim(),
-        });
-      }
       App.toast('✅ 保存しました');
       showShop(shopId, false);
-      App.refreshCurrent(); // 背後の一覧・地図にも反映
+      App.refreshCurrent();
     }
 
-    // 訪問記録の一覧表示（表示モードのみ。編集モードは上のセクション式）
+    // 訪問記録の一覧表示（訪問ごとに個別編集できる）
     if (!editMode) {
       const vbox = $('#d-visits');
       for (const v of vs) {
         const block = document.createElement('div');
         block.className = 'visit-block';
         block.dataset.vid = v.id;
-        block.innerHTML = `
-          <div class="v-head">
-            <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-            <span class="v-stars">${starStr(v.rating)}</span>
-            <span class="chip tag">${esc(v.visitType || '店内飲食')}</span>
-            ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
-          </div>
-          ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
-          <div class="v-photos"></div>`;
-        Store.photosOfVisit(v.id).then(ps => {
-          const row = block.querySelector('.v-photos');
-          ps.forEach(p => {
-            const img = document.createElement('img');
-            img.src = photoUrl(p);
-            img.addEventListener('click', () => openLightbox(photoUrl(p), `${s.name}　${fmtDate(v.datetime)}`));
-            row.appendChild(img);
+        if (editVid === v.id) {
+          // ---- この訪問だけをインライン編集 ----
+          block.innerHTML = `
+            <div class="ve-row">味の評価 <span class="stars small ve-stars" data-rating="${v.rating}"></span></div>
+            <div class="ve-sub">料理ジャンル</div>
+            <div class="ve-genres"></div>
+            <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
+            <textarea rows="2" class="ve-comment" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
+            <div class="v-btns">
+              <button type="button" class="btn small primary ve-save">💾 保存</button>
+              <button type="button" class="btn small ve-cancel">キャンセル</button>
+            </div>`;
+          vbox.appendChild(block);
+          const starsEl = block.querySelector('.ve-stars');
+          const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
+          for (let i = 1; i <= 5; i++) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.textContent = '★';
+            b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
+            starsEl.appendChild(b);
+          }
+          paint(v.rating || 0);
+          const set = new Set(v.dishGenres || []);
+          Api.buildGenrePicker(block.querySelector('.ve-genres'), set);
+          block.querySelector('.ve-cancel').addEventListener('click', () => showShop(shopId, false, null));
+          block.querySelector('.ve-save').addEventListener('click', () => {
+            const dateVal = block.querySelector('.ve-date').value;
+            if (!dateVal) { App.toast('訪問日を入力してください'); return; }
+            Store.updateVisit(v.id, {
+              datetime: new Date(dateVal + 'T12:00:00').toISOString(),
+              rating: +(starsEl.dataset.rating || 3),
+              dishGenres: [...set],
+              comment: block.querySelector('.ve-comment').value.trim(),
+            });
+            App.toast('✅ 保存しました');
+            showShop(shopId, false, null);
+            App.refreshCurrent();
           });
-        });
-        vbox.appendChild(block);
+        } else {
+          // ---- 読み取り表示（編集・削除ボタン付き） ----
+          block.innerHTML = `
+            <div class="v-head">
+              <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
+              <span class="v-stars">${starStr(v.rating)}</span>
+              ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+            </div>
+            ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
+            <div class="v-photos"></div>
+            <div class="v-btns">
+              <button type="button" class="btn small ve-edit">✏️ この記録を編集</button>
+              <button type="button" class="btn small danger ve-del">削除</button>
+            </div>`;
+          Store.photosOfVisit(v.id).then(ps => {
+            const row = block.querySelector('.v-photos');
+            ps.forEach(p => {
+              const img = document.createElement('img');
+              img.src = photoUrl(p);
+              img.addEventListener('click', () => openLightbox(photoUrl(p), `${s.name}　${fmtDate(v.datetime)}`));
+              row.appendChild(img);
+            });
+          });
+          block.querySelector('.ve-edit').addEventListener('click', () => showShop(shopId, false, v.id));
+          block.querySelector('.ve-del').addEventListener('click', async () => {
+            if (!confirm('この記録を削除しますか？')) return;
+            await Store.deleteVisit(v.id);
+            showShop(shopId, false, null);
+            App.refreshCurrent();
+          });
+          vbox.appendChild(block);
+        }
       }
     }
 

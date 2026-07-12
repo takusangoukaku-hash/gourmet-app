@@ -5,13 +5,13 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v68'; // POIの点を廃止し施設名のみ表示（種別で色分け）
+const VERSION = 'v69'; // 訪問ごとに個別編集、登録画面の整理（★統合・不要文削除・折りたたみ）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
 const SHELL = [
-  './', './index.html', './css/style.css?v=68',
-  './js/store.js?v=68', './js/api.js?v=68', './js/cloud.js?v=68', './js/register.js?v=68', './js/views.js?v=68', './js/app.js?v=68',
+  './', './index.html', './css/style.css?v=69',
+  './js/store.js?v=69', './js/api.js?v=69', './js/cloud.js?v=69', './js/register.js?v=69', './js/views.js?v=69', './js/app.js?v=69',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

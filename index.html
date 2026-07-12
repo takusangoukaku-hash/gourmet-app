@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=68">
+<link rel="stylesheet" href="css/style.css?v=69">
 </head>
 <body>
 
@@ -45,16 +45,18 @@
     <div id="exif-status" class="exif-status hidden"></div>
     <div id="ai-status" class="exif-status hidden"></div>
     <div class="form-grid">
-      <div class="full flabel">店舗名 <span class="req">必須</span>
+      <div class="full flabel">
+        <div class="flabel-head">店舗名 <span class="req">必須</span>
+          <button type="button" id="f-fav-btn" class="fav-star" aria-label="お気に入り" aria-pressed="false">☆</button>
+        </div>
+        <input type="checkbox" id="f-fav" hidden>
         <div class="search-row">
           <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
           <button type="button" id="shop-search-btn" class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> 検索</button>
         </div>
-        <p class="hint">見つからないときは「店名 地名」（例: ○○軒 渋谷）で検索してください。</p>
         <div id="shop-candidates" class="candidate-list"></div>
         <div id="selected-shop-note" class="selected-note hidden"></div>
       </div>
-      <label class="check full fav-check"><input type="checkbox" id="f-fav"> ⭐ この店をお気に入りに登録</label>
       <!-- 注意: ボタン群を <label> で包まないこと。ラベルの隙間をタップすると
            先頭のボタンにクリックが転送され、意図しない選択になる（スマホで顕在化） -->
       <div class="full flabel">料理ジャンル（複数選択可）
@@ -64,16 +66,16 @@
         <div id="f-rating" class="stars"></div>
       </div>
       <div class="full axis-box">
-        <div class="axis-title">お店の評価（任意・一度つければ再訪時は入力不要）</div>
+        <div class="axis-title">お店の評価（任意）</div>
         <div class="axis-row"><span>カジュアル度</span><div id="f-ax-casual" class="stars small"></div></div>
         <div class="axis-row"><span>雰囲気</span><div id="f-ax-atmosphere" class="stars small"></div></div>
         <div class="axis-row"><span>提供の早さ</span><div id="f-ax-speed" class="stars small"></div></div>
       </div>
-      <label class="full">コメント・感想
-        <textarea id="f-comment" rows="3" placeholder="味の感想、おすすめメニューなど"></textarea>
-      </label>
-      <button type="button" id="detail-toggle" class="btn full detail-toggle">▸ もっと見る（住所・最寄駅など）</button>
+      <button type="button" id="detail-toggle" class="btn full detail-toggle">▸ もっと見る（コメント・住所など）</button>
       <div id="detail-fields" class="full detail-fields hidden">
+        <label class="full">コメント・感想
+          <textarea id="f-comment" rows="2" placeholder="味の感想、おすすめメニューなど"></textarea>
+        </label>
         <label>住所
           <input type="text" id="f-address" placeholder="自動入力されます">
         </label>
@@ -384,11 +386,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=68"></script>
-<script src="js/api.js?v=68"></script>
-<script src="js/cloud.js?v=68"></script>
-<script src="js/register.js?v=68"></script>
-<script src="js/views.js?v=68"></script>
-<script src="js/app.js?v=68"></script>
+<script src="js/store.js?v=69"></script>
+<script src="js/api.js?v=69"></script>
+<script src="js/cloud.js?v=69"></script>
+<script src="js/register.js?v=69"></script>
+<script src="js/views.js?v=69"></script>
+<script src="js/app.js?v=69"></script>
 </body>
 </html>

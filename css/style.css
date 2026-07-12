@@ -129,7 +129,13 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 
 .mini-map { height: 300px; border-radius: 12px; }
 
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* 登録フォームはやや詰めて1画面に収まりやすく */
+#view-register .card { padding: 12px 14px; }
+#view-register .form-grid { gap: 9px; }
+#view-register .axis-box { padding: 8px 12px; }
+#view-register .axis-row { min-height: 26px; }
+#view-register .btn.big { margin-top: 10px; padding: 12px; }
 /* 長い文字列（検索候補の説明など）がグリッド幅を押し広げないようにする */
 .form-grid > * { min-width: 0; }
 /* お気に入り: 店舗名の直下に目立つチェックとして表示 */
@@ -142,7 +148,15 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 /* 登録フォームの詳細欄（住所など）: 「もっと見る」で開閉 */
 .form-grid .detail-toggle, .form-grid .detail-fields { grid-column: 1 / -1; }
 .detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.detail-fields label.full { grid-column: 1 / -1; }
 .detail-toggle { text-align: left; font-size: 13px; color: var(--muted); }
+/* 店舗名の見出し行＋お気に入り★ */
+.flabel-head { display: flex; align-items: center; gap: 6px; }
+.fav-star {
+  margin-left: auto; border: none; background: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: #d0ccc4; padding: 0 2px;
+}
+.fav-star.on { color: var(--star); }
 
 /* .flabel: ラベルと同じ見た目のdiv（ボタン群を包む欄はlabel要素を使わない） */
 .form-grid label, .form-grid .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); font-weight: 600; }

@@ -93,13 +93,20 @@ const Register = (() => {
       }
     }, true);
 
-    // 詳細欄（住所・最寄駅など）の開閉
+    // 詳細欄（コメント・住所など）の開閉
     $('#detail-toggle').addEventListener('click', () => {
       const fields = $('#detail-fields');
       const open = fields.classList.toggle('hidden'); // true = 閉じた
       $('#detail-toggle').textContent = open
-        ? '▸ もっと見る（住所・最寄駅など）'
-        : '▾ 閉じる（住所・最寄駅など）';
+        ? '▸ もっと見る（コメント・住所など）'
+        : '▾ 閉じる（コメント・住所など）';
+    });
+
+    // お気に入りの★トグル（店名の右の星）
+    $('#f-fav-btn').addEventListener('click', () => {
+      const cb = $('#f-fav');
+      cb.checked = !cb.checked;
+      updateFavStar();
     });
 
     // 評価スター（味）＋ 店の評価3軸
@@ -110,6 +117,15 @@ const Register = (() => {
     visitDate = toLocalInput(new Date());
 
     $('#save-btn').addEventListener('click', save);
+  }
+
+  // お気に入り★（店名右）の表示を #f-fav の状態に合わせる
+  function updateFavStar() {
+    const on = $('#f-fav').checked;
+    const btn = $('#f-fav-btn');
+    btn.textContent = on ? '★' : '☆';
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 
   // 店の評価3軸のスターを（再）描画する
@@ -493,6 +509,7 @@ const Register = (() => {
     $('#f-city').value = shop.city || '';
     derivedShopGenre = ''; // 既存店舗のジャンルはそのまま維持
     $('#f-fav').checked = !!shop.favorite;
+    updateFavStar();
     // 店の評価は既存の値を引き継ぐ（再訪時は入力不要）
     shopRatings = { casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0 };
     mountAxisStars();
@@ -676,9 +693,10 @@ const Register = (() => {
     ['#f-shop-name', '#f-address', '#f-station', '#f-pref', '#f-city', '#f-comment'].forEach(s => { $(s).value = ''; });
     derivedShopGenre = '';
     $('#f-fav').checked = false;
+    updateFavStar();
     // 詳細欄は閉じた状態に戻す
     $('#detail-fields').classList.add('hidden');
-    $('#detail-toggle').textContent = '▸ もっと見る（住所・最寄駅など）';
+    $('#detail-toggle').textContent = '▸ もっと見る（コメント・住所など）';
     visitDate = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;
