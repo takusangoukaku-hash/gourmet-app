@@ -146,14 +146,6 @@ const Views = (() => {
         { id: 'boundary', type: 'line', source: 'omt', 'source-layer': 'boundary', minzoom: 5,
           filter: ['<=', ['get', 'admin_level'], 4],
           paint: { 'line-color': c.boundary, 'line-width': 1, 'line-dasharray': [3, 2] } },
-        // 周辺施設の点（拡大時）。ラベルより下に描く
-        { id: 'poi-dots', type: 'circle', source: 'omt', 'source-layer': 'poi', minzoom: 15,
-          filter: POI_FILTER,
-          paint: {
-            'circle-color': POI_COLOR,
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 2.2, 18, 4],
-            'circle-stroke-color': c.halo, 'circle-stroke-width': 1,
-          } },
         // ===== ラベル（都市名・駅名・主要施設のみ）=====
         label('place-city', 'place',
           ['==', ['get', 'class'], 'city'], 4,
@@ -176,16 +168,17 @@ const Views = (() => {
         // 空港
         label('airport-label', 'aerodrome_label',
           ['has', 'iata'], 9, 10.5, c.poi, 1.2),
-        // 周辺施設の名前（さらに拡大したz16〜）。駅名などより優先度は低く、重なると隠れる
+        // 周辺施設の名前（拡大したz16〜）。点は出さず名前のみ。種別で色分け
+        // 駅名などより優先度は低く、重なると隠れる
         { id: 'poi-labels', type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom: 16,
           filter: POI_FILTER,
           layout: {
             'text-field': JA_NAME, 'text-font': FONT, 'text-size': 10.5,
-            'text-anchor': 'top', 'text-offset': [0, 0.5], 'text-max-width': 8,
+            'text-max-width': 8,
             'symbol-sort-key': ['coalesce', ['get', 'rank'], 100], // rankが小さい=重要を優先
           },
           paint: {
-            'text-color': c.poi, 'text-halo-color': c.halo, 'text-halo-width': 1.1,
+            'text-color': POI_COLOR, 'text-halo-color': c.halo, 'text-halo-width': 1.2,
           } },
       ],
     };
