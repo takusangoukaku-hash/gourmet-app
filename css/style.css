@@ -136,6 +136,9 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 #view-register .axis-box { padding: 8px 12px; }
 #view-register .axis-row { min-height: 26px; }
 #view-register .btn.big { margin-top: 10px; padding: 12px; }
+/* 登録の候補行は詰める（選択後は1件に絞られるので短く） */
+#view-register .candidate-list { margin-top: 6px; }
+#view-register .candidate { padding: 8px 12px; margin-bottom: 4px; }
 /* 長い文字列（検索候補の説明など）がグリッド幅を押し広げないようにする */
 .form-grid > * { min-width: 0; }
 /* お気に入り: 店舗名の直下に目立つチェックとして表示 */

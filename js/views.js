@@ -9,6 +9,7 @@ const Views = (() => {
   // 白黒ピクトグラム（駅・住所）
   const IC_STATION = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><path d="M9 20l1.5-4"/><path d="M15 20l-1.5-4"/></svg>';
   const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
+  const IC_EDIT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
@@ -922,7 +923,7 @@ const Views = (() => {
       </div>` : `
       <div class="detail-actions">
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
-        <button class="btn small" id="d-edit">✏️ 店舗情報</button>
+        <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
         <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>
         <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
         <button class="btn small danger" id="d-delete">店舗を削除</button>
@@ -1052,7 +1053,7 @@ const Views = (() => {
             ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
             <div class="v-photos"></div>
             <div class="v-btns">
-              <button type="button" class="btn small ve-edit">✏️ この記録を編集</button>
+              <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
               <button type="button" class="btn small danger ve-del">削除</button>
             </div>`;
           Store.photosOfVisit(v.id).then(ps => {

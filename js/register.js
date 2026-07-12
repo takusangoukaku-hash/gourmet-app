@@ -344,8 +344,13 @@ const Register = (() => {
     box.innerHTML = '';
     const seenOsm = new Set();
 
+    // 店舗を選んだら、その候補だけ残して他は非表示にする（画面を短く保つ）
     const markSelected = (div) => {
-      box.querySelectorAll('.candidate').forEach(x => x.classList.remove('selected'));
+      box.querySelectorAll('.candidate').forEach(x => {
+        x.classList.remove('selected');
+        if (x !== div) x.classList.add('hidden');
+      });
+      div.classList.remove('hidden');
       div.classList.add('selected');
     };
 
@@ -392,6 +397,7 @@ const Register = (() => {
     }
     const el = els[Math.min(idx, els.length - 1)];
     autoPicked = true;
+    els.forEach(x => { if (x !== el) x.classList.add('hidden'); }); // 選んだ候補以外を隠す
     el.classList.add('selected');
     if (idx < existing.length) chooseExisting(existing[idx].shop);
     else chooseCandidate(results[idx - existing.length] || results[0]);
@@ -513,8 +519,7 @@ const Register = (() => {
     // 店の評価は既存の値を引き継ぐ（再訪時は入力不要）
     shopRatings = { casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0 };
     mountAxisStars();
-    const auto = autoPicked ? '🤖 一番近い店舗を自動選択しました。違う場合は上の候補から選び直せます。\n' : '';
-    note(`${auto}🔁 「${shop.name}」への再訪として記録します（訪問${Store.visitCount(shop.id)}回目 → ${Store.visitCount(shop.id) + 1}回目）`);
+    $('#selected-shop-note').classList.add('hidden'); // 選択後は候補行が確認になるため案内は出さない（画面内に収める）
     backfillMissing(shop);
   }
 
@@ -563,8 +568,7 @@ const Register = (() => {
         dishPicker.reset();
       }
     }
-    const auto = autoPicked ? '🤖 一番近い店舗を自動選択しました。違う場合は上の候補から選び直せます。\n' : '';
-    note(`${auto}✅ 「${c.name}」を選択しました。あとは★評価をつけて保存するだけです。`);
+    $('#selected-shop-note').classList.add('hidden'); // 選択後は候補行が確認になるため案内は出さない（画面内に収める）
     await applyLocation(c);
   }
 
