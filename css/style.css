@@ -362,8 +362,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .shop-card .s-stars { color: var(--star); font-size: 13px; }
 .shop-card .s-stars .num { color: var(--muted); }
 .shop-card .s-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.shop-card .s-fav { border: none; background: none; font-size: 20px; cursor: pointer; align-self: flex-start; filter: grayscale(1) opacity(.35); }
-.shop-card .s-fav.on { filter: none; }
+.shop-card .s-fav { border: none; background: none; padding: 2px; cursor: pointer; align-self: flex-start; color: var(--muted); line-height: 0; }
+.shop-card .s-fav .heart-ic { width: 22px; height: 22px; fill: none; }
+.shop-card .s-fav.on { color: var(--accent); }
+.shop-card .s-fav.on .heart-ic { fill: currentColor; }
 
 .empty {
   text-align: center; color: var(--muted); padding: 40px 16px;

@@ -10,6 +10,7 @@ const Views = (() => {
   const IC_STATION = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><path d="M9 20l1.5-4"/><path d="M15 20l-1.5-4"/></svg>';
   const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
   const IC_EDIT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
@@ -578,7 +579,7 @@ const Views = (() => {
         ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
         <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
       </div>
-      <button class="s-fav ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り">⭐</button>`;
+      <button class="s-fav ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
     return div;
   }
 
@@ -602,12 +603,16 @@ const Views = (() => {
     const type = ''; // 種別フィルタは廃止（すべての写真を表示）
     const dg = $('#ph-dish-genre').value;
     let photos = await Store.allPhotos();
-    // 味の評価が高い順（同点は新しい順）
+    // 味の評価が高い順。同点は 雰囲気→カジュアル度→提供の早さ の順に星の高い方を上へ
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     photos.sort((a, b) => {
-      const ra = (vById.get(a.visitId) || {}).rating || 0;
-      const rb = (vById.get(b.visitId) || {}).rating || 0;
-      return rb - ra || b.createdAt - a.createdAt;
+      const va = vById.get(a.visitId) || {}, vb = vById.get(b.visitId) || {};
+      const sa = Store.getShop(a.shopId) || {}, sb = Store.getShop(b.shopId) || {};
+      return (vb.rating || 0) - (va.rating || 0)
+          || (sb.atmosphere || 0) - (sa.atmosphere || 0)
+          || (sb.casual || 0) - (sa.casual || 0)
+          || (sb.speed || 0) - (sa.speed || 0)
+          || b.createdAt - a.createdAt;
     });
 
     const cells = [];
