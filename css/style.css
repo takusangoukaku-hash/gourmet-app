@@ -315,6 +315,42 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .popup .p-name { font-weight: bold; margin: 4px 0 2px; }
 .popup .p-sub { color: var(--muted); font-size: 12px; }
 .popup .p-comment { font-size: 12px; margin: 4px 0; }
+.popup .p-actions { display: flex; gap: 6px; margin-top: 6px; }
+.popup .p-actions .btn { flex: 1; padding: 6px 4px; font-size: 12px; }
+
+/* ---------- 現在地マーカー（青い点＋パルス） ---------- */
+.user-loc { position: relative; width: 18px; height: 18px; }
+.user-loc-dot {
+  position: absolute; inset: 0; margin: auto; width: 14px; height: 14px; border-radius: 50%;
+  background: #1a73e8; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.4);
+}
+.user-loc-pulse {
+  position: absolute; inset: 0; margin: auto; width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(26,115,232,.35); animation: userLocPulse 2s ease-out infinite;
+}
+@keyframes userLocPulse {
+  0% { transform: scale(1); opacity: .8; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* ---------- ナビ（移動手段の選択シート） ---------- */
+.nav-sheet { align-items: center; }
+.nav-sheet-box {
+  background: var(--card); border-radius: 18px; width: 100%; max-width: 360px;
+  padding: 20px; text-align: center;
+}
+.nav-sheet-title { font-weight: bold; font-size: 16px; margin-bottom: 2px; }
+.nav-sheet-sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+.nav-modes { display: flex; gap: 10px; margin-bottom: 14px; }
+.nav-mode {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 6px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--card); cursor: pointer;
+}
+.nav-mode:active { background: var(--accent-soft); border-color: var(--accent); }
+.nav-mode .nm-ic { font-size: 26px; line-height: 1; }
+.nav-mode .nm-label { font-size: 13px; font-weight: bold; }
+.nav-cancel { width: 100%; }
 
 /* ---------- 一覧 ---------- */
 .filters { padding: 12px; }

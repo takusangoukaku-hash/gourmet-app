@@ -29,6 +29,8 @@ const Views = (() => {
 
   // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
+  let userMarker = null;      // 現在地マーカー（青い点）
+  let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
 
   // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
@@ -294,6 +296,8 @@ const Views = (() => {
 
       refreshMapData(true);
       if (pendingRefresh) { pendingRefresh = false; }
+      // 現在地を青い点で表示（地図は動かさない。許可済みなら再確認なしで表示される）
+      locateUser(false);
     });
 
     // 料理ジャンルフィルタのチップ（複数選択可）
@@ -327,14 +331,63 @@ const Views = (() => {
       $('#map-search').blur();
     });
 
-    $('#map-locate').addEventListener('click', () => {
-      if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => map.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 }),
-        () => App.toast('現在地を取得できませんでした')
-      );
-    });
+    $('#map-locate').addEventListener('click', () => locateUser(true));
     $('#map-heat').addEventListener('click', toggleHeat);
+  }
+
+  // 現在地を取得して地図上に青い点で表示（recenter=true なら地図を現在地へ移動）
+  function locateUser(recenter) {
+    if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
+    if (recenter) App.toast('現在地を取得中…');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = [pos.coords.longitude, pos.coords.latitude];
+        lastKnownPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        if (!userMarker) {
+          const el = document.createElement('div');
+          el.className = 'user-loc';
+          el.innerHTML = '<span class="user-loc-pulse"></span><span class="user-loc-dot"></span>';
+          userMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
+        } else {
+          userMarker.setLngLat(ll);
+        }
+        if (recenter) map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 15) });
+      },
+      () => App.toast('現在地を取得できませんでした（位置情報を許可してください）'),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }
+
+  // 指定した店舗へのナビ: 車/電車/徒歩を選んで地図アプリ（Googleマップ）でルート表示
+  function openNav(s) {
+    if (!s || s.lat == null || s.lon == null) { App.toast('この店舗には位置情報がありません'); return; }
+    const dest = `${s.lat},${s.lon}`;
+    const modes = [
+      { key: 'driving', label: '車', icon: '🚗' },
+      { key: 'transit', label: '電車', icon: '🚃' },
+      { key: 'walking', label: '徒歩', icon: '🚶' },
+    ];
+    const ov = document.createElement('div');
+    ov.className = 'modal nav-sheet';
+    ov.innerHTML = `<div class="nav-sheet-box">
+        <div class="nav-sheet-title">${esc(s.name)} へのルート</div>
+        <div class="nav-sheet-sub">移動手段を選ぶと地図アプリでルートを表示します</div>
+        <div class="nav-modes">
+          ${modes.map(m => `<button type="button" class="nav-mode" data-mode="${m.key}">
+            <span class="nm-ic">${m.icon}</span><span class="nm-label">${m.label}</span></button>`).join('')}
+        </div>
+        <button type="button" class="btn nav-cancel">キャンセル</button>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.nav-cancel').addEventListener('click', close);
+    ov.querySelectorAll('.nav-mode').forEach(btn => btn.addEventListener('click', () => {
+      const origin = lastKnownPos ? `&origin=${lastKnownPos.lat},${lastKnownPos.lon}` : '';
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${dest}${origin}&travelmode=${btn.dataset.mode}`;
+      window.open(url, '_blank', 'noopener');
+      close();
+    }));
+    document.body.appendChild(ov);
   }
 
   // 店の代表ジャンル: よく食べる料理ジャンル → なければ店舗ジャンル
@@ -363,8 +416,12 @@ const Views = (() => {
         <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
         <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
         ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
-        <button class="btn small popup-detail">店舗詳細 →</button>`;
+        <div class="p-actions">
+          <button class="btn small popup-nav">🧭 ここへ行く</button>
+          <button class="btn small popup-detail">店舗詳細 →</button>
+        </div>`;
     node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
+    node.querySelector('.popup-nav').addEventListener('click', () => openNav(s));
     if (mapPopup) mapPopup.remove();
     mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
       .setLngLat([s.lon, s.lat]).setDOMContent(node).addTo(map);
@@ -940,6 +997,7 @@ const Views = (() => {
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
       <div class="detail-actions">
+        ${s.lat != null && s.lon != null ? '<button class="btn small primary" id="d-nav">🧭 ここへ行く</button>' : ''}
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
         <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
         <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>
@@ -976,6 +1034,8 @@ const Views = (() => {
       $('#d-save-all').addEventListener('click', saveShopInfo);
       $('#d-cancel').addEventListener('click', () => showShop(shopId, false));
     } else {
+      const navBtn = $('#d-nav');
+      if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
         closeModal();
