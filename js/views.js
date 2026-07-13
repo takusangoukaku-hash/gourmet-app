@@ -337,6 +337,7 @@ const Views = (() => {
     });
 
     $('#map-locate').addEventListener('click', () => locateUser(true));
+    $('#map-nearby').addEventListener('click', () => openNearby());
     $('#map-heat').addEventListener('click', toggleHeat);
   }
 
@@ -392,6 +393,116 @@ const Views = (() => {
       window.open(url, '_blank', 'noopener');
       close();
     }));
+    document.body.appendChild(ov);
+  }
+
+  // 現在地を取得（キャッシュがあれば即返す）。Promiseで返す
+  function currentPosition() {
+    return new Promise((resolve, reject) => {
+      if (lastKnownPos) { resolve(lastKnownPos); return; }
+      if (!navigator.geolocation) { reject(); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          lastKnownPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          resolve(lastKnownPos);
+        },
+        () => reject(),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+    });
+  }
+
+  // 2点間の直線距離（メートル）: ハーサイン公式
+  function haversine(a, b) {
+    const R = 6371000, toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    const h = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  // 移動手段ごとの平均速度（m/分）。直線距離に道のり係数1.3を掛けて概算
+  const NEARBY_SPEED = { walk: 80, car: 400 };
+  const DETOUR = 1.3;
+  const fmtDist = (m) => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
+  const etaMin = (straightM, mode) => Math.max(1, Math.round(straightM * DETOUR / NEARBY_SPEED[mode]));
+
+  // 現在地から、絞り込み条件に合う店を近い順に所要時間つきで一覧表示
+  async function openNearby() {
+    let pos;
+    try { App.toast('現在地を取得中…'); pos = await currentPosition(); }
+    catch { App.toast('現在地を取得できませんでした（位置情報を許可してください）'); return; }
+    locateUser(false); // 地図にも現在地マーカーを出す
+
+    // 地図と同じ絞り込み（ジャンル・星・キーワード）＋位置情報のある店だけ
+    const shops = Store.shops().filter(s =>
+      s.lat != null && s.lon != null &&
+      shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
+    const rows = shops.map(s => ({ s, dist: haversine(pos, { lat: s.lat, lon: s.lon }) }))
+      .sort((a, b) => a.dist - b.dist);
+
+    // 絞り込み条件の見出し
+    const axisActive = ['taste', 'casual', 'atmosphere', 'speed']
+      .filter(k => +($('#mf-' + k).value || 0) > 0)
+      .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
+    const cond = [...mapGenreFilter, ...axisActive].join('・') || 'すべての店舗';
+
+    let mode = 'walk';
+    const ov = document.createElement('div');
+    ov.className = 'modal nearby-modal';
+    ov.innerHTML = `<div class="nearby-box">
+        <div class="nearby-head">
+          <div>
+            <div class="nearby-title">現在地から近い順</div>
+            <div class="nearby-cond">${esc(cond)}　${rows.length}件</div>
+          </div>
+          <button type="button" class="nearby-close" aria-label="閉じる">✕</button>
+        </div>
+        <div class="nearby-modes">
+          <button type="button" class="nb-mode on" data-mode="walk">${IC_WALK}<span>徒歩</span></button>
+          <button type="button" class="nb-mode" data-mode="car">${IC_CAR}<span>車</span></button>
+        </div>
+        <div class="nearby-list"></div>
+      </div>`;
+    const listEl = ov.querySelector('.nearby-list');
+
+    const renderRows = () => {
+      if (!rows.length) {
+        listEl.innerHTML = '<div class="empty"><p>条件に合う店舗が見つかりません。</p></div>';
+        return;
+      }
+      listEl.innerHTML = rows.map((r, i) => {
+        const avg = Store.avgRating(r.s.id);
+        return `<div class="nearby-row" data-shop="${r.s.id}">
+            <span class="nb-rank">${i + 1}</span>
+            <div class="nb-main">
+              <div class="nb-name">${esc(r.s.name)}</div>
+              <div class="nb-sub">${esc(shopLabelGenre(r.s) || '')}${avg ? '　★' + avg : ''}</div>
+            </div>
+            <div class="nb-eta">
+              <div class="nb-time">約${etaMin(r.dist, mode)}分</div>
+              <div class="nb-dist">${fmtDist(r.dist * DETOUR)}</div>
+            </div>
+            <button type="button" class="btn small nb-go" data-shop="${r.s.id}">ここへ行く</button>
+          </div>`;
+      }).join('');
+    };
+    renderRows();
+
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.nearby-close').addEventListener('click', close);
+    ov.querySelectorAll('.nb-mode').forEach(btn => btn.addEventListener('click', () => {
+      mode = btn.dataset.mode;
+      ov.querySelectorAll('.nb-mode').forEach(b => b.classList.toggle('on', b === btn));
+      renderRows();
+    }));
+    listEl.addEventListener('click', (e) => {
+      const go = e.target.closest('.nb-go');
+      if (go) { openNav(Store.getShop(go.dataset.shop)); return; }
+      const row = e.target.closest('.nearby-row');
+      if (row) { close(); showShop(row.dataset.shop); }
+    });
     document.body.appendChild(ov);
   }
 
