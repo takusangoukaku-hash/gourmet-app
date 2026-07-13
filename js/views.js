@@ -11,6 +11,11 @@ const Views = (() => {
   const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
   const IC_EDIT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
+  // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
+  const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
+  const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
+  const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
+  const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
@@ -363,9 +368,9 @@ const Views = (() => {
     if (!s || s.lat == null || s.lon == null) { App.toast('この店舗には位置情報がありません'); return; }
     const dest = `${s.lat},${s.lon}`;
     const modes = [
-      { key: 'driving', label: '車', icon: '🚗' },
-      { key: 'transit', label: '電車', icon: '🚃' },
-      { key: 'walking', label: '徒歩', icon: '🚶' },
+      { key: 'driving', label: '車', icon: IC_CAR },
+      { key: 'transit', label: '電車', icon: IC_TRAIN },
+      { key: 'walking', label: '徒歩', icon: IC_WALK },
     ];
     const ov = document.createElement('div');
     ov.className = 'modal nav-sheet';
@@ -417,7 +422,7 @@ const Views = (() => {
         <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
         ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
         <div class="p-actions">
-          <button class="btn small popup-nav">🧭 ここへ行く</button>
+          <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
           <button class="btn small popup-detail">店舗詳細 →</button>
         </div>`;
     node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
@@ -997,7 +1002,7 @@ const Views = (() => {
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
       <div class="detail-actions">
-        ${s.lat != null && s.lon != null ? '<button class="btn small primary" id="d-nav">🧭 ここへ行く</button>' : ''}
+        ${s.lat != null && s.lon != null ? `<button class="btn small primary" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
         <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
         <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>

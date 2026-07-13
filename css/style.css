@@ -348,7 +348,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: var(--card); cursor: pointer;
 }
 .nav-mode:active { background: var(--accent-soft); border-color: var(--accent); }
-.nav-mode .nm-ic { font-size: 26px; line-height: 1; }
+.nav-mode .nm-ic { line-height: 0; color: var(--text); }
+.nav-mode .nm-svg { width: 30px; height: 30px; }
 .nav-mode .nm-label { font-size: 13px; font-weight: bold; }
 .nav-cancel { width: 100%; }
 
