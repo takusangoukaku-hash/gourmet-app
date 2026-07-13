@@ -741,11 +741,18 @@ const Views = (() => {
     else renderProfilePhotos();
   }
 
-  // プロフィールの写真グリッド（全写真・新しい順・タップで拡大）
+  // プロフィールの写真グリッド（全写真・撮影日の新しい順・タップで拡大）
   async function renderProfilePhotos() {
     const box = $('#pf-photo-grid');
     const photos = await Store.allPhotos();
-    photos.sort((a, b) => b.createdAt - a.createdAt);
+    // 撮影日（訪問日）の新しい順。日付が無ければ登録順で補完
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const shotTime = (p) => {
+      const v = vById.get(p.visitId);
+      const t = v && v.datetime ? new Date(v.datetime).getTime() : 0;
+      return t || p.createdAt || 0;
+    };
+    photos.sort((a, b) => shotTime(b) - shotTime(a) || b.createdAt - a.createdAt);
     box.innerHTML = '';
     if (!photos.length) {
       box.innerHTML = '<div class="empty"><p>まだ写真がありません。＋から最初の一皿を記録しましょう。</p></div>';
