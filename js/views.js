@@ -1539,19 +1539,22 @@ const Views = (() => {
   function postCard(p) {
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const when = p.datetime ? fmtDate(p.datetime) : '';
+    const stars = p.rating
+      ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span><span class="feed-rating-num">${p.rating}</span></div>`
+      : '';
     return `<article class="feed-card">
         <div class="feed-head">
           <button type="button" class="feed-author" data-u="${esc(p.username)}">
             <span class="fc-avatar">${av}</span>
-            <span class="fc-who"><b>${esc(p.displayName || 'BITEMAP')}</b><span class="fc-handle">@${esc(p.username)}</span></span>
+            <span class="fc-name">${esc(p.displayName || 'BITEMAP')}</span>
           </button>
+          <span class="feed-date">${when}</span>
         </div>
         ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy">` : ''}
         <div class="feed-body">
-          <div class="feed-shop">${esc(p.shopName || '')} ${p.rating ? `<span class="feed-stars">${starStr(p.rating)}</span>` : ''}</div>
-          ${p.genre ? `<div class="feed-genre">${esc(p.genre)}</div>` : ''}
-          ${p.comment ? `<div class="feed-comment">${esc(p.comment)}</div>` : ''}
-          <div class="feed-date">${when}</div>
+          ${stars}
+          <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
+          ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
         </div>
       </article>`;
   }

@@ -252,7 +252,8 @@ const Cloud = (() => {
     await ensureLoaded();
     if (!user) return [];
     const followSnap = await fb.fs.getDocs(fb.fs.collection(db, 'follows', user.uid, 'following'));
-    const uids = [user.uid]; followSnap.forEach(d => uids.push(d.data().uid));
+    const uids = []; followSnap.forEach(d => uids.push(d.data().uid)); // フォロー中の人のみ（自分は含めない）
+    if (!uids.length) return [];
     const posts = [];
     // Firestoreの in クエリは最大30件ずつ。orderByは付けずに取得しクライアントで並べ替え（索引不要）
     for (let i = 0; i < uids.length; i += 30) {
