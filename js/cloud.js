@@ -109,12 +109,9 @@ const Cloud = (() => {
     p,
     new Promise((_, rej) => setTimeout(() => rej(new Error((label || '処理') + 'がタイムアウトしました')), ms)),
   ]);
-  // 写真1枚をダウンロード（getBytesはCORS設定が要るため、getDownloadURL+fetchでCORSに強くする）
-  async function downloadPhotoBlob(path) {
-    const url = await withTimeout(fb.st.getDownloadURL(fb.st.ref(storage, path)), 15000, 'URL取得');
-    const resp = await withTimeout(fetch(url), 20000, 'ダウンロード');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.blob();
+  // 写真の公開URLを取得（fetchでのbytes取得はCORS設定が要るため、URLを<img>で直接表示する）
+  async function photoDownloadUrl(path) {
+    return await withTimeout(fb.st.getDownloadURL(fb.st.ref(storage, path)), 15000, 'URL取得');
   }
 
   // ---------- 記録（店・訪問・プロフィール）の双方向同期 ----------
@@ -166,18 +163,18 @@ const Cloud = (() => {
     const cloudIds = new Set(cloudMetas.map(m => m.id));
     const localIds = await Store.photoIds();
 
-    // クラウドにあってローカルに無い写真 → ダウンロードして端末へ復元
+    // クラウドにあってローカルに無い写真 → 公開URLを取り込み（<img>で表示。CORS不要）
     for (const m of cloudMetas) {
       if (localIds.has(m.id)) continue;
       try {
-        const blob = await downloadPhotoBlob(m.path);
-        await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
-      } catch (e) { console.warn('写真ダウンロード失敗:', m.id, e); }
+        const remoteUrl = await photoDownloadUrl(m.path);
+        await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl });
+      } catch (e) { console.warn('写真URL取得失敗:', m.id, e); }
     }
     // ローカルにあってクラウドに無い写真 → アップロード
     const localPhotos = await Store.allPhotos();
     for (const p of localPhotos) {
-      if (cloudIds.has(p.id)) continue;
+      if (cloudIds.has(p.id) || !p.blob) continue; // 既にクラウド済み or URL参照のみは上げない
       try { await withTimeout(uploadPhoto(p), 25000, 'アップロード'); } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
     }
   }
@@ -277,7 +274,7 @@ const Cloud = (() => {
     const report = (phase, i, total) => { if (onProgress) { try { onProgress({ phase, i, total, up, down, fail }); } catch { /* noop */ } } };
     try {
       // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。各処理はタイムアウト付き
-      const localPhotos = await Store.allPhotos();
+      const localPhotos = (await Store.allPhotos()).filter(p => p.blob); // URL参照のみの写真は上げ直し不要
       for (let i = 0; i < localPhotos.length; i++) {
         try { await withTimeout(uploadPhoto(localPhotos[i]), 25000, 'アップロード'); up++; }
         catch (e) { fail++; noteErr(e); console.warn('再アップロード失敗:', localPhotos[i].id, e); }
@@ -291,10 +288,10 @@ const Cloud = (() => {
       for (let i = 0; i < need.length; i++) {
         const m = need[i];
         try {
-          const blob = await downloadPhotoBlob(m.path);
-          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
+          const remoteUrl = await photoDownloadUrl(m.path);
+          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl });
           down++;
-        } catch (e) { fail++; noteErr(e); console.warn('ダウンロード失敗:', m.id, e); }
+        } catch (e) { fail++; noteErr(e); console.warn('URL取得失敗:', m.id, e); }
         report('download', i + 1, need.length);
       }
       setStatus('synced');

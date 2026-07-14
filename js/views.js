@@ -28,6 +28,9 @@ const Views = (() => {
   const urlCache = new Map();
   function photoUrl(rec) {
     if (!rec) return null;
+    // 別端末から取り込んだ写真はローカルにblobが無く、クラウドの公開URLで表示する
+    if (!rec.blob && rec.remoteUrl) return rec.remoteUrl;
+    if (!rec.blob) return null;
     if (!urlCache.has(rec.id)) urlCache.set(rec.id, URL.createObjectURL(rec.blob));
     return urlCache.get(rec.id);
   }
