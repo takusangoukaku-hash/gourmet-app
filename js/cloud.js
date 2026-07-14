@@ -190,14 +190,15 @@ const Cloud = (() => {
 
   // ---------- SNS: フィード（フォロー中の人の投稿） ----------
   //  publicPosts/{visitId} : 写真つきの記録を、フォロワーが見られる公開投稿として保存
-  async function publishPostForVisit(visitId, photoPath) {
+  async function publishPostForVisit(visitId, photoPath, presetUrl) {
     if (!user) return;
     const prof = Store.getProfile();
     if (!prof.username) return; // 公開名がなければフィードには出さない
     const visit = Store.visits().find(v => v.id === visitId);
     if (!visit) return;
     const shop = Store.getShop(visit.shopId) || {};
-    const photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
+    let photoUrl = presetUrl || '';
+    if (!photoUrl && photoPath) photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
     const post = clean({
       id: visitId, uid: user.uid, username: prof.username,
       displayName: prof.name || 'BITEMAP',
@@ -242,8 +243,15 @@ const Cloud = (() => {
     for (const p of photos) {
       if (seen.has(p.visitId)) continue; // 1訪問につき代表1枚
       seen.add(p.visitId);
-      const path = p.path || `users/${user.uid}/photos/${p.id}.jpg`;
-      try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿公開に失敗:', p.visitId, e); }
+      try {
+        // 写真URLの取得を多段で試す: ①取り込み済みURL ②StorageのURL ③未アップならアップロード（完了時に投稿も更新される）
+        if (p.remoteUrl) { await publishPostForVisit(p.visitId, null, p.remoteUrl); continue; }
+        const path = `users/${user.uid}/photos/${p.id}.jpg`;
+        let url = '';
+        try { url = await photoDownloadUrl(path); } catch { /* まだStorageに無い */ }
+        if (url) await publishPostForVisit(p.visitId, null, url);
+        else if (p.blob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
+      } catch (e) { console.warn('投稿公開に失敗:', p.visitId, e); }
     }
   }
 
