@@ -1509,6 +1509,7 @@ const Views = (() => {
   }
 
   // ========== ホーム／フィード ==========
+  const feedPosts = new Map(); // id → 投稿データ（詳細表示用）
   async function renderFeed() {
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
@@ -1528,12 +1529,22 @@ const Views = (() => {
       if (b) b.addEventListener('click', () => { if (Cloud.getUser()) openUserSearch(); else App.toast('ログインが必要です'); });
       return;
     }
+    feedPosts.clear();
+    posts.forEach(p => feedPosts.set(p.id, p));
     box.innerHTML = `<div class="feed-top"><button type="button" class="btn small feed-reload">↻ 更新</button></div>`
       + posts.map(postCard).join('');
     const rl = box.querySelector('.feed-reload');
     if (rl) rl.addEventListener('click', () => renderFeed());
+    // 投稿タップ → 詳細表示（作者アイコン/名前タップはプロフィールへ）
+    box.querySelectorAll('.feed-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.feed-author')) return;
+        const p = feedPosts.get(card.dataset.post);
+        if (p) showPostDetail(p);
+      });
+    });
     box.querySelectorAll('.feed-author').forEach(el =>
-      el.addEventListener('click', () => showPublicProfile(el.dataset.u)));
+      el.addEventListener('click', (e) => { e.stopPropagation(); showPublicProfile(el.dataset.u); }));
   }
 
   function postCard(p) {
@@ -1542,7 +1553,7 @@ const Views = (() => {
     const stars = p.rating
       ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span><span class="feed-rating-num">${p.rating}</span></div>`
       : '';
-    return `<article class="feed-card">
+    return `<article class="feed-card" data-post="${esc(p.id)}">
         <div class="feed-head">
           <button type="button" class="feed-author" data-u="${esc(p.username)}">
             <span class="fc-avatar">${av}</span>
@@ -1557,6 +1568,46 @@ const Views = (() => {
           ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
         </div>
       </article>`;
+  }
+
+  // フィード投稿の詳細表示（写真・評価・お店の情報・場所・ナビ）
+  function showPostDetail(p) {
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
+    const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
+      .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starStr(p[k])}</span></div>`).join('');
+    const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
+      .filter(Boolean).join('　');
+    const ov = document.createElement('div');
+    ov.className = 'modal postdetail-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
+        <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
+          <span class="fc-avatar">${av}</span>
+          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}<span class="fc-handle">@${esc(p.username)}</span></span>
+        </button>
+        ${p.photoUrl ? `<img class="pd-photo" src="${esc(p.photoUrl)}" alt="">` : ''}
+        <div class="pd-body">
+          <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span><span class="feed-rating-num">${p.rating || '－'}</span></div>
+          <div class="pd-shop">${esc(p.shopName || '')}</div>
+          <div class="pd-sub">${esc(p.shopGenre || '')}${p.genre ? '　🍽 ' + esc(p.genre) : ''}</div>
+          ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
+          ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
+          ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
+          ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
+          <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
+          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">🧭 ここへ行く</button>' : ''}
+        </div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.pd-close').addEventListener('click', close);
+    ov.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
+    const ph = ov.querySelector('.pd-photo');
+    if (ph) ph.addEventListener('click', () => openLightbox(p.photoUrl, `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`));
+    const nav = ov.querySelector('.pd-nav');
+    if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    document.body.appendChild(ov);
   }
 
   // ========== 通知（フォローされたお知らせ） ==========

@@ -206,6 +206,11 @@ const Cloud = (() => {
       shopName: shop.name || '', shopId: visit.shopId,
       rating: visit.rating || 0, genre: (visit.dishGenres || []).join('・'),
       comment: visit.comment || '', photoUrl,
+      // 詳細表示・ナビ用の店舗情報
+      shopGenre: shop.shopGenre || '', pref: shop.pref || '', city: shop.city || '',
+      station: shop.station || '', address: shop.address || '',
+      casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0,
+      lat: (shop.lat != null ? shop.lat : null), lon: (shop.lon != null ? shop.lon : null),
       datetime: visit.datetime, createdAt: Date.now(),
     });
     await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
