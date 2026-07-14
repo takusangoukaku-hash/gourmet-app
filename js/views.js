@@ -1304,21 +1304,38 @@ const Views = (() => {
             App.refreshCurrent();
           });
         } else {
-          // ---- 読み取り表示（編集・削除ボタン付き） ----
+          // ---- 読み取り表示: 初期は大きな写真のみ。写真タップで詳細（日付・評価・コメント・編集/削除）を展開 ----
           block.innerHTML = `
-            <div class="v-head">
-              <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-              <span class="v-stars">${starStr(v.rating)}</span>
-              ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
-            </div>
-            ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
-            <div class="v-photos"></div>
-            <div class="v-btns">
-              <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
-              <button type="button" class="btn small danger ve-del">削除</button>
+            <button type="button" class="v-cover"><span class="v-cover-ph">🍽️</span></button>
+            <div class="v-detail hidden">
+              <div class="v-head">
+                <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
+                <span class="v-stars">${starStr(v.rating)}</span>
+                ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+              </div>
+              ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
+              <div class="v-photos"></div>
+              <div class="v-btns">
+                <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
+                <button type="button" class="btn small danger ve-del">削除</button>
+              </div>
             </div>`;
+          const cover = block.querySelector('.v-cover');
+          const detail = block.querySelector('.v-detail');
+          // 写真タップ → 詳細（現在の状態）を表示
+          cover.addEventListener('click', () => { cover.classList.add('hidden'); detail.classList.remove('hidden'); });
           Store.photosOfVisit(v.id).then(ps => {
-            const row = block.querySelector('.v-photos');
+            if (ps.length) {
+              cover.innerHTML = '';
+              const cimg = document.createElement('img');
+              cimg.src = photoUrl(ps[0]);
+              cover.appendChild(cimg);
+            } else {
+              // 写真が無ければ最初から詳細を表示
+              cover.classList.add('hidden');
+              detail.classList.remove('hidden');
+            }
+            const row = detail.querySelector('.v-photos');
             ps.forEach(p => {
               const img = document.createElement('img');
               img.src = photoUrl(p);
@@ -1326,8 +1343,8 @@ const Views = (() => {
               row.appendChild(img);
             });
           });
-          block.querySelector('.ve-edit').addEventListener('click', () => showShop(shopId, false, v.id));
-          block.querySelector('.ve-del').addEventListener('click', async () => {
+          detail.querySelector('.ve-edit').addEventListener('click', () => showShop(shopId, false, v.id));
+          detail.querySelector('.ve-del').addEventListener('click', async () => {
             if (!confirm('この記録を削除しますか？')) return;
             await Store.deleteVisit(v.id);
             showShop(shopId, false, null);
