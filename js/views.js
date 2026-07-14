@@ -890,12 +890,21 @@ const Views = (() => {
 
   // ========== プロフィール（インスタ風・将来の共有機能の土台） ==========
   function initProfile() {
-    // カウントのタップ: 画面移動（店舗）／フォロー・フォロワーは近日公開の案内
+    // カウントのタップ: 画面移動（店舗）／フォロー・フォロワーは一覧を表示
     document.querySelectorAll('.pstat').forEach(b =>
       b.addEventListener('click', () => {
-        if (b.dataset.goto) App.switchTab(b.dataset.goto);
-        else App.toast('👥 フォロー機能は近日公開予定です');
+        if (b.dataset.goto) { App.switchTab(b.dataset.goto); return; }
+        const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+        if (!me) { App.toast('ログインするとフォロー機能が使えます'); return; }
+        openFollowList(me.uid, b.dataset.social, Store.getProfile().name);
       }));
+
+    // ユーザーを探す
+    $('#pf-search').addEventListener('click', () => {
+      const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+      if (!me) { App.toast('ログインするとユーザーを探せます'); return; }
+      openUserSearch();
+    });
 
     // プロフィール写真の変更（端末から選択 → 小さく圧縮して保存）
     $('#pf-avatar-btn').addEventListener('click', () => $('#pf-avatar-input').click());
@@ -1041,9 +1050,16 @@ const Views = (() => {
     if (p.avatar) av.innerHTML = `<img src="${esc(p.avatar)}" alt="">`;
     else av.textContent = '🍜';
     $('#pf-shops').textContent = Store.shops().length;
-    // フォロー/フォロワーは将来機能（今は0固定のプレースホルダ）
+    // フォロー/フォロワー数（ログイン中はクラウドから実数を取得）
     $('#pf-following').textContent = p.following || 0;
     $('#pf-followers').textContent = p.followers || 0;
+    const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    if (me) {
+      Cloud.followCounts(me.uid).then(c => {
+        $('#pf-following').textContent = c.following;
+        $('#pf-followers').textContent = c.followers;
+      }).catch(() => {});
+    }
     // プロフィールを開いたときは「写真」を表示（要望）。統計は統計タブで表示
     showProfileTab('photos');
   }
@@ -1518,21 +1534,131 @@ const Views = (() => {
         </div>
         <div class="pp-shop-star">${s.rating ? '★' + s.rating : ''}</div>
       </div>`).join('');
+    const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    const isMe = me && me.uid === prof.uid;
     body.innerHTML = `
       <div class="pp-head">
         <div class="pp-avatar">${avatar}</div>
         <div class="pp-meta">
           <div class="pp-name">${esc(prof.displayName || 'BITEMAP')}</div>
           <div class="pp-username">@${esc(prof.username)}</div>
-          <div class="pp-count">${prof.shopCount || 0} 店舗</div>
+          <div class="pp-stats">
+            <button type="button" class="pp-stat" data-social="following"><b class="pp-following">–</b> フォロー</button>
+            <button type="button" class="pp-stat" data-social="followers"><b class="pp-followers">–</b> フォロワー</button>
+            <span class="pp-stat"><b>${prof.shopCount || 0}</b> 店舗</span>
+          </div>
         </div>
       </div>
       ${prof.bio ? `<div class="pp-bio">${esc(prof.bio)}</div>` : ''}
-      <button type="button" class="btn primary pp-follow">＋ フォロー</button>
+      ${isMe ? '' : '<button type="button" class="btn primary pp-follow" disabled>…</button>'}
       <h3 class="pp-h3">よく行くお店</h3>
       <div class="pp-shops">${shops || '<div class="empty"><p>公開されているお店がありません。</p></div>'}</div>`;
-    body.querySelector('.pp-follow').addEventListener('click', () =>
-      App.toast('👥 フォロー機能は近日公開予定です'));
+
+    // フォロー数・フォロワー数を表示
+    if (typeof Cloud !== 'undefined') {
+      Cloud.followCounts(prof.uid).then(c => {
+        const f1 = body.querySelector('.pp-following'), f2 = body.querySelector('.pp-followers');
+        if (f1) f1.textContent = c.following; if (f2) f2.textContent = c.followers;
+      }).catch(() => {});
+    }
+    // フォロー数/フォロワー数のタップで一覧
+    body.querySelectorAll('.pp-stat[data-social]').forEach(b =>
+      b.addEventListener('click', () => openFollowList(prof.uid, b.dataset.social, prof.displayName || prof.username)));
+
+    // フォローボタン（本人以外・ログイン時のみ有効）
+    const fbtn = body.querySelector('.pp-follow');
+    if (fbtn) {
+      if (!me) {
+        fbtn.disabled = false; fbtn.textContent = 'フォローするにはログイン';
+        fbtn.addEventListener('click', () => App.toast('プロフィール画面からログインしてください'));
+      } else {
+        let following = false;
+        try { following = await Cloud.isFollowing(prof.uid); } catch { /* noop */ }
+        const paint = () => { fbtn.textContent = following ? 'フォロー中' : '＋ フォロー'; fbtn.classList.toggle('following', following); };
+        fbtn.disabled = false; paint();
+        fbtn.addEventListener('click', async () => {
+          fbtn.disabled = true;
+          try {
+            if (following) await Cloud.unfollow(prof.uid); else await Cloud.follow(prof.uid);
+            following = !following; paint();
+            Cloud.followCounts(prof.uid).then(c => {
+              const f2 = body.querySelector('.pp-followers'); if (f2) f2.textContent = c.followers;
+            }).catch(() => {});
+          } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+          fbtn.disabled = false;
+        });
+      }
+    }
+  }
+
+  // フォロー中／フォロワーのユーザー一覧
+  async function openFollowList(uid, type, name) {
+    const ov = document.createElement('div');
+    ov.className = 'modal followlist-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close fl-close" aria-label="閉じる">✕</button>
+        <h2 class="vl-title">${esc(name || '')} の${type === 'followers' ? 'フォロワー' : 'フォロー'}</h2>
+        <div class="fl-body"><div class="empty"><p>読み込み中…</p></div></div>
+      </div>`;
+    const body = ov.querySelector('.fl-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.fl-close').addEventListener('click', close);
+    document.body.appendChild(ov);
+    let list = [];
+    try { list = await Cloud.followProfiles(uid, type); } catch { list = []; }
+    if (!list.length) { body.innerHTML = `<div class="empty"><p>まだいません。</p></div>`; return; }
+    body.innerHTML = list.map(p => userRow(p)).join('');
+    body.querySelectorAll('.user-row').forEach(r =>
+      r.addEventListener('click', () => { close(); showPublicProfile(r.dataset.u); }));
+  }
+
+  // ユーザー検索
+  function openUserSearch() {
+    const ov = document.createElement('div');
+    ov.className = 'modal usersearch-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close us-close" aria-label="閉じる">✕</button>
+        <h2 class="vl-title">ユーザーを探す</h2>
+        <div class="us-row">
+          <span class="sh-at">@</span>
+          <input type="text" class="us-input" placeholder="ユーザー名で検索" autocomplete="off">
+          <button type="button" class="btn primary small us-go">検索</button>
+        </div>
+        <div class="us-body"></div>
+      </div>`;
+    const body = ov.querySelector('.us-body');
+    const input = ov.querySelector('.us-input');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.us-close').addEventListener('click', close);
+    const run = async () => {
+      const q = input.value.trim();
+      if (!q) return;
+      body.innerHTML = '<div class="empty"><p>検索中…</p></div>';
+      let res = [];
+      try { res = await Cloud.searchUsers(q); } catch (e) { body.innerHTML = `<div class="empty"><p>検索に失敗しました</p></div>`; return; }
+      if (!res.length) { body.innerHTML = '<div class="empty"><p>見つかりませんでした。</p></div>'; return; }
+      body.innerHTML = res.map(p => userRow(p)).join('');
+      body.querySelectorAll('.user-row').forEach(r =>
+        r.addEventListener('click', () => { close(); showPublicProfile(r.dataset.u); }));
+    };
+    ov.querySelector('.us-go').addEventListener('click', run);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+    document.body.appendChild(ov);
+    input.focus();
+  }
+
+  // ユーザー一覧の1行（検索結果・フォロー一覧共通）
+  function userRow(p) {
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    return `<div class="user-row" data-u="${esc(p.username)}">
+        <div class="ur-avatar">${av}</div>
+        <div class="ur-main">
+          <div class="ur-name">${esc(p.displayName || 'BITEMAP')}</div>
+          <div class="ur-username">@${esc(p.username)}　${p.shopCount || 0}店舗</div>
+        </div>
+      </div>`;
   }
 
   function closeModal() {

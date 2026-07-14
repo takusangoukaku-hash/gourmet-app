@@ -263,6 +263,65 @@ const Cloud = (() => {
     await fb.fs.setDoc(fb.fs.doc(db, 'publicProfiles', user.uid), data);
   }
 
+  // ---------- SNS: ユーザー検索・フォロー ----------
+  //  follows/{me}/following/{target}   : 自分がフォローしている相手
+  //  followers/{target}/followers/{me}: 相手のフォロワーとしての自分（フォロワー一覧・件数用）
+
+  // @ユーザー名の前方一致でユーザーを検索
+  async function searchUsers(qStr) {
+    await ensureLoaded();
+    const term = normalizeHandle(qStr);
+    if (!term) return [];
+    const col = fb.fs.collection(db, 'publicProfiles');
+    const qq = fb.fs.query(col, fb.fs.orderBy('username'),
+      fb.fs.startAt(term), fb.fs.endAt(term + String.fromCharCode(0xf8ff)), fb.fs.limit(20));
+    const snap = await fb.fs.getDocs(qq);
+    const res = []; snap.forEach(d => res.push(d.data()));
+    return res;
+  }
+
+  async function isFollowing(targetUid) {
+    await ensureLoaded();
+    if (!user) return false;
+    const snap = await fb.fs.getDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid));
+    return snap.exists();
+  }
+  async function follow(targetUid) {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    if (targetUid === user.uid) throw new Error('自分はフォローできません');
+    const now = Date.now();
+    await fb.fs.setDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid), { uid: targetUid, createdAt: now });
+    await fb.fs.setDoc(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid), { uid: user.uid, createdAt: now });
+  }
+  async function unfollow(targetUid) {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    await fb.fs.deleteDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid));
+    await fb.fs.deleteDoc(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid));
+  }
+  // フォロー数・フォロワー数
+  async function followCounts(uid) {
+    await ensureLoaded();
+    const [ing, ers] = await Promise.all([
+      fb.fs.getDocs(fb.fs.collection(db, 'follows', uid, 'following')),
+      fb.fs.getDocs(fb.fs.collection(db, 'followers', uid, 'followers')),
+    ]);
+    return { following: ing.size, followers: ers.size };
+  }
+  // フォロー中／フォロワーの公開プロフィール一覧
+  async function followProfiles(uid, type) {
+    await ensureLoaded();
+    const path = type === 'followers' ? ['followers', uid, 'followers'] : ['follows', uid, 'following'];
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, ...path));
+    const uids = []; snap.forEach(d => uids.push(d.data().uid));
+    const profs = await Promise.all(uids.map(async u => {
+      const p = await fb.fs.getDoc(fb.fs.doc(db, 'publicProfiles', u));
+      return p.exists() ? p.data() : null;
+    }));
+    return profs.filter(Boolean);
+  }
+
   // 写真の強制再同期: ローカル全写真をアップロードし直し、未取得の写真をダウンロード
   //  （Storageルール未設定で画像本体だけ欠けたケースの穴埋め用。メタ情報の有無に関わらず上げ直す）
   async function resyncPhotos(onProgress) {
@@ -313,5 +372,6 @@ const Cloud = (() => {
   }
 
   return { init, login, logout, onStatus, getUser, isSupported,
-    setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos };
+    setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
+    searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles };
 })();
