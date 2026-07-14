@@ -620,6 +620,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ---------- ホーム／フィード ---------- */
 .feed-list { padding: 8px 0 16px; max-width: 560px; margin: 0 auto; }
+.feed-top { display: flex; justify-content: flex-end; padding: 4px 12px 8px; }
 .feed-card { border-bottom: 1px solid var(--border-lite); margin-bottom: 6px; background: var(--card); }
 .feed-head { display: flex; align-items: center; padding: 10px 12px; }
 .feed-author { display: flex; align-items: center; gap: 10px; border: none; background: none; cursor: pointer; padding: 0; text-align: left; }

@@ -1528,7 +1528,10 @@ const Views = (() => {
       if (b) b.addEventListener('click', () => { if (Cloud.getUser()) openUserSearch(); else App.toast('ログインが必要です'); });
       return;
     }
-    box.innerHTML = posts.map(postCard).join('');
+    box.innerHTML = `<div class="feed-top"><button type="button" class="btn small feed-reload">↻ 更新</button></div>`
+      + posts.map(postCard).join('');
+    const rl = box.querySelector('.feed-reload');
+    if (rl) rl.addEventListener('click', () => renderFeed());
     box.querySelectorAll('.feed-author').forEach(el =>
       el.addEventListener('click', () => showPublicProfile(el.dataset.u)));
   }

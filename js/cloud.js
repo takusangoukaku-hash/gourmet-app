@@ -59,7 +59,7 @@ const Cloud = (() => {
             App.refreshCurrent();
             // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
             syncPhotos()
-              .then(() => App.refreshCurrent())
+              .then(() => { App.refreshCurrent(); return publishAllPosts(); }) // 写真つき記録をフィードへ
               .catch(e => console.warn('写真同期に失敗:', e));
           } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
@@ -232,6 +232,21 @@ const Cloud = (() => {
     if (n) await batch.commit();
   }
 
+  // 自分の写真つき記録をまとめてフィード投稿として公開（過去の記録もフィードに載せる）
+  async function publishAllPosts() {
+    if (!user) return;
+    const prof = Store.getProfile();
+    if (!prof.username) return; // @ユーザー名がなければ公開しない
+    const photos = await Store.allPhotos();
+    const seen = new Set();
+    for (const p of photos) {
+      if (seen.has(p.visitId)) continue; // 1訪問につき代表1枚
+      seen.add(p.visitId);
+      const path = p.path || `users/${user.uid}/photos/${p.id}.jpg`;
+      try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿公開に失敗:', p.visitId, e); }
+    }
+  }
+
   // フォロー中（＋自分）の投稿を新しい順に取得
   async function fetchFeed() {
     await ensureLoaded();
@@ -310,6 +325,7 @@ const Cloud = (() => {
     });
     Store.setProfile({ username: name });
     await publishPublicProfile();
+    publishAllPosts().catch(() => {}); // ユーザー名設定と同時に過去の記録もフィードへ
     return name;
   }
 
