@@ -603,6 +603,38 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* 訪問記録の一覧ページ */
 .vl-title { font-family: var(--serif); font-weight: 700; font-size: 18px; margin: 0 0 14px; padding-right: 36px; }
+
+/* ---------- プロフィール共有 ---------- */
+.profile-username { color: var(--muted); font-size: 13px; margin-top: 1px; }
+.sh-title, .pp-h3 { font-family: var(--serif); font-weight: 700; }
+.sh-title { font-size: 18px; margin: 0 0 12px; padding-right: 36px; }
+.sh-note { font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.6; }
+.sh-row { display: flex; align-items: center; gap: 6px; }
+.sh-at { color: var(--muted); font-weight: bold; }
+.sh-input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
+.sh-url { background: var(--field); }
+.sh-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sh-msg { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+
+/* 公開プロフィールの閲覧 */
+.pp-head { display: flex; align-items: center; gap: 14px; margin: 4px 0 12px; padding-right: 36px; }
+.pp-avatar {
+  width: 72px; height: 72px; border-radius: 50%; background: var(--field);
+  display: flex; align-items: center; justify-content: center; font-size: 32px; overflow: hidden; flex-shrink: 0;
+}
+.pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pp-name { font-family: var(--serif); font-weight: 700; font-size: 18px; }
+.pp-username { color: var(--muted); font-size: 13px; }
+.pp-count { font-size: 13px; margin-top: 4px; }
+.pp-bio { font-size: 14px; margin-bottom: 12px; white-space: pre-wrap; }
+.pp-follow { width: 100%; margin-bottom: 14px; }
+.pp-h3 { font-size: 15px; margin: 0 0 8px; }
+.pp-shop { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--border-lite); }
+.pp-shop:last-child { border-bottom: none; }
+.pp-shop-main { flex: 1; min-width: 0; }
+.pp-shop-name { font-weight: bold; font-size: 14px; }
+.pp-shop-sub { color: var(--muted); font-size: 12px; }
+.pp-shop-star { color: var(--star); font-weight: bold; font-size: 14px; }
 .visit-edit { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .visit-edit .ve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .visit-edit .ve-row input[type="date"] { width: auto; }

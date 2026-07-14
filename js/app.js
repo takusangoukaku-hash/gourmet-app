@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v83'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v84'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -117,9 +117,14 @@ const App = (() => {
     }
 
     // 起動時: URLの?tab=指定 → データがあれば一覧 → なければ登録タブ
-    const urlTab = new URLSearchParams(location.search).get('tab');
+    const params = new URLSearchParams(location.search);
+    const urlTab = params.get('tab');
     switchTab(urlTab && document.querySelector('#view-' + urlTab)
       ? urlTab : (Store.shops().length ? 'list' : 'register'));
+
+    // 共有リンク(?u=ユーザー名)で開かれた場合は、その人の公開プロフィールを表示
+    const shareUser = params.get('u');
+    if (shareUser) Views.showPublicProfile(shareUser);
   }
 
   function switchTab(name) {

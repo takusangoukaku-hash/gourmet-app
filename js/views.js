@@ -949,6 +949,7 @@ const Views = (() => {
     }
 
     $('#pf-map').addEventListener('click', () => App.switchTab('map'));
+    $('#pf-share').addEventListener('click', () => openShareProfile());
     $('#pf-edit').addEventListener('click', () => {
       const p = Store.getProfile();
       $('#pf-name-input').value = p.name;
@@ -1013,6 +1014,9 @@ const Views = (() => {
   async function renderProfile() {
     const p = Store.getProfile();
     $('#pf-name').textContent = p.name;
+    // @ユーザー名（設定済みなら表示）
+    $('#pf-username').textContent = p.username ? '@' + p.username : '';
+    $('#pf-username').classList.toggle('hidden', !p.username);
     $('#pf-bio').textContent = p.bio;
     $('#pf-bio').classList.toggle('hidden', !p.bio);
     // プロフィール写真（未設定なら🍜）
@@ -1387,9 +1391,136 @@ const Views = (() => {
     document.body.appendChild(ov);
   }
 
+  // ========== SNS: 公開プロフィールの共有 / 閲覧 ==========
+  const shareUrlFor = (username) => location.origin + location.pathname + '?u=' + encodeURIComponent(username);
+
+  // 自分のプロフィールを共有（@ユーザー名の設定 → 共有リンクのコピー）
+  function openShareProfile() {
+    const cloudReady = (typeof Cloud !== 'undefined') && Cloud.isSupported();
+    const loggedIn = cloudReady && Cloud.getUser();
+    const p = Store.getProfile();
+    const ov = document.createElement('div');
+    ov.className = 'modal share-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close sh-close" aria-label="閉じる">✕</button>
+        <h2 class="sh-title">プロフィールを共有</h2>
+        <div class="sh-body"></div>
+      </div>`;
+    const body = ov.querySelector('.sh-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.sh-close').addEventListener('click', close);
+
+    if (!loggedIn) {
+      body.innerHTML = `<p class="sh-note">共有するにはGoogleログイン（同期）が必要です。<br>プロフィール画面の「ログイン」からサインインしてください。</p>`;
+      document.body.appendChild(ov);
+      return;
+    }
+
+    const renderShare = () => {
+      const cur = Store.getProfile();
+      if (!cur.username) {
+        body.innerHTML = `
+          <p class="sh-note">共有用の<strong>ユーザー名（@ハンドル）</strong>を決めてください。<br>半角英数字と _ が使えます（3〜20文字）。</p>
+          <div class="sh-row"><span class="sh-at">@</span>
+            <input type="text" class="sh-input" placeholder="username" maxlength="20" autocomplete="off">
+            <button type="button" class="btn primary small sh-set">決定</button>
+          </div>
+          <div class="sh-msg"></div>`;
+        const input = body.querySelector('.sh-input');
+        const msg = body.querySelector('.sh-msg');
+        body.querySelector('.sh-set').addEventListener('click', async () => {
+          msg.textContent = '設定中…';
+          try {
+            await Cloud.setUsername(input.value);
+            App.toast('✅ ユーザー名を設定しました');
+            renderProfile();
+            renderShare();
+          } catch (e) { msg.textContent = '⚠️ ' + (e && e.message || e); }
+        });
+      } else {
+        const url = shareUrlFor(cur.username);
+        body.innerHTML = `
+          <p class="sh-note">あなたのプロフィールURL（@${esc(cur.username)}）です。コピーして共有できます。</p>
+          <div class="sh-row">
+            <input type="text" class="sh-input sh-url" value="${esc(url)}" readonly>
+            <button type="button" class="btn primary small sh-copy">コピー</button>
+          </div>
+          <div class="sh-actions">
+            <button type="button" class="btn small sh-refresh">公開内容を最新に更新</button>
+            <button type="button" class="btn small sh-rename">ユーザー名を変更</button>
+          </div>
+          <div class="sh-msg"></div>`;
+        const msg = body.querySelector('.sh-msg');
+        body.querySelector('.sh-copy').addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(url); App.toast('✅ リンクをコピーしました'); }
+          catch { body.querySelector('.sh-url').select(); App.toast('リンクを選択しました。コピーしてください'); }
+        });
+        body.querySelector('.sh-refresh').addEventListener('click', async () => {
+          msg.textContent = '更新中…';
+          try { await Cloud.publishPublicProfile(); msg.textContent = '✅ 最新の内容を公開しました'; }
+          catch (e) { msg.textContent = '⚠️ ' + (e && e.message || e); }
+        });
+        body.querySelector('.sh-rename').addEventListener('click', () => {
+          Store.setProfile({ username: '' }); // 入力欄を出すため一旦クリア（確定時に新名を予約）
+          renderShare();
+        });
+      }
+    };
+    renderShare();
+    document.body.appendChild(ov);
+  }
+
+  // 他人の公開プロフィールを閲覧（?u=ハンドル、またはフォロー一覧などから）
+  async function showPublicProfile(username) {
+    const ov = document.createElement('div');
+    ov.className = 'modal pubprofile-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close pp-close" aria-label="閉じる">✕</button>
+        <div class="pp-body"><div class="empty"><p>読み込み中…</p></div></div>
+      </div>`;
+    const body = ov.querySelector('.pp-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.pp-close').addEventListener('click', close);
+    document.body.appendChild(ov);
+
+    let prof = null;
+    try { prof = (typeof Cloud !== 'undefined') ? await Cloud.fetchPublicProfile(username) : null; }
+    catch (e) { prof = null; }
+    if (!prof) {
+      body.innerHTML = `<div class="empty"><p>@${esc(username)} のプロフィールが見つかりませんでした。</p></div>`;
+      return;
+    }
+    const avatar = prof.avatar ? `<img src="${esc(prof.avatar)}" alt="">` : '🍜';
+    const shops = (prof.topShops || []).map(s =>
+      `<div class="pp-shop">
+        <div class="pp-shop-main">
+          <div class="pp-shop-name">${esc(s.name)}</div>
+          <div class="pp-shop-sub">${esc(s.genre || '')}${s.city ? '　' + esc(s.city) : ''}</div>
+        </div>
+        <div class="pp-shop-star">${s.rating ? '★' + s.rating : ''}</div>
+      </div>`).join('');
+    body.innerHTML = `
+      <div class="pp-head">
+        <div class="pp-avatar">${avatar}</div>
+        <div class="pp-meta">
+          <div class="pp-name">${esc(prof.displayName || 'BITEMAP')}</div>
+          <div class="pp-username">@${esc(prof.username)}</div>
+          <div class="pp-count">${prof.shopCount || 0} 店舗</div>
+        </div>
+      </div>
+      ${prof.bio ? `<div class="pp-bio">${esc(prof.bio)}</div>` : ''}
+      <button type="button" class="btn primary pp-follow">＋ フォロー</button>
+      <h3 class="pp-h3">よく行くお店</h3>
+      <div class="pp-shops">${shops || '<div class="empty"><p>公開されているお店がありません。</p></div>'}</div>`;
+    body.querySelector('.pp-follow').addEventListener('click', () =>
+      App.toast('👥 フォロー機能は近日公開予定です'));
+  }
+
   function closeModal() {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, getMap: () => map, baseMapStyle };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
 })();

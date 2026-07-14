@@ -202,5 +202,63 @@ const Cloud = (() => {
     }
   }
 
-  return { init, login, logout, onStatus, getUser, isSupported };
+  // ---------- 公開プロフィール（SNS: @ユーザー名で他人が閲覧できる） ----------
+  //  publicProfiles/{uid} : 誰でも読める公開情報（本人だけ書ける）
+  //  usernames/{name}     : @ユーザー名 → uid の予約（一意性の確保・検索用）
+  const normalizeHandle = (s) => String(s || '').trim().replace(/^@/, '').toLowerCase();
+
+  // @ユーザー名を設定（重複チェック付き）→ 公開プロフィールも発行
+  async function setUsername(rawName) {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    const name = normalizeHandle(rawName);
+    if (!/^[a-z0-9_]{3,20}$/.test(name)) throw new Error('3〜20文字の半角英数字と _ が使えます');
+    const prev = Store.getProfile().username;
+    await fb.fs.runTransaction(db, async (tx) => {
+      const nameRef = fb.fs.doc(db, 'usernames', name);
+      const snap = await tx.get(nameRef);
+      if (snap.exists() && snap.data().uid !== user.uid) throw new Error('このユーザー名は既に使われています');
+      tx.set(nameRef, { uid: user.uid });
+      if (prev && prev !== name) tx.delete(fb.fs.doc(db, 'usernames', prev));
+    });
+    Store.setProfile({ username: name });
+    await publishPublicProfile();
+    return name;
+  }
+
+  // 現在のプロフィール内容を公開プロフィールとしてクラウドへ書き出す
+  async function publishPublicProfile() {
+    await ensureLoaded();
+    if (!user) return;
+    const p = Store.getProfile();
+    if (!p.username) return;
+    const shops = Store.shops();
+    const top = [...shops]
+      .sort((a, b) => Store.avgRating(b.id) - Store.avgRating(a.id))
+      .slice(0, 12)
+      .map(s => ({ name: s.name, rating: Store.avgRating(s.id), genre: s.shopGenre || '', city: s.city || '' }));
+    const data = clean({
+      uid: user.uid, username: p.username,
+      displayName: p.name || 'BITEMAP', bio: p.bio || '',
+      // アバターはデータURL（小さければ同梱。大きすぎる場合は省略）
+      avatar: (p.avatar && p.avatar.length < 60000) ? p.avatar : '',
+      shopCount: shops.length, topShops: top, updatedAt: Date.now(),
+    });
+    await fb.fs.setDoc(fb.fs.doc(db, 'publicProfiles', user.uid), data);
+  }
+
+  // @ユーザー名から公開プロフィールを取得（未ログインでも閲覧可能）
+  async function fetchPublicProfile(username) {
+    await ensureLoaded();
+    const name = normalizeHandle(username);
+    if (!name) return null;
+    const nameSnap = await fb.fs.getDoc(fb.fs.doc(db, 'usernames', name));
+    if (!nameSnap.exists()) return null;
+    const uid = nameSnap.data().uid;
+    const pSnap = await fb.fs.getDoc(fb.fs.doc(db, 'publicProfiles', uid));
+    return pSnap.exists() ? pSnap.data() : null;
+  }
+
+  return { init, login, logout, onStatus, getUser, isSupported,
+    setUsername, publishPublicProfile, fetchPublicProfile };
 })();
