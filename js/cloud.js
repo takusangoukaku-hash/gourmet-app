@@ -210,6 +210,28 @@ const Cloud = (() => {
     await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
   }
 
+  // ---------- SNS: 通知（フォローされたお知らせ） ----------
+  async function fetchNotifications() {
+    await ensureLoaded();
+    if (!user) return [];
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, 'notifications', user.uid, 'items'));
+    const arr = []; snap.forEach(d => arr.push(d.data()));
+    arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return arr;
+  }
+  async function unreadNotifCount() {
+    try { return (await fetchNotifications()).filter(n => !n.read).length; }
+    catch { return 0; }
+  }
+  async function markNotificationsRead() {
+    await ensureLoaded();
+    if (!user) return;
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, 'notifications', user.uid, 'items'));
+    const batch = fb.fs.writeBatch(db); let n = 0;
+    snap.forEach(d => { if (!d.data().read) { batch.update(d.ref, { read: true }); n++; } });
+    if (n) await batch.commit();
+  }
+
   // フォロー中（＋自分）の投稿を新しい順に取得
   async function fetchFeed() {
     await ensureLoaded();
@@ -342,6 +364,14 @@ const Cloud = (() => {
     const now = Date.now();
     await fb.fs.setDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid), { uid: targetUid, createdAt: now });
     await fb.fs.setDoc(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid), { uid: user.uid, createdAt: now });
+    // 相手に「フォローされました」通知を作成（doc id = 自分のuid なので重複しない）
+    const prof = Store.getProfile();
+    await fb.fs.setDoc(fb.fs.doc(db, 'notifications', targetUid, 'items', user.uid), clean({
+      type: 'follow', fromUid: user.uid, fromUsername: prof.username || '',
+      fromDisplayName: prof.name || 'BITEMAP',
+      fromAvatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
+      createdAt: now, read: false,
+    })).catch((e) => console.warn('通知作成に失敗:', e));
   }
   async function unfollow(targetUid) {
     await ensureLoaded();
@@ -423,5 +453,5 @@ const Cloud = (() => {
   return { init, login, logout, onStatus, getUser, isSupported,
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
-    fetchFeed };
+    fetchFeed, fetchNotifications, unreadNotifCount, markNotificationsRead };
 })();

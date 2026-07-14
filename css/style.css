@@ -604,6 +604,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 訪問記録の一覧ページ */
 .vl-title { font-family: var(--serif); font-weight: 700; font-size: 18px; margin: 0 0 14px; padding-right: 36px; }
 
+/* ---------- お知らせ（通知） ---------- */
+.notif-btn { position: relative; }
+.notif-badge {
+  position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: bold;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.nt-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border-lite); cursor: pointer; }
+.nt-row:last-child { border-bottom: none; }
+.nt-row.unread { background: var(--accent-soft); border-radius: 8px; }
+.nt-text { font-size: 14px; }
+.nt-follow { flex-shrink: 0; }
+.nt-follow.following { background: var(--field); color: var(--text); border: 1px solid var(--border); }
+
 /* ---------- ホーム／フィード ---------- */
 .feed-list { padding: 8px 0 16px; max-width: 560px; margin: 0 auto; }
 .feed-card { border-bottom: 1px solid var(--border-lite); margin-bottom: 6px; background: var(--card); }

@@ -906,6 +906,9 @@ const Views = (() => {
       openUserSearch();
     });
 
+    // ヘッダーのお知らせ（フォロー通知）
+    $('#notif-btn').addEventListener('click', () => openNotifications());
+
     // プロフィール写真の変更（端末から選択 → 小さく圧縮して保存）
     $('#pf-avatar-btn').addEventListener('click', () => $('#pf-avatar-input').click());
     $('#pf-avatar-input').addEventListener('change', async (e) => {
@@ -967,7 +970,8 @@ const Views = (() => {
           }
           $('#pf-sync').textContent = msg;
         }
-        if (state === 'synced') renderProfile(); // 復元されたデータを反映
+        if (state === 'synced') { renderProfile(); refreshNotifBadge(); } // 復元されたデータ・通知を反映
+        if (state === 'signedout') { const bd = $('#notif-badge'); if (bd) bd.classList.add('hidden'); }
       });
     } else {
       $('#pf-login').textContent = 'この端末では同期を利用できません';
@@ -1547,6 +1551,82 @@ const Views = (() => {
           <div class="feed-date">${when}</div>
         </div>
       </article>`;
+  }
+
+  // ========== 通知（フォローされたお知らせ） ==========
+  // ヘッダーのベルに未読件数バッジを反映
+  async function refreshNotifBadge() {
+    const badge = $('#notif-badge');
+    if (!badge) return;
+    const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    if (!me) { badge.classList.add('hidden'); return; }
+    try {
+      const n = await Cloud.unreadNotifCount();
+      badge.textContent = n > 9 ? '9+' : String(n);
+      badge.classList.toggle('hidden', !n);
+    } catch { badge.classList.add('hidden'); }
+  }
+
+  async function openNotifications() {
+    const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    if (!me) { App.toast('ログインするとお知らせが届きます'); return; }
+    const ov = document.createElement('div');
+    ov.className = 'modal notif-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close nt-close" aria-label="閉じる">✕</button>
+        <h2 class="vl-title">お知らせ</h2>
+        <div class="nt-body"><div class="empty"><p>読み込み中…</p></div></div>
+      </div>`;
+    const body = ov.querySelector('.nt-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.nt-close').addEventListener('click', close);
+    document.body.appendChild(ov);
+
+    let list = [];
+    try { list = await Cloud.fetchNotifications(); } catch { list = []; }
+    if (!list.length) {
+      body.innerHTML = `<div class="empty"><p>まだお知らせはありません。</p></div>`;
+    } else {
+      body.innerHTML = list.map((n, i) => {
+        const av = n.fromAvatar ? `<img src="${esc(n.fromAvatar)}" alt="">` : '🍜';
+        return `<div class="nt-row ${n.read ? '' : 'unread'}" data-i="${i}" data-u="${esc(n.fromUsername)}">
+            <div class="ur-avatar">${av}</div>
+            <div class="ur-main">
+              <div class="nt-text"><b>${esc(n.fromDisplayName || 'BITEMAP')}</b> さんがあなたをフォローしました</div>
+              <div class="ur-username">@${esc(n.fromUsername)}</div>
+            </div>
+            <button type="button" class="btn small nt-follow" data-uid="${esc(n.fromUid)}" data-u="${esc(n.fromUsername)}">…</button>
+          </div>`;
+      }).join('');
+      // 各行: 本文タップで相手のプロフィール、ボタンでフォローバック
+      body.querySelectorAll('.nt-row').forEach(row => {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.nt-follow')) return;
+          close(); showPublicProfile(row.dataset.u);
+        });
+      });
+      // フォローバックボタンの状態を設定
+      for (const btn of body.querySelectorAll('.nt-follow')) {
+        const uid = btn.dataset.uid;
+        let following = false;
+        try { following = await Cloud.isFollowing(uid); } catch { /* noop */ }
+        const paint = () => { btn.textContent = following ? 'フォロー中' : '＋ フォローバック'; btn.classList.toggle('following', following); };
+        paint();
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          btn.disabled = true;
+          try {
+            if (following) await Cloud.unfollow(uid); else await Cloud.follow(uid);
+            following = !following; paint();
+          } catch (err) { App.toast('⚠️ ' + (err && err.message || err)); }
+          btn.disabled = false;
+        });
+      }
+    }
+    // 既読にしてバッジを消す
+    try { await Cloud.markNotificationsRead(); } catch { /* noop */ }
+    refreshNotifBadge();
   }
 
   // 他人の公開プロフィールを閲覧（?u=ハンドル、またはフォロー一覧などから）
