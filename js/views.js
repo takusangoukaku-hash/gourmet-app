@@ -426,6 +426,12 @@ const Views = (() => {
   const DETOUR = 1.3;
   const fmtDist = (m) => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
   const etaMin = (straightM, mode) => Math.max(1, Math.round(straightM * DETOUR / NEARBY_SPEED[mode]));
+  // 分を「◯分／◯時間◯分」に整形（60分以上は時間表記）
+  const fmtEta = (min) => {
+    if (min < 60) return `約${min}分`;
+    const h = Math.floor(min / 60), m = min % 60;
+    return m ? `約${h}時間${m}分` : `約${h}時間`;
+  };
 
   // 現在地から、絞り込み条件に合う店を近い順に所要時間つきで一覧表示
   async function openNearby() {
@@ -480,7 +486,7 @@ const Views = (() => {
               <div class="nb-sub">${esc(shopLabelGenre(r.s) || '')}${avg ? '　★' + avg : ''}</div>
             </div>
             <div class="nb-eta">
-              <div class="nb-time">約${etaMin(r.dist, mode)}分</div>
+              <div class="nb-time">${fmtEta(etaMin(r.dist, mode))}</div>
               <div class="nb-dist">${fmtDist(r.dist * DETOUR)}</div>
             </div>
             <button type="button" class="btn small nb-go" data-shop="${r.s.id}">ここへ行く</button>
