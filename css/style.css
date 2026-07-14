@@ -587,14 +587,22 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .visit-block .v-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .visit-block .v-photos img { width: 74px; height: 74px; object-fit: cover; border-radius: 8px; cursor: pointer; }
 .visit-block .v-btns { margin-top: 8px; display: flex; gap: 6px; }
-/* 初期表示: 大きな写真のみ（タップで詳細を展開） */
+/* 一覧の写真: 左上に星の数バッジ、下に日付。タップで訪問記録一覧ページへ */
 .visit-block .v-cover {
-  display: block; width: 100%; padding: 0; border: none; cursor: pointer;
+  position: relative; display: block; width: 100%; padding: 0; border: none; cursor: pointer;
   background: var(--field); border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3;
 }
 .visit-block .v-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .visit-block .v-cover-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 40px; }
-.visit-block .v-detail { margin-top: 4px; }
+.visit-block .v-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  background: rgba(0, 0, 0, .6); color: #ffd75e; font-weight: bold; font-size: 13px;
+  padding: 2px 9px; border-radius: 999px; line-height: 1.5;
+}
+.visit-block .v-caption { text-align: center; font-size: 13px; font-weight: bold; color: var(--text); margin: 6px 0 2px; }
+
+/* 訪問記録の一覧ページ */
+.vl-title { font-family: var(--serif); font-weight: 700; font-size: 18px; margin: 0 0 14px; padding-right: 36px; }
 .visit-edit { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .visit-edit .ve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .visit-edit .ve-row input[type="date"] { width: auto; }

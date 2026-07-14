@@ -1304,51 +1304,22 @@ const Views = (() => {
             App.refreshCurrent();
           });
         } else {
-          // ---- 読み取り表示: 初期は大きな写真のみ。写真タップで詳細（日付・評価・コメント・編集/削除）を展開 ----
+          // ---- 読み取り表示: 写真＋左上に星の数＋下に日付。タップでその店の訪問記録一覧ページへ ----
+          const dateStr = new Date(v.datetime).toLocaleDateString('ja-JP');
           block.innerHTML = `
-            <button type="button" class="v-cover"><span class="v-cover-ph">🍽️</span></button>
-            <div class="v-detail hidden">
-              <div class="v-head">
-                <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-                <span class="v-stars">${starStr(v.rating)}</span>
-                ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
-              </div>
-              ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
-              <div class="v-photos"></div>
-              <div class="v-btns">
-                <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
-                <button type="button" class="btn small danger ve-del">削除</button>
-              </div>
-            </div>`;
+            <button type="button" class="v-cover">
+              <span class="v-cover-ph">🍽️</span>
+              <span class="v-badge">★${v.rating || '－'}</span>
+            </button>
+            <div class="v-caption">${dateStr}</div>`;
           const cover = block.querySelector('.v-cover');
-          const detail = block.querySelector('.v-detail');
-          // 写真タップ → 詳細（現在の状態）を表示
-          cover.addEventListener('click', () => { cover.classList.add('hidden'); detail.classList.remove('hidden'); });
+          cover.addEventListener('click', () => showVisitList(shopId));
           Store.photosOfVisit(v.id).then(ps => {
             if (ps.length) {
-              cover.innerHTML = '';
               const cimg = document.createElement('img');
               cimg.src = photoUrl(ps[0]);
-              cover.appendChild(cimg);
-            } else {
-              // 写真が無ければ最初から詳細を表示
-              cover.classList.add('hidden');
-              detail.classList.remove('hidden');
+              cover.querySelector('.v-cover-ph').replaceWith(cimg);
             }
-            const row = detail.querySelector('.v-photos');
-            ps.forEach(p => {
-              const img = document.createElement('img');
-              img.src = photoUrl(p);
-              img.addEventListener('click', () => openLightbox(photoUrl(p), `${s.name}　${fmtDate(v.datetime)}`));
-              row.appendChild(img);
-            });
-          });
-          detail.querySelector('.ve-edit').addEventListener('click', () => showShop(shopId, false, v.id));
-          detail.querySelector('.ve-del').addEventListener('click', async () => {
-            if (!confirm('この記録を削除しますか？')) return;
-            await Store.deleteVisit(v.id);
-            showShop(shopId, false, null);
-            App.refreshCurrent();
           });
           vbox.appendChild(block);
         }
@@ -1356,6 +1327,64 @@ const Views = (() => {
     }
 
     $('#modal').classList.remove('hidden');
+  }
+
+  // その店の訪問記録を一覧で見るページ（日付・評価・ジャンル・コメント・写真・編集/削除）
+  function showVisitList(shopId) {
+    const s = Store.getShop(shopId);
+    if (!s) return;
+    const ov = document.createElement('div');
+    ov.className = 'modal visitlist-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close vl-close" aria-label="閉じる">✕</button>
+        <h2 class="vl-title">${esc(s.name)} の訪問記録</h2>
+        <div class="vl-body"></div>
+      </div>`;
+    const body = ov.querySelector('.vl-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.vl-close').addEventListener('click', close);
+
+    const render = () => {
+      const list = Store.visitsOf(shopId);
+      if (!list.length) { body.innerHTML = '<div class="empty"><p>訪問記録がありません。</p></div>'; return; }
+      body.innerHTML = '';
+      for (const v of list) {
+        const card = document.createElement('div');
+        card.className = 'visit-block';
+        card.innerHTML = `
+          <div class="v-head">
+            <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
+            <span class="v-stars">${starStr(v.rating)}</span>
+            ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+          </div>
+          ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
+          <div class="v-photos"></div>
+          <div class="v-btns">
+            <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
+            <button type="button" class="btn small danger ve-del">削除</button>
+          </div>`;
+        Store.photosOfVisit(v.id).then(ps => {
+          const row = card.querySelector('.v-photos');
+          ps.forEach(p => {
+            const img = document.createElement('img');
+            img.src = photoUrl(p);
+            img.addEventListener('click', () => openLightbox(photoUrl(p), `${s.name}　${fmtDate(v.datetime)}`));
+            row.appendChild(img);
+          });
+        });
+        card.querySelector('.ve-edit').addEventListener('click', () => { close(); showShop(shopId, false, v.id); });
+        card.querySelector('.ve-del').addEventListener('click', async () => {
+          if (!confirm('この記録を削除しますか？')) return;
+          await Store.deleteVisit(v.id);
+          App.refreshCurrent();
+          render();
+        });
+        body.appendChild(card);
+      }
+    };
+    render();
+    document.body.appendChild(ov);
   }
 
   function closeModal() {
