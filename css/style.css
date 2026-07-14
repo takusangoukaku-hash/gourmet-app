@@ -644,7 +644,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .fc-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .fc-name { font-weight: 700; font-size: 14px; }
 /* 写真をメインに（インスタ風の正方形） */
-.feed-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--field); }
+/* 写真は切り抜かず全体を表示（横長でも左右が見切れない）。縦長は上限を設ける */
+.feed-photo { width: 100%; height: auto; max-height: 85vh; object-fit: contain; display: block; background: var(--field); }
 .feed-body { padding: 10px 12px 14px; }
 /* 星評価を大きく目立たせる */
 .feed-rating { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
