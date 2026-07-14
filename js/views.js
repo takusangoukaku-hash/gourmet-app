@@ -433,19 +433,12 @@ const Views = (() => {
     return m ? `約${h}時間${m}分` : `約${h}時間`;
   };
 
-  // 現在地から、絞り込み条件に合う店を近い順に所要時間つきで一覧表示
+  // 出発地（現在地または指定した駅・地名）から、絞り込み条件に合う店を近い順に一覧表示
   async function openNearby() {
-    let pos;
-    try { App.toast('現在地を取得中…'); pos = await currentPosition(); }
-    catch { App.toast('現在地を取得できませんでした（位置情報を許可してください）'); return; }
-    locateUser(false); // 地図にも現在地マーカーを出す
-
     // 地図と同じ絞り込み（ジャンル・星・キーワード）＋位置情報のある店だけ
     const shops = Store.shops().filter(s =>
       s.lat != null && s.lon != null &&
       shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
-    const rows = shops.map(s => ({ s, dist: haversine(pos, { lat: s.lat, lon: s.lon }) }))
-      .sort((a, b) => a.dist - b.dist);
 
     // 絞り込み条件の見出し
     const axisActive = ['taste', 'casual', 'atmosphere', 'speed']
@@ -454,15 +447,28 @@ const Views = (() => {
     const cond = [...mapGenreFilter, ...axisActive].join('・') || 'すべての店舗';
 
     let mode = 'walk';
+    let origin = null;      // { lat, lon }
+    let originLabel = '';   // 表示用（「現在地」や駅名）
+    let rows = [];
+
     const ov = document.createElement('div');
     ov.className = 'modal nearby-modal';
     ov.innerHTML = `<div class="nearby-box">
         <div class="nearby-head">
           <div>
-            <div class="nearby-title">現在地から近い順</div>
-            <div class="nearby-cond">${esc(cond)}　${rows.length}件</div>
+            <div class="nearby-title">近い順に表示</div>
+            <div class="nearby-cond">${esc(cond)}　${shops.length}件</div>
           </div>
           <button type="button" class="nearby-close" aria-label="閉じる">✕</button>
+        </div>
+        <div class="nearby-origin">
+          <div class="nb-origin-row">
+            <input type="text" class="nb-origin-input" placeholder="駅・地名で出発地を指定" autocomplete="off">
+            <button type="button" class="btn small nb-origin-search">検索</button>
+            <button type="button" class="btn small nb-origin-here">現在地</button>
+          </div>
+          <div class="nb-origin-label"></div>
+          <div class="nb-origin-results hidden"></div>
         </div>
         <div class="nearby-modes">
           <button type="button" class="nb-mode on" data-mode="walk">${IC_WALK}<span>徒歩</span></button>
@@ -471,8 +477,16 @@ const Views = (() => {
         <div class="nearby-list"></div>
       </div>`;
     const listEl = ov.querySelector('.nearby-list');
+    const labelEl = ov.querySelector('.nb-origin-label');
+    const resultsEl = ov.querySelector('.nb-origin-results');
+    const inputEl = ov.querySelector('.nb-origin-input');
 
     const renderRows = () => {
+      labelEl.textContent = origin ? `出発地: ${originLabel}` : '';
+      if (!origin) {
+        listEl.innerHTML = '<div class="empty"><p>出発地を指定してください。<br>「現在地」または駅・地名で検索できます。</p></div>';
+        return;
+      }
       if (!rows.length) {
         listEl.innerHTML = '<div class="empty"><p>条件に合う店舗が見つかりません。</p></div>';
         return;
@@ -493,11 +507,53 @@ const Views = (() => {
           </div>`;
       }).join('');
     };
-    renderRows();
+
+    const recompute = () => {
+      rows = origin
+        ? shops.map(s => ({ s, dist: haversine(origin, { lat: s.lat, lon: s.lon }) }))
+            .sort((a, b) => a.dist - b.dist)
+        : [];
+      renderRows();
+    };
+
+    const setOrigin = (lat, lon, label) => {
+      origin = { lat, lon }; originLabel = label;
+      resultsEl.classList.add('hidden'); resultsEl.innerHTML = '';
+      recompute();
+    };
+
+    // 現在地を出発地にする
+    const useCurrent = async () => {
+      try { App.toast('現在地を取得中…'); const p = await currentPosition(); locateUser(false); setOrigin(p.lat, p.lon, '現在地'); }
+      catch { App.toast('現在地を取得できませんでした（位置情報を許可してください）'); }
+    };
+    // 駅・地名で検索して出発地の候補を出す
+    const searchOrigin = async () => {
+      const q = inputEl.value.trim();
+      if (!q) return;
+      resultsEl.classList.remove('hidden');
+      resultsEl.innerHTML = '<div class="nb-origin-loading">検索中…</div>';
+      try {
+        const places = await Api.searchPlaces(q);
+        if (!places.length) { resultsEl.innerHTML = '<div class="nb-origin-loading">見つかりませんでした</div>'; return; }
+        resultsEl.innerHTML = places.slice(0, 6).map((p, i) =>
+          `<button type="button" class="nb-origin-item" data-i="${i}">
+             <span class="nb-oi-name">${esc(p.name)}</span>
+             <span class="nb-oi-addr">${esc(p.address || '')}</span>
+           </button>`).join('');
+        resultsEl.querySelectorAll('.nb-origin-item').forEach(btn => btn.addEventListener('click', () => {
+          const p = places[+btn.dataset.i];
+          setOrigin(p.lat, p.lon, p.name);
+        }));
+      } catch { resultsEl.innerHTML = '<div class="nb-origin-loading">検索に失敗しました</div>'; }
+    };
 
     const close = () => ov.remove();
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.nearby-close').addEventListener('click', close);
+    ov.querySelector('.nb-origin-here').addEventListener('click', useCurrent);
+    ov.querySelector('.nb-origin-search').addEventListener('click', searchOrigin);
+    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchOrigin(); } });
     ov.querySelectorAll('.nb-mode').forEach(btn => btn.addEventListener('click', () => {
       mode = btn.dataset.mode;
       ov.querySelectorAll('.nb-mode').forEach(b => b.classList.toggle('on', b === btn));
@@ -510,6 +566,11 @@ const Views = (() => {
       if (row) { close(); showShop(row.dataset.shop); }
     });
     document.body.appendChild(ov);
+    renderRows();
+
+    // 初期は現在地を試す（取れなければ駅・地名の指定を促す）
+    try { const p = await currentPosition(); locateUser(false); setOrigin(p.lat, p.lon, '現在地'); }
+    catch { /* 現在地が取れなければユーザーが駅・地名を指定 */ }
   }
 
   // 店の代表ジャンル: よく食べる料理ジャンル → なければ店舗ジャンル

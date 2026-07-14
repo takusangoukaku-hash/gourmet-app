@@ -363,6 +363,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .nearby-title { font-weight: bold; font-size: 16px; }
 .nearby-cond { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .nearby-close { border: none; background: var(--border-lite); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; flex-shrink: 0; }
+.nearby-origin { padding: 0 16px 8px; }
+.nb-origin-row { display: flex; gap: 6px; }
+.nb-origin-input {
+  flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 14px;
+}
+.nb-origin-row .btn { flex-shrink: 0; padding: 8px 10px; font-size: 13px; }
+.nb-origin-label { color: var(--accent); font-size: 12px; font-weight: bold; margin-top: 6px; }
+.nb-origin-label:empty { display: none; }
+.nb-origin-results { margin-top: 6px; border: 1px solid var(--border-lite); border-radius: 10px; overflow: hidden; }
+.nb-origin-loading { padding: 10px; color: var(--muted); font-size: 13px; text-align: center; }
+.nb-origin-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%;
+  padding: 8px 10px; border: none; border-bottom: 1px solid var(--border-lite);
+  background: var(--card); cursor: pointer; text-align: left;
+}
+.nb-origin-item:last-child { border-bottom: none; }
+.nb-origin-item:active { background: var(--accent-soft); }
+.nb-oi-name { font-size: 14px; font-weight: bold; }
+.nb-oi-addr { font-size: 11px; color: var(--muted); }
 .nearby-modes { display: flex; gap: 8px; padding: 0 16px 10px; }
 .nb-mode {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
