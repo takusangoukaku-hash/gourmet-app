@@ -39,6 +39,9 @@ const Views = (() => {
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
+  let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ / 'all' 自分＋つながり
+  let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
+  const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
 
   // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
@@ -271,7 +274,9 @@ const Views = (() => {
       map.addLayer({ id: 'pins', type: 'circle', source: 'shops',
         filter: ['!', ['has', 'point_count']],
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
-          'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
+          // 自分の店は白フチ、つながりの人の店はアクセント色フチで区別
+          'circle-stroke-color': ['case', ['==', ['get', 'mine'], 1], '#ffffff', '#e1306c'],
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // お気に入り★（拡大時のみ）
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 14,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
@@ -338,6 +343,18 @@ const Views = (() => {
       $('#map-filter-panel').classList.add('hidden');
       $('#map-search').blur();
     });
+
+    // 表示範囲の切替（自分のみ / 自分＋つながり）
+    document.querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', async () => {
+      const scope = b.dataset.scope;
+      if (scope === mapScope) return;
+      const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+      if (scope === 'all' && !me) { App.toast('「みんな」はログインすると使えます'); return; }
+      mapScope = scope;
+      document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x === b));
+      if (scope === 'all') { App.toast('つながりの人の店を読み込み中…'); await loadNetworkPosts(); }
+      refreshMap();
+    }));
 
     $('#map-locate').addEventListener('click', () => locateUser(true));
     $('#map-nearby').addEventListener('click', () => openNearby());
@@ -586,8 +603,32 @@ const Views = (() => {
     return top ? top[0] : (s.shopGenre || '');
   }
 
+  // つながりの人のピン → 投稿ポップアップ（誰の・写真・評価・詳細）
+  function openOtherPinPopup(feature) {
+    const p = networkById.get(feature.properties.id);
+    if (!p) return;
+    const node = document.createElement('div');
+    node.className = 'popup';
+    node.innerHTML = `
+        ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : ''}
+        <div class="p-who">@${esc(p.username)} さんの訪問</div>
+        <div class="p-name">${esc(p.shopName || '')}</div>
+        <div class="p-sub">${starStr(p.rating || 0)} 味${p.rating || '－'}${p.genre ? '　' + esc(p.genre) : ''}</div>
+        ${p.comment ? `<div class="p-comment">${esc(p.comment.slice(0, 60))}</div>` : ''}
+        <div class="p-actions">
+          <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
+          <button class="btn small popup-detail">投稿を見る →</button>
+        </div>`;
+    node.querySelector('.popup-detail').addEventListener('click', () => showPostDetail(p));
+    node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    if (mapPopup) mapPopup.remove();
+    mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
+      .setLngLat([p.lon, p.lat]).setDOMContent(node).addTo(map);
+  }
+
   // ピンをタップ → 店舗ポップアップ（写真・評価・詳細ボタン）
   async function openPinPopup(feature) {
+    if (feature.properties.kind === 'other') { openOtherPinPopup(feature); return; }
     const s = Store.getShop(feature.properties.id);
     if (!s) return;
     const avg = Store.avgRating(s.id);
@@ -627,17 +668,46 @@ const Views = (() => {
     const features = shops.map(s => {
       const avg = Store.avgRating(s.id);
       return { type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-        properties: { id: s.id, name: s.name, genre: shopLabelGenre(s),
+        properties: { id: s.id, kind: 'me', mine: 1, name: s.name, genre: shopLabelGenre(s),
           r: Math.round(avg) || 0, fav: s.favorite ? 1 : 0 } };
     });
+
+    // 「みんな」モード: つながっている人の投稿もピンで表示
+    networkById.clear();
+    const bounds = shops.map(s => [s.lon, s.lat]);
+    if (mapScope === 'all') {
+      const kw = mapKeyword.toLowerCase();
+      for (const p of networkPosts) {
+        // フィルタ: ジャンル・キーワード・味の星（他人の投稿にある情報の範囲で）
+        if (mapGenreFilter.size && !(p.genre || '').split('・').some(g => mapGenreFilter.has(g))) continue;
+        const minT = +($('#mf-taste').value || 0);
+        if (minT && (p.rating || 0) < minT) continue;
+        if (kw) {
+          const hay = [p.shopName, p.username, p.displayName, p.comment].join(' ').toLowerCase();
+          if (!hay.includes(kw)) continue;
+        }
+        const fid = 'post_' + p.id;
+        networkById.set(fid, p);
+        features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+          properties: { id: fid, kind: 'other', mine: 0, name: p.shopName || '', genre: '',
+            r: Math.round(p.rating) || 0, fav: 0 } });
+        bounds.push([p.lon, p.lat]);
+      }
+    }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
 
-    if (fit && shops.length) {
+    if (fit && bounds.length) {
       const b = new maplibregl.LngLatBounds();
-      shops.forEach(s => b.extend([s.lon, s.lat]));
+      bounds.forEach(c => b.extend(c));
       try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
     }
     if (heatOn) buildHeat();
+  }
+
+  // つながっている人の投稿を読み込む（地図「みんな」用）
+  async function loadNetworkPosts() {
+    try { networkPosts = (typeof Cloud !== 'undefined') ? await Cloud.fetchNetworkPosts() : []; }
+    catch { networkPosts = []; }
   }
 
   function refreshMap() {

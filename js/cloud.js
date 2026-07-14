@@ -260,6 +260,30 @@ const Cloud = (() => {
     }
   }
 
+  // つながっている人（フォロー中＋フォロワー、自分を除く）の投稿を取得（地図の「みんな」用）
+  async function fetchNetworkPosts() {
+    await ensureLoaded();
+    if (!user) return [];
+    const [ing, ers] = await Promise.all([
+      fb.fs.getDocs(fb.fs.collection(db, 'follows', user.uid, 'following')),
+      fb.fs.getDocs(fb.fs.collection(db, 'followers', user.uid, 'followers')),
+    ]);
+    const set = new Set();
+    ing.forEach(d => set.add(d.data().uid));
+    ers.forEach(d => set.add(d.data().uid));
+    set.delete(user.uid);
+    const uids = [...set];
+    if (!uids.length) return [];
+    const posts = [];
+    for (let i = 0; i < uids.length; i += 30) {
+      const batch = uids.slice(i, i + 30);
+      const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch));
+      const snap = await fb.fs.getDocs(q);
+      snap.forEach(d => posts.push(d.data()));
+    }
+    return posts.filter(p => p.lat != null && p.lon != null);
+  }
+
   // フォロー中（＋自分）の投稿を新しい順に取得
   async function fetchFeed() {
     await ensureLoaded();
@@ -483,5 +507,5 @@ const Cloud = (() => {
   return { init, login, logout, onStatus, getUser, isSupported,
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
-    fetchFeed, fetchNotifications, unreadNotifCount, markNotificationsRead };
+    fetchFeed, fetchNetworkPosts, fetchNotifications, unreadNotifCount, markNotificationsRead };
 })();
