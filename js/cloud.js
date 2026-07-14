@@ -255,6 +255,38 @@ const Cloud = (() => {
     await fb.fs.setDoc(fb.fs.doc(db, 'publicProfiles', user.uid), data);
   }
 
+  // 写真の強制再同期: ローカル全写真をアップロードし直し、未取得の写真をダウンロード
+  //  （Storageルール未設定で画像本体だけ欠けたケースの穴埋め用。メタ情報の有無に関わらず上げ直す）
+  async function resyncPhotos() {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    setStatus('syncing');
+    let up = 0, down = 0, fail = 0;
+    try {
+      // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）
+      const localPhotos = await Store.allPhotos();
+      for (const p of localPhotos) {
+        try { await uploadPhoto(p); up++; } catch (e) { fail++; console.warn('再アップロード失敗:', p.id, e); }
+      }
+      // クラウドにあってローカルに無い写真をダウンロード
+      const metaSnap = await fb.fs.getDocs(cref('photos'));
+      const metas = []; metaSnap.forEach(d => metas.push(d.data()));
+      const localIds = await Store.photoIds();
+      for (const m of metas) {
+        if (localIds.has(m.id)) continue;
+        try {
+          const bytes = await fb.st.getBytes(fb.st.ref(storage, m.path));
+          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
+          down++;
+        } catch (e) { fail++; console.warn('ダウンロード失敗:', m.id, e); }
+      }
+      setStatus('synced');
+      App.refreshCurrent();
+    } catch (e) { setStatus('error', e); throw e; }
+    return { up, down, fail };
+  }
+
   // @ユーザー名から公開プロフィールを取得（未ログインでも閲覧可能）
   async function fetchPublicProfile(username) {
     await ensureLoaded();
@@ -268,5 +300,5 @@ const Cloud = (() => {
   }
 
   return { init, login, logout, onStatus, getUser, isSupported,
-    setUsername, publishPublicProfile, fetchPublicProfile };
+    setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos };
 })();

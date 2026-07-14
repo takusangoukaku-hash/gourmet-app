@@ -924,6 +924,16 @@ const Views = (() => {
         }
       });
       $('#pf-logout').addEventListener('click', () => Cloud.logout());
+      // 写真の強制再同期（Storageルール修正後の穴埋め・別端末への取り込み）
+      $('#pf-resync').addEventListener('click', async () => {
+        const btn = $('#pf-resync');
+        btn.disabled = true; btn.textContent = '再同期中…';
+        try {
+          const r = await Cloud.resyncPhotos();
+          App.toast(`✅ 写真を再同期しました（↑${r.up} ↓${r.down}${r.fail ? ' / 失敗' + r.fail : ''}）`);
+        } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+        btn.disabled = false; btn.textContent = '☁️ 写真を再同期';
+      });
       // 同期状態の表示更新
       const SYNC_MSG = { loading: 'ログイン中…', syncing: '☁️ 同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
       Cloud.onStatus((state, u, detail) => {
