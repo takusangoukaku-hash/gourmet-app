@@ -104,6 +104,18 @@ const Cloud = (() => {
   const cref = (name) => fb.fs.collection(db, 'users', user.uid, name);
   // Firestoreは undefined を受け付けないので、プレーンなデータへ整える（blob等も除去）
   const clean = (obj) => JSON.parse(JSON.stringify(obj));
+  // 通信が固まったときに永久待ちにならないよう、各処理へタイムアウトを付ける
+  const withTimeout = (p, ms, label) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error((label || '処理') + 'がタイムアウトしました')), ms)),
+  ]);
+  // 写真1枚をダウンロード（getBytesはCORS設定が要るため、getDownloadURL+fetchでCORSに強くする）
+  async function downloadPhotoBlob(path) {
+    const url = await withTimeout(fb.st.getDownloadURL(fb.st.ref(storage, path)), 15000, 'URL取得');
+    const resp = await withTimeout(fetch(url), 20000, 'ダウンロード');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.blob();
+  }
 
   // ---------- 記録（店・訪問・プロフィール）の双方向同期 ----------
   async function syncRecords() {
@@ -158,8 +170,7 @@ const Cloud = (() => {
     for (const m of cloudMetas) {
       if (localIds.has(m.id)) continue;
       try {
-        const bytes = await fb.st.getBytes(fb.st.ref(storage, m.path));
-        const blob = new Blob([bytes], { type: 'image/jpeg' });
+        const blob = await downloadPhotoBlob(m.path);
         await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
       } catch (e) { console.warn('写真ダウンロード失敗:', m.id, e); }
     }
@@ -167,7 +178,7 @@ const Cloud = (() => {
     const localPhotos = await Store.allPhotos();
     for (const p of localPhotos) {
       if (cloudIds.has(p.id)) continue;
-      try { await uploadPhoto(p); } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
+      try { await withTimeout(uploadPhoto(p), 25000, 'アップロード'); } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
     }
   }
 
@@ -257,29 +268,33 @@ const Cloud = (() => {
 
   // 写真の強制再同期: ローカル全写真をアップロードし直し、未取得の写真をダウンロード
   //  （Storageルール未設定で画像本体だけ欠けたケースの穴埋め用。メタ情報の有無に関わらず上げ直す）
-  async function resyncPhotos() {
+  async function resyncPhotos(onProgress) {
     await ensureLoaded();
     if (!user) throw new Error('ログインが必要です');
     setStatus('syncing');
     let up = 0, down = 0, fail = 0;
+    const report = (phase, i, total) => { if (onProgress) { try { onProgress({ phase, i, total, up, down, fail }); } catch { /* noop */ } } };
     try {
-      // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）
+      // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。各処理はタイムアウト付き
       const localPhotos = await Store.allPhotos();
-      for (const p of localPhotos) {
-        try { await uploadPhoto(p); up++; } catch (e) { fail++; console.warn('再アップロード失敗:', p.id, e); }
+      for (let i = 0; i < localPhotos.length; i++) {
+        try { await withTimeout(uploadPhoto(localPhotos[i]), 25000, 'アップロード'); up++; }
+        catch (e) { fail++; console.warn('再アップロード失敗:', localPhotos[i].id, e); }
+        report('upload', i + 1, localPhotos.length);
       }
       // クラウドにあってローカルに無い写真をダウンロード
       const metaSnap = await fb.fs.getDocs(cref('photos'));
       const metas = []; metaSnap.forEach(d => metas.push(d.data()));
       const localIds = await Store.photoIds();
-      for (const m of metas) {
-        if (localIds.has(m.id)) continue;
+      const need = metas.filter(m => !localIds.has(m.id));
+      for (let i = 0; i < need.length; i++) {
+        const m = need[i];
         try {
-          const bytes = await fb.st.getBytes(fb.st.ref(storage, m.path));
-          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          const blob = await downloadPhotoBlob(m.path);
           await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
           down++;
         } catch (e) { fail++; console.warn('ダウンロード失敗:', m.id, e); }
+        report('download', i + 1, need.length);
       }
       setStatus('synced');
       App.refreshCurrent();

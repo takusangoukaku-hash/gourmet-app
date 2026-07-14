@@ -929,7 +929,10 @@ const Views = (() => {
         const btn = $('#pf-resync');
         btn.disabled = true; btn.textContent = '再同期中…';
         try {
-          const r = await Cloud.resyncPhotos();
+          const r = await Cloud.resyncPhotos(({ phase, i, total }) => {
+            const label = phase === 'upload' ? '↑' : '↓';
+            btn.textContent = `${label}${i}/${total}…`;
+          });
           App.toast(`✅ 写真を再同期しました（↑${r.up} ↓${r.down}${r.fail ? ' / 失敗' + r.fail : ''}）`);
         } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
         btn.disabled = false; btn.textContent = '☁️ 写真を再同期';

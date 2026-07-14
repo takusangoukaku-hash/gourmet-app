@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v86'; // 写真の強制再同期ボタンを追加(Storage欠損の穴埋め)
+const VERSION = 'v87'; // 写真再同期にタイムアウト・進捗表示、DLをgetDownloadURL+fetchに
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）
