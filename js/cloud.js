@@ -42,6 +42,8 @@ const Cloud = (() => {
       auth = authM.getAuth(app);
       db = fsM.getFirestore(app);
       storage = stM.getStorage(app);
+      // 写真の読み書きが失敗したとき、既定2分もリトライして固まらないよう短縮
+      try { storage.maxOperationRetryTime = 20000; storage.maxUploadRetryTime = 20000; } catch { /* noop */ }
       fb = { app: appM, auth: authM, fs: fsM, st: stM };
       // リダイレクト方式ログインの戻り（インストール済みPWA等）を回収
       authM.getRedirectResult(auth).catch(() => { /* 未使用時は無視 */ });
@@ -50,9 +52,16 @@ const Cloud = (() => {
         if (u) {
           Store.setSyncHook(onLocalChange);
           setStatus('syncing');
-          try { await fullSync(); setStatus('synced'); }
-          catch (e) { console.error('sync error:', e); setStatus('error', e); }
-          App.refreshCurrent();
+          try {
+            // 記録（店・訪問・プロフィール）を先に同期し、この時点で「同期済み」にする
+            await syncRecords();
+            setStatus('synced');
+            App.refreshCurrent();
+            // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
+            syncPhotos()
+              .then(() => App.refreshCurrent())
+              .catch(e => console.warn('写真同期に失敗:', e));
+          } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
           Store.setSyncHook(null);
           setStatus('signedout');
@@ -96,13 +105,12 @@ const Cloud = (() => {
   // Firestoreは undefined を受け付けないので、プレーンなデータへ整える（blob等も除去）
   const clean = (obj) => JSON.parse(JSON.stringify(obj));
 
-  // ---------- 初回・ログイン時の全同期（双方向） ----------
-  async function fullSync() {
+  // ---------- 記録（店・訪問・プロフィール）の双方向同期 ----------
+  async function syncRecords() {
     await pullCollection('shops', 'shop');
     await pullCollection('visits', 'visit');
     await pullProfile();
     await pushAllRecords();
-    await syncPhotos();
   }
 
   // クラウド → ローカル（新しい方を採用）
