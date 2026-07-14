@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v90'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v91'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -136,7 +136,8 @@ const App = (() => {
   }
 
   function refreshCurrent() {
-    if (currentTab === 'map') Views.refreshMap();
+    if (currentTab === 'feed') Views.renderFeed();
+    else if (currentTab === 'map') Views.refreshMap();
     else if (currentTab === 'list') Views.renderList();
     else if (currentTab === 'photos') Views.renderPhotos();
     else if (currentTab === 'profile') Views.renderProfile(); // 統計もプロフィール内で描画

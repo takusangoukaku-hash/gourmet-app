@@ -184,6 +184,48 @@ const Cloud = (() => {
     await fb.st.uploadBytes(fb.st.ref(storage, path), p.blob, { contentType: 'image/jpeg' });
     const { blob, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
     await fb.fs.setDoc(dref('photos', p.id), clean({ ...meta, path }));
+    // フィード用の公開投稿も更新（@ユーザー名を設定している人のみ）
+    try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿の公開に失敗:', e); }
+  }
+
+  // ---------- SNS: フィード（フォロー中の人の投稿） ----------
+  //  publicPosts/{visitId} : 写真つきの記録を、フォロワーが見られる公開投稿として保存
+  async function publishPostForVisit(visitId, photoPath) {
+    if (!user) return;
+    const prof = Store.getProfile();
+    if (!prof.username) return; // 公開名がなければフィードには出さない
+    const visit = Store.visits().find(v => v.id === visitId);
+    if (!visit) return;
+    const shop = Store.getShop(visit.shopId) || {};
+    const photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
+    const post = clean({
+      id: visitId, uid: user.uid, username: prof.username,
+      displayName: prof.name || 'BITEMAP',
+      avatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
+      shopName: shop.name || '', shopId: visit.shopId,
+      rating: visit.rating || 0, genre: (visit.dishGenres || []).join('・'),
+      comment: visit.comment || '', photoUrl,
+      datetime: visit.datetime, createdAt: Date.now(),
+    });
+    await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
+  }
+
+  // フォロー中（＋自分）の投稿を新しい順に取得
+  async function fetchFeed() {
+    await ensureLoaded();
+    if (!user) return [];
+    const followSnap = await fb.fs.getDocs(fb.fs.collection(db, 'follows', user.uid, 'following'));
+    const uids = [user.uid]; followSnap.forEach(d => uids.push(d.data().uid));
+    const posts = [];
+    // Firestoreの in クエリは最大30件ずつ。orderByは付けずに取得しクライアントで並べ替え（索引不要）
+    for (let i = 0; i < uids.length; i += 30) {
+      const batch = uids.slice(i, i + 30);
+      const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch));
+      const snap = await fb.fs.getDocs(q);
+      snap.forEach(d => posts.push(d.data()));
+    }
+    posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return posts.slice(0, 60);
   }
 
   // ---------- 変更の随時ミラーリング（デバウンス） ----------
@@ -206,7 +248,14 @@ const Cloud = (() => {
   }
   async function applyOneToCloud({ kind, action, obj }) {
     if (kind === 'shop') return action === 'del' ? fb.fs.deleteDoc(dref('shops', obj.id)) : fb.fs.setDoc(dref('shops', obj.id), clean(obj));
-    if (kind === 'visit') return action === 'del' ? fb.fs.deleteDoc(dref('visits', obj.id)) : fb.fs.setDoc(dref('visits', obj.id), clean(obj));
+    if (kind === 'visit') {
+      if (action === 'del') {
+        await fb.fs.deleteDoc(dref('visits', obj.id)).catch(() => {});
+        await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', obj.id)).catch(() => {}); // フィード投稿も削除
+        return;
+      }
+      return fb.fs.setDoc(dref('visits', obj.id), clean(obj));
+    }
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
       if (action === 'del') {
@@ -373,5 +422,6 @@ const Cloud = (() => {
 
   return { init, login, logout, onStatus, getUser, isSupported,
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
-    searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles };
+    searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
+    fetchFeed };
 })();

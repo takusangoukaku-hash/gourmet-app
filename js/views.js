@@ -1504,6 +1504,51 @@ const Views = (() => {
     document.body.appendChild(ov);
   }
 
+  // ========== ホーム／フィード ==========
+  async function renderFeed() {
+    const box = $('#feed-list');
+    const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    if (!me) {
+      box.innerHTML = `<div class="empty"><p>ホームではフォロー中の人の投稿が見られます。<br>プロフィール画面からGoogleログインしてください。</p></div>`;
+      return;
+    }
+    box.innerHTML = `<div class="empty"><p>読み込み中…</p></div>`;
+    let posts = [];
+    try { posts = await Cloud.fetchFeed(); } catch (e) { posts = []; }
+    if (!posts.length) {
+      box.innerHTML = `<div class="empty">
+        <p>まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。</p>
+        <button class="btn primary" id="feed-search-btn">ユーザーを探す</button>
+      </div>`;
+      const b = $('#feed-search-btn');
+      if (b) b.addEventListener('click', () => { if (Cloud.getUser()) openUserSearch(); else App.toast('ログインが必要です'); });
+      return;
+    }
+    box.innerHTML = posts.map(postCard).join('');
+    box.querySelectorAll('.feed-author').forEach(el =>
+      el.addEventListener('click', () => showPublicProfile(el.dataset.u)));
+  }
+
+  function postCard(p) {
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const when = p.datetime ? fmtDate(p.datetime) : '';
+    return `<article class="feed-card">
+        <div class="feed-head">
+          <button type="button" class="feed-author" data-u="${esc(p.username)}">
+            <span class="fc-avatar">${av}</span>
+            <span class="fc-who"><b>${esc(p.displayName || 'BITEMAP')}</b><span class="fc-handle">@${esc(p.username)}</span></span>
+          </button>
+        </div>
+        ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy">` : ''}
+        <div class="feed-body">
+          <div class="feed-shop">${esc(p.shopName || '')} ${p.rating ? `<span class="feed-stars">${starStr(p.rating)}</span>` : ''}</div>
+          ${p.genre ? `<div class="feed-genre">${esc(p.genre)}</div>` : ''}
+          ${p.comment ? `<div class="feed-comment">${esc(p.comment)}</div>` : ''}
+          <div class="feed-date">${when}</div>
+        </div>
+      </article>`;
+  }
+
   // 他人の公開プロフィールを閲覧（?u=ハンドル、またはフォロー一覧などから）
   async function showPublicProfile(username) {
     const ov = document.createElement('div');
@@ -1665,5 +1710,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
+  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
 })();
