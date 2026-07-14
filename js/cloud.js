@@ -272,14 +272,15 @@ const Cloud = (() => {
     await ensureLoaded();
     if (!user) throw new Error('ログインが必要です');
     setStatus('syncing');
-    let up = 0, down = 0, fail = 0;
+    let up = 0, down = 0, fail = 0, error = null;
+    const noteErr = (e) => { if (!error) error = (e && (e.code || e.message)) || String(e); };
     const report = (phase, i, total) => { if (onProgress) { try { onProgress({ phase, i, total, up, down, fail }); } catch { /* noop */ } } };
     try {
       // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。各処理はタイムアウト付き
       const localPhotos = await Store.allPhotos();
       for (let i = 0; i < localPhotos.length; i++) {
         try { await withTimeout(uploadPhoto(localPhotos[i]), 25000, 'アップロード'); up++; }
-        catch (e) { fail++; console.warn('再アップロード失敗:', localPhotos[i].id, e); }
+        catch (e) { fail++; noteErr(e); console.warn('再アップロード失敗:', localPhotos[i].id, e); }
         report('upload', i + 1, localPhotos.length);
       }
       // クラウドにあってローカルに無い写真をダウンロード
@@ -293,13 +294,13 @@ const Cloud = (() => {
           const blob = await downloadPhotoBlob(m.path);
           await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), blob });
           down++;
-        } catch (e) { fail++; console.warn('ダウンロード失敗:', m.id, e); }
+        } catch (e) { fail++; noteErr(e); console.warn('ダウンロード失敗:', m.id, e); }
         report('download', i + 1, need.length);
       }
       setStatus('synced');
       App.refreshCurrent();
     } catch (e) { setStatus('error', e); throw e; }
-    return { up, down, fail };
+    return { up, down, fail, error };
   }
 
   // @ユーザー名から公開プロフィールを取得（未ログインでも閲覧可能）

@@ -933,7 +933,8 @@ const Views = (() => {
             const label = phase === 'upload' ? '↑' : '↓';
             btn.textContent = `${label}${i}/${total}…`;
           });
-          App.toast(`✅ 写真を再同期しました（↑${r.up} ↓${r.down}${r.fail ? ' / 失敗' + r.fail : ''}）`);
+          const detail = r.fail ? `／失敗${r.fail}${r.error ? '（' + r.error + '）' : ''}` : '';
+          App.toast(`写真同期: ↑${r.up} ↓${r.down} ${detail}`);
         } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
         btn.disabled = false; btn.textContent = '☁️ 写真を再同期';
       });
