@@ -14,6 +14,8 @@ const Views = (() => {
   // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
   const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
   const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
+  // お気に入りマーク（小さな塗りハート）: 絵文字⭐の置き換え
+  const IC_FAV = '<svg class="ic-fav" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
@@ -640,7 +642,7 @@ const Views = (() => {
     node.className = 'popup';
     node.innerHTML = `
         ${rep ? `<img src="${photoUrl(rep)}" alt="">` : ''}
-        <div class="p-name">${esc(s.name)}${s.favorite ? ' ⭐' : ''}</div>
+        <div class="p-name">${esc(s.name)}${s.favorite ? ' ' + IC_FAV : ''}</div>
         <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
         <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
         ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
@@ -1005,7 +1007,7 @@ const Views = (() => {
         $('#pf-login').textContent = 'ログイン中…';
         try { await Cloud.login(); }
         catch (e) {
-          $('#pf-login').textContent = '🔗 Googleでログインして同期';
+          $('#pf-login').textContent = 'Googleでログインして同期';
           App.toast('⚠️ ログインに失敗しました: ' + (e && e.message || e));
         }
       });
@@ -1022,10 +1024,10 @@ const Views = (() => {
           const detail = r.fail ? `／失敗${r.fail}${r.error ? '（' + r.error + '）' : ''}` : '';
           App.toast(`写真同期: ↑${r.up} ↓${r.down} ${detail}`);
         } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
-        btn.disabled = false; btn.textContent = '☁️ 写真を再同期';
+        btn.disabled = false; btn.textContent = '写真を再同期';
       });
       // 同期状態の表示更新
-      const SYNC_MSG = { loading: 'ログイン中…', syncing: '☁️ 同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
+      const SYNC_MSG = { loading: 'ログイン中…', syncing: '同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
       Cloud.onStatus((state, u, detail) => {
         const inNow = !!u;
         $('#pf-login').classList.toggle('hidden', inNow);
@@ -1240,11 +1242,11 @@ const Views = (() => {
 
     // ヘッダー
     const headHtml = editMode ? `
-      <div class="detail-head"><h2>✏️ 店舗情報の編集</h2>
-        <div class="d-sub">店名・住所などを変更して「💾 保存」を押してください。</div>
+      <div class="detail-head"><h2>${IC_EDIT} 店舗情報の編集</h2>
+        <div class="d-sub">店名・住所などを変更して「保存」を押してください。</div>
       </div>` : `
       <div class="detail-head">
-        <h2>${esc(s.name)} ${s.favorite ? '⭐' : ''}</h2>
+        <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
         <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
@@ -1287,14 +1289,14 @@ const Views = (() => {
 
     const actionsHtml = editMode ? `
       <div class="detail-actions">
-        <button class="btn primary" id="d-save-all">💾 保存</button>
+        <button class="btn primary" id="d-save-all">保存</button>
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
       <div class="detail-actions">
         ${s.lat != null && s.lon != null ? `<button class="btn small primary" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
         <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
         <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
-        <button class="btn small" id="d-fav">${s.favorite ? '⭐ お気に入り解除' : '☆ お気に入り登録'}</button>
+        <button class="btn small ${s.favorite ? 'on-fav' : ''}" id="d-fav">${IC_FAV} ${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}</button>
         <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
         <button class="btn small danger" id="d-delete">店舗を削除</button>
       </div>`;
@@ -1385,7 +1387,7 @@ const Views = (() => {
             <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
             <textarea rows="2" class="ve-comment" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
             <div class="v-btns">
-              <button type="button" class="btn small primary ve-save">💾 保存</button>
+              <button type="button" class="btn small primary ve-save">保存</button>
               <button type="button" class="btn small ve-cancel">キャンセル</button>
             </div>`;
           vbox.appendChild(block);
@@ -1724,7 +1726,7 @@ const Views = (() => {
           ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
           ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
           <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
-          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">🧭 ここへ行く</button>' : ''}
+          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">' + IC_NAV + ' ここへ行く</button>' : ''}
           <div class="pd-social">
             <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n pd-like-n">·</span></button>
             <span class="pd-cmt-label">${IC_COMMENT} コメント</span>

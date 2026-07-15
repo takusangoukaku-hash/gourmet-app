@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=110">
+<link rel="stylesheet" href="css/style.css?v=111">
 </head>
 <body>
 
@@ -44,7 +44,7 @@
   <!-- 写真は＋ボタンのカメラ／写真から選択で取得。入力欄はプログラムから使う -->
   <input type="file" id="photo-input" accept="image/*" multiple hidden>
   <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
-  <button type="button" id="drafts-btn" class="drafts-banner hidden">🕓 下書き <b id="drafts-count">0</b> 件 — タップして記録を完成</button>
+  <button type="button" id="drafts-btn" class="drafts-banner hidden"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 下書き <b id="drafts-count">0</b> 件 — タップして記録を完成</button>
   <div class="card" id="record-card">
     <div id="dup-status" class="exif-status warn hidden"></div>
     <div id="exif-status" class="exif-status hidden"></div>
@@ -104,7 +104,7 @@
       </div>
     </div>
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
-    <button type="button" id="save-later-btn" class="btn full save-later hidden">🕓 あとで記録（写真だけ保存）</button>
+    <button type="button" id="save-later-btn" class="btn full save-later hidden">あとで記録（写真だけ保存）</button>
   </div>
 </section>
 
@@ -135,7 +135,7 @@
       <div class="map-toolbar">
         <button id="map-locate" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg> 現在地</button>
         <button id="map-nearby" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg> 近い順</button>
-        <button id="map-heat" class="btn small">🔥 ヒートマップ</button>
+        <button id="map-heat" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3 4 4.5 4 8a4 4 0 0 1-8 0c0-1 .4-2 1-2.7 0 1.2.8 2 1.7 2 .8 0 1.3-.6 1.3-1.5C12 6.5 10.5 5 12 3z"/></svg> ヒートマップ</button>
         <button id="map-panel-close" class="btn small map-close">✕ 閉じる</button>
       </div>
       <div id="map-genre-filter" class="map-filter"></div>
@@ -215,7 +215,7 @@
         <option value="5">味★5</option><option value="4">味★4以上</option>
         <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
       </select>
-      <label class="check"><input type="checkbox" id="flt-fav"> ⭐のみ</label>
+      <label class="check"><input type="checkbox" id="flt-fav"> <svg class="ic" viewBox="0 0 24 24" fill="currentColor" style="color:var(--accent)"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg> お気に入りのみ</label>
     </div>
     <div class="filter-row">
       <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
@@ -294,7 +294,7 @@
     <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
     <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
     <div class="card">
-      <h2>🏆 ランキング</h2>
+      <h2><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M10 14h4M9 20h6M12 14v6"/></svg> ランキング</h2>
       <div class="rank-grid">
         <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
         <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
@@ -347,10 +347,10 @@
     <h2>設定とアクティビティ</h2>
     <div id="settings-account" class="settings-account"></div>
     <div id="pf-account" class="pf-account">
-      <button id="pf-login" class="btn small">🔗 Googleでログインして同期</button>
+      <button id="pf-login" class="btn small">Googleでログインして同期</button>
       <div id="pf-account-in" class="hidden">
         <span id="pf-sync" class="pf-sync">同期中…</span>
-        <button id="pf-resync" class="btn small">☁️ 写真を再同期</button>
+        <button id="pf-resync" class="btn small">写真を再同期</button>
         <button id="pf-logout" class="btn small">ログアウト</button>
       </div>
     </div>
@@ -417,11 +417,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=110"></script>
-<script src="js/api.js?v=110"></script>
-<script src="js/cloud.js?v=110"></script>
-<script src="js/register.js?v=110"></script>
-<script src="js/views.js?v=110"></script>
-<script src="js/app.js?v=110"></script>
+<script src="js/store.js?v=111"></script>
+<script src="js/api.js?v=111"></script>
+<script src="js/cloud.js?v=111"></script>
+<script src="js/register.js?v=111"></script>
+<script src="js/views.js?v=111"></script>
+<script src="js/app.js?v=111"></script>
 </body>
 </html>

@@ -161,7 +161,7 @@ const Register = (() => {
     } catch (e) {
       console.error(e); App.toast('⚠️ 下書きの保存に失敗しました');
     } finally {
-      btn.disabled = false; btn.textContent = '🕓 あとで記録（写真だけ保存）';
+      btn.disabled = false; btn.textContent = 'あとで記録（写真だけ保存）';
     }
   }
 

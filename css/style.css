@@ -444,6 +444,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .search-field input { padding-left: 38px; }
 /* テキスト内に置く白黒ピクトグラム（駅・住所・地図・検索など） */
 .ic { width: 14px; height: 14px; vertical-align: -2px; stroke-width: 2; flex-shrink: 0; }
+.ic-fav { width: 15px; height: 15px; vertical-align: -2px; color: var(--accent); flex-shrink: 0; }
+.btn.on-fav { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .btn .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 2px; }
 /* 地図上の検索バーもピクトグラム付きに */
 .map-search-field .search-ico { stroke: var(--muted); }
