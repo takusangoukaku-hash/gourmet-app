@@ -1048,7 +1048,6 @@ const Views = (() => {
       $('#pf-login').disabled = true;
     }
 
-    $('#pf-map').addEventListener('click', () => App.switchTab('map'));
     $('#pf-share').addEventListener('click', () => openShareProfile());
     $('#pf-edit').addEventListener('click', () => {
       const p = Store.getProfile();

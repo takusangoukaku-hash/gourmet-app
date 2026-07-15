@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=106">
+<link rel="stylesheet" href="css/style.css?v=107">
 </head>
 <body>
 
@@ -239,14 +239,6 @@
 <!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
 <section id="view-profile" class="view">
   <div class="card frameless">
-    <div id="pf-account" class="pf-account">
-      <button id="pf-login" class="btn small">🔗 Googleでログインして同期</button>
-      <div id="pf-account-in" class="hidden">
-        <span id="pf-sync" class="pf-sync">同期中…</span>
-        <button id="pf-resync" class="btn small">☁️ 写真を再同期</button>
-        <button id="pf-logout" class="btn small">ログアウト</button>
-      </div>
-    </div>
     <div class="profile-head">
       <button type="button" class="avatar-ring" id="pf-avatar-btn" title="プロフィール写真を変更">
         <div class="avatar" id="pf-avatar">🍜</div>
@@ -264,9 +256,7 @@
     <div class="profile-bio" id="pf-bio"></div>
     <div class="profile-actions">
       <button id="pf-share" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 共有</button>
-      <button id="pf-search" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> 探す</button>
       <button id="pf-edit" class="btn small">プロフィールを編集</button>
-      <button id="pf-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図を見る</button>
     </div>
     <div id="pf-edit-form" class="pf-edit-form hidden">
       <label>名前
@@ -356,6 +346,15 @@
     <button class="modal-close" data-close>✕</button>
     <h2>設定とアクティビティ</h2>
     <div id="settings-account" class="settings-account"></div>
+    <div id="pf-account" class="pf-account">
+      <button id="pf-login" class="btn small">🔗 Googleでログインして同期</button>
+      <div id="pf-account-in" class="hidden">
+        <span id="pf-sync" class="pf-sync">同期中…</span>
+        <button id="pf-resync" class="btn small">☁️ 写真を再同期</button>
+        <button id="pf-logout" class="btn small">ログアウト</button>
+      </div>
+    </div>
+    <button id="pf-search" class="btn small full"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> ユーザーを探す</button>
     <h3>AIによる料理ジャンル判定</h3>
     <p class="hint">
       Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、
@@ -418,11 +417,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=106"></script>
-<script src="js/api.js?v=106"></script>
-<script src="js/cloud.js?v=106"></script>
-<script src="js/register.js?v=106"></script>
-<script src="js/views.js?v=106"></script>
-<script src="js/app.js?v=106"></script>
+<script src="js/store.js?v=107"></script>
+<script src="js/api.js?v=107"></script>
+<script src="js/cloud.js?v=107"></script>
+<script src="js/register.js?v=107"></script>
+<script src="js/views.js?v=107"></script>
+<script src="js/app.js?v=107"></script>
 </body>
 </html>
