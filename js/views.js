@@ -215,8 +215,8 @@ const Views = (() => {
   }
 
   // 味の評価(0〜5)→ピンの色（凡例のr1〜r5と同じ）
-  // 評価が高いほど濃い暖色（淡いゴールド→濃い赤）。[0]=評価なし
-  const PIN_COLORS = ['#c9b79c', '#e3b978', '#e79f4a', '#e6842f', '#db6029', '#cc3a2b'];
+  // 評価が高いほど濃い暖色（黄→橙→赤→濃赤）。段差を大きくして区別しやすく。[0]=評価なし
+  const PIN_COLORS = ['#c9b79c', '#f7d154', '#f39a2e', '#e8642a', '#cc2f2a', '#8b1a2a'];
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];

@@ -17,8 +17,8 @@
   --star: #ffb400;
   /* 見出し用の明朝体（グルメ雑誌風の上質感）: 色はそのまま、書体だけ上質に */
   --serif: 'Shippori Mincho', 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
-  /* 評価が高いほど濃い暖色の1系統（地図ピン・凡例で共通） */
-  --r1: #e3b978; --r2: #e79f4a; --r3: #e6842f; --r4: #db6029; --r5: #cc3a2b;
+  /* 評価が高いほど濃い暖色（黄→橙→赤→濃赤）。段差を大きくして区別しやすく */
+  --r1: #f7d154; --r2: #f39a2e; --r3: #e8642a; --r4: #cc2f2a; --r5: #8b1a2a;
 }
 
 * { box-sizing: border-box; }
