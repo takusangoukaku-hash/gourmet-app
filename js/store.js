@@ -44,12 +44,17 @@ const Store = (() => {
   function db() {
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open('gourmet-photos', 1);
+        const req = indexedDB.open('gourmet-photos', 2); // v2: 下書き(drafts)ストアを追加
         req.onupgradeneeded = () => {
           const d = req.result;
-          const os = d.createObjectStore('photos', { keyPath: 'id' });
-          os.createIndex('visitId', 'visitId');
-          os.createIndex('shopId', 'shopId');
+          if (!d.objectStoreNames.contains('photos')) {
+            const os = d.createObjectStore('photos', { keyPath: 'id' });
+            os.createIndex('visitId', 'visitId');
+            os.createIndex('shopId', 'shopId');
+          }
+          if (!d.objectStoreNames.contains('drafts')) {
+            d.createObjectStore('drafts', { keyPath: 'id' }); // 「あとで記録」の下書き（端末内のみ）
+          }
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -87,6 +92,45 @@ const Store = (() => {
       tx.onerror = () => reject(tx.error);
     });
   }
+  // ---------- 下書き（「あとで記録」: 端末内のみ・クラウド非同期） ----------
+  // draft = { id, createdAt, datetime, lat, lon, address, station, photos:[{blob, hash}] }
+  async function addDraft(data) {
+    const rec = Object.assign({ id: uid(), createdAt: Date.now() }, data);
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const tx = d.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').put(rec);
+      tx.oncomplete = () => resolve(rec.id);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function getDrafts() {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('drafts').objectStore('drafts').getAll();
+      req.onsuccess = () => resolve((req.result || []).sort((a, b) => b.createdAt - a.createdAt));
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function getDraft(id) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('drafts').objectStore('drafts').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function deleteDraft(id) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const tx = d.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function draftCount() { return (await getDrafts()).length; }
+
   async function photoIds() {
     const d = await db();
     return new Promise((resolve, reject) => {
@@ -273,6 +317,7 @@ const Store = (() => {
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash,
+    addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     // クラウド同期用
     setSyncHook, applyRemote, putPhotoRaw, photoIds,

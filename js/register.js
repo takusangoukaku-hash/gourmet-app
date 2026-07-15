@@ -31,6 +31,8 @@ const Register = (() => {
   let autoPicked = false;
   // 直近に解析した写真のGPS（名前検索の基準位置に使う）
   let lastGps = null;
+  // 編集中の下書きID（下書きから記録を完成させると、保存後に削除する）
+  let activeDraftId = null;
   // 検索の世代番号（古い検索の遅延結果で新しい結果を上書きしないため）
   let searchSeq = 0;
   // 予測検索の状態（入力が止まったら自動で候補を出す）
@@ -117,6 +119,112 @@ const Register = (() => {
     visitDate = toLocalInput(new Date());
 
     $('#save-btn').addEventListener('click', save);
+    // 「あとで記録」: 写真だけ下書き保存 ／ 下書き一覧を開く
+    $('#save-later-btn').addEventListener('click', saveLater);
+    $('#drafts-btn').addEventListener('click', openDrafts);
+    refreshDraftsBanner();
+  }
+
+  // ---------- あとで記録（下書き） ----------
+  // 下書き件数バナーの更新（登録画面上部）
+  async function refreshDraftsBanner() {
+    try {
+      const n = await Store.draftCount();
+      $('#drafts-count').textContent = n;
+      $('#drafts-btn').classList.toggle('hidden', !n);
+    } catch { /* noop */ }
+  }
+
+  // いまの写真を評価なしで下書き保存（食事中はサッと撮るだけ）
+  async function saveLater() {
+    if (!pendingPhotos.length) { App.toast('先に写真を撮ってください'); return; }
+    const btn = $('#save-later-btn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    try {
+      const photos = [];
+      for (const p of pendingPhotos) {
+        const blob = await Api.compressImage(p.file); // 端末容量のため圧縮して保存
+        photos.push({ blob, hash: p.hash || '' });
+      }
+      await Store.addDraft({
+        datetime: (visitDate || toLocalInput(new Date())),
+        lat: lastGps ? lastGps.lat : null,
+        lon: lastGps ? lastGps.lon : null,
+        address: $('#f-address').value.trim(),
+        station: $('#f-station').value.trim(),
+        photos,
+      });
+      App.toast('🕓 下書きに保存しました。あとで評価を入力して完成できます');
+      resetForm();
+      await refreshDraftsBanner();
+      App.switchTab('profile');
+    } catch (e) {
+      console.error(e); App.toast('⚠️ 下書きの保存に失敗しました');
+    } finally {
+      btn.disabled = false; btn.textContent = '🕓 あとで記録（写真だけ保存）';
+    }
+  }
+
+  // 下書き一覧モーダル
+  async function openDrafts() {
+    const drafts = await Store.getDrafts();
+    const ov = document.createElement('div');
+    ov.className = 'modal drafts-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <button type="button" class="modal-close dr-close" aria-label="閉じる">✕</button>
+        <h2 class="vl-title">下書き（あとで記録）</h2>
+        <div class="dr-body"></div>
+      </div>`;
+    const body = ov.querySelector('.dr-body');
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.dr-close').addEventListener('click', close);
+    if (!drafts.length) {
+      body.innerHTML = '<div class="empty"><p>下書きはありません。</p></div>';
+    } else {
+      body.innerHTML = drafts.map(d => {
+        const url = d.photos && d.photos[0] ? URL.createObjectURL(d.photos[0].blob) : '';
+        const when = d.datetime ? new Date(d.datetime).toLocaleDateString('ja-JP') : '';
+        return `<div class="draft-row" data-id="${d.id}">
+            <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : '🍽️'}</div>
+            <div class="draft-main">
+              <div class="draft-when">${when}${(d.photos || []).length > 1 ? '　写真' + d.photos.length + '枚' : ''}</div>
+              <div class="draft-sub">${d.station ? esc(d.station) + '　' : ''}評価はまだ未入力</div>
+            </div>
+            <button type="button" class="btn small primary dr-do" data-id="${d.id}">記録する</button>
+            <button type="button" class="btn small danger dr-del" data-id="${d.id}">削除</button>
+          </div>`;
+      }).join('');
+      body.querySelectorAll('.dr-do').forEach(b => b.addEventListener('click', () => { close(); loadDraft(b.dataset.id); }));
+      body.querySelectorAll('.dr-del').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('この下書きを削除しますか？')) return;
+        await Store.deleteDraft(b.dataset.id);
+        await refreshDraftsBanner();
+        close(); openDrafts();
+      }));
+    }
+    document.body.appendChild(ov);
+  }
+
+  // 下書きを読み込んで記録画面へ（保存すると下書きは削除される）
+  async function loadDraft(id) {
+    const d = await Store.getDraft(id);
+    if (!d) { App.toast('下書きが見つかりません'); return; }
+    resetForm();
+    activeDraftId = id;
+    for (const ph of (d.photos || [])) {
+      const file = new File([ph.blob], 'draft.jpg', { type: 'image/jpeg' });
+      pendingPhotos.push({ file, url: URL.createObjectURL(ph.blob), type: 'dish', hash: ph.hash || '' });
+    }
+    visitDate = d.datetime || toLocalInput(new Date());
+    if (d.lat != null && d.lon != null) lastGps = { lat: d.lat, lon: d.lon };
+    if (d.address) $('#f-address').value = d.address;
+    if (d.station) $('#f-station').value = d.station;
+    renderPreviews();
+    App.switchTab('register');
+    window.scrollTo({ top: 0 });
+    // 位置情報があれば周辺の店舗候補を出す（入力の手間を減らす）
+    if (lastGps) loadCandidates(lastGps.lat, lastGps.lon).catch(() => {});
   }
 
   // お気に入りハート（店名右）の表示を #f-fav の状態に合わせる
@@ -248,6 +356,8 @@ const Register = (() => {
       });
       box.appendChild(div);
     });
+    // 写真があるときだけ「あとで記録」を表示
+    $('#save-later-btn').classList.toggle('hidden', !pendingPhotos.length);
   }
 
   async function analyzeExif() {
@@ -664,6 +774,9 @@ const Register = (() => {
         await Store.addPhoto(shop.id, visit.id, p.type, blob, p.hash);
       }
 
+      // 下書きから完成させた場合は、その下書きを削除
+      if (activeDraftId) { await Store.deleteDraft(activeDraftId).catch(() => {}); activeDraftId = null; refreshDraftsBanner(); }
+
       App.toast(`✅ 「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
       resetForm();
       App.switchTab('list');
@@ -678,6 +791,7 @@ const Register = (() => {
   function resetForm() {
     pendingPhotos.forEach(p => URL.revokeObjectURL(p.url));
     pendingPhotos = [];
+    activeDraftId = null;
     selected = null;
     currentRating = 0;
     aiClassified = false;
