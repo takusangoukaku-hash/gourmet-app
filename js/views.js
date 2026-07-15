@@ -16,6 +16,18 @@ const Views = (() => {
   const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
   // お気に入りマーク（小さな塗りハート）: 絵文字⭐の置き換え
   const IC_FAV = '<svg class="ic-fav" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
+
+  // 空状態・スケルトン（読み込み中の仮枠）の共通部品
+  const emptyBox = (icon, msg, extra) => `<div class="empty">${icon ? `<div class="empty-ic">${icon}</div>` : ''}<p>${msg}</p>${extra || ''}</div>`;
+  const BIG = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  const EMPTY_IC_PEOPLE = BIG('<circle cx="9" cy="8" r="3.4"/><path d="M2.6 20c0-3.4 2.9-5.5 6.4-5.5s6.4 2.1 6.4 5.5"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4"/><path d="M18 14.9c2.6.5 4.5 2.4 4.5 5.1"/>');
+  const EMPTY_IC_PHOTO = BIG('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="m3 17 5-4 4 3 4-3 5 4"/>');
+  const EMPTY_IC_FORK = BIG('<path d="M6 3v7a2 2 0 0 0 4 0V3M8 10v11"/><path d="M16 3c-1.5 0-2.5 2-2.5 4.5S15 12 16 12v9"/>');
+  const SKEL_FEED = (() => {
+    const card = '<div class="skel-card"><div class="skel-head"><div class="skeleton skel-avatar"></div><div class="skeleton skel-line" style="width:38%"></div></div><div class="skeleton skel-photo"></div><div class="skel-body"><div class="skeleton skel-line" style="width:28%;margin-bottom:8px"></div><div class="skeleton skel-line" style="width:62%"></div></div></div>';
+    return card + card;
+  })();
+  const SKEL_GRID = '<div class="skel-grid">' + Array(9).fill('<div class="skeleton"></div>').join('') + '</div>';
   const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
@@ -840,15 +852,14 @@ const Views = (() => {
     const shops = sortShops(filteredShops());
 
     if (!Store.shops().length) {
-      box.innerHTML = `<div class="empty">
-        <p>まだ記録がありません。<br>「＋ 登録」から料理の写真を登録してみましょう。</p>
-        <button class="btn primary" id="seed-btn">サンプルデータで試す</button>
-      </div>`;
+      box.innerHTML = emptyBox(EMPTY_IC_FORK,
+        'まだ記録がありません。<br>「＋」から料理の写真を登録してみましょう。',
+        '<button class="btn primary" id="seed-btn">サンプルデータで試す</button>');
       $('#seed-btn').addEventListener('click', () => App.seedSample());
       return;
     }
     if (!shops.length) {
-      box.innerHTML = '<div class="empty"><p>条件に一致する店舗がありません。</p></div>';
+      box.innerHTML = emptyBox(EMPTY_IC_FORK, '条件に一致する店舗がありません。');
       return;
     }
 
@@ -918,6 +929,7 @@ const Views = (() => {
     const box = $('#photo-grid');
     const type = ''; // 種別フィルタは廃止（すべての写真を表示）
     const dg = $('#ph-dish-genre').value;
+    box.innerHTML = SKEL_GRID;
     let photos = await Store.allPhotos();
     // 味の評価が高い順。同点は 雰囲気→カジュアル度→提供の早さ の順に星の高い方を上へ
     const vById = new Map(Store.visits().map(v => [v.id, v]));
@@ -940,7 +952,7 @@ const Views = (() => {
       cells.push({ p, shop, visit });
     }
     if (!cells.length) {
-      box.innerHTML = '<div class="empty"><p>写真がありません。</p></div>';
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '写真がありません。');
       return;
     }
     box.innerHTML = '';
@@ -1087,6 +1099,7 @@ const Views = (() => {
   // プロフィールの写真グリッド（全写真・撮影日の新しい順・タップで拡大）
   async function renderProfilePhotos() {
     const box = $('#pf-photo-grid');
+    box.innerHTML = SKEL_GRID;
     const photos = await Store.allPhotos();
     // 撮影日（訪問日）の新しい順。日付が無ければ登録順で補完
     const vById = new Map(Store.visits().map(v => [v.id, v]));
@@ -1096,11 +1109,11 @@ const Views = (() => {
       return t || p.createdAt || 0;
     };
     photos.sort((a, b) => shotTime(b) - shotTime(a) || b.createdAt - a.createdAt);
-    box.innerHTML = '';
     if (!photos.length) {
-      box.innerHTML = '<div class="empty"><p>まだ写真がありません。＋から最初の一皿を記録しましょう。</p></div>';
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
+    box.innerHTML = '';
     for (const ph of photos) {
       const shop = Store.getShop(ph.shopId);
       const visit = Store.visits().find(v => v.id === ph.visitId);
@@ -1598,16 +1611,15 @@ const Views = (() => {
     if (!force && feedCache && (Date.now() - feedCache.time < FEED_TTL)) {
       posts = feedCache.posts;
     } else {
-      box.innerHTML = `<div class="empty"><p>読み込み中…</p></div>`;
+      box.innerHTML = SKEL_FEED;
       try { posts = await Cloud.fetchFeed(); } catch (e) { posts = []; }
       feedCache = { posts, time: Date.now() };
       feedStats.clear(); // 取り直したら数値キャッシュも作り直す
     }
     if (!posts.length) {
-      box.innerHTML = `<div class="empty">
-        <p>まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。</p>
-        <button class="btn primary" id="feed-search-btn">ユーザーを探す</button>
-      </div>`;
+      box.innerHTML = emptyBox(EMPTY_IC_PEOPLE,
+        'まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。',
+        '<button class="btn primary" id="feed-search-btn">ユーザーを探す</button>');
       const b = $('#feed-search-btn');
       if (b) b.addEventListener('click', () => { if (Cloud.getUser()) openUserSearch(); else App.toast('ログインが必要です'); });
       return;

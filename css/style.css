@@ -486,9 +486,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .shop-card .s-fav.on .heart-ic { fill: currentColor; }
 
 .empty {
-  text-align: center; color: var(--muted); padding: 40px 16px;
+  text-align: center; color: var(--muted); padding: 44px 20px;
 }
-.empty .btn { margin-top: 12px; }
+.empty .btn { margin-top: 14px; }
+.empty p { line-height: 1.7; margin: 0; }
+.empty-ic { display: inline-flex; margin-bottom: 12px; color: var(--border); }
+.empty-ic svg { width: 52px; height: 52px; stroke-width: 1.5; }
+
+/* スケルトン（読み込み中のプレースホルダ） */
+@keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.skeleton { background: linear-gradient(90deg, var(--field) 25%, #ededed 37%, var(--field) 63%); background-size: 200% 100%; animation: skel 1.4s ease-in-out infinite; border-radius: 8px; }
+.skel-card { max-width: 560px; margin: 0 auto; border-bottom: 1px solid var(--border-lite); padding-bottom: 14px; margin-bottom: 6px; }
+.skel-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.skel-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.skel-line { height: 12px; border-radius: 6px; }
+.skel-photo { width: 100%; aspect-ratio: 1 / 1; }
+.skel-body { padding: 10px 12px; }
+.skel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.skel-grid .skeleton { aspect-ratio: 1 / 1; border-radius: 0; }
+.skel-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.skel-thumb { width: 86px; height: 86px; border-radius: 12px; flex-shrink: 0; }
 
 /* ---------- 写真（インスタ風: 正方形3列グリッド） ---------- */
 .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
