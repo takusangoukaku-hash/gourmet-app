@@ -1579,17 +1579,28 @@ const Views = (() => {
   }
 
   // ========== ホーム／フィード ==========
-  const feedPosts = new Map(); // id → 投稿データ（詳細表示用）
-  async function renderFeed() {
+  const feedPosts = new Map();     // id → 投稿データ（詳細表示用）
+  let feedCache = null;            // { posts, time }：短時間の再表示は再取得しない
+  const feedStats = new Map();     // id → { likes, liked, comments }（いいね/コメント数のキャッシュ）
+  const FEED_TTL = 45000;          // キャッシュ有効時間（ミリ秒）
+
+  async function renderFeed(force) {
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     if (!me) {
       box.innerHTML = `<div class="empty"><p>ホームではフォロー中の人の投稿が見られます。<br>プロフィール画面からGoogleログインしてください。</p></div>`;
       return;
     }
-    box.innerHTML = `<div class="empty"><p>読み込み中…</p></div>`;
-    let posts = [];
-    try { posts = await Cloud.fetchFeed(); } catch (e) { posts = []; }
+    // 直近に取得済みなら再取得せず即描画（ホームを開くたびの通信を減らす）
+    let posts;
+    if (!force && feedCache && (Date.now() - feedCache.time < FEED_TTL)) {
+      posts = feedCache.posts;
+    } else {
+      box.innerHTML = `<div class="empty"><p>読み込み中…</p></div>`;
+      try { posts = await Cloud.fetchFeed(); } catch (e) { posts = []; }
+      feedCache = { posts, time: Date.now() };
+      feedStats.clear(); // 取り直したら数値キャッシュも作り直す
+    }
     if (!posts.length) {
       box.innerHTML = `<div class="empty">
         <p>まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。</p>
@@ -1604,26 +1615,30 @@ const Views = (() => {
     box.innerHTML = `<div class="feed-top"><button type="button" class="btn small feed-reload">↻ 更新</button></div>`
       + posts.map(postCard).join('');
     const rl = box.querySelector('.feed-reload');
-    if (rl) rl.addEventListener('click', () => renderFeed());
-    // 投稿タップ → 詳細表示（作者・いいねボタンは除く）
+    if (rl) rl.addEventListener('click', () => renderFeed(true)); // 更新は強制再取得
+    const applyStats = (card, s) => {
+      const lb = card.querySelector('.fa-like');
+      if (lb) { lb.querySelector('.fa-like-n').textContent = s.likes; lb.classList.toggle('liked', s.liked); }
+      const cel = card.querySelector('.fa-cmt-n'); if (cel) cel.textContent = s.comments;
+    };
     box.querySelectorAll('.feed-card').forEach(card => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('.feed-author') || e.target.closest('.fa-like')) return;
         const p = feedPosts.get(card.dataset.post);
         if (p) showPostDetail(p);
       });
-      // いいね数・コメント数を非同期で読み込み
       const id = card.dataset.post;
-      Cloud.getLikeInfo(id).then(info => {
-        const lb = card.querySelector('.fa-like'); if (!lb) return;
-        lb.querySelector('.fa-like-n').textContent = info.count;
-        lb.classList.toggle('liked', info.liked);
-      }).catch(() => {});
-      Cloud.commentCount(id).then(n => { const el = card.querySelector('.fa-cmt-n'); if (el) el.textContent = n; }).catch(() => {});
+      const cached = feedStats.get(id);
+      if (cached) { applyStats(card, cached); } // キャッシュがあれば通信しない
+      else {
+        Promise.all([Cloud.getLikeInfo(id), Cloud.commentCount(id)]).then(([info, cn]) => {
+          const s = { likes: info.count, liked: info.liked, comments: cn };
+          feedStats.set(id, s); applyStats(card, s);
+        }).catch(() => {});
+      }
     });
     box.querySelectorAll('.feed-author').forEach(el =>
       el.addEventListener('click', (e) => { e.stopPropagation(); showPublicProfile(el.dataset.u); }));
-    // いいねボタン
     box.querySelectorAll('.fa-like').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); toggleLikeUI(btn); }));
   }
 
@@ -1635,10 +1650,13 @@ const Views = (() => {
     const wasLiked = btn.classList.contains('liked');
     btn.classList.toggle('liked', !wasLiked);
     nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? -1 : 1));
+    const s = feedStats.get(id); // キャッシュも更新して整合を保つ
+    if (s) { s.liked = !wasLiked; s.likes = Math.max(0, s.likes + (wasLiked ? -1 : 1)); }
     try { await Cloud.toggleLike(id); }
     catch (err) {
       btn.classList.toggle('liked', wasLiked);
       nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? 1 : -1));
+      if (s) { s.liked = wasLiked; s.likes = Math.max(0, s.likes + (wasLiked ? 1 : -1)); }
       App.toast('⚠️ ' + (err && err.message || err));
     }
   }
@@ -1657,7 +1675,7 @@ const Views = (() => {
           </button>
           <span class="feed-date">${when}</span>
         </div>
-        ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy">` : ''}
+        ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">` : ''}
         <div class="feed-actions">
           <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
           <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>

@@ -19,6 +19,7 @@ const Cloud = (() => {
 
   let fb = null, auth = null, db = null, storage = null, user = null;
   let ready = null;
+  let postsPublishedThisSession = false; // 投稿化(publishAllPosts)は1セッション1回に制限
   let status = 'signedout'; // signedout | loading | syncing | synced | error
   const statusCbs = [];
   function setStatus(s, detail) { status = s; statusCbs.forEach(cb => { try { cb(s, user, detail); } catch { /* noop */ } }); }
@@ -59,7 +60,11 @@ const Cloud = (() => {
             App.refreshCurrent();
             // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
             syncPhotos()
-              .then(() => { App.refreshCurrent(); return publishAllPosts(); }) // 写真つき記録をフィードへ
+              .then(() => {
+                App.refreshCurrent();
+                // 投稿化は負荷が高いので1セッション1回だけ
+                if (!postsPublishedThisSession) { postsPublishedThisSession = true; return publishAllPosts(); }
+              })
               .catch(e => console.warn('写真同期に失敗:', e));
           } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
