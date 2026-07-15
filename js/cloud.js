@@ -216,6 +216,55 @@ const Cloud = (() => {
     await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
   }
 
+  // ---------- SNS: いいね・コメント（フィード投稿への反応） ----------
+  //  publicPosts/{postId}/likes/{uid}      : いいね（本人のみ作成/削除）
+  //  publicPosts/{postId}/comments/{cid}   : コメント（誰でも作成、本人のみ削除）
+  async function getLikeInfo(postId) {
+    await ensureLoaded();
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, 'publicPosts', postId, 'likes'));
+    const liked = user ? snap.docs.some(d => d.id === user.uid) : false;
+    return { count: snap.size, liked };
+  }
+  async function toggleLike(postId) {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    const ref = fb.fs.doc(db, 'publicPosts', postId, 'likes', user.uid);
+    const snap = await fb.fs.getDoc(ref);
+    if (snap.exists()) { await fb.fs.deleteDoc(ref); return false; }
+    await fb.fs.setDoc(ref, { uid: user.uid, createdAt: Date.now() });
+    return true;
+  }
+  async function getComments(postId) {
+    await ensureLoaded();
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, 'publicPosts', postId, 'comments'));
+    const arr = []; snap.forEach(d => arr.push(Object.assign({ cid: d.id }, d.data())));
+    arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    return arr;
+  }
+  async function commentCount(postId) {
+    await ensureLoaded();
+    const snap = await fb.fs.getDocs(fb.fs.collection(db, 'publicPosts', postId, 'comments'));
+    return snap.size;
+  }
+  async function addComment(postId, text) {
+    await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    const t = String(text || '').trim();
+    if (!t) return;
+    const prof = Store.getProfile();
+    const ref = fb.fs.doc(fb.fs.collection(db, 'publicPosts', postId, 'comments'));
+    await fb.fs.setDoc(ref, clean({
+      uid: user.uid, username: prof.username || '', displayName: prof.name || 'BITEMAP',
+      avatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
+      text: t, createdAt: Date.now(),
+    }));
+  }
+  async function deleteComment(postId, cid) {
+    await ensureLoaded();
+    if (!user) return;
+    await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', postId, 'comments', cid)).catch(() => {});
+  }
+
   // ---------- SNS: 通知（フォローされたお知らせ） ----------
   async function fetchNotifications() {
     await ensureLoaded();
@@ -503,5 +552,6 @@ const Cloud = (() => {
   return { init, login, logout, onStatus, getUser, isSupported,
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
-    fetchFeed, fetchNetworkPosts, fetchNotifications, unreadNotifCount, markNotificationsRead };
+    fetchFeed, fetchNetworkPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
+    getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment };
 })();

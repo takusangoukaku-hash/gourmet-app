@@ -13,6 +13,7 @@ const Views = (() => {
   const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
   const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
+  const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
   const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
@@ -1604,16 +1605,42 @@ const Views = (() => {
       + posts.map(postCard).join('');
     const rl = box.querySelector('.feed-reload');
     if (rl) rl.addEventListener('click', () => renderFeed());
-    // 投稿タップ → 詳細表示（作者アイコン/名前タップはプロフィールへ）
+    // 投稿タップ → 詳細表示（作者・いいねボタンは除く）
     box.querySelectorAll('.feed-card').forEach(card => {
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.feed-author')) return;
+        if (e.target.closest('.feed-author') || e.target.closest('.fa-like')) return;
         const p = feedPosts.get(card.dataset.post);
         if (p) showPostDetail(p);
       });
+      // いいね数・コメント数を非同期で読み込み
+      const id = card.dataset.post;
+      Cloud.getLikeInfo(id).then(info => {
+        const lb = card.querySelector('.fa-like'); if (!lb) return;
+        lb.querySelector('.fa-like-n').textContent = info.count;
+        lb.classList.toggle('liked', info.liked);
+      }).catch(() => {});
+      Cloud.commentCount(id).then(n => { const el = card.querySelector('.fa-cmt-n'); if (el) el.textContent = n; }).catch(() => {});
     });
     box.querySelectorAll('.feed-author').forEach(el =>
       el.addEventListener('click', (e) => { e.stopPropagation(); showPublicProfile(el.dataset.u); }));
+    // いいねボタン
+    box.querySelectorAll('.fa-like').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); toggleLikeUI(btn); }));
+  }
+
+  // いいねのトグル（楽観的更新。失敗したら元に戻す）
+  async function toggleLikeUI(btn) {
+    const id = btn.dataset.post;
+    if (typeof Cloud === 'undefined' || !Cloud.getUser()) { App.toast('いいねするにはログインが必要です'); return; }
+    const nEl = btn.querySelector('.fa-like-n');
+    const wasLiked = btn.classList.contains('liked');
+    btn.classList.toggle('liked', !wasLiked);
+    nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? -1 : 1));
+    try { await Cloud.toggleLike(id); }
+    catch (err) {
+      btn.classList.toggle('liked', wasLiked);
+      nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? 1 : -1));
+      App.toast('⚠️ ' + (err && err.message || err));
+    }
   }
 
   function postCard(p) {
@@ -1631,6 +1658,10 @@ const Views = (() => {
           <span class="feed-date">${when}</span>
         </div>
         ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy">` : ''}
+        <div class="feed-actions">
+          <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
+          <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>
+        </div>
         <div class="feed-body">
           ${stars}
           <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
@@ -1666,6 +1697,15 @@ const Views = (() => {
           ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
           <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
           ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">🧭 ここへ行く</button>' : ''}
+          <div class="pd-social">
+            <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n pd-like-n">·</span></button>
+            <span class="pd-cmt-label">${IC_COMMENT} コメント</span>
+          </div>
+          <div class="pd-comments"></div>
+          <div class="pd-cadd">
+            <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
+            <button type="button" class="btn small primary pd-csend">送信</button>
+          </div>
         </div>
       </div>`;
     const close = () => ov.remove();
@@ -1676,6 +1716,46 @@ const Views = (() => {
     if (ph) ph.addEventListener('click', () => openLightbox(p.photoUrl, `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`));
     const nav = ov.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+
+    // いいね
+    Cloud.getLikeInfo(p.id).then(info => {
+      const lb = ov.querySelector('.pd-like');
+      lb.querySelector('.pd-like-n').textContent = info.count;
+      lb.classList.toggle('liked', info.liked);
+    }).catch(() => {});
+    ov.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(ov.querySelector('.pd-like')));
+
+    // コメント一覧の読み込み・描画
+    const loadComments = async () => {
+      const box = ov.querySelector('.pd-comments');
+      let list = [];
+      try { list = await Cloud.getComments(p.id); } catch { list = []; }
+      const me = Cloud.getUser();
+      box.innerHTML = list.length ? list.map(c => {
+        const av = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : '🍜';
+        return `<div class="pd-crow">
+            <span class="pd-cav">${av}</span>
+            <div class="pd-cmain"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>
+            ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">✕</button>` : ''}
+          </div>`;
+      }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
+      box.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
+        await Cloud.deleteComment(p.id, b.dataset.cid); loadComments();
+      }));
+    };
+    loadComments();
+    const sendComment = async () => {
+      const input = ov.querySelector('.pd-cinput');
+      const t = input.value.trim();
+      if (!t) return;
+      if (!Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
+      input.value = '';
+      try { await Cloud.addComment(p.id, t); await loadComments(); }
+      catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+    };
+    ov.querySelector('.pd-csend').addEventListener('click', sendComment);
+    ov.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
+
     document.body.appendChild(ov);
   }
 

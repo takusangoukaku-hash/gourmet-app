@@ -672,7 +672,34 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 写真をメインに（インスタ風の正方形） */
 /* 写真は切り抜かず全体を表示（横長でも左右が見切れない）。縦長は上限を設ける */
 .feed-photo { width: 100%; height: auto; max-height: 85vh; object-fit: contain; display: block; background: var(--field); }
-.feed-body { padding: 10px 12px 14px; }
+/* いいね・コメントのアクション行 */
+.feed-actions { display: flex; gap: 6px; padding: 8px 12px 0; }
+.fa-like, .fa-comment { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; cursor: pointer; color: var(--text); padding: 4px 6px; font-size: 13px; font-weight: bold; }
+.fa-like .heart-ic, .fa-like .ic, .fa-comment .ic { width: 22px; height: 22px; }
+.fa-like .heart-ic { fill: none; }
+.fa-like.liked { color: var(--accent); }
+.fa-like.liked .heart-ic { fill: currentColor; }
+.fa-n { color: var(--muted); font-size: 13px; }
+.fa-like.liked .fa-n { color: var(--accent); }
+.feed-body { padding: 6px 12px 14px; }
+
+/* 投稿詳細のいいね・コメント */
+.pd-social { display: flex; align-items: center; gap: 14px; margin: 12px 0 8px; border-top: 1px solid var(--border-lite); padding-top: 12px; }
+.pd-like { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; cursor: pointer; color: var(--text); padding: 0; font-weight: bold; }
+.pd-like .heart-ic { width: 26px; height: 26px; fill: none; }
+.pd-like.liked { color: var(--accent); }
+.pd-like.liked .heart-ic { fill: currentColor; }
+.pd-cmt-label { color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 5px; }
+.pd-comments { margin: 4px 0 10px; }
+.pd-cempty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+.pd-crow { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+.pd-cav { width: 30px; height: 30px; border-radius: 50%; background: var(--field); overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.pd-cav img { width: 100%; height: 100%; object-fit: cover; }
+.pd-cmain { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; }
+.pd-cdel { border: none; background: none; color: var(--muted); cursor: pointer; flex-shrink: 0; font-size: 12px; }
+.pd-cadd { display: flex; gap: 6px; }
+.pd-cinput { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 14px; }
+.pd-csend { flex-shrink: 0; border-radius: 999px; }
 /* 星評価を大きく目立たせる */
 .feed-rating { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .feed-stars { color: var(--star); font-size: 20px; letter-spacing: 2px; }
