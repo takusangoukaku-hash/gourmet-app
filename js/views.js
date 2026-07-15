@@ -1619,7 +1619,16 @@ const Views = (() => {
     const applyStats = (card, s) => {
       const lb = card.querySelector('.fa-like');
       if (lb) { lb.querySelector('.fa-like-n').textContent = s.likes; lb.classList.toggle('liked', s.liked); }
-      const cel = card.querySelector('.fa-cmt-n'); if (cel) cel.textContent = s.comments;
+      const cel = card.querySelector('.fa-cmt-n'); if (cel) cel.textContent = s.commentCount;
+      // コメントのプレビュー（最新2件＋「すべて見る」）
+      const cbox = card.querySelector('.feed-comments');
+      if (cbox) {
+        const list = s.commentList || [];
+        let html = '';
+        if (s.commentCount > 2) html += `<div class="feed-cmore">コメント${s.commentCount}件をすべて見る</div>`;
+        html += list.slice(-2).map(c => `<div class="feed-crow"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>`).join('');
+        cbox.innerHTML = html;
+      }
     };
     box.querySelectorAll('.feed-card').forEach(card => {
       card.addEventListener('click', (e) => {
@@ -1631,8 +1640,8 @@ const Views = (() => {
       const cached = feedStats.get(id);
       if (cached) { applyStats(card, cached); } // キャッシュがあれば通信しない
       else {
-        Promise.all([Cloud.getLikeInfo(id), Cloud.commentCount(id)]).then(([info, cn]) => {
-          const s = { likes: info.count, liked: info.liked, comments: cn };
+        Promise.all([Cloud.getLikeInfo(id), Cloud.getComments(id)]).then(([info, list]) => {
+          const s = { likes: info.count, liked: info.liked, commentList: list, commentCount: list.length };
           feedStats.set(id, s); applyStats(card, s);
         }).catch(() => {});
       }
@@ -1684,6 +1693,7 @@ const Views = (() => {
           ${stars}
           <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
           ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
+          <div class="feed-comments"></div>
         </div>
       </article>`;
   }
@@ -1758,7 +1768,7 @@ const Views = (() => {
           </div>`;
       }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
       box.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
-        await Cloud.deleteComment(p.id, b.dataset.cid); loadComments();
+        await Cloud.deleteComment(p.id, b.dataset.cid); feedStats.delete(p.id); loadComments();
       }));
     };
     loadComments();
@@ -1768,7 +1778,7 @@ const Views = (() => {
       if (!t) return;
       if (!Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
       input.value = '';
-      try { await Cloud.addComment(p.id, t); await loadComments(); }
+      try { await Cloud.addComment(p.id, t); feedStats.delete(p.id); await loadComments(); }
       catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
     };
     ov.querySelector('.pd-csend').addEventListener('click', sendComment);

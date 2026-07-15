@@ -708,6 +708,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .feed-genre { color: var(--accent); font-size: 12px; font-family: inherit; font-weight: normal; }
 .feed-comment { font-size: 14px; margin-top: 4px; white-space: pre-wrap; }
 .feed-comment b { margin-right: 4px; }
+.feed-comments { margin-top: 4px; }
+.feed-cmore { color: var(--muted); font-size: 13px; margin: 2px 0; }
+.feed-crow { font-size: 14px; margin: 2px 0; line-height: 1.4; }
+.feed-crow b { margin-right: 4px; }
 .feed-date { color: var(--muted); font-size: 12px; flex-shrink: 0; }
 
 /* ---------- プロフィール共有 ---------- */
