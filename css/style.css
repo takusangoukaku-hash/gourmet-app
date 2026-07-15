@@ -17,8 +17,8 @@
   --star: #ffb400;
   /* 見出し用の明朝体（グルメ雑誌風の上質感）: 色はそのまま、書体だけ上質に */
   --serif: 'Shippori Mincho', 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
-  /* 評価が高いほど濃い暖色（黄→橙→赤→濃赤）。段差を大きくして区別しやすく */
-  --r1: #f7d154; --r2: #f39a2e; --r3: #e8642a; --r4: #cc2f2a; --r5: #8b1a2a;
+  /* 評価の色（★1灰→★2青→★3緑→★4橙→★5黄） */
+  --r1: #D1D5DB; --r2: #93C5FD; --r3: #4ADE80; --r4: #FB923C; --r5: #FACC15;
 }
 
 * { box-sizing: border-box; }
