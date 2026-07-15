@@ -349,10 +349,10 @@ const Views = (() => {
       const scope = b.dataset.scope;
       if (scope === mapScope) return;
       const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
-      if (scope === 'all' && !me) { App.toast('「みんな」はログインすると使えます'); return; }
+      if (scope === 'all' && !me) { App.toast('「フォロー中」はログインすると使えます'); return; }
       mapScope = scope;
       document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x === b));
-      if (scope === 'all') { App.toast('つながりの人の店を読み込み中…'); await loadNetworkPosts(); }
+      if (scope === 'all') { App.toast('フォロー中の人の店を読み込み中…'); await loadNetworkPosts(); }
       refreshMap();
     }));
 

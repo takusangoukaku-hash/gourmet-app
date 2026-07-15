@@ -260,17 +260,13 @@ const Cloud = (() => {
     }
   }
 
-  // つながっている人（フォロー中＋フォロワー、自分を除く）の投稿を取得（地図の「みんな」用）
+  // フォロー中の人（自分を除く）の投稿を取得（地図の「フォロー中」用）
   async function fetchNetworkPosts() {
     await ensureLoaded();
     if (!user) return [];
-    const [ing, ers] = await Promise.all([
-      fb.fs.getDocs(fb.fs.collection(db, 'follows', user.uid, 'following')),
-      fb.fs.getDocs(fb.fs.collection(db, 'followers', user.uid, 'followers')),
-    ]);
+    const ing = await fb.fs.getDocs(fb.fs.collection(db, 'follows', user.uid, 'following'));
     const set = new Set();
     ing.forEach(d => set.add(d.data().uid));
-    ers.forEach(d => set.add(d.data().uid));
     set.delete(user.uid);
     const uids = [...set];
     if (!uids.length) return [];
