@@ -215,8 +215,8 @@ const Views = (() => {
   }
 
   // 味の評価(0〜5)→ピンの色（凡例のr1〜r5と同じ）
-  // 評価の色（★1薄灰→★2灰→★3橙→★4赤→★5濃赤）。[0]=評価なし（薄灰）
-  const PIN_COLORS = ['#D1D5DB', '#D1D5DB', '#9CA3AF', '#F97316', '#DC2626', '#7F1D1D'];
+  // 評価の色（★1薄灰→★2灰→★3コーラル→★4ビビッド赤→★5ホットピンク）。[0]=評価なし（薄灰）
+  const PIN_COLORS = ['#D1D5DB', '#D1D5DB', '#9CA3AF', '#FB7185', '#FF5252', '#FF2D55'];
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
