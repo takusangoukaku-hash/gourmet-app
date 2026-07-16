@@ -276,14 +276,14 @@ const Views = (() => {
       // 店舗ピン（クラスター付き）。クラスターの色は中で一番評価の高い店の色
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
-        cluster: true, clusterMaxZoom: 16, clusterRadius: 40,
+        cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
         clusterProperties: { maxR: ['max', ['get', 'r']] },
       });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
         paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
           'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
-      map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops', minzoom: 13,
+      map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops', minzoom: 7,
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['to-string', ['get', 'point_count']], 'text-font': FONT, 'text-size': 9, 'text-allow-overlap': true },
         paint: { 'text-color': '#fff' } });
@@ -294,13 +294,13 @@ const Views = (() => {
           'circle-stroke-color': ['case', ['==', ['get', 'mine'], 1], '#ffffff', '#e1306c'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // お気に入り★（拡大時のみ）
-      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 14,
+      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 11,
           'text-offset': [0.8, -0.8], 'text-allow-overlap': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
-      // 店名＋ジャンルのラベル（z14以上）
-      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 14,
+      // 店名＋ジャンルのラベル（z12以上：以前より低い倍率から表示）
+      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 12,
         filter: ['!', ['has', 'point_count']],
         layout: {
           'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
