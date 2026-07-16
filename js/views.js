@@ -50,6 +50,40 @@ const Views = (() => {
     return urlCache.get(rec.id);
   }
 
+  // ---------- サムネイル（グリッド・一覧用の縮小画像） ----------
+  // 元の写真は大きい（数MB）ので、一覧では320pxに縮小した画像を使って表示を軽くする。
+  // 一度作ったサムネイルはIndexedDBに保存し、次回からは生成せずに即表示する。
+  const thumbCache = new Map(); // photoId → Promise<url>
+  function thumbUrl(rec) {
+    if (!rec) return Promise.resolve(null);
+    if (!rec.blob) return Promise.resolve(rec.remoteUrl || null); // 別端末の写真は公開URLのまま
+    if (thumbCache.has(rec.id)) return thumbCache.get(rec.id);
+    const p = (async () => {
+      let blob = rec.thumb; // 保存済みならそれを使う
+      if (!blob) {
+        try {
+          const bmp = await createImageBitmap(rec.blob);
+          const scale = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+          const w = Math.max(1, Math.round(bmp.width * scale));
+          const h = Math.max(1, Math.round(bmp.height * scale));
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+          bmp.close();
+          blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.75));
+          if (blob) Store.putPhotoThumb(rec.id, blob).catch(() => {});
+        } catch (e) { blob = null; } // 生成に失敗したら元画像で表示
+      }
+      return URL.createObjectURL(blob || rec.blob);
+    })();
+    thumbCache.set(rec.id, p);
+    return p;
+  }
+  // <img> にサムネイルを非同期で差し込む
+  function setThumb(img, rec) {
+    thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
+  }
+
   // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
@@ -654,7 +688,7 @@ const Views = (() => {
     const node = document.createElement('div');
     node.className = 'popup';
     node.innerHTML = `
-        ${rep ? `<img src="${photoUrl(rep)}" alt="">` : ''}
+        ${rep ? `<img alt="" decoding="async">` : ''}
         <div class="p-name">${esc(s.name)}${s.favorite ? ' ' + IC_FAV : ''}</div>
         <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
         <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
@@ -663,6 +697,7 @@ const Views = (() => {
           <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
           <button class="btn small popup-detail">店舗詳細 →</button>
         </div>`;
+    if (rep) setThumb(node.querySelector('img'), rep); // ポップアップも縮小画像で軽く
     node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
     node.querySelector('.popup-nav').addEventListener('click', () => openNav(s));
     if (mapPopup) mapPopup.remove();
@@ -914,7 +949,10 @@ const Views = (() => {
   async function loadThumbs(root) {
     for (const el of root.querySelectorAll('[data-thumb]')) {
       const rep = await Store.repPhoto(el.dataset.thumb);
-      if (rep) el.innerHTML = `<img src="${photoUrl(rep)}" alt="">`;
+      if (rep) {
+        el.innerHTML = `<img alt="" loading="lazy" decoding="async">`;
+        setThumb(el.querySelector('img'), rep);
+      }
     }
   }
 
@@ -962,8 +1000,9 @@ const Views = (() => {
       const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
       div.className = 'photo-cell';
-      div.innerHTML = `<img src="${photoUrl(p)}" alt=""><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      div.addEventListener('click', () => openLightbox(photoUrl(p), cap));
+      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
+      setThumb(div.querySelector('img'), p);
+      div.addEventListener('click', () => openLightbox(photoUrl(p), cap)); // 拡大表示は元画像
       box.appendChild(div);
     }
   }
@@ -1121,8 +1160,9 @@ const Views = (() => {
       const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
       div.className = 'photo-cell';
-      div.innerHTML = `<img src="${photoUrl(ph)}" alt=""><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      div.addEventListener('click', () => openLightbox(photoUrl(ph), cap));
+      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
+      setThumb(div.querySelector('img'), ph);
+      div.addEventListener('click', () => openLightbox(photoUrl(ph), cap)); // 拡大表示は元画像
       box.appendChild(div);
     }
   }
@@ -1600,7 +1640,52 @@ const Views = (() => {
   const feedStats = new Map();     // id → { likes, liked, comments }（いいね/コメント数のキャッシュ）
   const FEED_TTL = 45000;          // キャッシュ有効時間（ミリ秒）
 
+  // ---------- 下に引っ張って更新（プルリフレッシュ） ----------
+  let ptrSetup = false;
+  function setupPullToRefresh() {
+    if (ptrSetup) return;
+    ptrSetup = true;
+    const view = $('#view-feed');
+    const bar = document.createElement('div');
+    bar.className = 'ptr';
+    bar.innerHTML = '<span class="ptr-spin"></span>';
+    view.insertBefore(bar, view.firstChild);
+    let startY = 0, pulling = false, busy = false;
+    const atTop = () => (document.scrollingElement.scrollTop <= 0);
+    document.addEventListener('touchstart', (e) => {
+      if (busy || !view.classList.contains('active') || !atTop()) { pulling = false; return; }
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy <= 0) { bar.style.height = '0px'; bar.classList.remove('ready'); return; }
+      const h = Math.min(72, dy * 0.4); // 指の動きの4割だけ開く（引っ張り感を出す）
+      bar.style.height = h + 'px';
+      bar.classList.toggle('ready', h >= 58);
+    }, { passive: true });
+    document.addEventListener('touchend', () => {
+      if (!pulling) return;
+      pulling = false;
+      if (bar.classList.contains('ready')) {
+        busy = true;
+        bar.classList.add('loading');
+        bar.style.height = '48px';
+        Promise.resolve(renderFeed(true)).catch(() => {}).finally(() => {
+          busy = false;
+          bar.classList.remove('ready', 'loading');
+          bar.style.height = '0px';
+        });
+      } else {
+        bar.classList.remove('ready');
+        bar.style.height = '0px';
+      }
+    }, { passive: true });
+  }
+
   async function renderFeed(force) {
+    setupPullToRefresh();
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     if (!me) {

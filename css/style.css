@@ -841,3 +841,32 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   .form-grid { grid-template-columns: 1fr; }
   .chart-pair { grid-template-columns: 1fr; }
 }
+
+/* ---------- 下に引っ張って更新（ホームのプルリフレッシュ） ---------- */
+.ptr {
+  height: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  transition: height .18s ease;
+}
+.ptr-spin {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2.5px solid #e5e5e5; border-top-color: var(--accent);
+  opacity: .8; transition: transform .2s;
+}
+.ptr.ready .ptr-spin { transform: rotate(200deg); }
+.ptr.loading .ptr-spin { animation: ptr-rot .8s linear infinite; }
+@keyframes ptr-rot { to { transform: rotate(360deg); } }
+
+/* ---------- 初回案内（ようこそ画面） ---------- */
+.welcome-box { max-width: 380px; }
+.welcome-title { font-family: var(--serif); text-align: center; margin: 6px 0 4px; }
+.welcome-sub { text-align: center; color: var(--muted); font-size: 13.5px; margin: 0 0 16px; }
+.welcome-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+.w-step { display: flex; gap: 12px; align-items: flex-start; }
+.w-ic {
+  flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px;
+  background: #f4f4f5; display: flex; align-items: center; justify-content: center;
+}
+.w-ic svg { width: 22px; height: 22px; color: #262626; }
+.w-step b { font-size: 14.5px; }
+.w-sub { color: var(--muted); font-size: 12.5px; line-height: 1.55; margin-top: 2px; }

@@ -79,6 +79,21 @@ const Store = (() => {
       tx.onerror = () => reject(tx.error);
     });
   }
+  // グリッド表示用のサムネイルを写真レコードに保存（次回から縮小画像を即表示できる）
+  async function putPhotoThumb(id, thumbBlob) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const tx = d.transaction('photos', 'readwrite');
+      const os = tx.objectStore('photos');
+      const req = os.get(id);
+      req.onsuccess = () => {
+        const rec = req.result;
+        if (rec) { rec.thumb = thumbBlob; os.put(rec); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
   // クラウドから取り込んだ写真をそのまま保存（通知しない）
   async function putPhotoRaw(rec) {
     const d = await db();
@@ -316,7 +331,7 @@ const Store = (() => {
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     // クラウド同期用

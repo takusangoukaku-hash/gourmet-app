@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v122'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v123'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -125,6 +125,25 @@ const App = (() => {
     // 共有リンク(?u=ユーザー名)で開かれた場合は、その人の公開プロフィールを表示
     const shareUser = params.get('u');
     if (shareUser) Views.showPublicProfile(shareUser);
+
+    // 初回起動の案内（一度だけ。共有リンクで開いた時はプロフィール表示を優先して出さない）
+    // ※「見た」フラグは閉じた時に立てる。初回はSW登録直後の自動リロードが入るため、
+    //   表示した時に立てるとリロード後に消えてしまう
+    const welcome = $('#welcome-modal');
+    if (!shareUser && !localStorage.getItem('bm-welcomed')) {
+      welcome.classList.remove('hidden');
+    }
+    const welcomeDone = () => localStorage.setItem('bm-welcomed', '1');
+    welcome.addEventListener('click', (e) => {
+      // ✕ボタンや背景タップで閉じた場合もフラグを立てる
+      if (e.target === welcome || e.target.closest('[data-close]')) welcomeDone();
+    });
+    $('#welcome-start').addEventListener('click', () => { welcomeDone(); welcome.classList.add('hidden'); });
+    // 設定の「使い方を見る」からいつでも再表示できる
+    $('#show-welcome').addEventListener('click', () => {
+      $('#settings-modal').classList.add('hidden');
+      welcome.classList.remove('hidden');
+    });
   }
 
   function switchTab(name) {
