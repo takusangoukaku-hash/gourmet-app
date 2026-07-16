@@ -317,10 +317,7 @@ const Views = (() => {
         filter: ['has', 'point_count'],
         paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
           'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
-      map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops', minzoom: 7,
-        filter: ['has', 'point_count'],
-        layout: { 'text-field': ['to-string', ['get', 'point_count']], 'text-font': FONT, 'text-size': 9, 'text-allow-overlap': true },
-        paint: { 'text-color': '#fff' } });
+      // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
       map.addLayer({ id: 'pins', type: 'circle', source: 'shops',
         filter: ['!', ['has', 'point_count']],
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
