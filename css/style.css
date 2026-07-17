@@ -925,3 +925,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 #view-list .search-field input { padding-top: 8px; padding-bottom: 8px; font-size: 14px; border-radius: 999px; }
 #view-list .search-field .search-ico { width: 16px; height: 16px; }
 #view-list .wish-btn svg { width: 20px; height: 20px; }
+
+/* ---------- モーダルの固定ヘッダー（タイトル＋×を1行でスクロールに追従させない） ---------- */
+.modal-head {
+  position: sticky; top: -1px; z-index: 6;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--card);
+  margin: -20px -20px 10px; padding: 14px 14px 10px 20px;
+  border-radius: 18px 18px 0 0; border-bottom: 1px solid var(--border-lite);
+}
+.modal-head h2 { margin: 0; font-size: 17px; }
+.modal-head .modal-close { position: static; margin: 0; flex-shrink: 0; }

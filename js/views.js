@@ -2152,8 +2152,10 @@ const Views = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal notif-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close nt-close" aria-label="閉じる">✕</button>
-        <h2 class="vl-title">お知らせ</h2>
+        <div class="modal-head">
+          <h2 class="vl-title">お知らせ</h2>
+          <button type="button" class="modal-close nt-close" aria-label="閉じる">✕</button>
+        </div>
         <div class="nt-body"><div class="empty"><p>読み込み中…</p></div></div>
       </div>`;
     const body = ov.querySelector('.nt-body');
