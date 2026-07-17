@@ -903,3 +903,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   font-size: 13.5px; line-height: 1.6;
 }
 .stat-memory .sm-ic { margin-right: 4px; }
+
+/* ---------- 発見グリッド（インスタ風の検索初期画面） ---------- */
+.explore-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  margin: 0 -16px; /* BITEMAPヘッダーの下を画面の端まで使う */
+}
+.explore-grid > .empty, .explore-grid > .skel-grid { grid-column: 1 / -1; }
+.explore-cell {
+  border: none; padding: 0; background: #f2f2f2; cursor: pointer;
+  aspect-ratio: 1; overflow: hidden;
+}
+.explore-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }

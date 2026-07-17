@@ -862,9 +862,18 @@ const Views = (() => {
       .forEach(sel => $(sel).addEventListener($(sel).tagName === 'INPUT' && $(sel).type === 'text' ? 'input' : 'change', renderList));
     // フィルタ選択肢
     $('#flt-dish-genre').innerHTML = '<option value="">料理ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
-    // 検索バーをタップしたら詳細な絞り込みを開く（地図と同じ操作感）
-    $('#flt-keyword').addEventListener('focus', () => $('#list-filter-panel').classList.remove('hidden'));
+    // 検索バーをタップしたら発見グリッドから店舗検索へ切り替え、絞り込みを開く（インスタと同じ操作感）
+    $('#flt-keyword').addEventListener('focus', () => {
+      setListMode(false);
+      $('#list-filter-panel').classList.remove('hidden');
+    });
     $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
+    // 「戻る」で発見グリッドへ戻る
+    $('#list-cancel').addEventListener('click', () => {
+      $('#flt-keyword').value = '';
+      $('#list-filter-panel').classList.add('hidden');
+      setListMode(true);
+    });
     // 行きたい店リスト
     $('#list-wishes').addEventListener('click', openWishlist);
 
@@ -974,7 +983,82 @@ const Views = (() => {
     }
   }
 
+  // ---------- 発見グリッド（インスタ風: 検索タブの初期画面） ----------
+  // 自分＋フォロー中の人の写真を名前なしで敷き詰め、タップでホームと同じ投稿表示を開く
+  let exploreMode = true;
+  let exploreNetCache = null; // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
+
+  function setListMode(explore) {
+    exploreMode = explore;
+    $('#explore-grid').classList.toggle('hidden', !explore);
+    $('#shop-list').classList.toggle('hidden', explore);
+    $('#list-cancel').classList.toggle('hidden', explore);
+    if (explore) renderExplore(); else renderList();
+  }
+
+  // 自分の写真から、ホームの投稿と同じ形のデータを組み立てる
+  function buildOwnPost(ph) {
+    const shop = Store.getShop(ph.shopId) || {};
+    const v = Store.visits().find(x => x.id === ph.visitId) || {};
+    const prof = Store.getProfile();
+    return {
+      id: ph.visitId, username: prof.username || '', displayName: prof.name || 'BITEMAP',
+      avatar: prof.avatar || '', photoUrl: photoUrl(ph),
+      rating: v.rating || 0, shopName: shop.name || '', genre: (v.dishGenres || []).join('・'),
+      comment: v.comment || '', datetime: v.datetime || '',
+      lat: shop.lat, lon: shop.lon, address: shop.address || '',
+      casual: shop.casual, atmosphere: shop.atmosphere, speed: shop.speed,
+    };
+  }
+
+  async function renderExplore() {
+    const box = $('#explore-grid');
+    box.innerHTML = SKEL_GRID;
+    // 自分の写真（訪問日の新しい順の材料に時刻を持たせる）
+    const photos = await Store.allPhotos();
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const items = photos.map(ph => {
+      const v = vById.get(ph.visitId);
+      return { kind: 'mine', ph, time: (v && v.datetime ? new Date(v.datetime).getTime() : 0) || ph.createdAt || 0 };
+    });
+    // フォロー中の人の投稿（写真つきのみ）
+    try {
+      if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
+        if (!exploreNetCache || Date.now() - exploreNetCache.time > 60000) {
+          exploreNetCache = { posts: await Cloud.fetchNetworkPosts(), time: Date.now() };
+        }
+        for (const p of exploreNetCache.posts) {
+          if (p.photoUrl) items.push({ kind: 'net', p, time: p.datetime ? new Date(p.datetime).getTime() : 0 });
+        }
+      }
+    } catch { /* 未ログイン・通信失敗時は自分の写真のみ */ }
+    items.sort((a, b) => b.time - a.time);
+    if (!items.length) {
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
+      return;
+    }
+    box.innerHTML = '';
+    for (const it of items) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'explore-cell';
+      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
+      if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
+      else cell.querySelector('img').src = it.p.photoUrl;
+      cell.addEventListener('click', () => showPostDetail(it.kind === 'net' ? it.p : buildOwnPost(it.ph)));
+      box.appendChild(cell);
+    }
+  }
+
   function renderList() {
+    if (exploreMode) {
+      // タブを開いた直後は発見グリッドを表示（検索バーをタップすると店舗検索へ）
+      $('#explore-grid').classList.remove('hidden');
+      $('#shop-list').classList.add('hidden');
+      $('#list-cancel').classList.add('hidden');
+      renderExplore();
+      return;
+    }
     refreshPrefOptions();
     const box = $('#shop-list');
     const shops = sortShops(filteredShops());
@@ -1959,7 +2043,7 @@ const Views = (() => {
         <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
         <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
           <span class="fc-avatar">${av}</span>
-          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}<span class="fc-handle">@${esc(p.username)}</span></span>
+          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
         </button>
         ${p.photoUrl ? `<img class="pd-photo" src="${esc(p.photoUrl)}" alt="">` : ''}
         <div class="pd-body">
