@@ -894,3 +894,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .wish-main { flex: 1; min-width: 0; }
 .wish-name { font-weight: 600; font-size: 14.5px; }
 .wish-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* ---------- 統計: 「1年前の今ごろ」の振り返り ---------- */
+.stat-memory {
+  background: linear-gradient(135deg, #fff7ed, #fef3f2);
+  border: 1px solid #fde4d5; border-radius: 14px;
+  padding: 12px 14px; margin-bottom: 12px;
+  font-size: 13.5px; line-height: 1.6;
+}
+.stat-memory .sm-ic { margin-right: 4px; }

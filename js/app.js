@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v125'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v126'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -95,6 +95,49 @@ const App = (() => {
       $('#settings-google-key').value = '';
       $('#settings-status').textContent = settingsStatus();
       toast('APIキーを削除しました。');
+    });
+
+    // バックアップ（記録の書き出し・読み込み。写真は容量のため対象外＝クラウド同期でカバー）
+    $('#backup-export').addEventListener('click', () => {
+      const data = {
+        app: 'BITEMAP', version: APP_VERSION, exportedAt: new Date().toISOString(),
+        shops: Store.shops(), visits: Store.visits(), wishes: Store.wishes(), profile: Store.getProfile(),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const d = new Date();
+      a.download = `bitemap-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast('✅ バックアップを書き出しました');
+    });
+    $('#backup-import').addEventListener('click', () => $('#backup-file').click());
+    $('#backup-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
+        // 新しい方を採用して取り込む（既存の記録は消さない）
+        let added = 0;
+        const merge = (kind, locals, list) => {
+          const map = new Map(locals.map(x => [x.id, x]));
+          for (const r of (list || [])) {
+            if (!r || !r.id) continue;
+            const l = map.get(r.id);
+            if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
+          }
+        };
+        merge('shop', Store.rawShops(), data.shops);
+        merge('visit', Store.rawVisits(), data.visits);
+        merge('wish', Store.rawWishes(), data.wishes);
+        toast(added ? `✅ 読み込みました（${added}件を追加・更新）` : '追加の記録はありませんでした（すべて登録済み）');
+        refreshCurrent();
+      } catch (err) {
+        toast('⚠️ 読み込めませんでした: ' + (err && err.message || err));
+      }
     });
 
     // クラウド同期の初期化（既存ログインがあればセッションを復元して同期）

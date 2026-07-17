@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=125">
+<link rel="stylesheet" href="css/style.css?v=126">
 </head>
 <body>
 
@@ -292,6 +292,7 @@
 
   <!-- 統計パネル -->
   <div id="ptab-stats" class="ptab-panel hidden">
+    <div id="stat-memory" class="stat-memory hidden"></div>
     <div id="stat-cards" class="stat-cards"></div>
     <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
     <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
@@ -383,6 +384,16 @@
     </div>
     <button id="pf-search" class="btn small full"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> ユーザーを探す</button>
     <button id="show-welcome" class="btn small full"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg> 使い方を見る</button>
+    <h3>バックアップ</h3>
+    <p class="hint">
+      お店・訪問記録・行きたい店をファイルに書き出して保存できます。
+      機種変更時はGoogleログインの同期で引き継がれるので、こちらは万一に備えた保険です（写真は含まれません）。
+    </p>
+    <div class="detail-actions">
+      <button id="backup-export" class="btn small">書き出す</button>
+      <button id="backup-import" class="btn small">読み込む</button>
+    </div>
+    <input type="file" id="backup-file" accept=".json,application/json" hidden>
     <h3>AIによる料理ジャンル判定</h3>
     <p class="hint">
       Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、
@@ -445,11 +456,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=125"></script>
-<script src="js/api.js?v=125"></script>
-<script src="js/cloud.js?v=125"></script>
-<script src="js/register.js?v=125"></script>
-<script src="js/views.js?v=125"></script>
-<script src="js/app.js?v=125"></script>
+<script src="js/store.js?v=126"></script>
+<script src="js/api.js?v=126"></script>
+<script src="js/cloud.js?v=126"></script>
+<script src="js/register.js?v=126"></script>
+<script src="js/views.js?v=126"></script>
+<script src="js/app.js?v=126"></script>
 </body>
 </html>

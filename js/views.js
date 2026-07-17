@@ -1299,9 +1299,33 @@ const Views = (() => {
     const shops = Store.shops();
     const visits = Store.visits();
     const photos = await Store.allPhotos();
-    const year = new Date().getFullYear();
+    const now0 = new Date();
+    const year = now0.getFullYear();
     const yearVisits = visits.filter(v => new Date(v.datetime).getFullYear() === year).length;
+    const monthVisits = visits.filter(v => {
+      const d = new Date(v.datetime);
+      return d.getFullYear() === year && d.getMonth() === now0.getMonth();
+    }).length;
+    const prefCount = new Set(shops.map(s => s.pref).filter(Boolean)).size;
     const allAvg = visits.length ? Math.round(visits.reduce((s, v) => s + v.rating, 0) / visits.length * 10) / 10 : 0;
+
+    // 「1年前の今日ごろ」の振り返り（同じ月日±3日の過去の訪問）
+    const memBox = $('#stat-memory');
+    const past = visits.filter(v => {
+      const d = new Date(v.datetime);
+      if (d.getFullYear() >= year) return false;
+      const thisYear = new Date(year, d.getMonth(), d.getDate());
+      return Math.abs(thisYear - new Date(year, now0.getMonth(), now0.getDate())) <= 3 * 86400000;
+    }).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    if (past.length) {
+      const v = past[0];
+      const s = Store.getShop(v.shopId);
+      const yearsAgo = year - new Date(v.datetime).getFullYear();
+      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${yearsAgo}年前の今ごろ、<b>${esc(s ? s.name : '')}</b> に行きました（${starStr(v.rating || 0)}）`;
+      memBox.classList.remove('hidden');
+    } else {
+      memBox.classList.add('hidden');
+    }
 
     $('#stat-cards').innerHTML = [
       [shops.length, '総店舗数'],
@@ -1309,7 +1333,10 @@ const Views = (() => {
       [photos.length, '保存写真枚数'],
       [allAvg || '－', '味の平均'],
       [yearVisits, `${year}年の訪問`],
+      [monthVisits, '今月の訪問'],
       [shops.filter(s => s.favorite).length, 'お気に入り'],
+      [Store.wishes().length, '行きたい店'],
+      [prefCount, '訪れた都道府県'],
     ].map(([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
 
     // 月別訪問（直近12ヶ月）
