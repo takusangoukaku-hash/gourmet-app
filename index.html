@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=124">
+<link rel="stylesheet" href="css/style.css?v=125">
 </head>
 <body>
 
@@ -168,7 +168,7 @@
       <div class="panel-foot">
         <span id="map-filter-count" class="filter-count"></span>
         <span class="map-legend">
-          味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5
+          味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5 <i class="dot wish"></i>行きたい
         </span>
       </div>
     </div>
@@ -185,6 +185,9 @@
         </svg>
         <input type="text" id="flt-keyword" placeholder="検索">
       </div>
+      <button type="button" id="list-wishes" class="icon-btn wish-btn" title="行きたい店" aria-label="行きたい店">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
     </div>
     <div id="list-filter-panel" class="hidden">
     <div class="filter-row">
@@ -442,11 +445,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=124"></script>
-<script src="js/api.js?v=124"></script>
-<script src="js/cloud.js?v=124"></script>
-<script src="js/register.js?v=124"></script>
-<script src="js/views.js?v=124"></script>
-<script src="js/app.js?v=124"></script>
+<script src="js/store.js?v=125"></script>
+<script src="js/api.js?v=125"></script>
+<script src="js/cloud.js?v=125"></script>
+<script src="js/register.js?v=125"></script>
+<script src="js/views.js?v=125"></script>
+<script src="js/app.js?v=125"></script>
 </body>
 </html>

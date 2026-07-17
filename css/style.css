@@ -870,3 +870,27 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .w-ic svg { width: 22px; height: 22px; color: #262626; }
 .w-step b { font-size: 14.5px; }
 .w-sub { color: var(--muted); font-size: 12.5px; line-height: 1.55; margin-top: 2px; }
+
+/* ---------- 行きたい店（ブックマーク） ---------- */
+.fa-save {
+  display: inline-flex; align-items: center; margin-left: auto;
+  border: none; background: none; cursor: pointer; color: var(--text); padding: 4px 6px;
+}
+.fa-save .bm-ic { width: 22px; height: 22px; }
+.fa-save.on { color: #8B5CF6; }
+.fa-save.on .bm-ic { fill: currentColor; }
+.pd-save { margin-left: auto; }
+.dot.wish { background: #8B5CF6; }
+.popup .popup-wish.on-wish { color: #8B5CF6; border-color: #8B5CF6; }
+/* 一覧の検索バー横のボタン */
+.filter-row .search-field { flex: 1; }
+.wish-btn { flex: 0 0 auto; color: var(--text); }
+.wish-btn svg { width: 22px; height: 22px; }
+/* 行きたい店リスト（モーダル） */
+.wish-title { display: flex; align-items: center; gap: 6px; }
+.wish-title .ic { width: 20px; height: 20px; }
+.wish-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line, #efefef); }
+.wish-row:last-child { border-bottom: none; }
+.wish-main { flex: 1; min-width: 0; }
+.wish-name { font-weight: 600; font-size: 14.5px; }
+.wish-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }

@@ -13,6 +13,7 @@ const Views = (() => {
   const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
   const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
+  const IC_BOOKMARK = '<svg class="ic bm-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
   // お気に入りマーク（小さな塗りハート）: 絵文字⭐の置き換え
   const IC_FAV = '<svg class="ic-fav" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
@@ -251,6 +252,7 @@ const Views = (() => {
   // 味の評価(0〜5)→ピンの色（凡例のr1〜r5と同じ）
   // 評価の色（色相を大きく離してくっきり）: ★1灰→★2青→★3緑→★4橙→★5赤。[0]=評価なし（薄灰）
   const PIN_COLORS = ['#CBD5E1', '#94A3B8', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444'];
+  const WISH_COLOR = '#8B5CF6'; // 行きたい店のピン（評価色と混ざらない紫）
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
@@ -342,14 +344,27 @@ const Views = (() => {
         paint: { 'text-color': dark ? '#e8e6e1' : '#3a3833',
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
-      // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン
+      // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
+      map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'wish-pins', type: 'circle', source: 'wishes',
+        paint: { 'circle-color': WISH_COLOR, 'circle-radius': PIN_RADIUS,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
+      map.addLayer({ id: 'wish-labels', type: 'symbol', source: 'wishes', minzoom: 12,
+        layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
+          'text-anchor': 'bottom', 'text-offset': [0, -0.9], 'text-max-width': 12 },
+        paint: { 'text-color': WISH_COLOR,
+          'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
+
+      // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
       map.on('click', 'pins', (e) => openPinPopup(e.features[0]));
+      map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
       map.on('click', 'clusters', (e) => {
         const f = e.features[0];
         map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
           .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
       });
-      ['pins', 'clusters'].forEach(id => {
+      ['pins', 'clusters', 'wish-pins'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       });
@@ -664,10 +679,15 @@ const Views = (() => {
         ${p.comment ? `<div class="p-comment">${esc(p.comment.slice(0, 60))}</div>` : ''}
         <div class="p-actions">
           <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
+          <button class="btn small popup-wish${wishStateForPost(p) ? ' on-wish' : ''}">${IC_BOOKMARK} 行きたい</button>
           <button class="btn small popup-detail">投稿を見る →</button>
         </div>`;
     node.querySelector('.popup-detail').addEventListener('click', () => showPostDetail(p));
     node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    node.querySelector('.popup-wish').addEventListener('click', (e) => {
+      toggleWishForPost(p, null);
+      e.currentTarget.classList.toggle('on-wish', wishStateForPost(p));
+    });
     if (mapPopup) mapPopup.remove();
     mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
       .setLngLat([p.lon, p.lat]).setDOMContent(node).addTo(map);
@@ -743,6 +763,7 @@ const Views = (() => {
       }
     }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
+    refreshWishData();
 
     if (fit && bounds.length) {
       const b = new maplibregl.LngLatBounds();
@@ -750,6 +771,47 @@ const Views = (() => {
       try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
     }
     if (heatOn) buildHeat();
+  }
+
+  // 行きたい店のピンを地図へ反映（保存/削除のたびに呼べる）
+  function refreshWishData() {
+    if (!map || !mapLoaded || !map.getSource('wishes')) return;
+    const features = Store.wishes().filter(w => w.lat != null && w.lon != null)
+      .map(w => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
+        properties: { id: w.id, name: w.name || '' } }));
+    map.getSource('wishes').setData({ type: 'FeatureCollection', features });
+  }
+
+  // 行きたいピンをタップ → 記録する / ここへ行く / リストから外す
+  function openWishPopup(feature) {
+    const w = Store.wishes().find(x => x.id === feature.properties.id);
+    if (!w) return;
+    const node = document.createElement('div');
+    node.className = 'popup';
+    node.innerHTML = `
+        <div class="p-who">${IC_BOOKMARK} 行きたい店${w.fromUsername ? '（@' + esc(w.fromUsername) + ' さんの投稿から）' : ''}</div>
+        <div class="p-name">${esc(w.name || '')}</div>
+        ${w.genre ? `<div class="p-sub">${esc(w.genre)}</div>` : ''}
+        <div class="p-actions">
+          <button class="btn small primary popup-record">記録する</button>
+          <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
+          <button class="btn small popup-unwish">外す</button>
+        </div>`;
+    node.querySelector('.popup-record').addEventListener('click', () => {
+      if (mapPopup) mapPopup.remove();
+      Register.prefillWish(w);
+      App.switchTab('register');
+    });
+    node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: w.name, lat: w.lat, lon: w.lon }));
+    node.querySelector('.popup-unwish').addEventListener('click', () => {
+      Store.removeWish(w.id);
+      refreshWishData();
+      if (mapPopup) mapPopup.remove();
+      App.toast('行きたい店から外しました');
+    });
+    if (mapPopup) mapPopup.remove();
+    mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
+      .setLngLat([w.lon, w.lat]).setDOMContent(node).addTo(map);
   }
 
   // つながっている人の投稿を読み込む（地図「みんな」用）
@@ -803,6 +865,8 @@ const Views = (() => {
     // 検索バーをタップしたら詳細な絞り込みを開く（地図と同じ操作感）
     $('#flt-keyword').addEventListener('focus', () => $('#list-filter-panel').classList.remove('hidden'));
     $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
+    // 行きたい店リスト
+    $('#list-wishes').addEventListener('click', openWishlist);
 
     // パネルの外側をタップしたら閉じて検索バーだけに戻す（地図・一覧共通）
     // captureで登録: 地図などがタップイベントの伝播を止めても先に検知できる
@@ -816,6 +880,37 @@ const Views = (() => {
         listPanel.classList.add('hidden');
       }
     }, true);
+  }
+
+  // 行きたい店の一覧（保存した順に新しい方から）
+  function openWishlist() {
+    const wishes = Store.wishes().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const body = $('#modal-body');
+    body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>`
+      + (wishes.length ? wishes.map(w => `
+        <div class="wish-row">
+          <div class="wish-main">
+            <div class="wish-name">${esc(w.name || '')}</div>
+            <div class="wish-sub">${esc(w.genre || '')}${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
+          </div>
+          ${w.lat != null ? `<button class="btn small wish-map" data-id="${esc(w.id)}">地図</button>` : ''}
+          <button class="btn small wish-del" data-id="${esc(w.id)}">外す</button>
+        </div>`).join('')
+      : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。'));
+    $('#modal').classList.remove('hidden');
+    body.querySelectorAll('.wish-del').forEach(b => b.addEventListener('click', () => {
+      Store.removeWish(b.dataset.id);
+      refreshWishData();
+      openWishlist(); // 一覧を描き直す
+    }));
+    body.querySelectorAll('.wish-map').forEach(b => b.addEventListener('click', () => {
+      const w = Store.wishes().find(x => x.id === b.dataset.id);
+      if (!w) return;
+      $('#modal').classList.add('hidden');
+      App.switchTab('map');
+      // 地図の初期化直後でも移動できるよう少し待ってから寄る
+      setTimeout(() => { if (map) map.jumpTo({ center: [w.lon, w.lat], zoom: 15 }); }, 350);
+    }));
   }
 
   function refreshPrefOptions() {
@@ -1746,6 +1841,33 @@ const Views = (() => {
     box.querySelectorAll('.feed-author').forEach(el =>
       el.addEventListener('click', (e) => { e.stopPropagation(); showPublicProfile(el.dataset.u); }));
     box.querySelectorAll('.fa-like').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); toggleLikeUI(btn); }));
+    box.querySelectorAll('.fa-save').forEach(btn => btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const p = feedPosts.get(btn.dataset.post);
+      if (p) toggleWishForPost(p, btn);
+    }));
+  }
+
+  // ---------- 行きたい店（投稿から保存） ----------
+  function wishStateForPost(p) {
+    return !!Store.findWish({ name: p.shopName, lat: p.lat, lon: p.lon });
+  }
+  function toggleWishForPost(p, btn) {
+    const w = Store.findWish({ name: p.shopName, lat: p.lat, lon: p.lon });
+    if (w) {
+      Store.removeWish(w.id);
+      if (btn) btn.classList.remove('on');
+      App.toast('行きたい店から外しました');
+    } else {
+      if (!p.shopName) { App.toast('店名のない投稿は保存できません'); return; }
+      Store.addWish({
+        name: p.shopName || '', lat: p.lat != null ? p.lat : null, lon: p.lon != null ? p.lon : null,
+        genre: p.genre || '', fromUsername: p.username || '', postId: p.id || '',
+      });
+      if (btn) btn.classList.add('on');
+      App.toast('行きたい店に保存しました（地図に紫のピンで表示）');
+    }
+    refreshWishData();
   }
 
   // いいねのトグル（楽観的更新。失敗したら元に戻す）
@@ -1785,6 +1907,7 @@ const Views = (() => {
         <div class="feed-actions">
           <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
           <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>
+          <button type="button" class="fa-save${wishStateForPost(p) ? ' on' : ''}" data-post="${esc(p.id)}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
         </div>
         <div class="feed-body">
           ${stars}
@@ -1825,6 +1948,7 @@ const Views = (() => {
           <div class="pd-social">
             <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n pd-like-n">·</span></button>
             <span class="pd-cmt-label">${IC_COMMENT} コメント</span>
+            <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           </div>
           <div class="pd-comments"></div>
           <div class="pd-cadd">
@@ -1849,6 +1973,7 @@ const Views = (() => {
       lb.classList.toggle('liked', info.liked);
     }).catch(() => {});
     ov.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(ov.querySelector('.pd-like')));
+    ov.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, ov.querySelector('.pd-save')));
 
     // コメント一覧の読み込み・描画
     const loadComments = async () => {

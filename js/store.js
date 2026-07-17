@@ -9,10 +9,12 @@ const Store = (() => {
   const VISITS_KEY = 'gourmet.visits.v1';
   const HASHES_KEY = 'gourmet.photoHashes.v1'; // 写真の指紋 → {shopId, visitId}（二重登録防止）
   const PROFILE_KEY = 'gourmet.profile.v1';    // プロフィール（将来の共有機能の土台）
+  const WISHES_KEY = 'gourmet.wishes.v1';      // 行きたい店リスト
 
   let shops = load(SHOPS_KEY);
   let visits = load(VISITS_KEY);
   let photoHashes = loadObj(HASHES_KEY);
+  let wishes = load(WISHES_KEY);
 
   // ---------- クラウド同期のための変更通知 ----------
   let syncHook = null;      // Cloud が購読する変更通知の関数
@@ -269,6 +271,31 @@ const Store = (() => {
     return p;
   }
 
+  // ---------- 行きたい店（Wish） ----------
+  // wish = { id, name, lat, lon, genre, fromUsername, postId, createdAt, updatedAt }
+  // フォロー中の人の投稿から保存する「行きたい」。訪問を記録したら自動で外れる
+  function persistWishes() { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); }
+  function findWish({ name, lat, lon }) {
+    return wishes.find(w =>
+      (name && w.name === name) ||
+      (lat != null && lon != null && w.lat != null && w.lon != null &&
+        distMeters(lat, lon, w.lat, w.lon) < 100)) || null;
+  }
+  function addWish(data) {
+    const dup = findWish(data);
+    if (dup) return dup; // 同じ店（同名 or 100m以内）は二重登録しない
+    const w = Object.assign({ id: uid(), createdAt: Date.now(), updatedAt: Date.now() }, data);
+    wishes.push(w); persistWishes();
+    emit('wish', 'put', w);
+    return w;
+  }
+  function removeWish(id) {
+    const w = wishes.find(x => x.id === id);
+    if (!w) return;
+    wishes = wishes.filter(x => x.id !== id); persistWishes();
+    emit('wish', 'del', { id });
+  }
+
   // ---------- 訪問記録（Visit） ----------
   // visit = { id, shopId, datetime(ISO), dishGenres[], rating, comment, visitType, createdAt, updatedAt }
   function addVisit(data) {
@@ -279,6 +306,9 @@ const Store = (() => {
     }, data);
     visits.push(visit); persist();
     emit('visit', 'put', visit);
+    // 行きたい店に入っていた店を訪問したら、リストから自動で外す（達成）
+    const s = getShop(visit.shopId);
+    if (s) { const w = findWish({ name: s.name, lat: s.lat, lon: s.lon }); if (w) removeWish(w.id); }
     return visit;
   }
   function updateVisit(id, patch) {
@@ -310,6 +340,10 @@ const Store = (() => {
         persist();
       } else if (kind === 'profile') {
         localStorage.setItem(PROFILE_KEY, JSON.stringify(obj));
+      } else if (kind === 'wish') {
+        const i = wishes.findIndex(w => w.id === obj.id);
+        if (i >= 0) wishes[i] = obj; else wishes.push(obj);
+        persistWishes();
       }
     } finally { remoteApply = false; }
   }
@@ -334,8 +368,9 @@ const Store = (() => {
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
+    wishes: () => wishes.slice(), addWish, removeWish, findWish,
     // クラウド同期用
     setSyncHook, applyRemote, putPhotoRaw, photoIds,
-    rawShops: () => shops, rawVisits: () => visits,
+    rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
   };
 })();

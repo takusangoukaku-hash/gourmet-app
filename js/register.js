@@ -831,7 +831,19 @@ const Register = (() => {
     if (shop) chooseExisting(shop);
   }
 
+  // 行きたい店の「記録する」: 店の情報をフォームへ流し込む
+  // （保存すると Store.addVisit が同じ店の「行きたい」を自動で外す）
+  function prefillWish(w) {
+    resetForm();
+    const m = Store.matchShop({ name: w.name, lat: w.lat, lon: w.lon });
+    if (m) { chooseExisting(m); return; } // すでに登録済みの店なら訪問の追加になる
+    selected = { name: w.name, lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null };
+    $('#f-shop-name').value = w.name || '';
+    note('行きたい店から入力しました。味の評価をつけて保存してください。');
+    backfillMissing(selected); // 最寄駅・住所を自動補完
+  }
+
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-  return { init, preselectShop, openCamera };
+  return { init, preselectShop, prefillWish, openCamera };
 })();

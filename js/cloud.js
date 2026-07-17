@@ -123,8 +123,22 @@ const Cloud = (() => {
   async function syncRecords() {
     await pullCollection('shops', 'shop');
     await pullCollection('visits', 'visit');
+    await pullWishes();
     await pullProfile();
     await pushAllRecords();
+  }
+
+  // 行きたい店リスト: クラウド → ローカル（新しい方を採用）
+  async function pullWishes() {
+    try {
+      const snap = await fb.fs.getDocs(cref('wishes'));
+      const localMap = new Map(Store.rawWishes().map(w => [w.id, w]));
+      snap.forEach(docSnap => {
+        const remote = docSnap.data();
+        const local = localMap.get(remote.id);
+        if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote('wish', remote);
+      });
+    } catch (e) { console.warn('行きたい店の同期に失敗:', e); }
   }
 
   // クラウド → ローカル（新しい方を採用）
@@ -151,6 +165,7 @@ const Cloud = (() => {
     const writes = [];
     for (const s of Store.rawShops()) writes.push(['shops', s.id, clean(s)]);
     for (const v of Store.rawVisits()) writes.push(['visits', v.id, clean(v)]);
+    for (const w of Store.rawWishes()) writes.push(['wishes', w.id, clean(w)]);
     // 500件ずつバッチ書き込み（Firestoreの上限対策）
     for (let i = 0; i < writes.length; i += 400) {
       const batch = fb.fs.writeBatch(db);
@@ -381,6 +396,7 @@ const Cloud = (() => {
       }
       return fb.fs.setDoc(dref('visits', obj.id), clean(obj));
     }
+    if (kind === 'wish') return action === 'del' ? fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}) : fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
       if (action === 'del') {
