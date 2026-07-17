@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v127'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v128'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -194,7 +194,9 @@ const App = (() => {
     document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     $('#view-' + name).classList.add('active');
-    refreshCurrent();
+    // 検索タブは開くたびに最初の画面（発見グリッド）へ戻す
+    if (name === 'list') Views.enterListTab();
+    else refreshCurrent();
   }
 
   function refreshCurrent() {

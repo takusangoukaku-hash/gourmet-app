@@ -996,6 +996,13 @@ const Views = (() => {
     if (explore) renderExplore(); else renderList();
   }
 
+  // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
+  function enterListTab() {
+    $('#flt-keyword').value = '';
+    $('#list-filter-panel').classList.add('hidden');
+    setListMode(true);
+  }
+
   // 自分の写真から、ホームの投稿と同じ形のデータを組み立てる
   function buildOwnPost(ph) {
     const shop = Store.getShop(ph.shopId) || {};
@@ -2357,5 +2364,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
+  return { refreshMap, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
 })();

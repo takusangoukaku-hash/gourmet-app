@@ -915,3 +915,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   aspect-ratio: 1; overflow: hidden;
 }
 .explore-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---------- 検索タブ: 検索バーまわりをコンパクトに（発見グリッドを広く） ---------- */
+#view-list .filters { padding: 0; margin-bottom: 10px; box-shadow: none; }
+#view-list .filter-row { margin-bottom: 0; }
+#view-list .search-field input { padding-top: 8px; padding-bottom: 8px; font-size: 14px; border-radius: 999px; }
+#view-list .search-field .search-ico { width: 16px; height: 16px; }
+#view-list .wish-btn svg { width: 20px; height: 20px; }
