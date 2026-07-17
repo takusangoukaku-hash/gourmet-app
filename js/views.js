@@ -392,7 +392,10 @@ const Views = (() => {
       $(sel).addEventListener('change', refreshMap));
 
     // 検索バー: タップで絞り込みパネルを開き、入力でピンをキーワード絞り込み
-    $('#map-search').addEventListener('focus', () => $('#map-filter-panel').classList.remove('hidden'));
+    $('#map-search').addEventListener('focus', () => {
+      $('#map-filter-panel').classList.remove('hidden');
+      $('.map-scope').classList.add('hidden'); // 詳細検索と重なるため、パネル表示中は隠す
+    });
     let mapKwTimer = null;
     $('#map-search').addEventListener('input', () => {
       clearTimeout(mapKwTimer);
@@ -403,6 +406,7 @@ const Views = (() => {
     });
     $('#map-panel-close').addEventListener('click', () => {
       $('#map-filter-panel').classList.add('hidden');
+      $('.map-scope').classList.remove('hidden');
       $('#map-search').blur();
     });
 
@@ -883,6 +887,7 @@ const Views = (() => {
       const mapPanel = $('#map-filter-panel');
       if (mapPanel && !mapPanel.classList.contains('hidden') && !e.target.closest('.map-overlay')) {
         mapPanel.classList.add('hidden');
+        $('.map-scope').classList.remove('hidden'); // パネルを閉じたら表示範囲アイコンを戻す
       }
       const listPanel = $('#list-filter-panel');
       if (listPanel && !listPanel.classList.contains('hidden') && !e.target.closest('.filters')) {

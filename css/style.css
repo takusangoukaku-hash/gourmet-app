@@ -601,7 +601,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 20px; position: relative;
 }
 .modal-close {
-  position: absolute; top: 10px; right: 10px; border: none; background: var(--border-lite);
+  /* スクロールしても右上に残る（お知らせ・設定などの長いモーダル用） */
+  position: sticky; top: 10px; z-index: 5;
+  display: block; margin-left: auto; margin-bottom: -32px;
+  border: none; background: var(--border-lite);
   border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 14px;
 }
 .detail-head h2 { margin: 0 0 2px; font-size: 20px; padding-right: 36px; }
