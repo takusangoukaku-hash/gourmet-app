@@ -1831,6 +1831,10 @@ const Views = (() => {
               dishGenres: [...set],
               comment: block.querySelector('.ve-comment').value.trim(),
             });
+            // フィードの公開投稿も新しい内容で更新（ログイン中のみ）
+            if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
+              Cloud.publishPostForVisit(v.id).catch(() => {});
+            }
             App.toast('✅ 保存しました');
             showShop(shopId, false, null);
             App.refreshCurrent();
@@ -2218,6 +2222,7 @@ const Views = (() => {
           ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
           <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
           ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">' + IC_NAV + ' ここへ行く</button>' : ''}
+          ${Store.visits().some(v => v.id === p.id) ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
           <div class="pd-social">
             <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n pd-like-n">·</span></button>
             <span class="pd-cmt-label">${IC_COMMENT} コメント</span>
@@ -2238,6 +2243,14 @@ const Views = (() => {
     if (ph) ph.addEventListener('click', () => openLightbox(p.photoUrl, `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`));
     const nav = ov.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    // 自分の投稿は編集できる（訪問記録の編集画面へ）
+    const eb = ov.querySelector('.pd-edit');
+    if (eb) eb.addEventListener('click', () => {
+      const mv = Store.visits().find(v => v.id === p.id);
+      if (!mv) return;
+      close();
+      showShop(mv.shopId, false, mv.id);
+    });
 
     // いいね
     Cloud.getLikeInfo(p.id).then(info => {

@@ -219,6 +219,16 @@ const Cloud = (() => {
     const shop = Store.getShop(visit.shopId) || {};
     let photoUrl = presetUrl || '';
     if (!photoUrl && photoPath) photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
+    // 引数でURLが来ない場合（編集後の再発行など）は、訪問の写真から自力で取得する
+    // （ここで空のまま保存すると既存投稿の写真が消えてしまうため）
+    if (!photoUrl) {
+      const ps = await Store.photosOfVisit(visitId).catch(() => []);
+      const p0 = ps && ps[0];
+      if (p0) {
+        photoUrl = p0.remoteUrl ||
+          await photoDownloadUrl(`users/${user.uid}/photos/${p0.id}.jpg`).catch(() => '');
+      }
+    }
     const post = clean({
       id: visitId, uid: user.uid, username: prof.username,
       displayName: prof.name || 'BITEMAP',
