@@ -406,10 +406,18 @@ const Views = (() => {
     ['#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
       $(sel).addEventListener('change', refreshMap));
 
+    // 「詳細」で絞り込み（ジャンル・味・お店の評価）を開閉
+    $('#map-detail-toggle').addEventListener('click', () => {
+      $('#map-detail-filters').classList.toggle('hidden');
+      $('#map-detail-toggle').classList.toggle('on', !$('#map-detail-filters').classList.contains('hidden'));
+    });
+
     // 検索バー: タップで絞り込みパネルを開き、入力でピンをキーワード絞り込み
     $('#map-search').addEventListener('focus', () => {
       $('#map-filter-panel').classList.remove('hidden');
       $('.map-scope').classList.add('hidden'); // 詳細検索と重なるため、パネル表示中は隠す
+      $('#map-detail-filters').classList.add('hidden'); // 開くたびに詳細は閉じた状態から
+      $('#map-detail-toggle').classList.remove('on');
       buildMapGenreChips(); // 記録済みジャンルでチップを作り直す
       // 星チップの選択状態を現在の絞り込みに合わせる
       const tv = $('#mf-taste').value;

@@ -952,3 +952,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .map-panel .fl-label:first-of-type { margin-top: 4px; }
 .map-panel .map-filter { margin-bottom: 6px; }
 .map-panel .lf-stars { margin-bottom: 4px; }
+
+/* ---------- 地図: 星の色の説明を地図上に常時表示 ---------- */
+.map-legend-float {
+  position: absolute; left: 10px; bottom: 104px; z-index: 1040;
+  background: rgba(255, 255, 255, .93); border: 1px solid var(--border-lite);
+  border-radius: 10px; padding: 5px 10px 5px 6px;
+  font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .12);
+}
+#map-detail-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
