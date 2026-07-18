@@ -1325,7 +1325,7 @@ const Views = (() => {
       <div class="thumb" data-thumb="${s.id}">🍽️</div>
       <div class="s-main">
         <div class="s-name">${esc(s.name)}</div>
-        <div class="s-stars">${starStr(avg)} <span class="num">味${avg || '－'}　訪問${Store.visitCount(s.id)}回</span></div>
+        <div class="s-stars">${starStr(avg)} <span class="num">訪問${Store.visitCount(s.id)}回</span></div>
         <div class="s-sub">${esc(shopLabelGenre(s) || '')}${s.station ? '　' + IC_STATION + ' ' + esc(s.station) : ''}${s.city ? '　' + IC_PIN + ' ' + esc(s.city) : ''}</div>
         ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
         <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
@@ -1729,7 +1729,7 @@ const Views = (() => {
       </div>` : `
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
-        <div class="d-stars">${starStr(avg)} 味${avg || '評価なし'}　<span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
+        <div class="d-stars">${starStr(avg)} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
@@ -2231,7 +2231,7 @@ const Views = (() => {
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const when = p.datetime ? fmtDate(p.datetime) : '';
     const stars = p.rating
-      ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span><span class="feed-rating-num">${p.rating}</span></div>`
+      ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span></div>`
       : '';
     return `<article class="feed-card" data-post="${esc(p.id)}">
         <div class="feed-head">
@@ -2277,7 +2277,7 @@ const Views = (() => {
         <div class="pd-scroll">
         <div class="pd-photos"></div>
         <div class="pd-body">
-          <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span><span class="feed-rating-num">${p.rating || '－'}</span></div>
+          <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span></div>
           <div class="pd-shop">${esc(p.shopName || '')}</div>
           <div class="pd-sub">${esc(p.shopGenre || '')}${p.genre ? '　🍽 ' + esc(p.genre) : ''}</div>
           ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
