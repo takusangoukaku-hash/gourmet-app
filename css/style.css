@@ -939,3 +939,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ---------- 検索の絞り込み: 「詳細」ボタンの選択状態 ---------- */
 #list-detail-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- 検索の詳細絞り込み（星チップ・ジャンルチップ・見出し） ---------- */
+.fl-label { font-size: 11.5px; color: var(--muted); font-weight: 700; margin: 10px 2px 6px; letter-spacing: .04em; }
+#list-detail-filters .map-filter { margin-bottom: 8px; }
+.lf-stars { align-items: center; }
+.lf-stars select { flex: 1; min-width: 110px; }
+.star-chip { color: #b8860b; }
+.star-chip.on { color: #fff; }

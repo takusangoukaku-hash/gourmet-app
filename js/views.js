@@ -872,11 +872,37 @@ const Views = (() => {
       setListMode(false);
       $('#list-filter-panel').classList.remove('hidden');
       $('#list-detail-filters').classList.add('hidden'); // 開くたびに詳細は閉じた状態から
+      buildListGenreChips(); // 記録済みジャンルでチップを作り直す
     });
     $('#list-detail-toggle').addEventListener('click', () => {
       $('#list-detail-filters').classList.toggle('hidden');
       $('#list-detail-toggle').classList.toggle('on', !$('#list-detail-filters').classList.contains('hidden'));
     });
+    // 料理ジャンルのチップ（1つ選択。もう一度押すと解除）— 値は内部のセレクトへ書き込む
+    // 全ジャンル(70種以上)ではなく、自分が記録したことのあるジャンルだけを出す
+    const gbar = $('#list-genre-chips');
+    const buildListGenreChips = () => {
+      const used = [...new Set(Store.visits().flatMap(v => v.dishGenres || []))];
+      const cur = $('#flt-dish-genre').value;
+      gbar.innerHTML = used.map(g =>
+        `<button type="button" class="chip${g === cur ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('');
+      gbar.classList.toggle('hidden', !used.length);
+    };
+    gbar.addEventListener('click', (e) => {
+      const c = e.target.closest('.chip');
+      if (!c) return;
+      const next = $('#flt-dish-genre').value === c.dataset.g ? '' : c.dataset.g;
+      $('#flt-dish-genre').value = next;
+      gbar.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.g === next));
+      renderList();
+    });
+    // 星のチップ（★3以上/★4以上/★5。もう一度押すと解除）
+    document.querySelectorAll('.star-chip').forEach(b => b.addEventListener('click', () => {
+      const next = $('#flt-rating').value === b.dataset.r ? '' : b.dataset.r;
+      $('#flt-rating').value = next;
+      document.querySelectorAll('.star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next));
+      renderList();
+    }));
     $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
     // 「戻る」で発見グリッドへ戻る
     $('#list-cancel').addEventListener('click', () => {
@@ -1010,6 +1036,13 @@ const Views = (() => {
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
   function enterListTab() {
     $('#flt-keyword').value = '';
+    // 絞り込みも毎回まっさらに（見えない絞り込みが残って「表示されない」と混乱しないように）
+    $('#flt-dish-genre').value = '';
+    $('#flt-rating').value = '';
+    $('#flt-pref').value = '';
+    $('#flt-group').value = '';
+    $('#flt-fav').checked = false;
+    document.querySelectorAll('#list-genre-chips .chip, .star-chip').forEach(x => x.classList.remove('on'));
     $('#list-filter-panel').classList.add('hidden');
     setListMode(true);
   }

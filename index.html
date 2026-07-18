@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=131">
+<link rel="stylesheet" href="css/style.css?v=132">
 </head>
 <body>
 
@@ -197,37 +197,47 @@
       <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
       <button type="button" id="list-detail-toggle" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg> 詳細</button>
     </div>
-    <!-- 「詳細」を押したときだけ出る絞り込み（分類・並び順・都道府県・料理ジャンル・味の評価） -->
+    <!-- 「詳細」を押したときだけ出る絞り込み（星チップ・ジャンルチップ・並び替え） -->
     <div id="list-detail-filters" class="hidden">
+    <div class="fl-label">絞り込み</div>
+    <div id="list-genre-chips" class="map-filter"></div>
+    <div class="filter-row lf-stars">
+      <button type="button" class="chip star-chip" data-r="3">★3以上</button>
+      <button type="button" class="chip star-chip" data-r="4">★4以上</button>
+      <button type="button" class="chip star-chip" data-r="5">★5だけ</button>
+      <select id="flt-pref"><option value="">都道府県</option></select>
+    </div>
+    <div class="fl-label">並び替え</div>
+    <div class="filter-row">
+      <select id="flt-sort">
+        <option value="rating" selected>★が高い順</option>
+        <option value="newest">新しく登録した順</option>
+        <option value="visitDate">最近行った順</option>
+        <option value="visitCount">よく行く順</option>
+        <option value="casual">気軽さ順</option>
+        <option value="atmosphere">雰囲気がいい順</option>
+        <option value="speed">提供が早い順</option>
+        <option value="name">店名（あいうえお順）</option>
+      </select>
+    </div>
+    <div class="fl-label">まとめて表示</div>
     <div class="filter-row">
       <select id="flt-group">
-        <option value="">分類: なし</option>
-        <option value="station">最寄駅ごと</option>
+        <option value="">まとめない</option>
+        <option value="station">駅ごと</option>
         <option value="pref">都道府県ごと</option>
         <option value="city">市区町村ごと</option>
         <option value="dishGenre">料理ジャンルごと</option>
-        <option value="rating">評価ごと</option>
-      </select>
-      <select id="flt-sort">
-        <option value="rating" selected>味の評価順</option>
-        <option value="newest">新着順</option>
-        <option value="visitDate">訪問日順</option>
-        <option value="visitCount">訪問回数順</option>
-        <option value="casual">カジュアル度順</option>
-        <option value="atmosphere">雰囲気順</option>
-        <option value="speed">提供の早さ順</option>
-        <option value="name">店名順</option>
+        <option value="rating">★の数ごと</option>
       </select>
     </div>
-    <div class="filter-row">
-      <select id="flt-pref"><option value="">都道府県</option></select>
-      <select id="flt-dish-genre"><option value="">料理ジャンル</option></select>
-      <select id="flt-rating">
-        <option value="">味の評価</option>
-        <option value="5">味★5</option><option value="4">味★4以上</option>
-        <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
-      </select>
-    </div>
+    <!-- 内部用（チップが値を書き込む。表示はしない） -->
+    <select id="flt-dish-genre" hidden><option value="">料理ジャンル</option></select>
+    <select id="flt-rating" hidden>
+      <option value="">味の評価</option>
+      <option value="5">味★5</option><option value="4">味★4以上</option>
+      <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
+    </select>
     </div>
     <div class="filter-row">
       <button type="button" id="list-panel-close" class="btn small">▲ 絞り込みを閉じる</button>
@@ -468,11 +478,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=131"></script>
-<script src="js/api.js?v=131"></script>
-<script src="js/cloud.js?v=131"></script>
-<script src="js/register.js?v=131"></script>
-<script src="js/views.js?v=131"></script>
-<script src="js/app.js?v=131"></script>
+<script src="js/store.js?v=132"></script>
+<script src="js/api.js?v=132"></script>
+<script src="js/cloud.js?v=132"></script>
+<script src="js/register.js?v=132"></script>
+<script src="js/views.js?v=132"></script>
+<script src="js/app.js?v=132"></script>
 </body>
 </html>
