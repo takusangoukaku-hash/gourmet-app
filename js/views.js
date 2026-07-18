@@ -940,7 +940,8 @@ const Views = (() => {
       document.querySelectorAll('.star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next));
       renderList();
     }));
-    // 発見グリッドへ戻るのは下の検索タブをもう一度押す（switchTab→enterListTabでリセットされる）
+    // ←（戻る）で最初の画面（発見グリッド）へ。下の検索タブの再タップでも戻れる
+    $('#list-back').addEventListener('click', enterListTab);
     // 行きたい店リスト
     $('#list-wishes').addEventListener('click', openWishlist);
 
@@ -1060,6 +1061,7 @@ const Views = (() => {
     exploreMode = explore;
     $('#explore-grid').classList.toggle('hidden', !explore);
     $('#shop-list').classList.toggle('hidden', explore);
+    $('#list-back').classList.toggle('hidden', explore); // 検索モード中だけ←（戻る）を出す
     if (explore) renderExplore(); else renderList();
   }
 
@@ -1136,6 +1138,7 @@ const Views = (() => {
       // タブを開いた直後は発見グリッドを表示（検索バーをタップすると店舗検索へ）
       $('#explore-grid').classList.remove('hidden');
       $('#shop-list').classList.add('hidden');
+      $('#list-back').classList.add('hidden');
       renderExplore();
       return;
     }

@@ -967,3 +967,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   box-shadow: 0 1px 6px rgba(0, 0, 0, .12);
 }
 #map-detail-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* 検索モード中の戻る矢印（検索バーの左） */
+.list-back { flex-shrink: 0; width: 34px; height: 34px; }
+.list-back svg { width: 22px; height: 22px; }
