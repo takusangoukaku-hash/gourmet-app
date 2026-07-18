@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=142">
+<link rel="stylesheet" href="css/style.css?v=143">
 </head>
 <body>
 
@@ -186,15 +186,15 @@
       </div>
     </div>
   </div>
-  <!-- 星の色の説明（地図の上に常時表示）。濃い枠は平均が.5以上のしるし -->
+  <!-- 星の色の説明（地図の上に常時表示） -->
   <div class="map-legend-float">
-    味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5 <i class="dot r3 hi"></i>.5〜 <i class="dot wish"></i>行きたい
+    味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5 <i class="dot wish"></i>行きたい
   </div>
 </section>
 
 <!-- ========== 一覧 ========== -->
 <section id="view-list" class="view">
-  <div class="card filters frameless">
+  <div class="card filters frameless" id="list-filters-card">
     <div class="filter-row">
       <button type="button" id="list-back" class="icon-btn list-back hidden" aria-label="戻る" title="戻る">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
@@ -314,6 +314,11 @@
         <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
       </svg>
     </button>
+    <button class="psub" data-ptab="shops" title="お店をさがす" aria-label="お店をさがす">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+    </button>
     <button class="psub" data-ptab="stats" title="統計" aria-label="統計">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
@@ -325,6 +330,9 @@
   <div id="ptab-photos" class="ptab-panel">
     <div id="pf-photo-grid" class="photo-grid"></div>
   </div>
+
+  <!-- お店をさがすパネル（検索タブと同じ検索バー・絞り込み・店舗リストをここへ移動して表示） -->
+  <div id="ptab-shops" class="ptab-panel hidden"></div>
 
   <!-- 統計パネル -->
   <div id="ptab-stats" class="ptab-panel hidden">
@@ -494,11 +502,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=142"></script>
-<script src="js/api.js?v=142"></script>
-<script src="js/cloud.js?v=142"></script>
-<script src="js/register.js?v=142"></script>
-<script src="js/views.js?v=142"></script>
-<script src="js/app.js?v=142"></script>
+<script src="js/store.js?v=143"></script>
+<script src="js/api.js?v=143"></script>
+<script src="js/cloud.js?v=143"></script>
+<script src="js/register.js?v=143"></script>
+<script src="js/views.js?v=143"></script>
+<script src="js/app.js?v=143"></script>
 </body>
 </html>

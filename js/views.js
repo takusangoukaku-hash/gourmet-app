@@ -334,8 +334,7 @@ const Views = (() => {
       map.addLayer({ id: 'pins', type: 'circle', source: 'shops',
         filter: ['!', ['has', 'point_count']],
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
-          // 枠の色で平均の小数部を表す: .0〜.4 = 白枠 / .5〜.9 = 濃い枠
-          'circle-stroke-color': ['case', ['==', ['get', 'hi'], 1], '#3b3b3b', '#ffffff'],
+          'circle-stroke-color': '#ffffff',
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // お気に入り★（拡大時のみ）
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12,
@@ -986,7 +985,8 @@ const Views = (() => {
     // 検索バーをタップしたら発見グリッドから店舗検索へ切り替え、絞り込みを開く（インスタと同じ操作感）
     // 最初はお気に入り・地図・詳細のみ。細かい絞り込みは「詳細」で開く
     $('#flt-keyword').addEventListener('focus', () => {
-      setListMode(false);
+      // プロフィールの「お店をさがす」へ移動中はグリッド切り替えをせず、絞り込みだけ開く
+      if ($('#view-list').contains($('#flt-keyword'))) setListMode(false);
       $('#list-filter-panel').classList.remove('hidden');
       $('#list-detail-filters').classList.add('hidden'); // 開くたびに詳細は閉じた状態から
       buildListGenreChips(); // 記録済みジャンルでチップを作り直す
@@ -1147,6 +1147,13 @@ const Views = (() => {
 
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
   function enterListTab() {
+    // プロフィールの「お店をさがす」に検索UIを移動していたら元の位置へ戻す
+    const lv = $('#view-list');
+    const fc = $('#list-filters-card');
+    if (!lv.contains(fc)) {
+      lv.insertBefore(fc, $('#explore-grid'));
+      lv.appendChild($('#shop-list'));
+    }
     $('#flt-keyword').value = '';
     // 絞り込みも毎回まっさらに（見えない絞り込みが残って「表示されない」と混乱しないように）
     $('#flt-dish-genre').value = '';
@@ -1469,10 +1476,24 @@ const Views = (() => {
   function showProfileTab(name) {
     document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
     $('#ptab-photos').classList.toggle('hidden', name !== 'photos');
+    $('#ptab-shops').classList.toggle('hidden', name !== 'shops');
     $('#ptab-stats').classList.toggle('hidden', name !== 'stats');
-    // グラフは表示中のcanvasでないと大きさが0になるため、表示時に描画する
-    if (name === 'stats') renderStats();
-    else renderProfilePhotos();
+    if (name === 'stats') {
+      // グラフは表示中のcanvasでないと大きさが0になるため、表示時に描画する
+      renderStats();
+    } else if (name === 'shops') {
+      // 検索タブの検索バー・絞り込み・店舗リストをこのパネルへ移動して表示
+      // （DOMごと移動するので機能は検索タブと完全に同じ。検索タブへ戻ると元の位置に戻る）
+      const panel = $('#ptab-shops');
+      panel.appendChild($('#list-filters-card'));
+      panel.appendChild($('#shop-list'));
+      exploreMode = false;
+      $('#shop-list').classList.remove('hidden');
+      $('#list-back').classList.add('hidden'); // プロフィール内では戻る矢印は不要
+      renderList();
+    } else {
+      renderProfilePhotos();
+    }
   }
 
   // プロフィールの写真グリッド（全写真・撮影日の新しい順・タップで拡大）

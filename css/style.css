@@ -986,3 +986,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* 凡例: 濃い枠 = 平均の小数部が .5〜.9 の店 */
 .dot.hi { border: 2px solid #3b3b3b; box-sizing: border-box; }
+
+/* プロフィールの写真グリッド: 画面の端まで広げる（両脇の白い隙間をなくす） */
+#pf-photo-grid { margin-left: -16px; margin-right: -16px; }
+/* プロフィール「お店をさがす」: 移動してきた検索UIの余白を整える */
+#ptab-shops .filters { padding: 0; margin-bottom: 10px; box-shadow: none; }
