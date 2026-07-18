@@ -983,3 +983,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .map-wish-btn svg { width: 20px; height: 20px; }
 .map-wish-btn.on { background: #8B5CF6; border-color: #8B5CF6; color: #fff; }
+
+/* 凡例: 濃い枠 = 平均の小数部が .5〜.9 の店 */
+.dot.hi { border: 2px solid #3b3b3b; box-sizing: border-box; }
