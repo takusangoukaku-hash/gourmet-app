@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=130">
+<link rel="stylesheet" href="css/style.css?v=131">
 </head>
 <body>
 
@@ -191,6 +191,14 @@
       <button type="button" id="list-cancel" class="btn small hidden">戻る</button>
     </div>
     <div id="list-filter-panel" class="hidden">
+    <!-- 検索バーを押したとき最初に見える操作（お気に入り・地図・詳細） -->
+    <div class="filter-row">
+      <label class="check"><input type="checkbox" id="flt-fav"> <svg class="ic" viewBox="0 0 24 24" fill="currentColor" style="color:var(--accent)"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg> お気に入りのみ</label>
+      <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
+      <button type="button" id="list-detail-toggle" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg> 詳細</button>
+    </div>
+    <!-- 「詳細」を押したときだけ出る絞り込み（分類・並び順・都道府県・料理ジャンル・味の評価） -->
+    <div id="list-detail-filters" class="hidden">
     <div class="filter-row">
       <select id="flt-group">
         <option value="">分類: なし</option>
@@ -219,10 +227,9 @@
         <option value="5">味★5</option><option value="4">味★4以上</option>
         <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
       </select>
-      <label class="check"><input type="checkbox" id="flt-fav"> <svg class="ic" viewBox="0 0 24 24" fill="currentColor" style="color:var(--accent)"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg> お気に入りのみ</label>
+    </div>
     </div>
     <div class="filter-row">
-      <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
       <button type="button" id="list-panel-close" class="btn small">▲ 絞り込みを閉じる</button>
     </div>
     </div>
@@ -461,11 +468,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=130"></script>
-<script src="js/api.js?v=130"></script>
-<script src="js/cloud.js?v=130"></script>
-<script src="js/register.js?v=130"></script>
-<script src="js/views.js?v=130"></script>
-<script src="js/app.js?v=130"></script>
+<script src="js/store.js?v=131"></script>
+<script src="js/api.js?v=131"></script>
+<script src="js/cloud.js?v=131"></script>
+<script src="js/register.js?v=131"></script>
+<script src="js/views.js?v=131"></script>
+<script src="js/app.js?v=131"></script>
 </body>
 </html>

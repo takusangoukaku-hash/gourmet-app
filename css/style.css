@@ -936,3 +936,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .modal-head h2 { margin: 0; font-size: 17px; }
 .modal-head .modal-close { position: static; margin: 0; flex-shrink: 0; }
+
+/* ---------- 検索の絞り込み: 「詳細」ボタンの選択状態 ---------- */
+#list-detail-toggle.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }

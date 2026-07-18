@@ -867,9 +867,15 @@ const Views = (() => {
     // フィルタ選択肢
     $('#flt-dish-genre').innerHTML = '<option value="">料理ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
     // 検索バーをタップしたら発見グリッドから店舗検索へ切り替え、絞り込みを開く（インスタと同じ操作感）
+    // 最初はお気に入り・地図・詳細のみ。細かい絞り込みは「詳細」で開く
     $('#flt-keyword').addEventListener('focus', () => {
       setListMode(false);
       $('#list-filter-panel').classList.remove('hidden');
+      $('#list-detail-filters').classList.add('hidden'); // 開くたびに詳細は閉じた状態から
+    });
+    $('#list-detail-toggle').addEventListener('click', () => {
+      $('#list-detail-filters').classList.toggle('hidden');
+      $('#list-detail-toggle').classList.toggle('on', !$('#list-detail-filters').classList.contains('hidden'));
     });
     $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
     // 「戻る」で発見グリッドへ戻る
