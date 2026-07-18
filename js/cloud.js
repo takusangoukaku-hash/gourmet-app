@@ -125,7 +125,34 @@ const Cloud = (() => {
     await pullCollection('visits', 'visit');
     await pullWishes();
     await pullProfile();
+    await syncApiKeys();
     await pushAllRecords();
+  }
+
+  // APIキー（Anthropic/Google）を自分のアカウントにも保存して、消えたら自動復元する
+  //  - localStorageはブラウザ都合で消えることがある（iOS Safariの自動削除・端末変更など）
+  //  - 保存先は users/{uid}/meta/keys（本人しか読めない）
+  async function syncApiKeys() {
+    try {
+      const ref = dref('meta', 'keys');
+      const snap = await fb.fs.getDoc(ref);
+      const remote = snap.exists() ? snap.data() : {};
+      // ローカルに無ければクラウドから復元
+      if (!Api.getApiKey() && remote.anthropic) Api.setApiKey(remote.anthropic);
+      if (!Api.getGoogleKey() && remote.google) Api.setGoogleKey(remote.google);
+      // ローカルにあるキーはクラウドへ保存（機種変更・消失対策）
+      const data = {};
+      if (Api.getApiKey()) data.anthropic = Api.getApiKey();
+      if (Api.getGoogleKey()) data.google = Api.getGoogleKey();
+      if (Object.keys(data).length) await fb.fs.setDoc(ref, data, { merge: true });
+    } catch (e) { console.warn('APIキーの同期に失敗:', e); }
+  }
+
+  // 設定の「キーを削除」用: クラウド側の控えも消す（残っていると次回ログインで復活してしまう）
+  async function clearApiKeys() {
+    await ensureLoaded();
+    if (!user) return;
+    await fb.fs.deleteDoc(dref('meta', 'keys')).catch(() => {});
   }
 
   // 行きたい店リスト: クラウド → ローカル（新しい方を採用）
@@ -584,5 +611,6 @@ const Cloud = (() => {
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
     fetchFeed, fetchNetworkPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
-    getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment };
+    getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
+    publishPostForVisit, syncApiKeys, clearApiKeys };
 })();

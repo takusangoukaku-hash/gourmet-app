@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v150'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v151'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -81,9 +81,13 @@ const App = (() => {
       $('#settings-modal').classList.remove('hidden');
     });
     $('#settings-save').addEventListener('click', () => {
-      Api.setApiKey($('#settings-api-key').value.trim());
-      Api.resetAnthropicClient();
-      Api.setGoogleKey($('#settings-google-key').value.trim());
+      const ak = $('#settings-api-key').value.trim();
+      const gk = $('#settings-google-key').value.trim();
+      // 空欄のまま保存しても、設定済みのキーは消さない（消すのは「キーを削除」ボタンだけ）
+      if (ak) { Api.setApiKey(ak); Api.resetAnthropicClient(); }
+      if (gk) Api.setGoogleKey(gk);
+      // ログイン中はアカウントにも控えを保存（ブラウザ都合で消えても自動復元される）
+      if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.syncApiKeys().catch(() => {});
       $('#settings-modal').classList.add('hidden');
       toast('✅ 設定を保存しました。');
     });
@@ -93,6 +97,8 @@ const App = (() => {
       Api.setGoogleKey('');
       $('#settings-api-key').value = '';
       $('#settings-google-key').value = '';
+      // クラウドの控えも消す（残すと次回ログインで復活してしまう）
+      if (typeof Cloud !== 'undefined') Cloud.clearApiKeys().catch(() => {});
       $('#settings-status').textContent = settingsStatus();
       toast('APIキーを削除しました。');
     });
