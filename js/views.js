@@ -903,13 +903,7 @@ const Views = (() => {
       document.querySelectorAll('.star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next));
       renderList();
     }));
-    $('#list-panel-close').addEventListener('click', () => $('#list-filter-panel').classList.add('hidden'));
-    // 「戻る」で発見グリッドへ戻る
-    $('#list-cancel').addEventListener('click', () => {
-      $('#flt-keyword').value = '';
-      $('#list-filter-panel').classList.add('hidden');
-      setListMode(true);
-    });
+    // 発見グリッドへ戻るのは下の検索タブをもう一度押す（switchTab→enterListTabでリセットされる）
     // 行きたい店リスト
     $('#list-wishes').addEventListener('click', openWishlist);
 
@@ -1029,7 +1023,6 @@ const Views = (() => {
     exploreMode = explore;
     $('#explore-grid').classList.toggle('hidden', !explore);
     $('#shop-list').classList.toggle('hidden', explore);
-    $('#list-cancel').classList.toggle('hidden', explore);
     if (explore) renderExplore(); else renderList();
   }
 
@@ -1106,7 +1099,6 @@ const Views = (() => {
       // タブを開いた直後は発見グリッドを表示（検索バーをタップすると店舗検索へ）
       $('#explore-grid').classList.remove('hidden');
       $('#shop-list').classList.add('hidden');
-      $('#list-cancel').classList.add('hidden');
       renderExplore();
       return;
     }
