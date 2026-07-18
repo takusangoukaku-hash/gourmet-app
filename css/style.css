@@ -971,3 +971,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 検索モード中の戻る矢印（検索バーの左） */
 .list-back { flex-shrink: 0; width: 34px; height: 34px; }
 .list-back svg { width: 22px; height: 22px; }
+
+/* ---------- 地図: 検索バー横のしおり（行きたい店だけ表示） ---------- */
+.map-search-row { display: flex; gap: 8px; align-items: center; }
+.map-search-row .search-field { flex: 1; }
+.map-wish-btn {
+  flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
+  background: #fff; border: 1px solid var(--border-lite);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .14); cursor: pointer; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+}
+.map-wish-btn svg { width: 20px; height: 20px; }
+.map-wish-btn.on { background: #8B5CF6; border-color: #8B5CF6; color: #fff; }

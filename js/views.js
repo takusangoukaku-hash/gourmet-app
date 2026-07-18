@@ -447,21 +447,37 @@ const Views = (() => {
       $('#map-search').blur();
     });
 
-    // 表示範囲の切替（自分のみ / 自分＋つながり / 行きたい店のみ）
+    // 表示範囲の切替（自分のみ / 自分＋つながり）
     document.querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', async () => {
       const scope = b.dataset.scope;
       if (scope === mapScope) return;
       const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
       if (scope === 'all' && !me) { App.toast('「フォロー中」はログインすると使えます'); return; }
-      if (scope === 'wish' && !Store.wishes().some(w => w.lat != null)) {
-        App.toast('行きたい店はまだありません。ホームの投稿のしおりマークから保存できます');
-        return;
-      }
       mapScope = scope;
+      $('#map-wish-btn').classList.remove('on'); // 行きたいのみ表示は解除
       document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x === b));
       if (scope === 'all') { App.toast('フォロー中の人の店を読み込み中…'); await loadNetworkPosts(); }
       refreshMap();
     }));
+
+    // 検索バー横のしおり: 行きたい店（紫ピン）だけの表示に切り替え（もう一度押すと元へ）
+    let prevScope = 'me';
+    $('#map-wish-btn').addEventListener('click', () => {
+      if (mapScope === 'wish') {
+        mapScope = prevScope || 'me';
+        $('#map-wish-btn').classList.remove('on');
+        refreshMap();
+        return;
+      }
+      if (!Store.wishes().some(w => w.lat != null)) {
+        App.toast('行きたい店はまだありません。ホームの投稿のしおりマークから保存できます');
+        return;
+      }
+      prevScope = mapScope;
+      mapScope = 'wish';
+      $('#map-wish-btn').classList.add('on');
+      refreshMap();
+    });
 
     $('#map-locate').addEventListener('click', () => locateUser(true));
     $('#map-nearby').addEventListener('click', () => openNearby());
