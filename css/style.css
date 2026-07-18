@@ -1006,3 +1006,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 #pf-photo-grid { margin-left: -16px; margin-right: -16px; }
 /* プロフィール「お店をさがす」: 移動してきた検索UIの余白を整える */
 #ptab-shops .filters { padding: 0; margin-bottom: 10px; box-shadow: none; }
+
+/* ---------- 地図ポップアップ: フォロワーのアイコン（写真の右上・タップでプロフィールへ） ---------- */
+.pp-wrap { position: relative; }
+.pp-row { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+.pp-avatars { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.pp-row .pp-avatars { position: static; }
+.pp-av {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; padding: 0;
+  background: var(--field); overflow: hidden; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.pp-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }

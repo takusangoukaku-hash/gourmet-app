@@ -89,8 +89,10 @@ const Views = (() => {
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
-  let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ / 'all' 自分＋つながり / 'wish' 行きたい店のみ
+  let mapScope = 'all';       // 地図の表示範囲: 'all' 自分＋フォロー中(既定) / 'me' 自分のみ / 'wish' 行きたい店のみ
+  let networkLoaded = false;  // フォロー中の人の記録を読み込み済みか（地図を開いたとき自動で読む）
   let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
+  const mapContrib = new Map(); // 自分の店ピンに合算されたフォロワー（shopId → [{username, avatar}]）
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
   // ピンfeature id → 本人＋フォロワーの評価プール（味＝各評価、店の3軸＝人ごとの値）
   //  { taste:[], casual:[], atmosphere:[], speed:[] }。ポップアップで平均を出すのに使う
@@ -407,6 +409,7 @@ const Views = (() => {
       });
 
       refreshMapData(true);
+      ensureNetworkLoaded(); // 初回の地図読み込み後にもフォロー中の記録を重ねる
       if (pendingRefresh) { pendingRefresh = false; }
       // 現在地を青い点で表示（地図は動かさない。許可済みなら再確認なしで表示される）
       locateUser(false);
@@ -752,6 +755,21 @@ const Views = (() => {
     return top ? top[0] : (s.shopGenre || '');
   }
 
+  // フォロワーのアイコン（写真の右上に小さく重ねる）。タップでその人のプロフィールへ
+  function contribAvatarsHtml(users) {
+    if (!users || !users.length) return '';
+    return `<span class="pp-avatars">` + users.slice(0, 3).map(u =>
+      `<button type="button" class="pp-av" data-u="${esc(u.username)}" aria-label="@${esc(u.username)} のプロフィール">`
+      + (u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : '🍜') + `</button>`).join('') + `</span>`;
+  }
+  function wireContribAvatars(node) {
+    node.querySelectorAll('.pp-av').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (mapPopup) mapPopup.remove();
+      showPublicProfile(b.dataset.u);
+    }));
+  }
+
   // つながりの人のピン → 投稿ポップアップ（誰の・写真・評価・詳細）
   // 複数人が同じ店に行っている場合は1つのピンにまとまっており、全員の平均を表示する
   function openOtherPinPopup(feature) {
@@ -764,10 +782,13 @@ const Views = (() => {
     const who = multi
       ? `${names.slice(0, 3).join('・')}${names.length > 3 ? ' ほか' : ''}が訪問`
       : `@${latest.username} さんの訪問`;
+    // 写真の右上に投稿者のアイコン（タップでプロフィールへ）
+    const users = [...new Map(posts.map(p => [p.username, { username: p.username || '', avatar: p.avatar || '' }])).values()];
+    const avatars = contribAvatarsHtml(users);
     const node = document.createElement('div');
     node.className = 'popup';
     node.innerHTML = `
-        ${latest.photoUrl ? `<img src="${esc(latest.photoUrl)}" alt="">` : ''}
+        ${latest.photoUrl ? `<div class="pp-wrap"><img src="${esc(latest.photoUrl)}" alt="">${avatars}</div>` : `<div class="pp-row">${avatars}</div>`}
         <div class="p-who">${esc(who)}</div>
         <div class="p-name">${esc(g.name || '')}</div>
         ${mapStatsLine(mapStats.get(feature.properties.id))}
@@ -778,6 +799,7 @@ const Views = (() => {
           <button class="btn small popup-wish${wishStateForPost(latest) ? ' on-wish' : ''}">${IC_BOOKMARK} 行きたい</button>
           <button class="btn small popup-detail">${multi ? '最新の投稿 →' : '投稿を見る →'}</button>
         </div>`;
+    wireContribAvatars(node);
     node.querySelector('.popup-detail').addEventListener('click', () => showPostDetail(latest));
     node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: g.name, lat: g.lat, lon: g.lon }));
     node.querySelector('.popup-wish').addEventListener('click', (e) => {
@@ -799,10 +821,12 @@ const Views = (() => {
     const last = vs[0];
     // 「みんな」表示では本人＋フォロワーを合わせた平均（mapStatsに集約済み）
     const st = mapStats.get(s.id);
+    // この店にフォロワーの記録も混ざっていれば、写真の右上にアイコンを出す
+    const avatars = contribAvatarsHtml(mapContrib.get(s.id));
     const node = document.createElement('div');
     node.className = 'popup';
     node.innerHTML = `
-        ${rep ? `<img alt="" decoding="async">` : ''}
+        ${rep ? `<div class="pp-wrap"><img alt="" decoding="async">${avatars}</div>` : (avatars ? `<div class="pp-row">${avatars}</div>` : '')}
         <div class="p-name">${esc(s.name)}${s.favorite ? ' ' + IC_FAV : ''}</div>
         ${mapStatsLine(st)}
         <div class="p-sub">訪問${vs.length}回${last ? '　最終: ' + fmtDate(last.datetime) : ''}</div>
@@ -811,7 +835,8 @@ const Views = (() => {
           <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
           <button class="btn small popup-detail">店舗詳細 →</button>
         </div>`;
-    if (rep) setThumb(node.querySelector('img'), rep); // ポップアップも縮小画像で軽く
+    if (rep) setThumb(node.querySelector('.pp-wrap img'), rep); // ポップアップも縮小画像で軽く
+    wireContribAvatars(node);
     node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
     node.querySelector('.popup-nav').addEventListener('click', () => openNav(s));
     if (mapPopup) mapPopup.remove();
@@ -847,6 +872,7 @@ const Views = (() => {
     // 店ごとの評価プール（自分の評価。「みんな」ではフォロー中の人の評価も合算して平均し直す）
     //  味＝各訪問の評価、店の3軸(気軽さ/雰囲気/早さ)＝人ごとに1つの値
     mapStats.clear();
+    mapContrib.clear();
     for (const s of shops) {
       mapStats.set(s.id, {
         taste: Store.visitsOf(s.id).map(v => v.rating || 0).filter(r => r > 0),
@@ -889,6 +915,11 @@ const Views = (() => {
           if (p.casual > 0) st.casual.push(p.casual);
           if (p.atmosphere > 0) st.atmosphere.push(p.atmosphere);
           if (p.speed > 0) st.speed.push(p.speed);
+          // 誰の記録が混ざっているかを覚えておく（ポップアップにアイコンを出す）
+          if (!mapContrib.has(mine.id)) mapContrib.set(mine.id, []);
+          if (!mapContrib.get(mine.id).some(c => c.username === p.username)) {
+            mapContrib.get(mine.id).push({ username: p.username || '', avatar: p.avatar || '' });
+          }
           continue;
         }
         // 他人だけの店: 同名＋近接（約100m）で1つにまとめる
@@ -987,6 +1018,14 @@ const Views = (() => {
     map.resize(); // タブ切り替えで表示された直後はキャンバスサイズが0のため
     if (!mapLoaded) { pendingRefresh = true; return; } // load後に反映される
     refreshMapData(true);
+    ensureNetworkLoaded();
+  }
+
+  // フォロー中の人の訪問記録を自動で読み込んで地図に重ねる（ログイン中・初回のみ）
+  function ensureNetworkLoaded() {
+    if (networkLoaded || typeof Cloud === 'undefined' || !Cloud.getUser()) return;
+    networkLoaded = true;
+    loadNetworkPosts().then(() => refreshMapData(false));
   }
 
   function toggleHeat() {
