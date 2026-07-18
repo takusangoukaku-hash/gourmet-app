@@ -715,7 +715,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 写真は切り抜かず全体を表示（横長でも左右が見切れない）。縦長は上限を設ける */
 .feed-photo { width: 100%; height: auto; max-height: 85vh; object-fit: contain; display: block; background: var(--field); }
 /* いいね・コメントのアクション行 */
-.feed-actions { display: flex; gap: 6px; padding: 8px 12px 0; }
+.feed-actions { display: flex; gap: 6px; padding: 6px 12px 10px; }
 .fa-like, .fa-comment { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; cursor: pointer; color: var(--text); padding: 4px 6px; font-size: 13px; font-weight: bold; }
 .fa-like .heart-ic, .fa-like .ic, .fa-comment .ic { width: 22px; height: 22px; }
 .fa-like .heart-ic { fill: none; }

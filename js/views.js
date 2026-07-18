@@ -2242,16 +2242,16 @@ const Views = (() => {
           <span class="feed-date">${when}</span>
         </div>
         ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">` : ''}
-        <div class="feed-actions">
-          <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
-          <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>
-          <button type="button" class="fa-save${wishStateForPost(p) ? ' on' : ''}" data-post="${esc(p.id)}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
-        </div>
         <div class="feed-body">
           ${stars}
           <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
           ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
           <div class="feed-comments"></div>
+        </div>
+        <div class="feed-actions">
+          <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
+          <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>
+          <button type="button" class="fa-save${wishStateForPost(p) ? ' on' : ''}" data-post="${esc(p.id)}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
         </div>
       </article>`;
   }
