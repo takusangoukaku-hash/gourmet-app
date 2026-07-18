@@ -2144,10 +2144,8 @@ const Views = (() => {
     }
     feedPosts.clear();
     posts.forEach(p => feedPosts.set(p.id, p));
-    box.innerHTML = `<div class="feed-top"><button type="button" class="btn small feed-reload">↻ 更新</button></div>`
-      + posts.map(postCard).join('');
-    const rl = box.querySelector('.feed-reload');
-    if (rl) rl.addEventListener('click', () => renderFeed(true)); // 更新は強制再取得
+    // 更新は下に引っ張るプルリフレッシュで行う（右上の更新ボタンは廃止）
+    box.innerHTML = posts.map(postCard).join('');
     const applyStats = (card, s) => {
       const lb = card.querySelector('.fa-like');
       if (lb) { lb.querySelector('.fa-like-n').textContent = s.likes; lb.classList.toggle('liked', s.liked); }
@@ -2268,13 +2266,16 @@ const Views = (() => {
       .filter(Boolean).join('　');
     const ov = document.createElement('div');
     ov.className = 'modal postdetail-modal';
-    ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
-        <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
-          <span class="fc-avatar">${av}</span>
-          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
-        </button>
-        ${p.photoUrl ? `<img class="pd-photo" src="${esc(p.photoUrl)}" alt="">` : ''}
+    ov.innerHTML = `<div class="modal-box pd-full">
+        <div class="pd-topbar">
+          <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
+          <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
+            <span class="fc-avatar">${av}</span>
+            <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
+          </button>
+        </div>
+        <div class="pd-scroll">
+        <div class="pd-photos"></div>
         <div class="pd-body">
           <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span><span class="feed-rating-num">${p.rating || '－'}</span></div>
           <div class="pd-shop">${esc(p.shopName || '')}</div>
@@ -2297,13 +2298,26 @@ const Views = (() => {
             <button type="button" class="btn small primary pd-csend">送信</button>
           </div>
         </div>
+        </div>
       </div>`;
     const close = () => ov.remove();
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.pd-close').addEventListener('click', close);
     ov.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
-    const ph = ov.querySelector('.pd-photo');
-    if (ph) ph.addEventListener('click', () => openLightbox(p.photoUrl, `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`));
+    // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
+    const cap = `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`;
+    (async () => {
+      let urls = [];
+      if (Store.visits().some(v => v.id === p.id)) {
+        const ps = await Store.photosOfVisit(p.id).catch(() => []);
+        urls = ps.map(x => photoUrl(x)).filter(Boolean);
+      }
+      if (!urls.length && p.photoUrl) urls = [p.photoUrl];
+      const box = ov.querySelector('.pd-photos');
+      box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="">`).join('');
+      box.querySelectorAll('.pd-photo').forEach((img, i) =>
+        img.addEventListener('click', () => openLightbox(urls[i], cap)));
+    })();
     const nav = ov.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     // 自分の投稿は編集できる（訪問記録の編集画面へ）
