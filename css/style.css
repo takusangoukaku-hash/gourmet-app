@@ -250,7 +250,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .btn.danger:hover { border-color: #ed4956; }
 
 /* ---------- 地図 ---------- */
-.map-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+/* ボタン5つ（現在地/近い順/ヒートマップ/詳細/✕）を1段に収める: 折り返し禁止＋詰めた余白 */
+.map-toolbar { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; flex-wrap: nowrap; }
+.map-toolbar .btn { padding: 6px 8px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+.map-toolbar .map-close { margin-left: auto; padding: 6px; line-height: 0; }
+.map-toolbar .map-close .ic { width: 16px; height: 16px; margin: 0; vertical-align: middle; }
 .filter-count { font-size: 12px; color: var(--accent); font-weight: bold; }
 .map-filter {
   display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 8px;
@@ -955,7 +959,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ---------- 地図: 星の色の説明を地図上に常時表示 ---------- */
 .map-legend-float {
-  position: absolute; left: 10px; bottom: 104px; z-index: 1040;
+  /* 地図キャンバスの下端に沿わせる＝右下の出典ⓘと同じ段 */
+  position: absolute; left: 10px; bottom: 10px; z-index: 1040;
   background: rgba(255, 255, 255, .93); border: 1px solid var(--border-lite);
   border-radius: 10px; padding: 5px 10px 5px 6px;
   font-size: 10.5px; color: var(--muted); white-space: nowrap;

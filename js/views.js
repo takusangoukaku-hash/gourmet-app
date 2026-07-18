@@ -306,6 +306,16 @@ const Views = (() => {
     });
     // ズーム＋コンパス（回転リセット）は右下へ（左上は検索バーが重なるため）
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    // 出典表示(ⓘ)は初期状態では閉じておき、タップしたときだけ詳細を開く
+    // （MapLibreはデータ読み込みのたびに開き直すことがあるため、読み込み完了後に閉じる）
+    const closeAttrib = () => {
+      const attrib = document.querySelector('#map-canvas details.maplibregl-ctrl-attrib');
+      if (!attrib) return;
+      // MapLibreはopen属性とcompact-showクラスの両方で開閉を管理しているため、両方閉じる
+      attrib.removeAttribute('open');
+      attrib.classList.remove('maplibregl-compact-show');
+    };
+    map.once('idle', () => setTimeout(closeAttrib, 150));
     map.on('error', (e) => console.warn('MapLibre:', e && e.error));
 
     map.on('load', () => {
