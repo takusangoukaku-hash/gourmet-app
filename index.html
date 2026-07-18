@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=133">
+<link rel="stylesheet" href="css/style.css?v=134">
 </head>
 <body>
 
@@ -138,16 +138,18 @@
         <button id="map-heat" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3 4 4.5 4 8a4 4 0 0 1-8 0c0-1 .4-2 1-2.7 0 1.2.8 2 1.7 2 .8 0 1.3-.6 1.3-1.5C12 6.5 10.5 5 12 3z"/></svg> ヒートマップ</button>
         <button id="map-panel-close" class="btn small map-close">✕ 閉じる</button>
       </div>
+      <div class="fl-label">料理ジャンル</div>
       <div id="map-genre-filter" class="map-filter"></div>
+      <div class="fl-label">味の評価</div>
+      <div class="filter-row lf-stars">
+        <button type="button" class="chip map-star-chip" data-r="3">★3以上</button>
+        <button type="button" class="chip map-star-chip" data-r="4">★4以上</button>
+        <button type="button" class="chip map-star-chip" data-r="5">★5だけ</button>
+      </div>
+      <div class="fl-label">お店の評価</div>
       <div class="map-axis-filter">
-        <select id="mf-taste" class="taste-select">
-          <option value="0">味の評価</option>
-          <option value="3">味 ★3以上</option>
-          <option value="4">味 ★4以上</option>
-          <option value="5">味 ★5</option>
-        </select>
         <select id="mf-casual">
-          <option value="0">カジュアル度</option>
+          <option value="0">気軽さ</option>
           <option value="3">気軽さ ★3以上</option>
           <option value="4">気軽さ ★4以上</option>
           <option value="5">気軽さ ★5</option>
@@ -159,12 +161,17 @@
           <option value="5">雰囲気 ★5</option>
         </select>
         <select id="mf-speed">
-          <option value="0">提供の早さ</option>
+          <option value="0">早さ</option>
           <option value="3">早さ ★3以上</option>
           <option value="4">早さ ★4以上</option>
           <option value="5">早さ ★5</option>
         </select>
       </div>
+      <!-- 味の評価は星チップが値を書き込む（内部用・非表示） -->
+      <select id="mf-taste" hidden>
+        <option value="0">味の評価</option>
+        <option value="3">味 ★3以上</option><option value="4">味 ★4以上</option><option value="5">味 ★5</option>
+      </select>
       <div class="panel-foot">
         <span id="map-filter-count" class="filter-count"></span>
         <span class="map-legend">
@@ -474,11 +481,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=133"></script>
-<script src="js/api.js?v=133"></script>
-<script src="js/cloud.js?v=133"></script>
-<script src="js/register.js?v=133"></script>
-<script src="js/views.js?v=133"></script>
-<script src="js/app.js?v=133"></script>
+<script src="js/store.js?v=134"></script>
+<script src="js/api.js?v=134"></script>
+<script src="js/cloud.js?v=134"></script>
+<script src="js/register.js?v=134"></script>
+<script src="js/views.js?v=134"></script>
+<script src="js/app.js?v=134"></script>
 </body>
 </html>

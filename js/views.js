@@ -265,6 +265,7 @@ const Views = (() => {
     14, ['+', 6.2, CSTEP], 15, ['+', 7, CSTEP], 20, ['+', 7, CSTEP]];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
+  let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
 
   function shopMatchesGenre(shopId) {
     if (!mapGenreFilter.size) return true;
@@ -375,9 +376,15 @@ const Views = (() => {
       locateUser(false);
     });
 
-    // 料理ジャンルフィルタのチップ（複数選択可）
+    // 料理ジャンルフィルタのチップ（複数選択可）。記録したことのあるジャンルだけ出す
     const bar = $('#map-genre-filter');
-    bar.innerHTML = Api.DISH_GENRES.map(g => `<button type="button" class="chip" data-g="${esc(g)}">${esc(g)}</button>`).join('');
+    buildMapGenreChips = () => {
+      const used = [...new Set(Store.visits().flatMap(v => v.dishGenres || []))];
+      bar.innerHTML = used.map(g =>
+        `<button type="button" class="chip${mapGenreFilter.has(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('');
+      bar.classList.toggle('hidden', !used.length);
+    };
+    buildMapGenreChips();
     bar.addEventListener('click', (e) => {
       const c = e.target.closest('.chip');
       if (!c) return;
@@ -387,14 +394,26 @@ const Views = (() => {
       refreshMap();
     });
 
-    // 星評価フィルタ（味＋店の評価3軸）
-    ['#mf-taste', '#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
+    // 味の評価の星チップ（★3以上/★4以上/★5だけ。もう一度押すと解除）→ 内部の#mf-tasteへ
+    document.querySelectorAll('.map-star-chip').forEach(b => b.addEventListener('click', () => {
+      const next = $('#mf-taste').value === b.dataset.r ? '0' : b.dataset.r;
+      $('#mf-taste').value = next;
+      document.querySelectorAll('.map-star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next && next !== '0'));
+      refreshMap();
+    }));
+
+    // 店の評価3軸（気軽さ・雰囲気・早さ）のセレクト
+    ['#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
       $(sel).addEventListener('change', refreshMap));
 
     // 検索バー: タップで絞り込みパネルを開き、入力でピンをキーワード絞り込み
     $('#map-search').addEventListener('focus', () => {
       $('#map-filter-panel').classList.remove('hidden');
       $('.map-scope').classList.add('hidden'); // 詳細検索と重なるため、パネル表示中は隠す
+      buildMapGenreChips(); // 記録済みジャンルでチップを作り直す
+      // 星チップの選択状態を現在の絞り込みに合わせる
+      const tv = $('#mf-taste').value;
+      document.querySelectorAll('.map-star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === tv && tv !== '0'));
     });
     let mapKwTimer = null;
     $('#map-search').addEventListener('input', () => {

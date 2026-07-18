@@ -947,3 +947,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .lf-stars select { flex: 1; min-width: 110px; }
 .star-chip { color: #b8860b; }
 .star-chip.on { color: #fff; }
+
+/* ---------- 地図の絞り込みパネル: 見出し＋星チップ（検索タブと統一） ---------- */
+.map-panel .fl-label:first-of-type { margin-top: 4px; }
+.map-panel .map-filter { margin-bottom: 6px; }
+.map-panel .lf-stars { margin-bottom: 4px; }
