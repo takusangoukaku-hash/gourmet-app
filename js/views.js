@@ -1495,13 +1495,12 @@ const Views = (() => {
     box.innerHTML = '';
     for (const ph of photos) {
       const shop = Store.getShop(ph.shopId);
-      const visit = Store.visits().find(v => v.id === ph.visitId);
-      const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
       div.className = 'photo-cell';
       div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       setThumb(div.querySelector('img'), ph);
-      div.addEventListener('click', () => openLightbox(photoUrl(ph), cap)); // 拡大表示は元画像
+      // タップでホームと同じ投稿表示（写真をさらにタップすると拡大）
+      div.addEventListener('click', () => showPostDetail(buildOwnPost(ph)));
       box.appendChild(div);
     }
   }
