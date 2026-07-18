@@ -92,6 +92,28 @@ const Views = (() => {
   let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ / 'all' 自分＋つながり / 'wish' 行きたい店のみ
   let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
+  // ピンfeature id → 本人＋フォロワーの評価プール（味＝各評価、店の3軸＝人ごとの値）
+  //  { taste:[], casual:[], atmosphere:[], speed:[] }。ポップアップで平均を出すのに使う
+  const mapStats = new Map();
+  // 平均を出す小ヘルパー: 味は小数第1位、店の3軸(気軽さ/雰囲気/早さ)は .0/.5 に丸める
+  const avgOf = (rs) => rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 10) / 10 : 0;
+  const bandOf = (avg) => (Math.round(avg * 10) % 10) >= 5 ? 1 : 0; // .5以上か（白い点の有無）
+  function fmtStatAvg(rs, half) {
+    if (!rs || !rs.length) return null;
+    let a = rs.reduce((x, y) => x + y, 0) / rs.length;
+    a = half ? Math.round(a * 2) / 2 : Math.round(a * 10) / 10;
+    return a.toFixed(1);
+  }
+  // 味＋店の3軸の平均をポップアップ用のHTMLにする（本人＋フォロワーを合わせた評価）
+  function mapStatsLine(st) {
+    if (!st) return '';
+    const t = fmtStatAvg(st.taste, false);
+    const axes = [['気軽さ', 'casual'], ['雰囲気', 'atmosphere'], ['早さ', 'speed']]
+      .map(([label, k]) => { const v = fmtStatAvg(st[k], true); return v ? `${label} ${v}` : null; })
+      .filter(Boolean);
+    return `<div class="p-sub">${t ? starStr(Math.round(+t)) : ''} 味 ${t || '－'}</div>`
+      + (axes.length ? `<div class="p-sub">${axes.join('　')}</div>` : '');
+  }
 
   // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
@@ -748,7 +770,8 @@ const Views = (() => {
         ${latest.photoUrl ? `<img src="${esc(latest.photoUrl)}" alt="">` : ''}
         <div class="p-who">${esc(who)}</div>
         <div class="p-name">${esc(g.name || '')}</div>
-        <div class="p-sub">${starStr(Math.round(g.avg) || 0)} 味${multi ? '平均' : ''}${g.avg || '－'}${latest.genre ? '　' + esc(latest.genre) : ''}</div>
+        ${mapStatsLine(mapStats.get(feature.properties.id))}
+        ${latest.genre ? `<div class="p-sub">${esc(latest.genre)}</div>` : ''}
         ${latest.comment ? `<div class="p-comment">${esc(latest.comment.slice(0, 60))}</div>` : ''}
         <div class="p-actions">
           <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
@@ -771,17 +794,18 @@ const Views = (() => {
     if (feature.properties.kind === 'other') { openOtherPinPopup(feature); return; }
     const s = Store.getShop(feature.properties.id);
     if (!s) return;
-    const avg = Store.avgRating(s.id);
     const vs = Store.visitsOf(s.id);
     const rep = await Store.repPhoto(s.id);
     const last = vs[0];
+    // 「みんな」表示では本人＋フォロワーを合わせた平均（mapStatsに集約済み）
+    const st = mapStats.get(s.id);
     const node = document.createElement('div');
     node.className = 'popup';
     node.innerHTML = `
         ${rep ? `<img alt="" decoding="async">` : ''}
         <div class="p-name">${esc(s.name)}${s.favorite ? ' ' + IC_FAV : ''}</div>
-        <div class="p-sub">${starStr(avg)} 味${avg || '－'}　訪問${vs.length}回</div>
-        <div class="p-sub">${last ? '最終訪問: ' + fmtDate(last.datetime) : ''}</div>
+        ${mapStatsLine(st)}
+        <div class="p-sub">訪問${vs.length}回${last ? '　最終: ' + fmtDate(last.datetime) : ''}</div>
         ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
         <div class="p-actions">
           <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
@@ -820,15 +844,16 @@ const Views = (() => {
     const labels = [...mapGenreFilter, ...axisActive];
     $('#map-filter-count').textContent = labels.length ? `${labels.join('・')}: ${shops.length}件` : '';
 
-    // 評価は小数第1位までの平均で扱う。ピンの色は整数部、枠は小数部で表す
-    // （.0〜.4 = 白枠 / .5〜.9 = 濃い枠）
-    const avgOf = (rs) => rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 10) / 10 : 0;
-    const band = (avg) => (Math.round(avg * 10) % 10) >= 5 ? 1 : 0;
-
-    // 店ごとの評価プール（自分の訪問。「みんな」ではフォロー中の人の評価も合算して平均し直す）
-    const ratingPool = new Map();
+    // 店ごとの評価プール（自分の評価。「みんな」ではフォロー中の人の評価も合算して平均し直す）
+    //  味＝各訪問の評価、店の3軸(気軽さ/雰囲気/早さ)＝人ごとに1つの値
+    mapStats.clear();
     for (const s of shops) {
-      ratingPool.set(s.id, Store.visitsOf(s.id).map(v => v.rating || 0).filter(r => r > 0));
+      mapStats.set(s.id, {
+        taste: Store.visitsOf(s.id).map(v => v.rating || 0).filter(r => r > 0),
+        casual: (s.casual > 0) ? [s.casual] : [],
+        atmosphere: (s.atmosphere > 0) ? [s.atmosphere] : [],
+        speed: (s.speed > 0) ? [s.speed] : [],
+      });
     }
 
     const featureByShopId = new Map();
@@ -858,8 +883,12 @@ const Views = (() => {
         }
         // 自分も行った店なら自分のピンへ合算（1つのピン・全員の平均になる）
         const mine = (p.lat != null) ? Store.matchShop({ name: p.shopName, lat: p.lat, lon: p.lon }) : null;
-        if (mine && ratingPool.has(mine.id)) {
-          if (p.rating) ratingPool.get(mine.id).push(p.rating);
+        if (mine && mapStats.has(mine.id)) {
+          const st = mapStats.get(mine.id);
+          if (p.rating) st.taste.push(p.rating);
+          if (p.casual > 0) st.casual.push(p.casual);
+          if (p.atmosphere > 0) st.atmosphere.push(p.atmosphere);
+          if (p.speed > 0) st.speed.push(p.speed);
           continue;
         }
         // 他人だけの店: 同名＋近接（約100m）で1つにまとめる
@@ -869,23 +898,31 @@ const Views = (() => {
         g.posts.push(p);
       }
       netGroups.forEach((g, i) => {
-        g.avg = avgOf(g.posts.map(p => p.rating || 0).filter(r => r > 0));
         g.posts.sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0)); // 先頭が最新
         const fid = 'net_' + i;
+        // このグループの評価プール（フォロー中の人だけ・全員分）
+        mapStats.set(fid, {
+          taste: g.posts.map(p => p.rating || 0).filter(r => r > 0),
+          casual: g.posts.map(p => p.casual || 0).filter(r => r > 0),
+          atmosphere: g.posts.map(p => p.atmosphere || 0).filter(r => r > 0),
+          speed: g.posts.map(p => p.speed || 0).filter(r => r > 0),
+        });
+        const avg = avgOf(mapStats.get(fid).taste);
+        g.avg = avg;
         networkById.set(fid, g);
         features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
           properties: { id: fid, kind: 'other', mine: 0, name: g.name, genre: '',
-            r: Math.floor(g.avg) || 0, hi: band(g.avg), fav: 0 } });
+            r: Math.floor(avg) || 0, hi: bandOf(avg), fav: 0 } });
         bounds.push([g.lon, g.lat]);
       });
     }
 
     // 自分の店の色を確定（「みんな」ではフォロー中の人の評価も合算済みの平均）
     for (const s of shops) {
-      const avg = avgOf(ratingPool.get(s.id));
+      const avg = avgOf(mapStats.get(s.id).taste);
       const f = featureByShopId.get(s.id);
       f.properties.r = Math.floor(avg) || 0;
-      f.properties.hi = band(avg);
+      f.properties.hi = bandOf(avg);
     }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
     refreshWishData();
