@@ -93,6 +93,17 @@ const Views = (() => {
   let networkLoaded = false;  // フォロー中の人の記録を読み込み済みか（地図を開いたとき自動で読む）
   let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
   const mapContrib = new Map(); // 自分の店ピンに合算されたフォロワー（shopId → [{username, avatar}]）
+
+  // 店名の表記ゆれを吸収して比較（全角半角・空白・大文字小文字の違いを無視）
+  const normShopName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  // フォロー中の人の投稿がこの店のものか（同名＋300m以内。座標が無ければ同名のみ）
+  // ※以前は50m以内だったが、登録時のピン位置ズレで同じ店が別扱いになるため緩和
+  function postMatchesShop(p, s) {
+    if (!p || !s || !p.shopName || normShopName(p.shopName) !== normShopName(s.name)) return false;
+    if (p.lat == null || p.lon == null || s.lat == null || s.lon == null) return true;
+    return Store.distMeters(s.lat, s.lon, p.lat, p.lon) < 300;
+  }
+  const followerPostsForShop = (s) => networkPosts.filter(p => postMatchesShop(p, s));
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
   // ピンfeature id → 本人＋フォロワーの評価プール（味＝各評価、店の3軸＝人ごとの値）
   //  { taste:[], casual:[], atmosphere:[], speed:[] }。ポップアップで平均を出すのに使う
@@ -908,7 +919,8 @@ const Views = (() => {
           if (!hay.includes(kw)) continue;
         }
         // 自分も行った店なら自分のピンへ合算（1つのピン・全員の平均になる）
-        const mine = (p.lat != null) ? Store.matchShop({ name: p.shopName, lat: p.lat, lon: p.lon }) : null;
+        // 照合は表記ゆれ＋300mまで許容（登録時のピン位置ズレ対策）
+        const mine = shops.find(x => postMatchesShop(p, x)) || null;
         if (mine && mapStats.has(mine.id)) {
           const st = mapStats.get(mine.id);
           if (p.rating) st.taste.push(p.rating);
@@ -1021,11 +1033,14 @@ const Views = (() => {
     ensureNetworkLoaded();
   }
 
-  // フォロー中の人の訪問記録を自動で読み込んで地図に重ねる（ログイン中・初回のみ）
-  function ensureNetworkLoaded() {
+  // フォロー中の人の訪問記録を自動で読み込む（ログイン中・初回のみ）。cbで読み込み後の再描画もできる
+  function ensureNetworkLoaded(cb) {
     if (networkLoaded || typeof Cloud === 'undefined' || !Cloud.getUser()) return;
     networkLoaded = true;
-    loadNetworkPosts().then(() => refreshMapData(false));
+    loadNetworkPosts().then(() => {
+      if (mapLoaded) refreshMapData(false);
+      if (cb) cb();
+    });
   }
 
   function toggleHeat() {
@@ -1758,8 +1773,18 @@ const Views = (() => {
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
-    const avg = Store.avgRating(shopId);
     const body = $('#modal-body');
+
+    // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
+    if (!editMode && !networkLoaded) {
+      ensureNetworkLoaded(() => {
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid);
+      });
+    }
+    const fps = followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    // 評価は本人＋フォロワーの合算平均（小数第1位）
+    const allRatings = [...vs.map(v => v.rating || 0), ...fps.map(p => p.rating || 0)].filter(r => r > 0);
+    const avg = allRatings.length ? Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length * 10) / 10 : 0;
 
     // ヘッダー
     const headHtml = editMode ? `
@@ -1768,7 +1793,7 @@ const Views = (() => {
       </div>` : `
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
-        <div class="d-stars">${starStr(avg)} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回</span></div>
+        <div class="d-stars">${starStr(avg)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
@@ -1961,6 +1986,22 @@ const Views = (() => {
           });
           vbox.appendChild(block);
         }
+      }
+
+      // フォロー中の人のこの店の記録（写真＋★＋アカウントアイコン。タップで投稿を表示）
+      for (const p of fps) {
+        const block = document.createElement('div');
+        block.className = 'visit-block';
+        const dateStr = p.datetime ? new Date(p.datetime).toLocaleDateString('ja-JP') : '';
+        block.innerHTML = `
+          <button type="button" class="v-cover">
+            ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : '<span class="v-cover-ph">🍽️</span>'}
+            <span class="v-badge">★${p.rating || '－'}</span>
+            <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜'}</span>
+          </button>
+          <div class="v-caption">${dateStr}　@${esc(p.username || '')}</div>`;
+        block.querySelector('.v-cover').addEventListener('click', () => showPostDetail(p));
+        vbox.appendChild(block);
       }
     }
 
