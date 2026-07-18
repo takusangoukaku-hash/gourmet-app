@@ -89,7 +89,7 @@ const Views = (() => {
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
-  let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ / 'all' 自分＋つながり
+  let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ / 'all' 自分＋つながり / 'wish' 行きたい店のみ
   let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
 
@@ -447,12 +447,16 @@ const Views = (() => {
       $('#map-search').blur();
     });
 
-    // 表示範囲の切替（自分のみ / 自分＋つながり）
+    // 表示範囲の切替（自分のみ / 自分＋つながり / 行きたい店のみ）
     document.querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', async () => {
       const scope = b.dataset.scope;
       if (scope === mapScope) return;
       const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
       if (scope === 'all' && !me) { App.toast('「フォロー中」はログインすると使えます'); return; }
+      if (scope === 'wish' && !Store.wishes().some(w => w.lat != null)) {
+        App.toast('行きたい店はまだありません。ホームの投稿のしおりマークから保存できます');
+        return;
+      }
       mapScope = scope;
       document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x === b));
       if (scope === 'all') { App.toast('フォロー中の人の店を読み込み中…'); await loadNetworkPosts(); }
@@ -765,6 +769,20 @@ const Views = (() => {
 
   // フィルタ適用後の店舗一覧 → GeoJSONに変換して地図へ反映
   function refreshMapData(fit) {
+    // 「行きたい」モード: 行った店のピンを消して、行きたい店（紫）だけを表示
+    if (mapScope === 'wish') {
+      networkById.clear();
+      map.getSource('shops').setData({ type: 'FeatureCollection', features: [] });
+      refreshWishData();
+      $('#map-filter-count').textContent = '';
+      const pts = Store.wishes().filter(w => w.lat != null && w.lon != null).map(w => [w.lon, w.lat]);
+      if (fit && pts.length) {
+        const b = new maplibregl.LngLatBounds();
+        pts.forEach(c => b.extend(c));
+        try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
+      }
+      return;
+    }
     const shops = Store.shops().filter(s =>
       s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
     // フィルタ選択中は件数を表示
