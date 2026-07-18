@@ -336,6 +336,11 @@ const Views = (() => {
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
+      // 平均が .5 以上（あと一歩でワンランク上）の店は中心に白い点を重ねて区別する
+      map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
+        paint: { 'circle-color': '#ffffff',
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.3, 14, 2, 15, 2.3, 20, 2.3] } });
       // お気に入り★（拡大時のみ）
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
