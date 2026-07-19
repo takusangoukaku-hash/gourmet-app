@@ -1781,7 +1781,10 @@ const Views = (() => {
         if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid);
       });
     }
-    const fps = followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    // 地図が「自分」表示のときは店舗詳細も自分の記録だけにする
+    // （フォロー中の人の写真・評価は、左上の切り替えを「フォロー中」にすると見られる）
+    const fps = (mapScope === 'me') ? []
+      : followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
     // 評価は本人＋フォロワーの合算平均（小数第1位）
     const allRatings = [...vs.map(v => v.rating || 0), ...fps.map(p => p.rating || 0)].filter(r => r > 0);
     const avg = allRatings.length ? Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length * 10) / 10 : 0;

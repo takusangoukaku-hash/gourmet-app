@@ -349,20 +349,24 @@ const Cloud = (() => {
     if (!user) return;
     const prof = Store.getProfile();
     if (!prof.username) return; // @ユーザー名がなければ公開しない
+    // 写真の有無にかかわらず「すべての訪問記録」を公開する
+    // （以前は写真起点だったため、写真のない記録が相手に届かず地図の合算平均が欠けていた）
     const photos = await Store.allPhotos();
-    const seen = new Set();
-    for (const p of photos) {
-      if (seen.has(p.visitId)) continue; // 1訪問につき代表1枚
-      seen.add(p.visitId);
+    const photoByVisit = new Map();
+    for (const p of photos) if (!photoByVisit.has(p.visitId)) photoByVisit.set(p.visitId, p); // 代表1枚
+    for (const v of Store.visits()) {
       try {
+        const p = photoByVisit.get(v.id);
+        if (!p) { await publishPostForVisit(v.id); continue; } // 写真なしでも記録は公開
         // 写真URLの取得を多段で試す: ①取り込み済みURL ②StorageのURL ③未アップならアップロード（完了時に投稿も更新される）
-        if (p.remoteUrl) { await publishPostForVisit(p.visitId, null, p.remoteUrl); continue; }
+        if (p.remoteUrl) { await publishPostForVisit(v.id, null, p.remoteUrl); continue; }
         const path = `users/${user.uid}/photos/${p.id}.jpg`;
         let url = '';
         try { url = await photoDownloadUrl(path); } catch { /* まだStorageに無い */ }
-        if (url) await publishPostForVisit(p.visitId, null, url);
+        if (url) await publishPostForVisit(v.id, null, url);
         else if (p.blob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
-      } catch (e) { console.warn('投稿公開に失敗:', p.visitId, e); }
+        else await publishPostForVisit(v.id); // 写真が取れなくても記録自体は公開
+      } catch (e) { console.warn('投稿公開に失敗:', v.id, e); }
     }
   }
 
@@ -431,7 +435,10 @@ const Cloud = (() => {
         await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', obj.id)).catch(() => {}); // フィード投稿も削除
         return;
       }
-      return fb.fs.setDoc(dref('visits', obj.id), clean(obj));
+      await fb.fs.setDoc(dref('visits', obj.id), clean(obj));
+      // 保存と同時にフィード投稿も公開・更新（写真なしの記録も相手の地図の合算に届くように）
+      await publishPostForVisit(obj.id).catch(() => {});
+      return;
     }
     if (kind === 'wish') return action === 'del' ? fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}) : fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
