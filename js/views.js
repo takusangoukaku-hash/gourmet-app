@@ -96,11 +96,20 @@ const Views = (() => {
 
   // 店名の表記ゆれを吸収して比較（全角半角・空白・大文字小文字の違いを無視）
   const normShopName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
-  // フォロー中の人の投稿がこの店のものか（同名＋300m以内。座標が無ければ同名のみ）
-  // ※以前は50m以内だったが、登録時のピン位置ズレで同じ店が別扱いになるため緩和
+  // 店名が同じ店を指しているか。完全一致に加えて「片方がもう片方を含む」も同一とみなす
+  // （Google検索は「〇〇 渋谷店」、OSM検索は「〇〇」のように登録経路で名前の形式が違うため）
+  function shopNamesMatch(x, y) {
+    const a = normShopName(x), b = normShopName(y);
+    if (!a || !b) return false;
+    return a === b || (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a)));
+  }
+  // フォロー中の人の投稿がこの店のものか（店名が同一視でき＋300m以内）
+  // 座標が無い場合だけは、誤結合を防ぐため完全一致のみ
   function postMatchesShop(p, s) {
-    if (!p || !s || !p.shopName || normShopName(p.shopName) !== normShopName(s.name)) return false;
-    if (p.lat == null || p.lon == null || s.lat == null || s.lon == null) return true;
+    if (!p || !s || !shopNamesMatch(p.shopName, s.name)) return false;
+    if (p.lat == null || p.lon == null || s.lat == null || s.lon == null) {
+      return normShopName(p.shopName) === normShopName(s.name);
+    }
     return Store.distMeters(s.lat, s.lon, p.lat, p.lon) < 300;
   }
   const followerPostsForShop = (s) => networkPosts.filter(p => postMatchesShop(p, s));
@@ -934,9 +943,9 @@ const Views = (() => {
           }
           continue;
         }
-        // 他人だけの店: 同名＋近接（約100m）で1つにまとめる
-        let g = netGroups.find(x => x.name === (p.shopName || '') &&
-          Store.distMeters(x.lat, x.lon, p.lat, p.lon) < 100);
+        // 他人だけの店: 店名が同一視でき＋300m以内なら1つにまとめる（登録経路の名前差も吸収）
+        let g = netGroups.find(x => shopNamesMatch(x.name, p.shopName) &&
+          Store.distMeters(x.lat, x.lon, p.lat, p.lon) < 300);
         if (!g) { g = { name: p.shopName || '', lat: p.lat, lon: p.lon, posts: [] }; netGroups.push(g); }
         g.posts.push(p);
       }
