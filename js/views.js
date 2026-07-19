@@ -365,9 +365,9 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 高倍率(z14以上)ではタップしやすい「しずく型」の大きなマーカーに切り替える
+      // 高倍率(z13以上)ではタップしやすい「しずく型」の大きなマーカーに切り替える
       // （評価5色×白点あり/なし＋行きたい紫をキャンバスで描いて登録）
-      const DROP_ZOOM = 14;
+      const DROP_ZOOM = 13;
       const makeDrop = (color, withDot) => {
         const c = document.createElement('canvas');
         c.width = 48; c.height = 64;
@@ -417,7 +417,7 @@ const Views = (() => {
         layout: {
           'icon-image': ['concat', 'drop-', ['to-string', ['get', 'r']],
             ['case', ['==', ['get', 'hi'], 1], '-hi', '']],
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.85, 16, 1],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
           'icon-anchor': 'bottom', 'icon-allow-overlap': true,
         } });
       // お気に入り★（拡大時のみ。しずく表示中は頭の右上に）
@@ -454,7 +454,7 @@ const Views = (() => {
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       map.addLayer({ id: 'wish-drops', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'icon-image': 'drop-wish',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.85, 16, 1],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
           'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
       map.addLayer({ id: 'wish-labels', type: 'symbol', source: 'wishes', minzoom: 12, maxzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
