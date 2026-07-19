@@ -364,6 +364,31 @@ const Views = (() => {
 
     map.on('load', () => {
       mapLoaded = true;
+
+      // 高倍率(z14以上)ではタップしやすい「しずく型」の大きなマーカーに切り替える
+      // （評価5色×白点あり/なし＋行きたい紫をキャンバスで描いて登録）
+      const DROP_ZOOM = 14;
+      const makeDrop = (color, withDot) => {
+        const c = document.createElement('canvas');
+        c.width = 48; c.height = 64;
+        const g = c.getContext('2d');
+        g.beginPath();
+        g.moveTo(24, 60);                       // 先端（この点が店の位置）
+        g.bezierCurveTo(14, 45, 6, 34, 6, 23);  // 左のふくらみ
+        g.arc(24, 23, 18, Math.PI, 0);          // 頭の丸
+        g.bezierCurveTo(42, 34, 34, 45, 24, 60); // 右のふくらみ
+        g.closePath();
+        g.fillStyle = color; g.fill();
+        g.lineWidth = 3; g.strokeStyle = '#ffffff'; g.stroke();
+        if (withDot) { g.beginPath(); g.arc(24, 23, 5.5, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
+        return g.getImageData(0, 0, 48, 64);
+      };
+      PIN_COLORS.forEach((col, i) => {
+        map.addImage('drop-' + i, makeDrop(col, false), { pixelRatio: 2 });
+        map.addImage('drop-' + i + '-hi', makeDrop(col, true), { pixelRatio: 2 });
+      });
+      map.addImage('drop-wish', makeDrop(WISH_COLOR, false), { pixelRatio: 2 });
+
       // 店舗ピン（クラスター付き）。クラスターの色は中で一番評価の高い店の色
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
@@ -375,55 +400,84 @@ const Views = (() => {
         paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
           'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
       // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
-      map.addLayer({ id: 'pins', type: 'circle', source: 'shops',
+      // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
+      map.addLayer({ id: 'pins', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // 平均が .5 以上（あと一歩でワンランク上）の店は中心に白い点を重ねて区別する
-      map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops',
+      map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
         paint: { 'circle-color': '#ffffff',
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.3, 14, 2, 15, 2.3, 20, 2.3] } });
-      // お気に入り★（拡大時のみ）
-      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12,
+      // 高倍率: しずく型マーカー（白点＝平均.5以上もしずくの頭に表示）
+      map.addLayer({ id: 'pin-drops', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          'icon-image': ['concat', 'drop-', ['to-string', ['get', 'r']],
+            ['case', ['==', ['get', 'hi'], 1], '-hi', '']],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.85, 16, 1],
+          'icon-anchor': 'bottom', 'icon-allow-overlap': true,
+        } });
+      // お気に入り★（拡大時のみ。しずく表示中は頭の右上に）
+      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12, maxzoom: DROP_ZOOM,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 11,
           'text-offset': [0.8, -0.8], 'text-allow-overlap': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
-      // 店名＋ジャンルのラベル（z12以上：以前より低い倍率から表示）
-      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 12,
+      map.addLayer({ id: 'pin-fav-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
+        layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
+          'text-offset': [1.2, -2.4], 'text-allow-overlap': true },
+        paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
+      // 店名＋ジャンルのラベル（z12以上。しずく表示中はしずくの上に）
+      const labelLayout = {
+        'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
+          ['concat', ['get', 'name'], '\n', ['get', 'genre']]],
+        'text-font': FONT, 'text-size': 10, 'text-anchor': 'bottom', 'text-max-width': 12,
+      };
+      const labelPaint = { 'text-color': dark ? '#e8e6e1' : '#3a3833',
+        'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 };
+      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 12, maxzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
-        layout: {
-          'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
-            ['concat', ['get', 'name'], '\n', ['get', 'genre']]],
-          'text-font': FONT, 'text-size': 10, 'text-anchor': 'bottom',
-          'text-offset': [0, -0.9], 'text-max-width': 12,
-        },
-        paint: { 'text-color': dark ? '#e8e6e1' : '#3a3833',
-          'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
+        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -0.9] }), paint: labelPaint });
+      map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
+        filter: ['!', ['has', 'point_count']],
+        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -3.4] }), paint: labelPaint });
 
       // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
       map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'wish-pins', type: 'circle', source: 'wishes',
+      map.addLayer({ id: 'wish-pins', type: 'circle', source: 'wishes', maxzoom: DROP_ZOOM,
         paint: { 'circle-color': WISH_COLOR, 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
-      map.addLayer({ id: 'wish-labels', type: 'symbol', source: 'wishes', minzoom: 12,
+      map.addLayer({ id: 'wish-drops', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
+        layout: { 'icon-image': 'drop-wish',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.85, 16, 1],
+          'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
+      map.addLayer({ id: 'wish-labels', type: 'symbol', source: 'wishes', minzoom: 12, maxzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
           'text-anchor': 'bottom', 'text-offset': [0, -0.9], 'text-max-width': 12 },
+        paint: { 'text-color': WISH_COLOR,
+          'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
+      map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
+        layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
+          'text-anchor': 'bottom', 'text-offset': [0, -3.4], 'text-max-width': 12 },
         paint: { 'text-color': WISH_COLOR,
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
       // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
       map.on('click', 'pins', (e) => openPinPopup(e.features[0]));
+      map.on('click', 'pin-drops', (e) => openPinPopup(e.features[0]));
       map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
+      map.on('click', 'wish-drops', (e) => openWishPopup(e.features[0]));
       map.on('click', 'clusters', (e) => {
         const f = e.features[0];
         map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
           .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
       });
-      ['pins', 'clusters', 'wish-pins'].forEach(id => {
+      ['pins', 'pin-drops', 'clusters', 'wish-pins', 'wish-drops'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       });
