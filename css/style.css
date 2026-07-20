@@ -1122,3 +1122,8 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 }
 .ex-back:hover { background: var(--border-lite); }
 .ex-head-title { font-family: var(--serif); font-weight: 700; font-size: 18px; }
+
+/* カテゴリータイルの絵文字ピクトグラム（右下に大きく） */
+.ex-cat-emoji { position: absolute; right: 8px; bottom: 4px; z-index: 1; font-size: 30px; line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
+.ex-cat-label { padding-right: 30px; } /* 絵文字と重ならないように */
