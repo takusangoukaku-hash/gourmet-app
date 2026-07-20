@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=155">
+<link rel="stylesheet" href="css/style.css?v=156">
 </head>
 <body>
 
@@ -419,56 +419,76 @@
       <h2>設定とアクティビティ</h2>
       <button class="modal-close" data-close>✕</button>
     </div>
+    <!-- アカウント -->
     <div id="settings-account" class="settings-account"></div>
     <div id="pf-account" class="pf-account">
-      <button id="pf-login" class="btn small">Googleでログインして同期</button>
+      <button id="pf-login" class="btn small full">Googleでログインして同期</button>
       <div id="pf-account-in" class="hidden">
         <span id="pf-sync" class="pf-sync">同期中…</span>
-        <button id="pf-resync" class="btn small">写真を再同期</button>
-        <button id="pf-logout" class="btn small">ログアウト</button>
+        <div class="set-inline">
+          <button id="pf-resync" class="btn small">写真を再同期</button>
+          <button id="pf-logout" class="btn small">ログアウト</button>
+        </div>
       </div>
     </div>
-    <button id="pf-search" class="btn small full"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> ユーザーを探す</button>
-    <button id="show-welcome" class="btn small full"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg> 使い方を見る</button>
-    <h3>バックアップ</h3>
-    <p class="hint">
-      お店・訪問記録・行きたい店をファイルに書き出して保存できます。
-      機種変更時はGoogleログインの同期で引き継がれるので、こちらは万一に備えた保険です（写真は含まれません）。
-    </p>
-    <div class="detail-actions">
-      <button id="backup-export" class="btn small">書き出す</button>
-      <button id="backup-import" class="btn small">読み込む</button>
+
+    <!-- メニュー -->
+    <div class="set-list">
+      <button id="pf-search" class="set-row">
+        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+        <span class="set-label">ユーザーを探す</span><span class="set-arrow">›</span>
+      </button>
+      <button id="show-welcome" class="set-row">
+        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg></span>
+        <span class="set-label">使い方を見る</span><span class="set-arrow">›</span>
+      </button>
     </div>
+
+    <div class="set-section-title">データのバックアップ</div>
+    <div class="set-list">
+      <button id="backup-export" class="set-row">
+        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+        <span class="set-label">書き出す</span><span class="set-arrow">›</span>
+      </button>
+      <button id="backup-import" class="set-row">
+        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg></span>
+        <span class="set-label">読み込む</span><span class="set-arrow">›</span>
+      </button>
+    </div>
+    <p class="set-note">写真以外の記録をファイルに保存できます。機種変更はGoogleログインの同期で引き継がれるので、これは万一の保険です。</p>
     <input type="file" id="backup-file" accept=".json,application/json" hidden>
-    <h3>AIによる料理ジャンル判定</h3>
-    <p class="hint">
-      Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、
-      料理ジャンル・店舗ジャンルを自動判定します。<br>
-      キーはこのブラウザ内に保存され、ログイン中はあなたのアカウントにも控えが保存されます（消えても自動復元）。写真はAnthropic APIへ直接送信されます。
-      キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
-    </p>
-    <div class="form-grid">
-      <label class="full">Anthropic APIキー
-        <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
-      </label>
-    </div>
-    <h3>店舗検索の強化（Googleマップ）</h3>
-    <p class="hint">
-      Google MapsのAPIキーを設定すると、店名検索にGoogleマップのデータが加わり、
-      無料の地図データに載っていない個人店もほぼ確実に見つかるようになります。
-      キーは <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>
-      で「Places API (New)」を有効にして取得します（無料枠あり）。
-    </p>
-    <div class="form-grid">
-      <label class="full">Google Maps APIキー
-        <input type="password" id="settings-google-key" placeholder="AIza...">
-      </label>
-    </div>
-    <div class="detail-actions">
-      <button id="settings-save" class="btn primary">保存</button>
-      <button id="settings-clear" class="btn danger">キーを削除</button>
-    </div>
-    <p class="hint" id="settings-status"></p>
+
+    <div class="set-section-title">詳細設定</div>
+    <details class="set-adv">
+      <summary class="set-row">
+        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2"/><path d="M16 6l2 2"/><path d="M14.5 7.5 17 10"/></svg></span>
+        <span class="set-label">APIキー（AI判定・店舗検索）</span><span class="set-arrow set-caret">›</span>
+      </summary>
+      <div class="set-adv-body">
+        <h3>AIによる料理ジャンル判定</h3>
+        <p class="hint">
+          Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、料理ジャンル・店舗ジャンルを自動判定します。
+          キーはこのブラウザ内に保存され、ログイン中はアカウントにも控えが保存されます（消えても自動復元）。
+          キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
+        </p>
+        <label class="full">Anthropic APIキー
+          <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
+        </label>
+        <h3>店舗検索の強化（Googleマップ）</h3>
+        <p class="hint">
+          Google MapsのAPIキーを設定すると、店名検索にGoogleマップのデータが加わり、地図データに載っていない個人店も見つかります。
+          <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> で「Places API (New)」を有効にして取得します（無料枠あり）。
+        </p>
+        <label class="full">Google Maps APIキー
+          <input type="password" id="settings-google-key" placeholder="AIza...">
+        </label>
+        <div class="detail-actions">
+          <button id="settings-save" class="btn primary">保存</button>
+          <button id="settings-clear" class="btn danger">キーを削除</button>
+        </div>
+        <p class="hint" id="settings-status"></p>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -502,11 +522,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=155"></script>
-<script src="js/api.js?v=155"></script>
-<script src="js/cloud.js?v=155"></script>
-<script src="js/register.js?v=155"></script>
-<script src="js/views.js?v=155"></script>
-<script src="js/app.js?v=155"></script>
+<script src="js/store.js?v=156"></script>
+<script src="js/api.js?v=156"></script>
+<script src="js/cloud.js?v=156"></script>
+<script src="js/register.js?v=156"></script>
+<script src="js/views.js?v=156"></script>
+<script src="js/app.js?v=156"></script>
 </body>
 </html>
