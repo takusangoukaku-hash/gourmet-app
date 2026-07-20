@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=156">
+<link rel="stylesheet" href="css/style.css?v=157">
 </head>
 <body>
 
@@ -413,12 +413,13 @@
 </div>
 
 <!-- 設定モーダル -->
-<div id="settings-modal" class="modal hidden">
+<div id="settings-modal" class="modal panel-modal hidden">
   <div class="modal-box">
     <div class="modal-head">
       <h2>設定とアクティビティ</h2>
       <button class="modal-close" data-close>✕</button>
     </div>
+    <div class="modal-scroll">
     <!-- アカウント -->
     <div id="settings-account" class="settings-account"></div>
     <div id="pf-account" class="pf-account">
@@ -489,6 +490,7 @@
         <p class="hint" id="settings-status"></p>
       </div>
     </details>
+    </div>
   </div>
 </div>
 
@@ -522,11 +524,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=156"></script>
-<script src="js/api.js?v=156"></script>
-<script src="js/cloud.js?v=156"></script>
-<script src="js/register.js?v=156"></script>
-<script src="js/views.js?v=156"></script>
-<script src="js/app.js?v=156"></script>
+<script src="js/store.js?v=157"></script>
+<script src="js/api.js?v=157"></script>
+<script src="js/cloud.js?v=157"></script>
+<script src="js/register.js?v=157"></script>
+<script src="js/views.js?v=157"></script>
+<script src="js/app.js?v=157"></script>
 </body>
 </html>

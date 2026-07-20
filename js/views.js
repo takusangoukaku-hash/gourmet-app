@@ -2536,13 +2536,13 @@ const Views = (() => {
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     if (!me) { App.toast('ログインするとお知らせが届きます'); return; }
     const ov = document.createElement('div');
-    ov.className = 'modal notif-modal';
+    ov.className = 'modal notif-modal panel-modal';
     ov.innerHTML = `<div class="modal-box">
         <div class="modal-head">
           <h2 class="vl-title">お知らせ</h2>
           <button type="button" class="modal-close nt-close" aria-label="閉じる">✕</button>
         </div>
-        <div class="nt-body"><div class="empty"><p>読み込み中…</p></div></div>
+        <div class="modal-scroll"><div class="nt-body"><div class="empty"><p>読み込み中…</p></div></div></div>
       </div>`;
     const body = ov.querySelector('.nt-body');
     const close = () => ov.remove();

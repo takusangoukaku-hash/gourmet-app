@@ -1057,3 +1057,21 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .set-adv-body h3 { margin: 12px 0 4px; }
 .set-adv-body label.full { display: block; }
 .set-adv-body input { width: 100%; margin-top: 4px; }
+
+/* ---------- 設定・お知らせ: ヘッダー完全固定＋本文だけスクロール ---------- */
+/* stickyだとスクロール端で本文がタイトルの上に出ることがあるため、flexで分離して固定する */
+.panel-modal { padding: 20px 12px; align-items: flex-start; overflow: hidden; }
+.panel-modal .modal-box {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+}
+.panel-modal .modal-head {
+  position: static; margin: 0; flex-shrink: 0;
+  border-radius: 18px 18px 0 0; padding: 14px 14px 12px 20px;
+}
+.panel-modal .modal-scroll {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px 20px 22px;
+}
+.panel-modal .nt-body { padding: 0; }
