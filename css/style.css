@@ -1127,3 +1127,10 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .ex-cat-emoji { position: absolute; right: 8px; bottom: 4px; z-index: 1; font-size: 30px; line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
 .ex-cat-label { padding-right: 30px; } /* 絵文字と重ならないように */
+
+/* ---------- 検索カテゴリータイル: 白黒（モノクロ）に統一 ---------- */
+.ex-cat { background: var(--card); color: var(--text); border: 1px solid var(--border-lite); }
+.ex-cat::after { background: rgba(0,0,0,.05); }
+.ex-cat-count { color: var(--muted); opacity: 1; }
+.ex-cat-emoji { filter: grayscale(1); }
+@media (prefers-color-scheme: dark) { .ex-cat::after { background: rgba(255,255,255,.08); } }
