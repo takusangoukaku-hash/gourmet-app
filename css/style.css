@@ -1095,3 +1095,30 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .postdetail-modal, .modal.modal-full { background: var(--card); }
 .pd-full, .pd-scroll { background: var(--card); }
 .modal.modal-full .modal-box { background: var(--card); }
+
+/* ---------- 発見: Podcast風カテゴリータイル ---------- */
+.explore-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 16px; }
+.explore-cats > .empty, .explore-cats > .ex-loading { grid-column: 1 / -1; }
+.ex-loading { text-align: center; color: var(--muted); padding: 24px 0; font-size: 13px; }
+.ex-cat {
+  position: relative; border: none; cursor: pointer; color: #fff; text-align: left;
+  background: var(--cat-c, #888); border-radius: 14px; padding: 12px 12px 10px;
+  min-height: 78px; display: flex; flex-direction: column; justify-content: space-between;
+  font-family: inherit; overflow: hidden;
+}
+.ex-cat::after { /* 右下にうっすら丸い装飾（Podcast風） */
+  content: ''; position: absolute; right: -14px; bottom: -18px;
+  width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.16);
+}
+.ex-cat-label { font-size: 15px; font-weight: 700; line-height: 1.3; z-index: 1; }
+.ex-cat-count { font-size: 11px; opacity: .85; z-index: 1; }
+@media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(3, 1fr); } }
+/* カテゴリー内の見出し（‹ 戻る ＋ ジャンル名） */
+.explore-head { display: flex; align-items: center; gap: 6px; padding: 4px 0 8px; }
+.ex-back {
+  border: none; background: none; cursor: pointer; color: var(--text);
+  font-size: 26px; line-height: 1; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ex-back:hover { background: var(--border-lite); }
+.ex-head-title { font-family: var(--serif); font-weight: 700; font-size: 18px; }

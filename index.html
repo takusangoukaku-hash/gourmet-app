@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=159">
+<link rel="stylesheet" href="css/style.css?v=160">
 </head>
 <body>
 
@@ -260,8 +260,10 @@
     </div>
     </div>
   </div>
-  <!-- 発見グリッド（インスタ風: 自分＋フォロー中の人の写真。タップで投稿を表示） -->
-  <div id="explore-grid" class="explore-grid"></div>
+  <!-- 発見（Podcast風: カテゴリータイル → タップでそのジャンルの写真一覧） -->
+  <div id="explore-cats" class="explore-cats"></div>
+  <div id="explore-head" class="explore-head hidden"></div>
+  <div id="explore-grid" class="explore-grid hidden"></div>
   <div id="shop-list" class="shop-list hidden"></div>
 </section>
 
@@ -524,11 +526,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=159"></script>
-<script src="js/api.js?v=159"></script>
-<script src="js/cloud.js?v=159"></script>
-<script src="js/register.js?v=159"></script>
-<script src="js/views.js?v=159"></script>
-<script src="js/app.js?v=159"></script>
+<script src="js/store.js?v=160"></script>
+<script src="js/api.js?v=160"></script>
+<script src="js/cloud.js?v=160"></script>
+<script src="js/register.js?v=160"></script>
+<script src="js/views.js?v=160"></script>
+<script src="js/app.js?v=160"></script>
 </body>
 </html>

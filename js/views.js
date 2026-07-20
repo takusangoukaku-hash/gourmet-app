@@ -1267,17 +1267,36 @@ const Views = (() => {
     }
   }
 
-  // ---------- 発見グリッド（インスタ風: 検索タブの初期画面） ----------
-  // 自分＋フォロー中の人の写真を名前なしで敷き詰め、タップでホームと同じ投稿表示を開く
-  let exploreMode = true;
-  let exploreNetCache = null; // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
+  // ---------- 発見（Podcast風: カテゴリータイル → ジャンル別の写真一覧） ----------
+  // 検索タブの初期はカテゴリー一覧。「すべて」or各ジャンルをタップすると写真グリッドへ
+  let exploreMode = true;      // true = 発見（カテゴリー/写真）、false = 店舗検索
+  let exploreNetCache = null;  // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
+  let exploreItems = null;     // 読み込み済みの発見アイテム（写真＋ジャンル）
+
+  // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
+  const CAT_COLORS = ['#e1306c', '#fa7e1e', '#22c55e', '#3b82f6', '#8b5cf6', '#ef4444',
+    '#14b8a6', '#f59e0b', '#ec4899', '#0ea5e9', '#84cc16', '#a855f7'];
 
   function setListMode(explore) {
     exploreMode = explore;
-    $('#explore-grid').classList.toggle('hidden', !explore);
     $('#shop-list').classList.toggle('hidden', explore);
-    $('#list-back').classList.toggle('hidden', explore); // 検索モード中だけ←（戻る）を出す
-    if (explore) renderExplore(); else renderList();
+    $('#list-back').classList.toggle('hidden', explore); // 店舗検索モード中だけ←（戻る）を出す
+    if (explore) showExploreCats(); else { hideExplore(); renderList(); }
+  }
+
+  // 発見の各パーツの表示切替
+  function hideExplore() {
+    $('#explore-cats').classList.add('hidden');
+    $('#explore-head').classList.add('hidden');
+    $('#explore-grid').classList.add('hidden');
+  }
+  function showExploreCats() {
+    $('#shop-list').classList.add('hidden');
+    $('#explore-head').classList.add('hidden');
+    $('#explore-grid').classList.add('hidden');
+    $('#explore-cats').classList.remove('hidden');
+    $('#list-back').classList.add('hidden');
+    renderExploreCats();
   }
 
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
@@ -1286,7 +1305,7 @@ const Views = (() => {
     const lv = $('#view-list');
     const fc = $('#list-filters-card');
     if (!lv.contains(fc)) {
-      lv.insertBefore(fc, $('#explore-grid'));
+      lv.insertBefore(fc, $('#explore-cats')); // 検索バーは常に最上部
       lv.appendChild($('#shop-list'));
     }
     $('#flt-keyword').value = '';
@@ -1316,34 +1335,78 @@ const Views = (() => {
     };
   }
 
-  async function renderExplore() {
-    const box = $('#explore-grid');
-    box.innerHTML = SKEL_GRID;
-    // 自分の写真（訪問日の新しい順の材料に時刻を持たせる）
+  // 発見アイテム（自分の写真＋フォロー中の人の写真つき投稿）をジャンル付きで読み込む
+  async function loadExploreItems() {
     const photos = await Store.allPhotos();
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     const items = photos.map(ph => {
       const v = vById.get(ph.visitId);
-      return { kind: 'mine', ph, time: (v && v.datetime ? new Date(v.datetime).getTime() : 0) || ph.createdAt || 0 };
+      return { kind: 'mine', ph,
+        time: (v && v.datetime ? new Date(v.datetime).getTime() : 0) || ph.createdAt || 0,
+        genres: (v && v.dishGenres) || [] };
     });
-    // フォロー中の人の投稿（写真つきのみ）
     try {
       if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
         if (!exploreNetCache || Date.now() - exploreNetCache.time > 60000) {
           exploreNetCache = { posts: await Cloud.fetchNetworkPosts(), time: Date.now() };
         }
         for (const p of exploreNetCache.posts) {
-          if (p.photoUrl) items.push({ kind: 'net', p, time: p.datetime ? new Date(p.datetime).getTime() : 0 });
+          if (p.photoUrl) items.push({ kind: 'net', p,
+            time: p.datetime ? new Date(p.datetime).getTime() : 0,
+            genres: (p.genre || '').split('・').filter(Boolean) });
         }
       }
     } catch { /* 未ログイン・通信失敗時は自分の写真のみ */ }
     items.sort((a, b) => b.time - a.time);
+    exploreItems = items;
+    return items;
+  }
+
+  // カテゴリー一覧（Podcast風タイル）: 「すべて」＋写真が存在するジャンル
+  async function renderExploreCats() {
+    const box = $('#explore-cats');
+    box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
+    const items = await loadExploreItems();
     if (!items.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
+    const count = new Map();
+    for (const it of items) for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
+    const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    const tiles = [{ key: '', label: 'すべて', n: items.length }, ...genres.map(g => ({ key: g, label: g, n: count.get(g) }))];
+    box.innerHTML = tiles.map((t, i) => `
+      <button type="button" class="ex-cat" data-cat="${esc(t.key)}" style="--cat-c:${CAT_COLORS[i % CAT_COLORS.length]}">
+        <span class="ex-cat-label">${esc(t.label)}</span>
+        <span class="ex-cat-count">${t.n}件</span>
+      </button>`).join('');
+    box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
+      openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
+  }
+
+  // カテゴリーを開く → そのジャンルの写真グリッド（先頭に戻る＋見出し）
+  function openExploreCat(genre, label) {
+    $('#explore-cats').classList.add('hidden');
+    const head = $('#explore-head');
+    head.classList.remove('hidden');
+    head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
+    head.querySelector('.ex-back').addEventListener('click', showExploreCats);
+    $('#explore-grid').classList.remove('hidden');
+    renderExploreGrid(genre);
+  }
+
+  // 選んだジャンルの写真を敷き詰める（genreが空なら全部）。タップで投稿表示
+  async function renderExploreGrid(genre) {
+    const box = $('#explore-grid');
+    box.innerHTML = SKEL_GRID;
+    const items = exploreItems || await loadExploreItems();
+    const list = genre ? items.filter(it => it.genres.includes(genre)) : items;
+    if (!list.length) {
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');
+      return;
+    }
     box.innerHTML = '';
-    for (const it of items) {
+    for (const it of list) {
       const cell = document.createElement('button');
       cell.type = 'button';
       cell.className = 'explore-cell';
@@ -1357,13 +1420,11 @@ const Views = (() => {
 
   function renderList() {
     if (exploreMode) {
-      // タブを開いた直後は発見グリッドを表示（検索バーをタップすると店舗検索へ）
-      $('#explore-grid').classList.remove('hidden');
-      $('#shop-list').classList.add('hidden');
-      $('#list-back').classList.add('hidden');
-      renderExplore();
+      // タブを開いた直後はカテゴリー一覧を表示（検索バーをタップすると店舗検索へ）
+      showExploreCats();
       return;
     }
+    hideExplore();
     refreshPrefOptions();
     const box = $('#shop-list');
     const shops = sortShops(filteredShops());
