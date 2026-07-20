@@ -1412,16 +1412,34 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
+    // ジャンルごとの件数と「代表の写真」（そのジャンルの最新の1枚）を集める
     const count = new Map();
-    for (const it of items) for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
+    const cover = new Map(); // genre → 代表アイテム
+    for (const it of items) {
+      for (const g of it.genres) {
+        count.set(g, (count.get(g) || 0) + 1);
+        if (!cover.has(g)) cover.set(g, it); // itemsは新しい順なので最初に見つかった＝最新
+      }
+    }
     const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
-    const tiles = [{ key: '', label: 'すべて', n: items.length }, ...genres.map(g => ({ key: g, label: g, n: count.get(g) }))];
-    box.innerHTML = tiles.map((t, i) => `
-      <button type="button" class="ex-cat" data-cat="${esc(t.key)}" style="--cat-c:${CAT_COLORS[i % CAT_COLORS.length]}">
-        <span class="ex-cat-emoji" aria-hidden="true">${genreIcon(t.key)}</span>
-        <span class="ex-cat-label">${esc(t.label)}</span>
-        <span class="ex-cat-count">${t.n}件</span>
+    const tiles = [{ key: '', label: 'すべて', n: items.length, item: items[0] },
+      ...genres.map(g => ({ key: g, label: g, n: count.get(g), item: cover.get(g) }))];
+    // 写真を背景に敷き、上に白文字でジャンル名（アイコンは使わない）
+    box.innerHTML = tiles.map(t => `
+      <button type="button" class="ex-cat" data-cat="${esc(t.key)}">
+        <img class="ex-cat-img" alt="" loading="lazy" decoding="async">
+        <span class="ex-cat-text">
+          <span class="ex-cat-label">${esc(t.label)}</span>
+          <span class="ex-cat-count">${t.n}件</span>
+        </span>
       </button>`).join('');
+    // 背景写真を割り当て（自分の写真は縮小版、フォロー中の人はURL）
+    box.querySelectorAll('.ex-cat').forEach((btn, i) => {
+      const it = tiles[i] && tiles[i].item;
+      const img = btn.querySelector('.ex-cat-img');
+      if (!it) return;
+      if (it.kind === 'mine') setThumb(img, it.ph); else img.src = it.p.photoUrl;
+    });
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
   }

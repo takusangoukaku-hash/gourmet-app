@@ -1138,3 +1138,20 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 /* カテゴリータイルのピクトグラムを白黒の線アイコンに（絵文字用のグレースケールを解除） */
 .ex-cat-emoji { filter: none; color: var(--text); opacity: .85; font-size: 0; }
 .ex-cat-emoji svg { width: 30px; height: 30px; }
+
+/* ---------- 検索カテゴリー: 写真を背景に敷いたタイル（アイコンは使わない） ---------- */
+.ex-cat {
+  position: relative; display: block; padding: 0; min-height: 0;
+  border: none; border-radius: 14px; overflow: hidden;
+  aspect-ratio: 4 / 3; background: var(--field); cursor: pointer;
+}
+.ex-cat-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 文字を読みやすくする下部のグラデーション（v161の丸い装飾を打ち消す） */
+.ex-cat::after {
+  content: ''; position: absolute; inset: 0; width: auto; height: auto; border-radius: 0; z-index: 1;
+  background: linear-gradient(to top, rgba(0,0,0,.66) 0%, rgba(0,0,0,.22) 45%, rgba(0,0,0,0) 78%);
+}
+.ex-cat-text { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 2; display: flex; flex-direction: column; text-align: left; }
+.ex-cat-label { color: #fff; font-size: 15px; font-weight: 700; padding-right: 0; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
+.ex-cat-count { color: rgba(255,255,255,.92); font-size: 11px; opacity: 1; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
+.ex-cat-emoji { display: none; }
