@@ -1134,3 +1134,7 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .ex-cat-count { color: var(--muted); opacity: 1; }
 .ex-cat-emoji { filter: grayscale(1); }
 @media (prefers-color-scheme: dark) { .ex-cat::after { background: rgba(255,255,255,.08); } }
+
+/* カテゴリータイルのピクトグラムを白黒の線アイコンに（絵文字用のグレースケールを解除） */
+.ex-cat-emoji { filter: none; color: var(--text); opacity: .85; font-size: 0; }
+.ex-cat-emoji svg { width: 30px; height: 30px; }
