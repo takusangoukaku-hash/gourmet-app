@@ -390,6 +390,18 @@ const Cloud = (() => {
     return posts.filter(p => p.lat != null && p.lon != null);
   }
 
+  // 指定ユーザー(uid)の公開投稿を新しい順に取得（プロフィールの写真グリッド用）
+  async function fetchUserPosts(uid) {
+    await ensureLoaded();
+    if (!uid) return [];
+    const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', '==', uid));
+    const snap = await fb.fs.getDocs(q);
+    const posts = [];
+    snap.forEach(d => posts.push(d.data()));
+    posts.sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    return posts;
+  }
+
   // フォロー中（＋自分）の投稿を新しい順に取得
   async function fetchFeed() {
     await ensureLoaded();
@@ -617,7 +629,7 @@ const Cloud = (() => {
   return { init, login, logout, onStatus, getUser, isSupported,
     setUsername, publishPublicProfile, fetchPublicProfile, resyncPhotos,
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
-    fetchFeed, fetchNetworkPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
+    fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
     publishPostForVisit, syncApiKeys, clearApiKeys };
 })();

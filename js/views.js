@@ -2576,10 +2576,13 @@ const Views = (() => {
   // 他人の公開プロフィールを閲覧（?u=ハンドル、またはフォロー一覧などから）
   async function showPublicProfile(username) {
     const ov = document.createElement('div');
-    ov.className = 'modal pubprofile-modal';
+    ov.className = 'modal pubprofile-modal panel-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close pp-close" aria-label="閉じる">✕</button>
-        <div class="pp-body"><div class="empty"><p>読み込み中…</p></div></div>
+        <div class="modal-head">
+          <h2 class="pp-title">@${esc(username)}</h2>
+          <button type="button" class="modal-close pp-close" aria-label="閉じる">✕</button>
+        </div>
+        <div class="modal-scroll"><div class="pp-body"><div class="empty"><p>読み込み中…</p></div></div></div>
       </div>`;
     const body = ov.querySelector('.pp-body');
     const close = () => ov.remove();
@@ -2620,8 +2623,30 @@ const Views = (() => {
       </div>
       ${prof.bio ? `<div class="pp-bio">${esc(prof.bio)}</div>` : ''}
       ${isMe ? '' : '<button type="button" class="btn primary pp-follow" disabled>…</button>'}
-      <h3 class="pp-h3">よく行くお店</h3>
-      <div class="pp-shops">${shops || '<div class="empty"><p>公開されているお店がありません。</p></div>'}</div>`;
+      <div class="pp-photo-grid photo-grid"><div class="empty"><p>読み込み中…</p></div></div>`;
+
+    // 投稿の写真をグリッド表示（タップで全画面の投稿表示）。写真が無ければ「よく行くお店」を出す
+    (async () => {
+      let posts = [];
+      try { posts = (typeof Cloud !== 'undefined') ? await Cloud.fetchUserPosts(prof.uid) : []; }
+      catch { posts = []; }
+      const grid = body.querySelector('.pp-photo-grid');
+      if (!grid) return;
+      const withPhoto = posts.filter(p => p.photoUrl);
+      if (withPhoto.length) {
+        grid.innerHTML = '';
+        for (const p of withPhoto) {
+          const cell = document.createElement('button');
+          cell.type = 'button'; cell.className = 'photo-cell';
+          cell.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async"><div class="cap">${esc(p.shopName || '')}</div>`;
+          cell.addEventListener('click', () => showPostDetail(p));
+          grid.appendChild(cell);
+        }
+      } else {
+        grid.className = 'pp-shops'; // 写真が無ければ従来の「よく行くお店」リスト
+        grid.innerHTML = (shops ? `<h3 class="pp-h3">よく行くお店</h3>${shops}` : '<div class="empty"><p>まだ公開された投稿がありません。</p></div>');
+      }
+    })();
 
     // フォロー数・フォロワー数を表示
     if (typeof Cloud !== 'undefined') {

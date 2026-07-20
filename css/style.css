@@ -1083,3 +1083,15 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 }
 /* ✕は右上に固定（stickyのまま。全画面でも押しやすいよう少し大きめ） */
 .modal.modal-full .modal-close { top: 12px; right: 12px; width: 34px; height: 34px; }
+
+/* ---------- 公開プロフィール: 全画面＋写真グリッド ---------- */
+.pubprofile-modal.panel-modal { padding: 0; }
+.pubprofile-modal.panel-modal .modal-box { max-height: none; height: 100%; border-radius: 0; }
+.pp-photo-grid.photo-grid { margin-left: -20px; margin-right: -20px; margin-top: 12px; }
+.pubprofile-modal .pp-title { font-size: 16px; }
+
+/* ---------- 全画面モーダルの背景を白に（複数写真スクロール時に下端の白が消えるのを防ぐ） ---------- */
+/* スマホのアドレスバー伸縮で内箱の下に隙間ができても、オーバーレイが白なら白が保たれる */
+.postdetail-modal, .modal.modal-full { background: var(--card); }
+.pd-full, .pd-scroll { background: var(--card); }
+.modal.modal-full .modal-box { background: var(--card); }
