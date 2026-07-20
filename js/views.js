@@ -885,37 +885,12 @@ const Views = (() => {
       .setLngLat([g.lon, g.lat]).setDOMContent(node).addTo(map);
   }
 
-  // ピンをタップ → 店舗ポップアップ（写真・評価・詳細ボタン）
-  async function openPinPopup(feature) {
+  // ピンをタップ → 自分の店は全画面の店舗詳細を直接開く（プロフィールの写真タップと同じ操作感）
+  // つながりの人だけの店はポップアップ（誰の訪問か・平均・投稿へ）
+  function openPinPopup(feature) {
     if (feature.properties.kind === 'other') { openOtherPinPopup(feature); return; }
-    const s = Store.getShop(feature.properties.id);
-    if (!s) return;
-    const vs = Store.visitsOf(s.id);
-    const rep = await Store.repPhoto(s.id);
-    const last = vs[0];
-    // 「みんな」表示では本人＋フォロワーを合わせた平均（mapStatsに集約済み）
-    const st = mapStats.get(s.id);
-    // この店にフォロワーの記録も混ざっていれば、写真の右上にアイコンを出す
-    const avatars = contribAvatarsHtml(mapContrib.get(s.id));
-    const node = document.createElement('div');
-    node.className = 'popup';
-    node.innerHTML = `
-        ${rep ? `<div class="pp-wrap"><img alt="" decoding="async">${avatars}</div>` : (avatars ? `<div class="pp-row">${avatars}</div>` : '')}
-        <div class="p-name">${esc(s.name)}${s.favorite ? ' ' + IC_FAV : ''}</div>
-        ${mapStatsLine(st)}
-        <div class="p-sub">訪問${vs.length}回${last ? '　最終: ' + fmtDate(last.datetime) : ''}</div>
-        ${last && last.comment ? `<div class="p-comment">${esc(last.comment.slice(0, 60))}</div>` : ''}
-        <div class="p-actions">
-          <button class="btn small popup-nav">${IC_NAV} ここへ行く</button>
-          <button class="btn small popup-detail">店舗詳細 →</button>
-        </div>`;
-    if (rep) setThumb(node.querySelector('.pp-wrap img'), rep); // ポップアップも縮小画像で軽く
-    wireContribAvatars(node);
-    node.querySelector('.popup-detail').addEventListener('click', () => showShop(s.id));
-    node.querySelector('.popup-nav').addEventListener('click', () => openNav(s));
     if (mapPopup) mapPopup.remove();
-    mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
-      .setLngLat([s.lon, s.lat]).setDOMContent(node).addTo(map);
+    showShop(feature.properties.id);
   }
 
   // フィルタ適用後の店舗一覧 → GeoJSONに変換して地図へ反映
@@ -1214,6 +1189,7 @@ const Views = (() => {
           <button class="btn small wish-del" data-id="${esc(w.id)}">外す</button>
         </div>`).join('')
       : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。'));
+    $('#modal').classList.remove('modal-full'); // 行きたいリストはカード表示に戻す
     $('#modal').classList.remove('hidden');
     body.querySelectorAll('.wish-del').forEach(b => b.addEventListener('click', () => {
       Store.removeWish(b.dataset.id);
@@ -2071,6 +2047,7 @@ const Views = (() => {
       }
     }
 
+    $('#modal').classList.add('modal-full'); // 店舗詳細は全画面表示
     $('#modal').classList.remove('hidden');
   }
 
