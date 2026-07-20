@@ -1155,3 +1155,26 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .ex-cat-label { color: #fff; font-size: 15px; font-weight: 700; padding-right: 0; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
 .ex-cat-count { color: rgba(255,255,255,.92); font-size: 11px; opacity: 1; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
 .ex-cat-emoji { display: none; }
+
+/* ---------- 検索カテゴリー: 文字だけのミニマルなタイル（写真・アイコンは使わない） ---------- */
+.ex-cat {
+  aspect-ratio: auto; min-height: 64px; padding: 12px;
+  display: flex; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--border-lite); border-radius: 12px;
+  color: var(--text); text-align: left; font-family: inherit;
+}
+.ex-cat::after { display: none; } /* 丸い装飾もグラデーションも使わない */
+.ex-cat-img { display: none; }
+.ex-cat-text { position: static; display: flex; flex-direction: column; gap: 3px; }
+.ex-cat-label { color: var(--text); font-size: 14px; font-weight: 700; line-height: 1.35; text-shadow: none; }
+.ex-cat-count { color: var(--muted); font-size: 11px; text-shadow: none; }
+.ex-cat.off { background: transparent; }          /* まだ記録がないジャンルは控えめに */
+.ex-cat.off .ex-cat-label { color: var(--muted); font-weight: 600; }
+.ex-cat.ex-all { grid-column: 1 / -1; min-height: 0; justify-content: space-between; align-items: center; }
+.ex-cat.ex-all .ex-cat-text { flex-direction: row; align-items: baseline; gap: 8px; }
+.ex-cat.ex-all .ex-cat-label { font-size: 16px; }
+/* カテゴリー見出し（麺類・和食…） */
+.ex-sec {
+  grid-column: 1 / -1; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  color: var(--muted); padding: 12px 2px 0;
+}
