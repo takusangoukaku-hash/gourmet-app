@@ -1227,3 +1227,34 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
   .ex-cat, .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 82%, #000); }
   .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 38%, #4a4440); }
 }
+
+/* ---------- 検索カテゴリー: フラットなグラデーションタイル（Apple Podcasts風） ---------- */
+.ex-cat, .ex-cat.off {
+  border-radius: 16px; padding: 14px;
+  /* 文字は左下に（基本のflex-directionはcolumnなので、縦=主軸・横=交差軸） */
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--cat-c, #888) 72%, #fff) 0%,   /* 左上はやや明るく */
+    var(--cat-c, #888) 100%);                              /* 右下は元の色 */
+}
+.ex-cat.off {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--cat-c, #888) 30%, #cfc9c3) 0%,
+    color-mix(in srgb, var(--cat-c, #888) 52%, #a49d97) 100%);
+}
+/* 影を外してフラットに。サイズ・太さはそのまま */
+.ex-cat .ex-cat-label, .ex-cat.off .ex-cat-label { text-shadow: none; letter-spacing: .02em; }
+.ex-cat .ex-cat-count, .ex-cat.off .ex-cat-count { text-shadow: none; color: rgba(255,255,255,.8); }
+.ex-cat.ex-all { justify-content: center; align-items: center; } /* 横長タイルは中央 */
+@media (prefers-color-scheme: dark) {
+  .ex-cat, .ex-cat.off {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--cat-c, #888) 88%, #fff) 0%,
+      color-mix(in srgb, var(--cat-c, #888) 72%, #000) 100%);
+  }
+  .ex-cat.off {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--cat-c, #888) 34%, #5a544e) 0%,
+      color-mix(in srgb, var(--cat-c, #888) 30%, #37322e) 100%);
+  }
+}
