@@ -1211,3 +1211,19 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
   .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 12%, #14110f); }
   .ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 30%, var(--muted)); }
 }
+
+/* ---------- 検索カテゴリー: 白文字（背景はベタ塗りより少しやわらかい濃さ） ---------- */
+/* 白文字が読めるだけの濃さが要るため、v167の淡色より濃く・v166のベタ塗りより淡い中間に */
+.ex-cat, .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 86%, #fff); }
+.ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 42%, #b3aca6); } /* 0件は同系色をくすませて区別 */
+.ex-cat .ex-cat-label, .ex-cat.off .ex-cat-label {
+  color: #fff; font-size: 18px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.24);
+}
+.ex-cat .ex-cat-count, .ex-cat.off .ex-cat-count {
+  color: rgba(255,255,255,.92); font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.24);
+}
+.ex-cat.ex-all .ex-cat-label { font-size: 20px; }
+@media (prefers-color-scheme: dark) {
+  .ex-cat, .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 82%, #000); }
+  .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 38%, #4a4440); }
+}
