@@ -1274,14 +1274,14 @@ const Views = (() => {
   let exploreItems = null;     // 読み込み済みの発見アイテム（写真＋ジャンル）
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
-  // カテゴリータイルの配色: 4色まで（Spotifyの検索タイルを参考にした鮮やかな色）
-  // [0]はSpotifyグリーン（「すべて」専用で他とかぶらない）。以降は3色を基本→薄→濃で巡回
-  const CAT_COLORS = [
-    '#1db954',                       // グリーン（すべて）
-    '#e8115b', '#7358ff', '#509bf5', // マゼンタ・パープル・ブルー
-    '#f26896', '#9c8aff', '#84b9f7', // 薄いマゼンタ・パープル・ブルー
-    '#b30d47', '#5438cc', '#2f7fe0', // 濃いマゼンタ・パープル・ブルー
-  ];
+  // カテゴリータイルの配色（ユーザー指定）: 赤系=麺類・中華・洋食 / 緑系=和食・アジア・カフェ / 青系=肉料理・カレー・その他
+  const CAT_COLORS = {
+    'すべて': '#2E2E2E',
+    '麺類': '#D95C4A', '中華': '#E58B7D', '洋食': '#F0B8AF',
+    '和食': '#5E9C73', 'アジア': '#9CC2A5', 'カフェ・スイーツ': '#4F8664',
+    '肉料理': '#5F88C5', 'カレー': '#B5C7E6', 'その他': '#809DCC',
+  };
+  const catColor = (name) => CAT_COLORS[name] || '#888';
 
   // ジャンルを表す白黒の線ピクトグラム（検索・地図のアイコンと同じストローク調）
   const GENRE_ICONS = {
@@ -1441,9 +1441,9 @@ const Views = (() => {
     }
     const count = genreCounts(items);
     const catCount = (c) => c.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
-    box.innerHTML = catTile('', 'すべて', items.length, CAT_COLORS[0], { wide: true }) +
-      Api.DISH_CATEGORIES.map((c, i) =>
-        catTile('', c.name, catCount(c), CAT_COLORS[(i + 1) % CAT_COLORS.length], { sub: c.name })).join('');
+    box.innerHTML = catTile('', 'すべて', items.length, catColor('すべて'), { wide: true }) +
+      Api.DISH_CATEGORIES.map(c =>
+        catTile('', c.name, catCount(c), catColor(c.name), { sub: c.name })).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.sub) openExploreSub(b.dataset.sub);          // 大きなくくり → ジャンル一覧へ
       else openExploreCat('', 'すべて');                          // すべて → 写真グリッドへ
@@ -1465,8 +1465,7 @@ const Views = (() => {
     box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
     const items = await loadExploreItems();
     const count = genreCounts(items);
-    const ci = Api.DISH_CATEGORIES.indexOf(cat);
-    const color = CAT_COLORS[(ci + 1) % CAT_COLORS.length];
+    const color = catColor(catName);
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
     box.innerHTML = catTile(cat.genres.join('・'), catName + 'すべて', total, color, { wide: true }) +
       cat.genres.map(g => catTile(g, g, count.get(g) || 0, color)).join('');

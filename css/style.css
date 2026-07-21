@@ -1258,3 +1258,20 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
       color-mix(in srgb, var(--cat-c, #888) 30%, #37322e) 100%);
   }
 }
+
+/* ---------- 検索カテゴリー: 指定パレットをそのまま使う（色ずれ防止） ---------- */
+/* グラデーションで色がずれないよう、指定色をベタで敷き、下だけごく薄く暗くして文字を読みやすく */
+.ex-cat, .ex-cat.off {
+  background:
+    linear-gradient(to top, rgba(0,0,0,.12) 0%, rgba(0,0,0,0) 55%),
+    var(--cat-c, #888);
+}
+/* 記録がまだ無いジャンルは、色みは変えずに全体を少しだけ透過して区別 */
+.ex-cat.off { opacity: .72; }
+@media (prefers-color-scheme: dark) {
+  .ex-cat, .ex-cat.off {
+    background:
+      linear-gradient(to top, rgba(0,0,0,.16) 0%, rgba(0,0,0,0) 55%),
+      var(--cat-c, #888);
+  }
+}
