@@ -1192,3 +1192,22 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
   .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 22%, transparent); }
   .ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 50%, #fff); }
 }
+
+/* ---------- 検索カテゴリー: 淡い配色＋大きな太字 ---------- */
+.ex-cat { background: color-mix(in srgb, var(--cat-c, #888) 18%, #fff); min-height: 80px; padding: 14px; }
+.ex-cat .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 55%, #111);
+  font-size: 18px; font-weight: 800; letter-spacing: .01em; }
+.ex-cat .ex-cat-count { color: color-mix(in srgb, var(--cat-c, #888) 40%, var(--muted)); font-size: 12px; font-weight: 600; }
+.ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 8%, #fff); }
+.ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 45%, var(--muted)); font-weight: 700; }
+.ex-cat.off .ex-cat-count { color: var(--muted); font-weight: 500; }
+.ex-cat.ex-all { min-height: 58px; }
+.ex-cat.ex-all .ex-cat-label { font-size: 20px; }
+.ex-cat.ex-all .ex-cat-count { font-size: 13px; }
+@media (prefers-color-scheme: dark) {
+  .ex-cat { background: color-mix(in srgb, var(--cat-c, #888) 26%, #14110f); }
+  .ex-cat .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 45%, #fff); }
+  .ex-cat .ex-cat-count { color: color-mix(in srgb, var(--cat-c, #888) 25%, var(--muted)); }
+  .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 12%, #14110f); }
+  .ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 30%, var(--muted)); }
+}
