@@ -1178,3 +1178,17 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
   grid-column: 1 / -1; font-size: 11px; font-weight: 700; letter-spacing: .08em;
   color: var(--muted); padding: 12px 2px 0;
 }
+
+/* ---------- 検索カテゴリー: Podcastアプリ風のカラータイル ---------- */
+.ex-cat { background: var(--cat-c, #888); border-color: transparent; min-height: 72px; }
+.ex-cat .ex-cat-label { color: #fff; }
+.ex-cat .ex-cat-count { color: rgba(255,255,255,.85); }
+.ex-cat.ex-all { min-height: 52px; }
+/* まだ記録がないジャンルは同じ色を薄く敷いて、色の系統だけ揃える */
+.ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 14%, transparent); }
+.ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 78%, var(--text)); }
+.ex-cat.off .ex-cat-count { color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .ex-cat.off { background: color-mix(in srgb, var(--cat-c, #888) 22%, transparent); }
+  .ex-cat.off .ex-cat-label { color: color-mix(in srgb, var(--cat-c, #888) 50%, #fff); }
+}
