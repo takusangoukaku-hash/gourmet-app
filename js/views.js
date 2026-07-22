@@ -1272,66 +1272,10 @@ const Views = (() => {
   let exploreMode = true;      // true = 発見（カテゴリー/写真）、false = 店舗検索
   let exploreNetCache = null;  // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
   let exploreItems = null;     // 読み込み済みの発見アイテム（写真＋ジャンル）
-  let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
-  // カテゴリータイルの配色（ユーザー指定）: 赤系=麺類・中華・洋食 / 緑系=和食・アジア・カフェ / 青系=肉料理・カレー・その他
-  const CAT_COLORS = {
-    'すべて': '#2E2E2E',
-    '麺類': '#D95C4A', '中華': '#E58B7D', '洋食': '#F0B8AF',
-    '和食': '#5E9C73', 'アジア': '#9CC2A5', 'カフェ・スイーツ': '#4F8664',
-    '肉料理': '#5F88C5', 'カレー': '#B5C7E6', 'その他': '#809DCC',
-  };
-  const catColor = (name) => CAT_COLORS[name] || '#888';
-
-  // ジャンルを表す白黒の線ピクトグラム（検索・地図のアイコンと同じストローク調）
-  const GENRE_ICONS = {
-    all: '<path d="M6 3v5a2 2 0 0 0 4 0V3"/><path d="M8 8v13"/><path d="M16.5 3c-1.4 0-2.5 2.2-2.5 5s1.1 4 2.5 4"/><path d="M16.5 12v9"/>',
-    bowl: '<path d="M3.5 12h17"/><path d="M4.5 12a7.5 7.5 0 0 0 15 0"/><path d="M9 8.4c-.5-1 .3-1.6.3-2.6S8.6 4 8.6 4"/><path d="M12.6 8.4c-.5-1 .3-1.6.3-2.6S12.2 4 12.2 4"/>',
-    fish: '<path d="M15 12c0-2.8-2.7-5-6-5s-6 2.2-6 5 2.7 5 6 5 6-2.2 6-5z"/><path d="M15 12l5-3v6z"/><circle cx="7" cy="11" r=".8" fill="currentColor" stroke="none"/>',
-    meat: '<path d="M14 10.5a3.8 3.8 0 1 0-3.6 3.9L6 18.8"/><path d="M4.7 18.1l1.1 1.1"/><path d="M6.3 16.5l1.1 1.1"/>',
-    cup: '<path d="M5 8h12v4.5a4.5 4.5 0 0 1-4.5 4.5h-3A4.5 4.5 0 0 1 5 12.5z"/><path d="M17 9.5h1.5a2 2 0 0 1 0 4H17"/><path d="M8 3.4c.4 1-.6 1.6-.6 2.6M11 3.4c.4 1-.6 1.6-.6 2.6"/>',
-    cake: '<path d="M4 20h16"/><path d="M5 20v-6.5l7-2.5 7 2.5V20"/><path d="M5 13.5l7 2.5 7-2.5"/><path d="M12 7.5V11"/><circle cx="12" cy="6.4" r="1" fill="currentColor" stroke="none"/>',
-    pizza: '<path d="M4 6.5c5-2 11-2 16 0l-8 14.5z"/><path d="M4 6.5l1.6 2.9"/><circle cx="10" cy="9" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="10" r=".8" fill="currentColor" stroke="none"/><circle cx="12" cy="13" r=".8" fill="currentColor" stroke="none"/>',
-    curry: '<path d="M3 15h18"/><path d="M4.5 15a7.5 7.5 0 0 1 15 0"/><path d="M8 15a4 4 0 0 1 8 0"/>',
-    bento: '<rect x="4" y="7" width="16" height="12" rx="2"/><path d="M4 12.8h16"/><path d="M12 7v12"/><circle cx="8" cy="10" r=".9" fill="currentColor" stroke="none"/>',
-    dumpling: '<path d="M4 15.5a8 4.5 0 0 1 16 0z"/><path d="M6.5 14.6c.8-1.4 1.8-1.4 2.6 0M11 14.6c.8-1.4 1.8-1.4 2.6 0M15.4 14.4c.4-.9.9-1 1.4-1.1"/>',
-    burger: '<path d="M4 9c0-2.6 3.6-4.2 8-4.2s8 1.6 8 4.2"/><path d="M4 9h16"/><path d="M4.5 12.4h15"/><path d="M5 15.2c-.6 0-1 .5-1 1 0 2 3.6 3.6 8 3.6s8-1.6 8-3.6c0-.5-.4-1-1-1z"/>',
-    bread: '<path d="M4 14c0-3.2 2.2-5.8 8-5.8s8 2.6 8 5.8c0 2-2 3.2-8 3.2s-8-1.2-8-3.2z"/><path d="M9 9.5v6M12 9v7M15 9.5v6"/>',
-    hotpot: '<path d="M3 11h18"/><path d="M5 11v3a5 5 0 0 0 5 5h4a5 5 0 0 0 5-5v-3"/><path d="M9 8c.4-1-.6-1.6-.6-2.6M13 8c.4-1-.6-1.6-.6-2.6"/>',
-    glass: '<path d="M7 7.5h10l-1 11.5a2 2 0 0 1-2 1.8h-4a2 2 0 0 1-2-1.8z"/><path d="M6 7.5h12"/><path d="M13.5 3.5 12.5 7.5"/><circle cx="10.5" cy="16.5" r=".8" fill="currentColor" stroke="none"/><circle cx="13.5" cy="17.5" r=".8" fill="currentColor" stroke="none"/>',
-  };
-  const GENRE_ICON_OF = {
-    'ラーメン': 'bowl', 'つけ麺': 'bowl', '油そば・まぜそば': 'bowl', '担々麺': 'bowl', '焼きそば': 'bowl',
-    'うどん': 'bowl', 'そば': 'bowl', 'パスタ': 'bowl',
-    '寿司': 'fish', '海鮮・魚介': 'fish', '海鮮丼': 'bowl', '日本料理': 'bento', '天ぷら': 'fish',
-    'とんかつ': 'meat', '串揚げ': 'meat', '焼鳥': 'meat', 'うなぎ': 'fish', 'お好み焼き': 'curry',
-    'たこ焼き': 'bowl', 'もんじゃ焼き': 'curry', '鍋': 'hotpot', 'もつ鍋': 'hotpot', 'しゃぶしゃぶ': 'hotpot',
-    'すき焼き': 'hotpot', 'おでん': 'hotpot', '釜飯': 'bowl', '郷土料理': 'bento', '沖縄料理': 'bento',
-    '定食': 'bento', '弁当': 'bento', '丼もの': 'bowl', '牛丼': 'bowl', '親子丼': 'bowl',
-    '焼肉': 'meat', 'ホルモン': 'meat', 'ジンギスカン': 'meat', 'ステーキ': 'meat', 'ハンバーグ': 'meat',
-    '中華料理': 'dumpling', 'チャーハン': 'bowl', '餃子': 'dumpling', '小籠包': 'dumpling',
-    '韓国料理': 'hotpot', 'タイ料理': 'bowl', 'ベトナム料理': 'bowl', 'インド料理': 'curry', 'エスニック': 'bowl',
-    'カレー': 'curry', 'スープカレー': 'curry',
-    'イタリアン': 'pizza', 'ピザ': 'pizza', 'フレンチ': 'curry', 'スペイン料理': 'curry', '洋食': 'curry',
-    'ハンバーガー': 'burger', 'サンドイッチ': 'burger', 'パン': 'bread',
-    'カフェメニュー': 'cup', 'パンケーキ': 'cake', 'ケーキ': 'cake', 'パフェ': 'cake', 'クレープ': 'cake',
-    'アイス・ジェラート': 'cake', 'ドーナツ': 'cake', 'かき氷': 'cake', '和菓子': 'cake', 'タピオカ': 'glass',
-    'スイーツ': 'cake', 'ドリンク': 'glass',
-    'ビュッフェ': 'bento', 'その他': 'all',
-  };
-  const genreIcon = (g) => {
-    const id = !g ? 'all' : (GENRE_ICON_OF[g] || 'all');
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${GENRE_ICONS[id]}</svg>`;
-  };
-  // 大きなくくり（麺類・和食…）専用のピクトグラム割り当て
-  const CAT_ICON_OF = {
-    '麺類': 'bowl', '和食': 'fish', '肉料理': 'meat', '中華': 'dumpling', 'アジア': 'hotpot',
-    'カレー': 'curry', '洋食': 'pizza', 'カフェ・スイーツ': 'cup', 'その他': 'all',
-  };
-  const catIcon = (name) => {
-    const id = CAT_ICON_OF[name];
-    return id ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${GENRE_ICONS[id]}</svg>` : '';
-  };
+  // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
+  const CAT_COLORS = ['#e1306c', '#fa7e1e', '#22c55e', '#3b82f6', '#8b5cf6', '#ef4444',
+    '#14b8a6', '#f59e0b', '#ec4899', '#0ea5e9', '#84cc16', '#a855f7'];
 
   function setListMode(explore) {
     exploreMode = explore;
@@ -1347,7 +1291,6 @@ const Views = (() => {
     $('#explore-grid').classList.add('hidden');
   }
   function showExploreCats() {
-    exploreSub = null;
     $('#shop-list').classList.add('hidden');
     $('#explore-head').classList.add('hidden');
     $('#explore-grid').classList.add('hidden');
@@ -1419,28 +1362,7 @@ const Views = (() => {
     return items;
   }
 
-  // ジャンルごとの件数（記録がまだ無いジャンルも0件として扱う）
-  function genreCounts(items) {
-    const count = new Map();
-    for (const it of items) {
-      for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
-    }
-    return count;
-  }
-  // カラータイル1枚。keyは「そのタイルを開いたときに絞り込むジャンル（複数可）」
-  function catTile(key, label, n, color, opt) {
-    const o = opt || {};
-    return `<button type="button" class="ex-cat${n ? '' : ' off'}${o.wide ? ' ex-all' : ''}"
-      data-cat="${esc(key)}"${o.sub ? ` data-sub="${esc(o.sub)}"` : ''} style="--cat-c:${color}">
-      ${o.icon ? `<span class="ex-cat-ic">${o.icon}</span>` : ''}
-      <span class="ex-cat-text">
-        <span class="ex-cat-label">${esc(label)}</span>
-        <span class="ex-cat-count">${n}件</span>
-      </span>
-    </button>`;
-  }
-
-  // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）のカラータイル
+  // カテゴリー一覧（Podcast風タイル）: 「すべて」＋写真が存在するジャンル
   async function renderExploreCats() {
     const box = $('#explore-cats');
     box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
@@ -1449,60 +1371,36 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
-    const count = genreCounts(items);
-    const catCount = (c) => c.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
-    box.innerHTML = catTile('', 'すべて', items.length, catColor('すべて'), { wide: true }) +
-      Api.DISH_CATEGORIES.map(c =>
-        catTile('', c.name, catCount(c), catColor(c.name), { sub: c.name, icon: catIcon(c.name) })).join('');
-    box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
-      if (b.dataset.sub) openExploreSub(b.dataset.sub);          // 大きなくくり → ジャンル一覧へ
-      else openExploreCat('', 'すべて');                          // すべて → 写真グリッドへ
-    }));
-  }
-
-  // 大きなくくりを開く → その中のジャンル（ラーメン・つけ麺…）をカラータイルで表示
-  async function openExploreSub(catName) {
-    const cat = Api.DISH_CATEGORIES.find(c => c.name === catName);
-    if (!cat) { showExploreCats(); return; }
-    exploreSub = catName;
-    $('#explore-grid').classList.add('hidden');
-    $('#explore-cats').classList.remove('hidden');
-    const head = $('#explore-head');
-    head.classList.remove('hidden');
-    head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(catName)}</span>`;
-    head.querySelector('.ex-back').addEventListener('click', showExploreCats);
-    const box = $('#explore-cats');
-    box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
-    const items = await loadExploreItems();
-    const count = genreCounts(items);
-    const color = catColor(catName);
-    const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
-    box.innerHTML = catTile(cat.genres.join('・'), catName + 'すべて', total, color, { wide: true }) +
-      cat.genres.map(g => catTile(g, g, count.get(g) || 0, color)).join('');
+    const count = new Map();
+    for (const it of items) for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
+    const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    const tiles = [{ key: '', label: 'すべて', n: items.length }, ...genres.map(g => ({ key: g, label: g, n: count.get(g) }))];
+    box.innerHTML = tiles.map((t, i) => `
+      <button type="button" class="ex-cat" data-cat="${esc(t.key)}" style="--cat-c:${CAT_COLORS[i % CAT_COLORS.length]}">
+        <span class="ex-cat-label">${esc(t.label)}</span>
+        <span class="ex-cat-count">${t.n}件</span>
+      </button>`).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
   }
 
-  // ジャンルを開く → 写真グリッド（戻ると元のジャンル一覧へ）
+  // カテゴリーを開く → そのジャンルの写真グリッド（先頭に戻る＋見出し）
   function openExploreCat(genre, label) {
     $('#explore-cats').classList.add('hidden');
-    const back = exploreSub;
     const head = $('#explore-head');
     head.classList.remove('hidden');
-    head.innerHTML = `<button type="button" class="ex-back" aria-label="戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
-    head.querySelector('.ex-back').addEventListener('click', () =>
-      back ? openExploreSub(back) : showExploreCats());
+    head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
+    head.querySelector('.ex-back').addEventListener('click', showExploreCats);
     $('#explore-grid').classList.remove('hidden');
     renderExploreGrid(genre);
   }
 
-  // 選んだジャンルの写真を敷き詰める（genreが空なら全部、「・」区切りで複数可）。タップで投稿表示
+  // 選んだジャンルの写真を敷き詰める（genreが空なら全部）。タップで投稿表示
   async function renderExploreGrid(genre) {
     const box = $('#explore-grid');
     box.innerHTML = SKEL_GRID;
     const items = exploreItems || await loadExploreItems();
-    const keys = String(genre || '').split('・').filter(Boolean);
-    const list = keys.length ? items.filter(it => it.genres.some(g => keys.includes(g))) : items;
+    const list = genre ? items.filter(it => it.genres.includes(genre)) : items;
     if (!list.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');
       return;
