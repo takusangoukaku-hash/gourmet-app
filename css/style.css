@@ -1290,3 +1290,27 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 @media (prefers-color-scheme: dark) {
   .ex-cat, .ex-cat.off { background: var(--card); }
 }
+
+/* ---------- 検索カテゴリー: エディトリアル調（明朝体＋カラーアクセントライン） ---------- */
+.ex-cat-ic { display: none; } /* ピクトグラムは使わない */
+.ex-cat, .ex-cat.off {
+  border: none;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.035);
+  padding: 15px 14px 13px;
+}
+/* ジャンル名の上に、カテゴリー色の細いライン（雑誌の見出しタグ風） */
+.ex-cat-text::before {
+  content: ''; display: block; width: 26px; height: 3px; border-radius: 2px;
+  background: var(--cat-c, #999); margin-bottom: 9px;
+}
+.ex-cat .ex-cat-label, .ex-cat.off .ex-cat-label {
+  font-family: var(--serif); font-size: 17px; font-weight: 700; letter-spacing: .05em;
+}
+.ex-cat .ex-cat-count, .ex-cat.off .ex-cat-count { letter-spacing: .06em; }
+/* 0件はラインを淡く・文字をグレーに */
+.ex-cat.off .ex-cat-text::before { opacity: .3; }
+/* 横長タイル（すべて／◯◯すべて）はラインを丸い点にして横並び */
+.ex-cat.ex-all .ex-cat-text::before {
+  width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 0; align-self: center;
+}
+.ex-cat.ex-all .ex-cat-label { font-size: 19px; }
