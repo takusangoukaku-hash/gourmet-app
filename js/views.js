@@ -1272,6 +1272,7 @@ const Views = (() => {
   let exploreMode = true;      // true = 発見（カテゴリー/写真）、false = 店舗検索
   let exploreNetCache = null;  // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
   let exploreItems = null;     // 読み込み済みの発見アイテム（写真＋ジャンル）
+  let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
   const CAT_COLORS = ['#e1306c', '#fa7e1e', '#22c55e', '#3b82f6', '#8b5cf6', '#ef4444',
@@ -1291,6 +1292,7 @@ const Views = (() => {
     $('#explore-grid').classList.add('hidden');
   }
   function showExploreCats() {
+    exploreSub = null;
     $('#shop-list').classList.add('hidden');
     $('#explore-head').classList.add('hidden');
     $('#explore-grid').classList.add('hidden');
@@ -1362,7 +1364,23 @@ const Views = (() => {
     return items;
   }
 
-  // カテゴリー一覧（Podcast風タイル）: 「すべて」＋写真が存在するジャンル
+  // ジャンルごとの件数（記録がまだ無いジャンルは0件として扱う）
+  function genreCounts(items) {
+    const count = new Map();
+    for (const it of items) for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
+    return count;
+  }
+  // Podcast風カラータイル1枚。keyは開いたときに絞り込むジャンル（「・」区切りで複数可）
+  function catTile(key, label, n, color, opt) {
+    const o = opt || {};
+    return `<button type="button" class="ex-cat${n ? '' : ' off'}${o.wide ? ' ex-all' : ''}"
+      data-cat="${esc(key)}"${o.sub ? ` data-sub="${esc(o.sub)}"` : ''} style="--cat-c:${color}">
+      <span class="ex-cat-label">${esc(label)}</span>
+      <span class="ex-cat-count">${n}件</span>
+    </button>`;
+  }
+
+  // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）。記録が無いくくりも表示
   async function renderExploreCats() {
     const box = $('#explore-cats');
     box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
@@ -1371,36 +1389,59 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
-    const count = new Map();
-    for (const it of items) for (const g of it.genres) count.set(g, (count.get(g) || 0) + 1);
-    const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
-    const tiles = [{ key: '', label: 'すべて', n: items.length }, ...genres.map(g => ({ key: g, label: g, n: count.get(g) }))];
-    box.innerHTML = tiles.map((t, i) => `
-      <button type="button" class="ex-cat" data-cat="${esc(t.key)}" style="--cat-c:${CAT_COLORS[i % CAT_COLORS.length]}">
-        <span class="ex-cat-label">${esc(t.label)}</span>
-        <span class="ex-cat-count">${t.n}件</span>
-      </button>`).join('');
+    const count = genreCounts(items);
+    const catCount = (c) => c.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
+    box.innerHTML = catTile('', 'すべて', items.length, CAT_COLORS[0], { wide: true }) +
+      Api.DISH_CATEGORIES.map((c, i) =>
+        catTile('', c.name, catCount(c), CAT_COLORS[(i + 1) % CAT_COLORS.length], { sub: c.name })).join('');
+    box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.sub) openExploreSub(b.dataset.sub);   // 大きなくくり → 詳しいジャンル一覧へ
+      else openExploreCat('', 'すべて');                   // すべて → 写真グリッドへ
+    }));
+  }
+
+  // 大きなくくりを開く → 中の詳しいジャンル（ラーメン・うどん…）。0件のジャンルも表示
+  async function openExploreSub(catName) {
+    const cat = Api.DISH_CATEGORIES.find(c => c.name === catName);
+    if (!cat) { showExploreCats(); return; }
+    exploreSub = catName;
+    $('#explore-grid').classList.add('hidden');
+    $('#explore-cats').classList.remove('hidden');
+    const head = $('#explore-head');
+    head.classList.remove('hidden');
+    head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(catName)}</span>`;
+    head.querySelector('.ex-back').addEventListener('click', showExploreCats);
+    const box = $('#explore-cats');
+    box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
+    const items = await loadExploreItems();
+    const count = genreCounts(items);
+    const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
+    box.innerHTML = catTile(cat.genres.join('・'), catName + 'すべて', total, CAT_COLORS[0], { wide: true }) +
+      cat.genres.map((g, i) => catTile(g, g, count.get(g) || 0, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
   }
 
-  // カテゴリーを開く → そのジャンルの写真グリッド（先頭に戻る＋見出し）
+  // ジャンルを開く → 写真グリッド（戻ると開いていたくくりのジャンル一覧へ）
   function openExploreCat(genre, label) {
     $('#explore-cats').classList.add('hidden');
+    const back = exploreSub;
     const head = $('#explore-head');
     head.classList.remove('hidden');
-    head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
-    head.querySelector('.ex-back').addEventListener('click', showExploreCats);
+    head.innerHTML = `<button type="button" class="ex-back" aria-label="戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
+    head.querySelector('.ex-back').addEventListener('click', () =>
+      back ? openExploreSub(back) : showExploreCats());
     $('#explore-grid').classList.remove('hidden');
     renderExploreGrid(genre);
   }
 
-  // 選んだジャンルの写真を敷き詰める（genreが空なら全部）。タップで投稿表示
+  // 選んだジャンルの写真を敷き詰める（genreが空なら全部、「・」区切りで複数可）。タップで投稿表示
   async function renderExploreGrid(genre) {
     const box = $('#explore-grid');
     box.innerHTML = SKEL_GRID;
     const items = exploreItems || await loadExploreItems();
-    const list = genre ? items.filter(it => it.genres.includes(genre)) : items;
+    const keys = String(genre || '').split('・').filter(Boolean);
+    const list = keys.length ? items.filter(it => it.genres.some(g => keys.includes(g))) : items;
     if (!list.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');
       return;
