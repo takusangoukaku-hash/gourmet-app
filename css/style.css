@@ -1110,11 +1110,11 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
   content: ''; position: absolute; right: -14px; bottom: -18px;
   width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.16);
 }
-.ex-cat-label { font-size: 15px; font-weight: 700; line-height: 1.3; z-index: 1; }
-.ex-cat-count { font-size: 11px; opacity: .85; z-index: 1; }
+.ex-cat-label { font-size: 18px; font-weight: 700; line-height: 1.3; z-index: 1; }
+.ex-cat-count { font-size: 13px; opacity: .85; z-index: 1; }
 /* 「すべて」「◯◯すべて」の横長タイル */
 .ex-cat.ex-all { grid-column: 1 / -1; min-height: 54px; flex-direction: row; align-items: baseline; justify-content: center; gap: 8px; }
-.ex-cat.ex-all .ex-cat-label { font-size: 16px; }
+.ex-cat.ex-all .ex-cat-label { font-size: 20px; }
 /* まだ記録がないジャンルは同じ色のまま少し薄く */
 .ex-cat.off { opacity: .55; }
 @media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(3, 1fr); } }
