@@ -1275,3 +1275,18 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
       var(--cat-c, #888);
   }
 }
+
+/* ---------- 検索カテゴリー: 白タイル＋白黒の線ピクトグラム ---------- */
+.ex-cat, .ex-cat.off {
+  background: var(--card); border: 1px solid var(--border-lite); opacity: 1;
+}
+.ex-cat .ex-cat-label, .ex-cat.off .ex-cat-label { color: var(--text); }
+.ex-cat .ex-cat-count, .ex-cat.off .ex-cat-count { color: var(--muted); }
+.ex-cat.off .ex-cat-label { color: var(--muted); font-weight: 700; } /* 0件は文字色だけ控えめに */
+/* 大きなくくり専用のピクトグラム（右上・線画・白黒） */
+.ex-cat-ic { position: absolute; top: 12px; right: 12px; color: var(--text); opacity: .8; }
+.ex-cat-ic svg { width: 26px; height: 26px; display: block; }
+.ex-cat.off .ex-cat-ic { color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .ex-cat, .ex-cat.off { background: var(--card); }
+}

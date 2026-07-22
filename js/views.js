@@ -1323,6 +1323,15 @@ const Views = (() => {
     const id = !g ? 'all' : (GENRE_ICON_OF[g] || 'all');
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${GENRE_ICONS[id]}</svg>`;
   };
+  // 大きなくくり（麺類・和食…）専用のピクトグラム割り当て
+  const CAT_ICON_OF = {
+    '麺類': 'bowl', '和食': 'fish', '肉料理': 'meat', '中華': 'dumpling', 'アジア': 'hotpot',
+    'カレー': 'curry', '洋食': 'pizza', 'カフェ・スイーツ': 'cup', 'その他': 'all',
+  };
+  const catIcon = (name) => {
+    const id = CAT_ICON_OF[name];
+    return id ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${GENRE_ICONS[id]}</svg>` : '';
+  };
 
   function setListMode(explore) {
     exploreMode = explore;
@@ -1423,6 +1432,7 @@ const Views = (() => {
     const o = opt || {};
     return `<button type="button" class="ex-cat${n ? '' : ' off'}${o.wide ? ' ex-all' : ''}"
       data-cat="${esc(key)}"${o.sub ? ` data-sub="${esc(o.sub)}"` : ''} style="--cat-c:${color}">
+      ${o.icon ? `<span class="ex-cat-ic">${o.icon}</span>` : ''}
       <span class="ex-cat-text">
         <span class="ex-cat-label">${esc(label)}</span>
         <span class="ex-cat-count">${n}件</span>
@@ -1443,7 +1453,7 @@ const Views = (() => {
     const catCount = (c) => c.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
     box.innerHTML = catTile('', 'すべて', items.length, catColor('すべて'), { wide: true }) +
       Api.DISH_CATEGORIES.map(c =>
-        catTile('', c.name, catCount(c), catColor(c.name), { sub: c.name })).join('');
+        catTile('', c.name, catCount(c), catColor(c.name), { sub: c.name, icon: catIcon(c.name) })).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.sub) openExploreSub(b.dataset.sub);          // 大きなくくり → ジャンル一覧へ
       else openExploreCat('', 'すべて');                          // すべて → 写真グリッドへ
