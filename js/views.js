@@ -89,7 +89,7 @@ const Views = (() => {
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
-  let mapScope = 'all';       // 地図の表示範囲: 'all' 自分＋フォロー中(既定) / 'me' 自分のみ / 'wish' 行きたい店のみ
+  let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ(既定) / 'all' 自分＋フォロー中 / 'wish' 行きたい店のみ
   let mapHasView = false;     // 一度でも視点が決まったらtrue。以降の再描画では視点を勝手に動かさない
                               // （店舗詳細を閉じたりタブを往復してもズームが戻らないように）
   let networkLoaded = false;  // フォロー中の人の記録を読み込み済みか（地図を開いたとき自動で読む）
@@ -1083,6 +1083,16 @@ const Views = (() => {
     refreshMap();
   }
 
+  // 下のバーで地図タブを開いたとき: 表示範囲は必ず「自分」から始める
+  // （視点は動かさない ― 店舗詳細を閉じたときにズームが戻らない仕様と揃える）
+  function enterMapTab() {
+    mapScope = 'me';
+    document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x.dataset.scope === 'me'));
+    const wb = $('#map-wish-btn');
+    if (wb) wb.classList.remove('on'); // 「行きたいのみ」も解除
+    refreshMap();
+  }
+
   // フォロー中の人の訪問記録を自動で読み込む（ログイン中・初回のみ）。cbで読み込み後の再描画もできる
   function ensureNetworkLoaded(cb) {
     if (networkLoaded || typeof Cloud === 'undefined' || !Cloud.getUser()) return;
@@ -1876,6 +1886,29 @@ const Views = (() => {
       type: 'bar',
       data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#e1306c', borderRadius: 6 }] },
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+    });
+
+    // 味の評価（★1〜5）の割合。星が多い順に並べ、色は★5→★1で濃い順
+    const RATING_COLORS = ['#e1306c', '#fa7e1e', '#f5c518', '#22c55e', '#8b9bb4'];
+    const ratingEntries = [5, 4, 3, 2, 1]
+      .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
+      .filter(e => e[1] > 0);
+    chart('chart-rating', {
+      type: 'doughnut',
+      data: {
+        labels: ratingEntries.map(e => '★'.repeat(e[0]) + `（${e[1]}件）`),
+        datasets: [{ data: ratingEntries.map(e => e[1]),
+          backgroundColor: ratingEntries.map(e => RATING_COLORS[5 - e[0]]) }],
+      },
+      options: {
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 } } },
+          tooltip: { callbacks: { label: (c) => {
+            const total = c.dataset.data.reduce((a, b) => a + b, 0);
+            return `${c.raw}件（${total ? Math.round(c.raw / total * 100) : 0}%）`;
+          } } },
+        },
+      },
     });
 
     // ジャンル割合
@@ -2963,5 +2996,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
+  return { refreshMap, enterMapTab, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
 })();
