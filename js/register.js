@@ -86,9 +86,10 @@ const Register = (() => {
     $('#f-dish-genres').addEventListener('click', (e) => {
       if (e.target.closest('.chip[data-g]')) {
         userTouchedGenres = true;
-        // AI判定・自動推定で入った初期値は、手動で選び始めた時点で消す
-        // （自動のラーメン等が残って手動の選択と混ざるのを防ぐ）
-        if (autoFilledGenres) { selectedDishGenres.clear(); autoFilledGenres = false; }
+        // 自動推定・AI判定で入った初期値は消さずに残す。手動タップはその上に
+        // 2個目・3個目として追加できる（タップした本人がそのジャンルを外したいときは
+        // ピッカー側のトグルで外れる）。以降は自動推定で上書きしないよう所有権を移す。
+        autoFilledGenres = false;
       } else if (e.target.closest('.chip.cat')) {
         // カテゴリを開いた＝選択操作中。以降はAI判定・自動推定で上書きしない
         userTouchedGenres = true;
