@@ -1888,9 +1888,10 @@ const Views = (() => {
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
-    // 味の評価（★1〜5）の割合。星が多い順に並べ、色は★5→★1で濃い順
+    // 味の評価（★1〜5）の割合。★1から右回り（時計回り）に★5まで並べる。
+    // 色は星の値ごとに固定（★5→★1で濃い順）
     const RATING_COLORS = ['#e1306c', '#fa7e1e', '#f5c518', '#22c55e', '#8b9bb4'];
-    const ratingEntries = [5, 4, 3, 2, 1]
+    const ratingEntries = [1, 2, 3, 4, 5]
       .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
       .filter(e => e[1] > 0);
     chart('chart-rating', {
@@ -1922,7 +1923,20 @@ const Views = (() => {
       data: { labels: entries.map(e => e[0]), datasets: [{ data: entries.map(e => e[1]), backgroundColor: PALETTE }] },
       options: { plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } },
     });
-    doughnut('chart-dish-genre', tally(visits.flatMap(v => v.dishGenres || [])));
+    // 料理ジャンルを大きなくくり（麺類・和食…）へ畳み込んで集計する。
+    // 1回の訪問で同じくくりに複数該当（ラーメン＋つけ麺など）しても1件として数える。
+    const catOfGenre = new Map();
+    Api.DISH_CATEGORIES.forEach(c => (c.genres || []).forEach(g => catOfGenre.set(g, c.name)));
+    const catTally = () => {
+      const m = new Map();
+      visits.forEach(v => {
+        const cats = new Set();
+        (v.dishGenres || []).forEach(g => { if (g) cats.add(catOfGenre.get(g) || 'その他'); });
+        cats.forEach(c => m.set(c, (m.get(c) || 0) + 1));
+      });
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    doughnut('chart-dish-genre', catTally());
 
     // 都道府県別
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
