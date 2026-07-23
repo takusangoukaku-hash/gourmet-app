@@ -90,6 +90,8 @@ const Views = (() => {
   let userMarker = null;      // 現在地マーカー（青い点）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
   let mapScope = 'all';       // 地図の表示範囲: 'all' 自分＋フォロー中(既定) / 'me' 自分のみ / 'wish' 行きたい店のみ
+  let mapHasView = false;     // 一度でも視点が決まったらtrue。以降の再描画では視点を勝手に動かさない
+                              // （店舗詳細を閉じたりタブを往復してもズームが戻らないように）
   let networkLoaded = false;  // フォロー中の人の記録を読み込み済みか（地図を開いたとき自動で読む）
   let networkPosts = [];      // つながっている人の投稿（地図「みんな」用）
   const mapContrib = new Map(); // 自分の店ピンに合算されたフォロワー（shopId → [{username, avatar}]）
@@ -499,7 +501,7 @@ const Views = (() => {
       const g = c.dataset.g;
       if (mapGenreFilter.has(g)) { mapGenreFilter.delete(g); c.classList.remove('on'); }
       else { mapGenreFilter.add(g); c.classList.add('on'); }
-      refreshMap();
+      refitMap();
     });
 
     // 味の評価の星チップ（★3以上/★4以上/★5だけ。もう一度押すと解除）→ 内部の#mf-tasteへ
@@ -507,12 +509,12 @@ const Views = (() => {
       const next = $('#mf-taste').value === b.dataset.r ? '0' : b.dataset.r;
       $('#mf-taste').value = next;
       document.querySelectorAll('.map-star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next && next !== '0'));
-      refreshMap();
+      refitMap();
     }));
 
     // 店の評価3軸（気軽さ・雰囲気・早さ）のセレクト
     ['#mf-casual', '#mf-atmosphere', '#mf-speed'].forEach(sel =>
-      $(sel).addEventListener('change', refreshMap));
+      $(sel).addEventListener('change', refitMap));
 
     // 「詳細」で絞り込み（ジャンル・味・お店の評価）を開閉
     $('#map-detail-toggle').addEventListener('click', () => {
@@ -536,7 +538,7 @@ const Views = (() => {
       clearTimeout(mapKwTimer);
       mapKwTimer = setTimeout(() => {
         mapKeyword = $('#map-search').value.trim();
-        refreshMap();
+        refitMap();
       }, 300);
     });
     $('#map-panel-close').addEventListener('click', () => {
@@ -555,7 +557,7 @@ const Views = (() => {
       $('#map-wish-btn').classList.remove('on'); // 行きたいのみ表示は解除
       document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x === b));
       if (scope === 'all') { App.toast('フォロー中の人の店を読み込み中…'); await loadNetworkPosts(); }
-      refreshMap();
+      refitMap();
     }));
 
     // 検索バー横のしおり: 行きたい店（紫ピン）だけの表示に切り替え（もう一度押すと元へ）
@@ -564,7 +566,7 @@ const Views = (() => {
       if (mapScope === 'wish') {
         mapScope = prevScope || 'me';
         $('#map-wish-btn').classList.remove('on');
-        refreshMap();
+        refitMap();
         return;
       }
       if (!Store.wishes().some(w => w.lat != null)) {
@@ -574,7 +576,7 @@ const Views = (() => {
       prevScope = mapScope;
       mapScope = 'wish';
       $('#map-wish-btn').classList.add('on');
-      refreshMap();
+      refitMap();
     });
 
     $('#map-locate').addEventListener('click', () => locateUser(true));
@@ -1004,10 +1006,13 @@ const Views = (() => {
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
     refreshWishData();
 
-    if (fit && bounds.length) {
+    // 視点合わせは「まだ視点が決まっていないとき」だけ。決まった後の再描画
+    // （店舗詳細を閉じた・タブを往復した等）では現在のズーム・位置を維持する。
+    // 絞り込みや表示範囲の切り替えは refitMap() 経由で mapHasView をリセットして再フィットする
+    if (fit && bounds.length && !mapHasView) {
       const b = new maplibregl.LngLatBounds();
       bounds.forEach(c => b.extend(c));
-      try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
+      try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); mapHasView = true; } catch { /* noop */ }
     }
     if (heatOn) buildHeat();
   }
@@ -1065,6 +1070,12 @@ const Views = (() => {
     if (!mapLoaded) { pendingRefresh = true; return; } // load後に反映される
     refreshMapData(true);
     ensureNetworkLoaded();
+  }
+
+  // 絞り込み・表示範囲の切り替え用: 視点を捨てて対象のピン全体に合わせ直す
+  function refitMap() {
+    mapHasView = false;
+    refreshMap();
   }
 
   // フォロー中の人の訪問記録を自動で読み込む（ログイン中・初回のみ）。cbで読み込み後の再描画もできる

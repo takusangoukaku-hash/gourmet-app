@@ -691,9 +691,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: #ffffff; color: #2b2b2b;
   cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.22);
 }
-.pd-phwrap .pd-like-fl .heart-ic { width: 16px; height: 16px; fill: currentColor; filter: none; }
+.pd-phwrap .pd-like-fl { color: var(--accent); } /* ハートはピンク */
+.pd-phwrap .pd-like-fl .heart-ic { width: 16px; height: 16px; fill: none; stroke-width: 2.4; filter: none; }
 .pd-phwrap .pd-like-fl.liked { color: var(--accent); }
-.pd-phwrap .pd-like-fl.liked .heart-ic { fill: currentColor; }
+.pd-phwrap .pd-like-fl.liked .heart-ic { fill: currentColor; } /* いいね済みは塗りつぶし */
 .pd-phwrap .pd-like-fl .fa-n { display: none; } /* いいねの数は出さない */
 /* 星の行: 星の横にコメント、右端に保存 */
 .pd-toprow { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
