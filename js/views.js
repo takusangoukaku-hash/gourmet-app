@@ -2455,8 +2455,10 @@ const Views = (() => {
     box.querySelectorAll('.feed-card').forEach(card => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('.feed-author') || e.target.closest('.fa-like')) return;
-        const p = feedPosts.get(card.dataset.post);
-        if (p) showPostDetail(p);
+        // プロフィールの写真タップと同様に、タップした投稿から始めて
+        // 下スクロールでフィードの並び順に次の投稿が続けて出るようリストごと渡す
+        const idx = posts.findIndex(x => x.id === card.dataset.post);
+        if (idx >= 0) showPostDetail(posts[idx], { list: posts, index: idx });
       });
       const id = card.dataset.post;
       const cached = feedStats.get(id);
