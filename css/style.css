@@ -637,7 +637,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: rgba(0, 0, 0, .6); color: #ffd75e; font-weight: bold; font-size: 13px;
   padding: 2px 9px; border-radius: 999px; line-height: 1.5;
 }
-.visit-block .v-caption { text-align: center; font-size: 13px; font-weight: bold; color: var(--text); margin: 6px 0 2px; }
+.visit-block .v-caption { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: bold; color: var(--text); margin: 6px 0 2px; }
+.visit-block .v-edit-link {
+  display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--border-lite);
+  background: var(--field); color: var(--text); font-size: 12px; font-weight: bold;
+  padding: 3px 10px; border-radius: 999px; cursor: pointer;
+}
+.visit-block .v-edit-link .ic { width: 13px; height: 13px; }
+.visit-block .v-edit-link:hover { background: var(--border-lite); }
 
 /* 訪問記録の一覧ページ */
 .vl-title { font-family: var(--serif); font-weight: 700; font-size: 18px; margin: 0 0 14px; padding-right: 36px; }

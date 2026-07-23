@@ -2111,16 +2111,21 @@ const Views = (() => {
             App.refreshCurrent();
           });
         } else {
-          // ---- 読み取り表示: 写真＋左上に星の数＋下に日付。タップでその店の訪問記録一覧ページへ ----
+          // ---- 読み取り表示: 写真＋左上に星の数＋下に日付・編集ボタン。写真タップで訪問一覧ページへ ----
           const dateStr = new Date(v.datetime).toLocaleDateString('ja-JP');
           block.innerHTML = `
             <button type="button" class="v-cover">
               <span class="v-cover-ph">🍽️</span>
               <span class="v-badge">★${v.rating || '－'}</span>
             </button>
-            <div class="v-caption">${dateStr}</div>`;
+            <div class="v-caption">
+              <span>${dateStr}</span>
+              <button type="button" class="v-edit-link">${IC_EDIT} 編集</button>
+            </div>`;
           const cover = block.querySelector('.v-cover');
           cover.addEventListener('click', () => showVisitList(shopId));
+          // 地図や店舗詳細から、その場で記録を編集できる（インライン編集を開く）
+          block.querySelector('.v-edit-link').addEventListener('click', () => showShop(shopId, false, v.id));
           Store.photosOfVisit(v.id).then(ps => {
             if (ps.length) {
               const cimg = document.createElement('img');
