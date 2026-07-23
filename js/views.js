@@ -1329,6 +1329,7 @@ const Views = (() => {
       rating: v.rating || 0, shopName: shop.name || '', genre: (v.dishGenres || []).join('・'),
       comment: v.comment || '', datetime: v.datetime || '',
       lat: shop.lat, lon: shop.lon, address: shop.address || '',
+      pref: shop.pref || '', city: shop.city || '', station: shop.station || '',
       casual: shop.casual, atmosphere: shop.atmosphere, speed: shop.speed,
     };
   }
@@ -2506,6 +2507,11 @@ const Views = (() => {
       .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starStr(p[k])}</span></div>`).join('');
     const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
       .filter(Boolean).join('　');
+    // 星は常に5個表示（黄色い★＝評価、残りは薄い★）
+    const stars5 = (r) => {
+      const n = Math.max(0, Math.min(5, Math.round(r || 0)));
+      return `<span class="st5"><span class="st5-on">${'★'.repeat(n)}</span><span class="st5-off">${'★'.repeat(5 - n)}</span></span>`;
+    };
     const sect = document.createElement('div');
     sect.className = 'pd-sect';
     sect.innerHTML = `
@@ -2515,30 +2521,47 @@ const Views = (() => {
             <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
           </button>
         </div>
-        <div class="pd-photos"></div>
+        <div class="pd-phwrap">
+          <div class="pd-photos"></div>
+          <button type="button" class="fa-like pd-like pd-like-fl" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
+        </div>
         <div class="pd-body">
-          <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span></div>
-          <div class="pd-shop">${esc(p.shopName || '')}</div>
-          <div class="pd-sub">${esc(p.shopGenre || '')}${p.genre ? '　🍽 ' + esc(p.genre) : ''}</div>
-          ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
-          ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
-          ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
-          ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
-          <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
-          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">' + IC_NAV + ' ここへ行く</button>' : ''}
-          ${Store.visits().some(v => v.id === p.id) ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
-          <div class="pd-social">
-            <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n pd-like-n">·</span></button>
-            <span class="pd-cmt-label">${IC_COMMENT} コメント</span>
+          <div class="pd-toprow">
+            ${stars5(p.rating)}
+            <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT} コメント</button>
             <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           </div>
-          <div class="pd-comments"></div>
-          <div class="pd-cadd">
-            <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
-            <button type="button" class="btn small primary pd-csend">送信</button>
+          <div class="pd-shop">${esc(p.shopName || '')}</div>
+          ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
+          ${(p.genre || p.shopGenre) ? `<div class="pd-sub">${esc(p.genre || p.shopGenre)}</div>` : ''}
+          <button type="button" class="btn small pd-more">▸ 詳細</button>
+          <div class="pd-morebox hidden">
+            ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
+            ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
+            ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
+            <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
+            ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">' + IC_NAV + ' ここへ行く</button>' : ''}
+            ${Store.visits().some(v => v.id === p.id) ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
+          </div>
+          <div class="pd-cmtbox hidden">
+            <div class="pd-comments"></div>
+            <div class="pd-cadd">
+              <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
+              <button type="button" class="btn small primary pd-csend">送信</button>
+            </div>
           </div>
         </div>`;
     sect.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
+    // 「▸ 詳細」で住所・お店の評価・感想・日付・ナビ・編集を開閉
+    const moreBtn = sect.querySelector('.pd-more');
+    moreBtn.addEventListener('click', () => {
+      const hidden = sect.querySelector('.pd-morebox').classList.toggle('hidden');
+      moreBtn.textContent = hidden ? '▸ 詳細' : '▾ 詳細';
+    });
+    // 星の横の「コメント」でコメント欄を開閉
+    sect.querySelector('.pd-cmt-btn').addEventListener('click', () => {
+      sect.querySelector('.pd-cmtbox').classList.toggle('hidden');
+    });
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
     const cap = `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`;
     (async () => {
@@ -2564,10 +2587,10 @@ const Views = (() => {
       showShop(mv.shopId, false, mv.id);
     });
 
-    // いいね
+    // いいね（写真右上のハート）
     Cloud.getLikeInfo(p.id).then(info => {
       const lb = sect.querySelector('.pd-like');
-      lb.querySelector('.pd-like-n').textContent = info.count;
+      lb.querySelector('.fa-like-n').textContent = info.count;
       lb.classList.toggle('liked', info.liked);
     }).catch(() => {});
     sect.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(sect.querySelector('.pd-like')));
