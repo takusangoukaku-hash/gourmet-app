@@ -684,28 +684,32 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-phwrap { position: relative; }
 .pd-like-fl {
   position: absolute; top: 12px; right: 12px; z-index: 2;
-  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-  min-width: 44px; height: 44px; padding: 0 10px; border: none; border-radius: 999px;
-  background: rgba(255,255,255,.94); color: #2b2b2b; cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,.18); font-size: 12px; font-weight: bold;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%;
+  background: #ffffff; color: #2b2b2b; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
 }
 .pd-like-fl .heart-ic { width: 22px; height: 22px; fill: none; }
 .pd-like-fl.liked { color: var(--accent); }
 .pd-like-fl.liked .heart-ic { fill: currentColor; }
-.pd-like-fl .fa-n { color: inherit; }
+.pd-like-fl .fa-n { display: none; } /* いいねの数は出さない */
 /* 星の行: 星の横にコメント、右端に保存 */
 .pd-toprow { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .pd-toprow .st5 { font-size: 20px; letter-spacing: 2px; line-height: 1; }
 .st5-on { color: var(--star); }
 .st5-off { color: var(--border-lite); }
 .pd-cmt-btn {
-  display: inline-flex; align-items: center; gap: 5px; border: none; background: none;
-  cursor: pointer; color: var(--muted); font-size: 13px; font-weight: bold; padding: 4px 2px;
+  display: inline-flex; align-items: center; border: none; background: none;
+  cursor: pointer; color: var(--text); padding: 4px 2px;
 }
-.pd-cmt-btn .ic { width: 20px; height: 20px; }
+.pd-cmt-btn .ic { width: 22px; height: 22px; }
 .pd-toprow .pd-save { margin-left: auto; }
-/* 詳細・コメントの折りたたみ */
-.pd-more { margin: 10px 0 4px; text-align: left; font-size: 13px; color: var(--muted); }
+/* 詳細・コメントの折りたたみ。詳細はジャンルと同じ段の右端に枠なしで置く */
+.pd-genrow { display: flex; align-items: center; gap: 8px; }
+.pd-more {
+  margin-left: auto; border: none; background: none; cursor: pointer;
+  font-size: 13px; color: var(--muted); padding: 2px 0; flex-shrink: 0;
+}
 .pd-morebox { margin-top: 6px; }
 .pd-cmtbox { margin-top: 10px; border-top: 1px solid var(--border-lite); padding-top: 10px; }
 /* 投稿セクション（下スクロールで次の投稿が続く）。各投稿の先頭に投稿者を表示 */

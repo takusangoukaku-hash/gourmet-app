@@ -2528,13 +2528,13 @@ const Views = (() => {
         <div class="pd-body">
           <div class="pd-toprow">
             ${stars5(p.rating)}
-            <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT} コメント</button>
+            <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT}</button>
             <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           </div>
           <div class="pd-shop">${esc(p.shopName || '')}</div>
           ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
-          ${(p.genre || p.shopGenre) ? `<div class="pd-sub">${esc(p.genre || p.shopGenre)}</div>` : ''}
-          <button type="button" class="btn small pd-more">▸ 詳細</button>
+          <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
+            <button type="button" class="pd-more">▸ 詳細</button></div>
           <div class="pd-morebox hidden">
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
