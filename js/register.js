@@ -314,11 +314,12 @@ const Register = (() => {
           const shop = Store.getShop(dup.shopId);
           const visit = Store.visits().find(v => v.id === dup.visitId);
           const when = visit ? new Date(visit.datetime).toLocaleDateString('ja-JP') : '';
-          dupMsgs.push(`「${f.name}」は${shop ? `「${shop.name}」${when ? `（${when}）` : ''}に` : ''}すでに登録されています`);
+          const where = shop ? `（「${shop.name}」${when ? ` ${when}` : ''}）` : '';
+          dupMsgs.push(`この写真は登録されています。${where}`);
           continue;
         }
         if (pendingPhotos.some(p => p.hash === hash)) {
-          dupMsgs.push(`「${f.name}」はすでに選択されています`);
+          dupMsgs.push(`この写真はすでに選択されています。`);
           continue;
         }
       }
@@ -328,6 +329,9 @@ const Register = (() => {
     if (dupMsgs.length) {
       dupBox.classList.remove('hidden');
       dupBox.textContent = '⚠️ ' + dupMsgs.join(' ／ ');
+      // 追加できた写真が1枚も無い（＝すべて重複）ときは登録画面に切り替わらず
+      // #dup-status が見えないため、トーストでも知らせる
+      if (pendingPhotos.length === before) App.toast('⚠️ この写真は登録されています。');
     } else {
       dupBox.classList.add('hidden');
     }
