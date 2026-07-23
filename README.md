@@ -8,7 +8,7 @@
 Node.js / Python 不要。PowerShell製の簡易サーバーで動かす。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ..\server.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\server.ps1
 ```
 
 を実行し、ブラウザで **http://localhost:5959/** を開く。
@@ -22,8 +22,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ..\server.ps1
 
 ### 同じWi-Fi内のスマホからアクセスする
 
-1. **初回のみ**: PCで管理者PowerShellを開き `setup-smartphone.ps1` を実行（ポート開放とファイアウォール設定）
-2. `server.ps1` を起動（再起動）すると「Phone URL: http://192.168.x.x:5959/」が表示される
+1. **初回のみ**: PCで管理者PowerShellを開き `tools\setup-smartphone.ps1` を実行（ポート開放とファイアウォール設定）
+2. `tools\server.ps1` を起動（再起動）すると「Phone URL: http://192.168.x.x:5959/」が表示される
 3. スマホ（同じWi-Fi）のブラウザでそのURLを開く
 
 ※ LAN経由（http）では閲覧・登録はできるが、ブラウザの制限によりホーム画面インストールとオフライン機能は使えない。
@@ -49,6 +49,8 @@ PWAのインストールにはhttpsが必要。`gourmet-app/` フォルダを無
 | `js/register.js` | 登録フロー（仕様書§4）。フローA(GPSあり)/フローB(名前検索・地図指定) |
 | `js/views.js` | 地図・一覧・写真・統計・ランキング・店舗詳細の描画 |
 | `js/app.js` | タブ制御・共通イベント・サンプルデータ |
+| `tools/server.ps1` | ローカル配信用の簡易サーバー（PowerShellのみ・ポート5959） |
+| `tools/setup-smartphone.ps1` | スマホからLAN経由でアクセスするための初回設定（管理者権限が必要） |
 
 ## 実装済み機能（仕様書v2との対応）
 

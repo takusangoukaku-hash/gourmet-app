@@ -9,7 +9,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "../server.ps1"
+        "tools/server.ps1"
       ],
       "port": 5959
     }
