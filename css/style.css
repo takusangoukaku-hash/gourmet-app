@@ -176,6 +176,8 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
 .detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .detail-fields label.full { grid-column: 1 / -1; }
 .detail-toggle { text-align: left; font-size: 13px; color: var(--muted); }
+.d-detail-toggle { margin: 4px 0 2px; }
+#d-detail-box { margin-bottom: 8px; }
 /* 店舗名の見出し行＋お気に入り★ */
 .flabel-head { display: flex; align-items: center; gap: 6px; }
 .fav-btn {

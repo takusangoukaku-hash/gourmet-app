@@ -431,17 +431,17 @@ const Views = (() => {
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
           'text-offset': [1.2, -2.4], 'text-allow-overlap': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
-      // 店名＋ジャンルのラベル（z12以上。しずく表示中はしずくの上に）
+      // 店名＋ジャンルのラベル。しずく（drop）が出る倍率になってから表示する。
+      // symbol-sort-key: 値が小さいほど優先。評価が高い店を優先表示したいので -ravg を使う
+      // （重なって片方しか出せないときは評価が高いほうの店名が残る）
       const labelLayout = {
         'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
           ['concat', ['get', 'name'], '\n', ['get', 'genre']]],
         'text-font': FONT, 'text-size': 10, 'text-anchor': 'bottom', 'text-max-width': 12,
+        'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'ravg'], 0]],
       };
       const labelPaint = { 'text-color': dark ? '#e8e6e1' : '#3a3833',
         'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 };
-      map.addLayer({ id: 'pin-labels', type: 'symbol', source: 'shops', minzoom: 12, maxzoom: DROP_ZOOM,
-        filter: ['!', ['has', 'point_count']],
-        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -0.9] }), paint: labelPaint });
       map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
         layout: Object.assign({}, labelLayout, { 'text-offset': [0, -3.4] }), paint: labelPaint });
@@ -456,11 +456,6 @@ const Views = (() => {
         layout: { 'icon-image': 'drop-wish',
           'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
           'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
-      map.addLayer({ id: 'wish-labels', type: 'symbol', source: 'wishes', minzoom: 12, maxzoom: DROP_ZOOM,
-        layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
-          'text-anchor': 'bottom', 'text-offset': [0, -0.9], 'text-max-width': 12 },
-        paint: { 'text-color': WISH_COLOR,
-          'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
       map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
           'text-anchor': 'bottom', 'text-offset': [0, -3.4], 'text-max-width': 12 },
@@ -935,7 +930,7 @@ const Views = (() => {
     const features = shops.map(s => {
       const f = { type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
         properties: { id: s.id, kind: 'me', mine: 1, name: s.name, genre: shopLabelGenre(s),
-          r: 0, hi: 0, fav: s.favorite ? 1 : 0 } };
+          r: 0, hi: 0, ravg: 0, fav: s.favorite ? 1 : 0 } };
       featureByShopId.set(s.id, f);
       return f;
     });
@@ -993,7 +988,7 @@ const Views = (() => {
         networkById.set(fid, g);
         features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
           properties: { id: fid, kind: 'other', mine: 0, name: g.name, genre: '',
-            r: Math.floor(avg) || 0, hi: bandOf(avg), fav: 0 } });
+            r: Math.floor(avg) || 0, hi: bandOf(avg), ravg: avg || 0, fav: 0 } });
         bounds.push([g.lon, g.lat]);
       });
     }
@@ -1004,6 +999,7 @@ const Views = (() => {
       const f = featureByShopId.get(s.id);
       f.properties.r = Math.floor(avg) || 0;
       f.properties.hi = bandOf(avg);
+      f.properties.ravg = avg || 0;
     }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
     refreshWishData();
@@ -1966,8 +1962,10 @@ const Views = (() => {
         </div>
       </div>` : '';
 
+    // お店の評価（3軸）は「詳細」を押したときだけ表示する
     const axisHtml = `
-      <div class="axis-box">
+      <button type="button" class="btn small d-detail-toggle" id="d-detail-toggle">▸ 詳細（お店の評価）</button>
+      <div class="axis-box hidden" id="d-detail-box">
         <div class="axis-title">お店の評価（タップで変更・その場で保存されます）</div>
         ${['casual', 'atmosphere', 'speed'].map(k => `
           <div class="axis-row"><span>${AXIS_LABEL[k]}</span>
@@ -2001,6 +1999,16 @@ const Views = (() => {
       ${actionsHtml}
       <h3>訪問記録</h3>
       <div id="d-visits"></div>`;
+
+    // 「詳細」ボタンでお店の評価（3軸）を開閉
+    const detailToggle = $('#d-detail-toggle');
+    if (detailToggle) {
+      detailToggle.addEventListener('click', () => {
+        const box = $('#d-detail-box');
+        const open = box.classList.toggle('hidden'); // true = 閉じた
+        detailToggle.textContent = open ? '▸ 詳細（お店の評価）' : '▾ 詳細（お店の評価）';
+      });
+    }
 
     // 店の評価3軸: タップで即保存（同じ星をもう一度タップすると解除）
     body.querySelectorAll('.d-axis').forEach(row => {
