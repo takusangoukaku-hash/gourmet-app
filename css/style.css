@@ -679,6 +679,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .pd-topbar .pd-close { position: static; margin: 0; flex-shrink: 0; }
 .pd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.pd-top-title { font-family: var(--serif); font-weight: 700; font-size: 16px; }
+/* 投稿セクション（下スクロールで次の投稿が続く）。各投稿の先頭に投稿者を表示 */
+.pd-sect-head { display: flex; align-items: center; padding: 10px 12px 8px; }
+.pd-sect + .pd-sect { border-top: 8px solid var(--field); }
+.pd-sect .pd-body { padding-bottom: 20px; }
 .pd-author { display: flex; align-items: center; gap: 10px; border: none; background: none; cursor: pointer; padding: 0; text-align: left; min-width: 0; }
 .pd-author .fc-handle { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
 /* 訪問記録の写真: 全幅・切り抜かず全体表示。縦にスクロールして複数枚を見る */

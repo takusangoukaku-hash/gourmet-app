@@ -1443,16 +1443,18 @@ const Views = (() => {
       return;
     }
     box.innerHTML = '';
-    for (const it of list) {
+    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
+    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
+    list.forEach((it, i) => {
       const cell = document.createElement('button');
       cell.type = 'button';
       cell.className = 'explore-cell';
       cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
-      cell.addEventListener('click', () => showPostDetail(it.kind === 'net' ? it.p : buildOwnPost(it.ph)));
+      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
       box.appendChild(cell);
-    }
+    });
   }
 
   function renderList() {
@@ -1747,16 +1749,18 @@ const Views = (() => {
       return;
     }
     box.innerHTML = '';
-    for (const ph of photos) {
+    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
+    const posts = photos.map(ph => buildOwnPost(ph));
+    photos.forEach((ph, i) => {
       const shop = Store.getShop(ph.shopId);
       const div = document.createElement('div');
       div.className = 'photo-cell';
       div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       setThumb(div.querySelector('img'), ph);
       // タップでホームと同じ投稿表示（写真をさらにタップすると拡大）
-      div.addEventListener('click', () => showPostDetail(buildOwnPost(ph)));
+      div.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
       box.appendChild(div);
-    }
+    });
   }
 
   async function renderProfile() {
@@ -2494,25 +2498,23 @@ const Views = (() => {
       </article>`;
   }
 
-  // フィード投稿の詳細表示（写真・評価・お店の情報・場所・ナビ）
-  function showPostDetail(p) {
+  // 投稿1件ぶんのセクションを組み立てて返す（写真・評価・お店の情報・いいね・コメント）
+  function buildPostSection(p, close) {
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
     const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
       .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starStr(p[k])}</span></div>`).join('');
     const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
       .filter(Boolean).join('　');
-    const ov = document.createElement('div');
-    ov.className = 'modal postdetail-modal';
-    ov.innerHTML = `<div class="modal-box pd-full">
-        <div class="pd-topbar">
-          <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
+    const sect = document.createElement('div');
+    sect.className = 'pd-sect';
+    sect.innerHTML = `
+        <div class="pd-sect-head">
           <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
             <span class="fc-avatar">${av}</span>
             <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
           </button>
         </div>
-        <div class="pd-scroll">
         <div class="pd-photos"></div>
         <div class="pd-body">
           <div class="feed-rating"><span class="feed-stars">${starStr(p.rating || 0)}</span></div>
@@ -2535,13 +2537,8 @@ const Views = (() => {
             <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
             <button type="button" class="btn small primary pd-csend">送信</button>
           </div>
-        </div>
-        </div>
-      </div>`;
-    const close = () => ov.remove();
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    ov.querySelector('.pd-close').addEventListener('click', close);
-    ov.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
+        </div>`;
+    sect.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
     const cap = `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`;
     (async () => {
@@ -2551,15 +2548,15 @@ const Views = (() => {
         urls = ps.map(x => photoUrl(x)).filter(Boolean);
       }
       if (!urls.length && p.photoUrl) urls = [p.photoUrl];
-      const box = ov.querySelector('.pd-photos');
-      box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="">`).join('');
+      const box = sect.querySelector('.pd-photos');
+      box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">`).join('');
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
         img.addEventListener('click', () => openLightbox(urls[i], cap)));
     })();
-    const nav = ov.querySelector('.pd-nav');
+    const nav = sect.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     // 自分の投稿は編集できる（訪問記録の編集画面へ）
-    const eb = ov.querySelector('.pd-edit');
+    const eb = sect.querySelector('.pd-edit');
     if (eb) eb.addEventListener('click', () => {
       const mv = Store.visits().find(v => v.id === p.id);
       if (!mv) return;
@@ -2569,23 +2566,23 @@ const Views = (() => {
 
     // いいね
     Cloud.getLikeInfo(p.id).then(info => {
-      const lb = ov.querySelector('.pd-like');
+      const lb = sect.querySelector('.pd-like');
       lb.querySelector('.pd-like-n').textContent = info.count;
       lb.classList.toggle('liked', info.liked);
     }).catch(() => {});
-    ov.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(ov.querySelector('.pd-like')));
-    ov.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, ov.querySelector('.pd-save')));
+    sect.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(sect.querySelector('.pd-like')));
+    sect.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, sect.querySelector('.pd-save')));
 
     // コメント一覧の読み込み・描画
     const loadComments = async () => {
-      const box = ov.querySelector('.pd-comments');
+      const box = sect.querySelector('.pd-comments');
       let list = [];
       try { list = await Cloud.getComments(p.id); } catch { list = []; }
       const me = Cloud.getUser();
       box.innerHTML = list.length ? list.map(c => {
-        const av = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : '🍜';
+        const av2 = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : '🍜';
         return `<div class="pd-crow">
-            <span class="pd-cav">${av}</span>
+            <span class="pd-cav">${av2}</span>
             <div class="pd-cmain"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>
             ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">✕</button>` : ''}
           </div>`;
@@ -2596,7 +2593,7 @@ const Views = (() => {
     };
     loadComments();
     const sendComment = async () => {
-      const input = ov.querySelector('.pd-cinput');
+      const input = sect.querySelector('.pd-cinput');
       const t = input.value.trim();
       if (!t) return;
       if (!Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
@@ -2604,9 +2601,47 @@ const Views = (() => {
       try { await Cloud.addComment(p.id, t); feedStats.delete(p.id); await loadComments(); }
       catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
     };
-    ov.querySelector('.pd-csend').addEventListener('click', sendComment);
-    ov.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
+    sect.querySelector('.pd-csend').addEventListener('click', sendComment);
+    sect.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
+    return sect;
+  }
 
+  // フィード投稿の詳細表示。ctx = { list, index } を渡すと、タップした投稿から始まり
+  // 下にスクロールすると写真の並び順で次の投稿が続けて表示される（Instagram風）
+  function showPostDetail(p, ctx) {
+    const list = (ctx && ctx.list && ctx.list.length) ? ctx.list : [p];
+    let next = (ctx && ctx.index != null) ? ctx.index : 0;
+    const ov = document.createElement('div');
+    ov.className = 'modal postdetail-modal';
+    ov.innerHTML = `<div class="modal-box pd-full">
+        <div class="pd-topbar">
+          <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
+          <span class="pd-top-title">投稿</span>
+        </div>
+        <div class="pd-scroll"><div class="pd-sentinel"></div></div>
+      </div>`;
+    const close = () => { io.disconnect(); ov.remove(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.pd-close').addEventListener('click', close);
+
+    const scroll = ov.querySelector('.pd-scroll');
+    const sentinel = ov.querySelector('.pd-sentinel');
+    const appendNext = () => {
+      if (next >= list.length) { io.disconnect(); return; }
+      scroll.insertBefore(buildPostSection(list[next], close), sentinel);
+      next++;
+      // 監視を貼り直して現在の状態を再評価させる（「交差したまま」だと
+      // IntersectionObserverは再発火しないため、範囲内にいる限り連続で継ぎ足す）
+      io.unobserve(sentinel);
+      io.observe(sentinel);
+    };
+    // 末尾の見張り役が近づいたら次の投稿を継ぎ足す（画面2つ分手前から先読み）
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(en => en.isIntersecting)) appendNext();
+    }, { root: scroll, rootMargin: '1200px 0px' });
+
+    appendNext(); // タップした投稿
+    io.observe(sentinel);
     document.body.appendChild(ov);
   }
 
@@ -2750,13 +2785,13 @@ const Views = (() => {
       const withPhoto = posts.filter(p => p.photoUrl);
       if (withPhoto.length) {
         grid.innerHTML = '';
-        for (const p of withPhoto) {
+        withPhoto.forEach((p, i) => {
           const cell = document.createElement('button');
           cell.type = 'button'; cell.className = 'photo-cell';
           cell.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async"><div class="cap">${esc(p.shopName || '')}</div>`;
-          cell.addEventListener('click', () => showPostDetail(p));
+          cell.addEventListener('click', () => showPostDetail(p, { list: withPhoto, index: i }));
           grid.appendChild(cell);
-        }
+        });
       } else {
         grid.className = 'pp-shops'; // 写真が無ければ従来の「よく行くお店」リスト
         grid.innerHTML = (shops ? `<h3 class="pp-h3">よく行くお店</h3>${shops}` : '<div class="empty"><p>まだ公開された投稿がありません。</p></div>');
