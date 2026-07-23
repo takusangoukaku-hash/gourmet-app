@@ -2527,6 +2527,9 @@ const Views = (() => {
     const stars = p.rating
       ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span></div>`
       : '';
+    // 地名（駅＋都道府県・市区町村）。プロフィールの写真タップで開く詳細と同じ書式
+    const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
+      .filter(Boolean).join('　');
     return `<article class="feed-card" data-post="${esc(p.id)}">
         <div class="feed-head">
           <button type="button" class="feed-author" data-u="${esc(p.username)}">
@@ -2539,6 +2542,7 @@ const Views = (() => {
         <div class="feed-body">
           ${stars}
           <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
+          ${loc ? `<div class="feed-loc">${loc}</div>` : ''}
           ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
           <div class="feed-comments"></div>
         </div>

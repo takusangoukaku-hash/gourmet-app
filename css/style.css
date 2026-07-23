@@ -809,6 +809,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .feed-rating-num { font-weight: 700; font-size: 16px; color: var(--text); }
 .feed-shop { font-family: var(--serif); font-weight: 700; font-size: 15px; }
 .feed-genre { color: var(--accent); font-size: 12px; font-family: inherit; font-weight: normal; }
+.feed-loc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.feed-loc .ic { width: 14px; height: 14px; vertical-align: -2px; }
 .feed-comment { font-size: 14px; margin-top: 4px; white-space: pre-wrap; }
 .feed-comment b { margin-right: 4px; }
 .feed-comments { margin-top: 4px; }
