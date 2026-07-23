@@ -2572,7 +2572,22 @@ const Views = (() => {
       }
       if (!urls.length && p.photoUrl) urls = [p.photoUrl];
       const box = sect.querySelector('.pd-photos');
-      box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">`).join('');
+      if (urls.length > 1) {
+        // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
+        box.classList.add('pd-carousel');
+        box.innerHTML = urls.map(u =>
+          `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async"></div>`).join('');
+        const dots = document.createElement('div');
+        dots.className = 'pd-dots';
+        dots.innerHTML = urls.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+        box.after(dots);
+        box.addEventListener('scroll', () => {
+          const i = Math.round(box.scrollLeft / box.clientWidth);
+          [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+        }, { passive: true });
+      } else {
+        box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">`).join('');
+      }
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
         img.addEventListener('click', () => openLightbox(urls[i], cap)));
     })();

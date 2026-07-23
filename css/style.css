@@ -718,9 +718,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-sect .pd-body { padding-bottom: 20px; }
 .pd-author { display: flex; align-items: center; gap: 10px; border: none; background: none; cursor: pointer; padding: 0; text-align: left; min-width: 0; }
 .pd-author .fc-handle { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
-/* 訪問記録の写真: 全幅・切り抜かず全体表示。縦にスクロールして複数枚を見る */
+/* 訪問記録の写真: 全幅表示。複数枚は左右スワイプ（Instagram風カルーセル） */
 .pd-photos .pd-photo { width: 100%; height: auto; display: block; margin: 0; border-radius: 0; cursor: pointer; background: var(--field); }
-.pd-photos .pd-photo + .pd-photo { margin-top: 2px; }
+.pd-photos.pd-carousel {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.pd-photos.pd-carousel::-webkit-scrollbar { display: none; }
+.pd-carousel .pd-slide { flex: 0 0 100%; scroll-snap-align: center; }
+.pd-carousel .pd-photo { aspect-ratio: 1 / 1; object-fit: cover; height: auto; }
+/* 何枚目を見ているかを示す点（写真の下） */
+.pd-dots { display: flex; justify-content: center; gap: 5px; padding: 8px 0 0; }
+.pd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-lite); transition: background .15s; }
+.pd-dot.on { background: var(--accent); }
 .pd-body { padding: 12px 16px 28px; }
 .pd-shop { font-family: var(--serif); font-weight: 700; font-size: 18px; margin-top: 2px; }
 .pd-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
