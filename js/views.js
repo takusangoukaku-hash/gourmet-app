@@ -1018,11 +1018,16 @@ const Views = (() => {
   }
 
   // 行きたい店のピンを地図へ反映（保存/削除のたびに呼べる）
+  // 行きたいピンは「行きたいのみ」表示（mapScope==='wish'）のときだけ出す。
+  // 「自分」「フォロー中」では自分の訪問した店だけを見せたいので出さない
+  // （フォロワーの投稿を行きたいに保存した紫ピンが自分ビューに混ざるのを防ぐ）
   function refreshWishData() {
     if (!map || !mapLoaded || !map.getSource('wishes')) return;
-    const features = Store.wishes().filter(w => w.lat != null && w.lon != null)
-      .map(w => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
-        properties: { id: w.id, name: w.name || '' } }));
+    const features = (mapScope === 'wish')
+      ? Store.wishes().filter(w => w.lat != null && w.lon != null)
+          .map(w => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
+            properties: { id: w.id, name: w.name || '' } }))
+      : [];
     map.getSource('wishes').setData({ type: 'FeatureCollection', features });
   }
 
