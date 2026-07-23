@@ -2551,12 +2551,12 @@ const Views = (() => {
           ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
           <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
             <button type="button" class="pd-more">▸ 詳細</button></div>
+          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav pd-nav-main">' + IC_NAV + ' ここへ行く</button>' : ''}
           <div class="pd-morebox hidden">
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
             ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
             <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
-            ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav">' + IC_NAV + ' ここへ行く</button>' : ''}
             ${Store.visits().some(v => v.id === p.id) ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
           </div>
           <div class="pd-cmtbox hidden">

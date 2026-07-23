@@ -709,6 +709,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-toprow .pd-save { margin-left: auto; }
 /* 詳細・コメントの折りたたみ。詳細はジャンルと同じ段の右端に枠なしで置く */
 .pd-genrow { display: flex; align-items: center; gap: 8px; }
+/* 「ここへ行く」はジャンル・詳細の段より下に、詰まって見えないよう間隔を空けて置く */
+.pd-nav-main { display: block; width: 100%; margin-top: 14px; }
 .pd-more {
   margin-left: auto; border: none; background: none; cursor: pointer;
   font-size: 13px; color: var(--muted); padding: 2px 0; flex-shrink: 0;
