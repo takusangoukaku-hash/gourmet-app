@@ -66,9 +66,10 @@ const Cloud = (() => {
                 // 投稿化は負荷が高いので1セッション1回だけ
                 if (!postsPublishedThisSession) { postsPublishedThisSession = true; return publishAllPosts(); }
               })
-              // 写真URLが欠けた投稿を埋め直す（毎回・欠けが無ければ即終了で軽い）
-              .then(() => backfillPostPhotos())
-              .catch(e => console.warn('写真同期に失敗:', e));
+              .catch(e => console.warn('写真同期に失敗:', e))
+              // 写真URLが欠けた投稿を埋め直す。写真同期が途中で失敗しても必ず実行する
+              // （欠けが無ければ即終了で軽い。相手のプロフィールで写真が出ない問題の自動修復）
+              .finally(() => { backfillPostPhotos().catch(() => {}); });
           } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
           Store.setSyncHook(null);
