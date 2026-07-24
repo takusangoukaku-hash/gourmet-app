@@ -1806,24 +1806,57 @@ const Views = (() => {
       const t = v && v.datetime ? new Date(v.datetime).getTime() : 0;
       return t || p.createdAt || 0;
     };
-    photos.sort((a, b) => shotTime(b) - shotTime(a) || b.createdAt - a.createdAt);
     if (!photos.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
       return;
     }
+    // 同じ店舗の写真（複数訪問・複数枚）を1つのグループにまとめる
+    const byShop = new Map();
+    for (const ph of photos) {
+      const g = byShop.get(ph.shopId) || { shopId: ph.shopId, photos: [] };
+      g.photos.push(ph);
+      byShop.set(ph.shopId, g);
+    }
+    // グループ内は新しい写真順。グループ自体も最新写真の新しい順
+    const groups = [...byShop.values()].map(g => {
+      g.photos.sort((a, b) => shotTime(b) - shotTime(a) || b.createdAt - a.createdAt);
+      g.time = shotTime(g.photos[0]);
+      return g;
+    }).sort((a, b) => b.time - a.time);
     box.innerHTML = '';
-    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = photos.map(ph => buildOwnPost(ph));
-    photos.forEach((ph, i) => {
-      const shop = Store.getShop(ph.shopId);
+    // タップした投稿から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
+    const posts = groups.map(g => buildOwnShopPost(g));
+    groups.forEach((g, i) => {
+      const shop = Store.getShop(g.shopId);
       const div = document.createElement('div');
       div.className = 'photo-cell';
       div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      setThumb(div.querySelector('img'), ph);
-      // タップでホームと同じ投稿表示（写真をさらにタップすると拡大）
+      setThumb(div.querySelector('img'), g.photos[0]); // 代表＝最新の写真
+      // タップでホームと同じ投稿表示（同じ店の写真はまとめて1投稿・写真をさらにタップで拡大）
       div.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
       box.appendChild(div);
     });
+  }
+
+  // 同じ店舗の写真グループ → 1つの投稿オブジェクトにまとめる。
+  // 主評価はその店の平均、各写真にはその訪問の評価(photoItems)を添える
+  function buildOwnShopPost(g) {
+    const shop = Store.getShop(g.shopId) || {};
+    const prof = Store.getProfile();
+    const vById = new Map(Store.visitsOf(g.shopId).map(v => [v.id, v]));
+    const repVisit = vById.get(g.photos[0].visitId) || {};
+    const photoItems = g.photos.map(ph => ({ ph, rating: (vById.get(ph.visitId) || {}).rating || 0 }));
+    return {
+      id: repVisit.id || g.photos[0].visitId, username: prof.username || '', displayName: prof.name || 'BITEMAP',
+      avatar: prof.avatar || '', photoUrl: photoUrl(g.photos[0]),
+      rating: Store.avgRating(g.shopId), // 主評価＝店の平均
+      shopName: shop.name || '', genre: (repVisit.dishGenres || []).join('・'),
+      comment: repVisit.comment || '', datetime: repVisit.datetime || '',
+      lat: shop.lat, lon: shop.lon, address: shop.address || '',
+      pref: shop.pref || '', city: shop.city || '', station: shop.station || '',
+      casual: shop.casual, atmosphere: shop.atmosphere, speed: shop.speed,
+      photoItems, // グループの各写真＋その訪問の評価（カルーセル用）
+    };
   }
 
   async function renderProfile() {
@@ -2607,31 +2640,39 @@ const Views = (() => {
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
     const cap = `${p.shopName || ''}${isMine && p.datetime ? '　' + fmtDate(p.datetime) : ''}`;
     (async () => {
-      let urls = [];
-      if (Store.visits().some(v => v.id === p.id)) {
+      // 表示する写真の一覧。グループ投稿(photoItems)なら各写真にその訪問の評価を持つ
+      const isGroup = Array.isArray(p.photoItems) && p.photoItems.length > 0;
+      let items = [];
+      if (isGroup) {
+        items = p.photoItems.map(it => ({ url: photoUrl(it.ph), rating: it.rating })).filter(it => it.url);
+      } else if (Store.visits().some(v => v.id === p.id)) {
         const ps = await Store.photosOfVisit(p.id).catch(() => []);
-        urls = ps.map(x => photoUrl(x)).filter(Boolean);
+        items = ps.map(x => ({ url: photoUrl(x), rating: 0 })).filter(it => it.url);
       }
-      if (!urls.length && p.photoUrl) urls = [p.photoUrl];
+      if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: 0 }];
       const box = sect.querySelector('.pd-photos');
-      if (urls.length > 1) {
+      // 各写真の右上に、その訪問の星の数（★4のように）。グループ投稿のときだけ出す
+      const badge = (r) => (isGroup && r) ? `<span class="pd-photo-star">★${Math.round(r)}</span>` : '';
+      const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${badge(it.rating)}</div>`;
+      if (items.length > 1) {
         // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
         box.classList.add('pd-carousel');
-        box.innerHTML = urls.map(u =>
-          `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async"></div>`).join('');
+        box.innerHTML = items.map(slide).join('');
         const dots = document.createElement('div');
         dots.className = 'pd-dots';
-        dots.innerHTML = urls.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+        dots.innerHTML = items.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
         box.after(dots);
         box.addEventListener('scroll', () => {
           const i = Math.round(box.scrollLeft / box.clientWidth);
           [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
         }, { passive: true });
+      } else if (items.length === 1 && isGroup) {
+        box.innerHTML = slide(items[0]); // 1枚でもバッジを出すためスライド枠で包む
       } else {
-        box.innerHTML = urls.map(u => `<img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">`).join('');
+        box.innerHTML = items.map(it => `<img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">`).join('');
       }
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
-        img.addEventListener('click', () => openLightbox(urls[i], cap)));
+        img.addEventListener('click', () => openLightbox(items[i].url, cap)));
     })();
     const nav = sect.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));

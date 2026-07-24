@@ -689,11 +689,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* .fa-like（後方の共通スタイル）より詳細度を上げるため .pd-phwrap を付ける */
 /* 真っ白な小さい丸（Instagramの「2/10」バッジくらいの大きさ）＋塗りつぶしのハート */
 .pd-phwrap .pd-like-fl {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
+  position: absolute; top: 10px; left: 10px; z-index: 3;
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%;
   background: #ffffff; color: #2b2b2b;
   cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.22);
+}
+/* 各写真の右上に、その訪問の星の数（★4）。左上のハートと同じくらいの大きさ */
+.pd-slide { position: relative; }
+.pd-photo-star {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  display: inline-flex; align-items: center; height: 30px; padding: 0 11px;
+  border-radius: 15px; background: #ffffff; color: #f5a300;
+  font-weight: 700; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.22);
 }
 .pd-phwrap .pd-like-fl { color: var(--accent); } /* ハートはピンク */
 .pd-phwrap .pd-like-fl .heart-ic { width: 16px; height: 16px; fill: none; stroke-width: 2.4; filter: none; }
