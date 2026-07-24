@@ -403,14 +403,19 @@ const Views = (() => {
           'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
       // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
       // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
+      // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
+      // ピンが重なったとき、評価（平均）の高い店が上に来るよう ravg を指定する。
+      const RATING_ONTOP = ['coalesce', ['get', 'ravg'], 0];
       map.addLayer({ id: 'pins', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
+        layout: { 'circle-sort-key': RATING_ONTOP },
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // 平均が .5 以上（あと一歩でワンランク上）の店は中心に白い点を重ねて区別する
       map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
+        layout: { 'circle-sort-key': RATING_ONTOP },
         paint: { 'circle-color': '#ffffff',
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.3, 14, 2, 15, 2.3, 20, 2.3] } });
       // 高倍率: しずく型マーカー（白点＝平均.5以上もしずくの頭に表示）
@@ -421,6 +426,7 @@ const Views = (() => {
             ['case', ['==', ['get', 'hi'], 1], '-hi', '']],
           'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
           'icon-anchor': 'bottom', 'icon-allow-overlap': true,
+          'symbol-sort-key': RATING_ONTOP, // 重なり時は評価の高い方を上に
         } });
       // お気に入り★（拡大時のみ。しずく表示中は頭の右上に）
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12, maxzoom: DROP_ZOOM,
@@ -1888,9 +1894,10 @@ const Views = (() => {
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
-    // 味の評価（★1〜5）の割合。星が多い順に並べ、色は★5→★1で濃い順
+    // 味の評価（★1〜5）の割合。★1から右回り（時計回り）に★5まで並べる。
+    // 色は星の値ごとに固定（★5→★1で濃い順）
     const RATING_COLORS = ['#e1306c', '#fa7e1e', '#f5c518', '#22c55e', '#8b9bb4'];
-    const ratingEntries = [5, 4, 3, 2, 1]
+    const ratingEntries = [1, 2, 3, 4, 5]
       .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
       .filter(e => e[1] > 0);
     chart('chart-rating', {
@@ -1922,7 +1929,20 @@ const Views = (() => {
       data: { labels: entries.map(e => e[0]), datasets: [{ data: entries.map(e => e[1]), backgroundColor: PALETTE }] },
       options: { plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } },
     });
-    doughnut('chart-dish-genre', tally(visits.flatMap(v => v.dishGenres || [])));
+    // 料理ジャンルを大きなくくり（麺類・和食…）へ畳み込んで集計する。
+    // 1回の訪問で同じくくりに複数該当（ラーメン＋つけ麺など）しても1件として数える。
+    const catOfGenre = new Map();
+    Api.DISH_CATEGORIES.forEach(c => (c.genres || []).forEach(g => catOfGenre.set(g, c.name)));
+    const catTally = () => {
+      const m = new Map();
+      visits.forEach(v => {
+        const cats = new Set();
+        (v.dishGenres || []).forEach(g => { if (g) cats.add(catOfGenre.get(g) || 'その他'); });
+        cats.forEach(c => m.set(c, (m.get(c) || 0) + 1));
+      });
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    doughnut('chart-dish-genre', catTally());
 
     // 都道府県別
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
@@ -2436,48 +2456,12 @@ const Views = (() => {
     }
     feedPosts.clear();
     posts.forEach(p => feedPosts.set(p.id, p));
-    // 更新は下に引っ張るプルリフレッシュで行う（右上の更新ボタンは廃止）
-    box.innerHTML = posts.map(postCard).join('');
-    const applyStats = (card, s) => {
-      const lb = card.querySelector('.fa-like');
-      if (lb) { lb.querySelector('.fa-like-n').textContent = s.likes; lb.classList.toggle('liked', s.liked); }
-      const cel = card.querySelector('.fa-cmt-n'); if (cel) cel.textContent = s.commentCount;
-      // コメントのプレビュー（最新2件＋「すべて見る」）
-      const cbox = card.querySelector('.feed-comments');
-      if (cbox) {
-        const list = s.commentList || [];
-        let html = '';
-        if (s.commentCount > 2) html += `<div class="feed-cmore">コメント${s.commentCount}件をすべて見る</div>`;
-        html += list.slice(-2).map(c => `<div class="feed-crow"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>`).join('');
-        cbox.innerHTML = html;
-      }
-    };
-    box.querySelectorAll('.feed-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.feed-author') || e.target.closest('.fa-like')) return;
-        // プロフィールの写真タップと同様に、タップした投稿から始めて
-        // 下スクロールでフィードの並び順に次の投稿が続けて出るようリストごと渡す
-        const idx = posts.findIndex(x => x.id === card.dataset.post);
-        if (idx >= 0) showPostDetail(posts[idx], { list: posts, index: idx });
-      });
-      const id = card.dataset.post;
-      const cached = feedStats.get(id);
-      if (cached) { applyStats(card, cached); } // キャッシュがあれば通信しない
-      else {
-        Promise.all([Cloud.getLikeInfo(id), Cloud.getComments(id)]).then(([info, list]) => {
-          const s = { likes: info.count, liked: info.liked, commentList: list, commentCount: list.length };
-          feedStats.set(id, s); applyStats(card, s);
-        }).catch(() => {});
-      }
-    });
-    box.querySelectorAll('.feed-author').forEach(el =>
-      el.addEventListener('click', (e) => { e.stopPropagation(); showPublicProfile(el.dataset.u); }));
-    box.querySelectorAll('.fa-like').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); toggleLikeUI(btn); }));
-    box.querySelectorAll('.fa-save').forEach(btn => btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const p = feedPosts.get(btn.dataset.post);
-      if (p) toggleWishForPost(p, btn);
-    }));
+    // ホームの一覧も、投稿をタップして開く詳細（buildPostSection）と同じ関数で描画する。
+    // これにより ★・店名・地名・ジャンル・「ここへ行く」まで、詳細と完全に同じ見た目になる。
+    // 各セクションが投稿者・いいね・保存・コメント・ナビの操作を自前で持つ。
+    // （更新は下に引っ張るプルリフレッシュ。一覧自体が縦スクロールの連続表示になる）
+    box.innerHTML = '';
+    posts.forEach(p => box.appendChild(buildPostSection(p, () => {})));
   }
 
   // ---------- 行きたい店（投稿から保存） ----------
@@ -2521,40 +2505,8 @@ const Views = (() => {
     }
   }
 
-  function postCard(p) {
-    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
-    const when = p.datetime ? fmtDate(p.datetime) : '';
-    const stars = p.rating
-      ? `<div class="feed-rating"><span class="feed-stars">${starStr(p.rating)}</span></div>`
-      : '';
-    // 地名（駅＋都道府県・市区町村）。プロフィールの写真タップで開く詳細と同じ書式
-    const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
-      .filter(Boolean).join('　');
-    return `<article class="feed-card" data-post="${esc(p.id)}">
-        <div class="feed-head">
-          <button type="button" class="feed-author" data-u="${esc(p.username)}">
-            <span class="fc-avatar">${av}</span>
-            <span class="fc-name">${esc(p.displayName || 'BITEMAP')}</span>
-          </button>
-          <span class="feed-date">${when}</span>
-        </div>
-        ${p.photoUrl ? `<img class="feed-photo" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">` : ''}
-        <div class="feed-body">
-          ${stars}
-          <div class="feed-shop">${esc(p.shopName || '')}${p.genre ? ` <span class="feed-genre">${esc(p.genre)}</span>` : ''}</div>
-          ${loc ? `<div class="feed-loc">${loc}</div>` : ''}
-          ${p.comment ? `<div class="feed-comment"><b>${esc(p.username)}</b> ${esc(p.comment)}</div>` : ''}
-          <div class="feed-comments"></div>
-        </div>
-        <div class="feed-actions">
-          <button type="button" class="fa-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
-          <button type="button" class="fa-comment" data-post="${esc(p.id)}" aria-label="コメント">${IC_COMMENT}<span class="fa-n fa-cmt-n">·</span></button>
-          <button type="button" class="fa-save${wishStateForPost(p) ? ' on' : ''}" data-post="${esc(p.id)}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
-        </div>
-      </article>`;
-  }
-
   // 投稿1件ぶんのセクションを組み立てて返す（写真・評価・お店の情報・いいね・コメント）
+  // ホームの一覧と、投稿タップで開く詳細の両方で使う共通の描画関数
   function buildPostSection(p, close) {
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
