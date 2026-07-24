@@ -66,6 +66,8 @@ const Cloud = (() => {
                 // 投稿化は負荷が高いので1セッション1回だけ
                 if (!postsPublishedThisSession) { postsPublishedThisSession = true; return publishAllPosts(); }
               })
+              // 写真URLが欠けた投稿を埋め直す（毎回・欠けが無ければ即終了で軽い）
+              .then(() => backfillPostPhotos())
               .catch(e => console.warn('写真同期に失敗:', e));
           } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
@@ -368,6 +370,36 @@ const Cloud = (() => {
         else if (p.blob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
         else await publishPostForVisit(v.id); // 写真が取れなくても記録自体は公開
       } catch (e) { console.warn('投稿公開に失敗:', v.id, e); }
+    }
+  }
+
+  // 写真があるのに公開投稿(publicPosts)に写真URLが付いていない記録を埋め直す。
+  // 写真アップロードより先に投稿が公開されると写真URLが空のまま残り、相手のプロフィールで
+  // 「写真があるのに表示されない」原因になる。自分の投稿のうちURLが空のものだけを対象に軽く直す。
+  async function backfillPostPhotos() {
+    if (!user) return;
+    if (!Store.getProfile().username) return; // 公開名がなければ投稿自体が無い
+    let snap;
+    try { snap = await fb.fs.getDocs(fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', '==', user.uid))); }
+    catch { return; }
+    const missing = [];
+    snap.forEach(d => { const p = d.data(); if (!p.photoUrl) missing.push(p.id); });
+    if (!missing.length) return;
+    // 訪問ID → 代表写真1枚
+    const byVisit = new Map();
+    for (const ph of await Store.allPhotos()) if (!byVisit.has(ph.visitId)) byVisit.set(ph.visitId, ph);
+    for (const vid of missing) {
+      const ph = byVisit.get(vid);
+      if (!ph) continue; // その記録に写真が無いなら埋めようがない（そのまま）
+      try {
+        if (ph.remoteUrl) await publishPostForVisit(vid, null, ph.remoteUrl);
+        else if (ph.blob) await uploadPhoto(ph); // アップロード完了時に写真URL付きで再公開される
+        else {
+          const path = `users/${user.uid}/photos/${ph.id}.jpg`;
+          const url = await photoDownloadUrl(path).catch(() => '');
+          if (url) await publishPostForVisit(vid, path);
+        }
+      } catch (e) { console.warn('写真URLの埋め直しに失敗:', vid, e); }
     }
   }
 
