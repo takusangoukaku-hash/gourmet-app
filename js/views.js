@@ -2840,17 +2840,64 @@ const Views = (() => {
             <button type="button" class="pp-stat" data-social="followers"><b class="pp-followers">–</b> フォロワー</button>
             <span class="pp-stat"><b>${prof.shopCount || 0}</b> 店舗</span>
           </div>
+          <div class="pp-match hidden"></div>
         </div>
       </div>
       ${prof.bio ? `<div class="pp-bio">${esc(prof.bio)}</div>` : ''}
       ${isMe ? '' : '<button type="button" class="btn primary pp-follow" disabled>…</button>'}
+      <div class="pp-both hidden"></div>
       <div class="pp-photo-grid photo-grid"><div class="empty"><p>読み込み中…</p></div></div>`;
+
+    // 2人とも行きたい店（相手の公開した行きたいリスト × 自分の行きたいリスト）
+    // 店名の表記ゆれ照合＋位置300m以内のどちらかで同じ店とみなす
+    if (!isMe && Array.isArray(prof.wishes) && prof.wishes.length) {
+      const near = (a, b) => a.lat != null && a.lon != null && b.lat != null && b.lon != null
+        && Store.distMeters(a.lat, a.lon, b.lat, b.lon) < 300;
+      const myWishes = Store.wishes();
+      const both = prof.wishes.filter(tw => tw.name &&
+        myWishes.some(mw => shopNamesMatch(tw.name, mw.name) || near(tw, mw)));
+      if (both.length) {
+        const box = body.querySelector('.pp-both');
+        box.classList.remove('hidden');
+        box.innerHTML = `<h3 class="pp-h3">🤝 2人とも行きたい店</h3>` + both.slice(0, 10).map(w =>
+          `<div class="pp-shop"><div class="pp-shop-main">
+              <div class="pp-shop-name">${esc(w.name)}</div>
+              <div class="pp-shop-sub">${esc(w.genre || '')}</div>
+            </div></div>`).join('');
+      }
+    }
 
     // 投稿の写真をグリッド表示（タップで全画面の投稿表示）。写真が無ければ「よく行くお店」を出す
     (async () => {
       let posts = [];
       try { posts = (typeof Cloud !== 'undefined') ? await Cloud.fetchUserPosts(prof.uid) : []; }
       catch { posts = []; }
+
+      // 食の趣味の一致度（Match%）: 相手の評価付き投稿と自分の記録で同じ店を照合し、
+      // ★の近さ（1 - 差/4）を平均して%に。共通の店が無い場合は表示しない
+      if (!isMe) {
+        const myShops = Store.shops();
+        let sum = 0, n = 0;
+        for (const p of posts) {
+          if (!p.rating) continue;
+          const mine = myShops.find(s => postMatchesShop(p, s));
+          if (!mine) continue;
+          const my = Store.avgRating(mine.id);
+          if (!my) continue;
+          sum += 1 - Math.abs(my - p.rating) / 4;
+          n++;
+        }
+        if (n) {
+          const pct = Math.round((sum / n) * 100);
+          const el = body.querySelector('.pp-match');
+          if (el) {
+            el.classList.remove('hidden');
+            el.classList.add(pct >= 70 ? 'hi' : pct >= 40 ? 'mid' : 'lo');
+            el.innerHTML = `食の一致度 <b>${pct}%</b> <span class="pp-match-n">共通${n}店</span>`;
+          }
+        }
+      }
+
       const grid = body.querySelector('.pp-photo-grid');
       if (!grid) return;
       const withPhoto = posts.filter(p => p.photoUrl);

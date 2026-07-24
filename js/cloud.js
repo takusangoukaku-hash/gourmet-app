@@ -20,6 +20,7 @@ const Cloud = (() => {
   let fb = null, auth = null, db = null, storage = null, user = null;
   let ready = null;
   let postsPublishedThisSession = false; // 投稿化(publishAllPosts)は1セッション1回に制限
+  let wishPubTimer = null; // 行きたい店の変更 → 公開プロフィール更新のデバウンス
   let status = 'signedout'; // signedout | loading | syncing | synced | error
   const statusCbs = [];
   function setStatus(s, detail) { status = s; statusCbs.forEach(cb => { try { cb(s, user, detail); } catch { /* noop */ } }); }
@@ -452,7 +453,12 @@ const Cloud = (() => {
       await publishPostForVisit(obj.id).catch(() => {});
       return;
     }
-    if (kind === 'wish') return action === 'del' ? fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}) : fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
+    if (kind === 'wish') {
+      // 行きたい店は公開プロフィールにも載せているため、変更が落ち着いたら公開側も更新する
+      clearTimeout(wishPubTimer);
+      wishPubTimer = setTimeout(() => publishPublicProfile().catch(() => {}), 3000);
+      return action === 'del' ? fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}) : fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
+    }
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
       if (action === 'del') {
@@ -500,12 +506,17 @@ const Cloud = (() => {
       .sort((a, b) => Store.avgRating(b.id) - Store.avgRating(a.id))
       .slice(0, 12)
       .map(s => ({ name: s.name, rating: Store.avgRating(s.id), genre: s.shopGenre || '', city: s.city || '' }));
+    // 行きたい店も公開する（プロフィールの「2人とも行きたい店」の照合用。店名・ジャンル・位置のみ）
+    const wishPub = Store.wishes().slice(0, 200).map(w => ({
+      name: w.name || '', genre: w.genre || '',
+      lat: (w.lat != null ? w.lat : null), lon: (w.lon != null ? w.lon : null),
+    }));
     const data = clean({
       uid: user.uid, username: p.username,
       displayName: p.name || 'BITEMAP', bio: p.bio || '',
       // アバターはデータURL（小さければ同梱。大きすぎる場合は省略）
       avatar: (p.avatar && p.avatar.length < 60000) ? p.avatar : '',
-      shopCount: shops.length, topShops: top, updatedAt: Date.now(),
+      shopCount: shops.length, topShops: top, wishes: wishPub, updatedAt: Date.now(),
     });
     await fb.fs.setDoc(fb.fs.doc(db, 'publicProfiles', user.uid), data);
   }
