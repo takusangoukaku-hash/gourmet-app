@@ -2598,11 +2598,11 @@ const Views = (() => {
         </div>
         <div class="pd-phwrap">
           <div class="pd-photos"></div>
-          <button type="button" class="fa-like pd-like pd-like-fl" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
         </div>
         <div class="pd-body">
           <div class="pd-toprow">
             ${starSvg(p.rating, 21)}
+            <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
             <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT}</button>
             <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           </div>
