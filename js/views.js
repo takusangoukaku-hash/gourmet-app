@@ -333,8 +333,10 @@ const Views = (() => {
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
-  // ズームに応じたピンの半径（広域=極小の点、拡大しても控えめ。従来の直径3〜12pxと同等）
-  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'], 8, 1.5, 10, 1.8, 12, 3.6, 14, 5.4, 15, 6, 20, 6];
+  // 個別ピンの半径。クラスタリングを使わず全ズームで個別表示するため、低倍でも
+  // 見えやすい一定サイズにする（重なっても大きくならない）。低倍は約4px＝23区が
+  // 画面から外れるz9あたりの重なり点と同程度の大きさ。z12以降でやや大きくして詳細へ繋ぐ
+  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 4, 12, 4.8, 13, 5.4];
   // zoom式は最上位のinterpolateにしか置けないため、件数による加算は出力側に入れる
   const CSTEP = ['step', ['get', 'point_count'], 1, 10, 2, 30, 3];
   const CLUSTER_RADIUS = ['interpolate', ['linear'], ['zoom'],
@@ -422,11 +424,10 @@ const Views = (() => {
       });
       map.addImage('drop-wish', makeDrop(WISH_COLOR, false), { pixelRatio: 2 });
 
-      // 店舗ピン（クラスター付き）。クラスターの色は中で一番評価の高い店の色
+      // 店舗ピン。クラスタリングは使わず、日本全体を映しても全店を個別の点で表示する
+      // （重なっても1つの大きな丸にまとめない）
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
-        cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
-        clusterProperties: { maxR: ['max', ['get', 'r']] },
       });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
@@ -448,7 +449,7 @@ const Views = (() => {
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
         layout: { 'circle-sort-key': RATING_ONTOP },
         paint: { 'circle-color': '#ffffff',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.3, 14, 2, 15, 2.3, 20, 2.3] } });
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1.4, 10, 1.5, 12, 1.9, 13, 2.2] } });
       // 高倍率: しずく型マーカー（白点＝平均.5以上もしずくの頭に表示）
       map.addLayer({ id: 'pin-drops', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
