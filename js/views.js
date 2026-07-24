@@ -343,7 +343,8 @@ const Views = (() => {
   // ピンの半径。低倍でも見えやすい一定サイズ（約4px＝23区が画面から外れるz9あたりの
   // 大きさ）。近い点をまとめたクラスタも件数で大きくせず、この同じサイズで表示する。
   // z12以降でやや大きくして詳細（しずく型）へ繋ぐ
-  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 4, 12, 4.8, 13, 5.4];
+  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'],
+    0, 5.5, 7, 4, 10, 4, 12, 4.8, 13, 5.4];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
   let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
