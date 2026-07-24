@@ -2251,17 +2251,17 @@ const Views = (() => {
       }
 
       // フォロー中の人のこの店の記録（写真＋★＋アカウントアイコン。タップで投稿を表示）
+      // 他人の記録なので日付は出さず、@ユーザー名のみ表示する
       for (const p of fps) {
         const block = document.createElement('div');
         block.className = 'visit-block';
-        const dateStr = p.datetime ? new Date(p.datetime).toLocaleDateString('ja-JP') : '';
         block.innerHTML = `
           <button type="button" class="v-cover">
             ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : '<span class="v-cover-ph">🍽️</span>'}
             <span class="v-badge">★${p.rating || '－'}</span>
             <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜'}</span>
           </button>
-          <div class="v-caption">${dateStr}　@${esc(p.username || '')}</div>`;
+          <div class="v-caption">@${esc(p.username || '')}</div>`;
         block.querySelector('.v-cover').addEventListener('click', () => showPostDetail(p));
         vbox.appendChild(block);
       }
