@@ -247,7 +247,7 @@ const Register = (() => {
     el.innerHTML = '';
     for (let i = 1; i <= 5; i++) {
       const b = document.createElement('button');
-      b.type = 'button'; b.textContent = '★'; b.dataset.v = i;
+      b.type = 'button'; b.innerHTML = Views.starBtn(); b.dataset.v = i;
       b.addEventListener('click', () => {
         el.querySelectorAll('button').forEach(x => x.classList.toggle('on', +x.dataset.v <= i));
         onChange(i);

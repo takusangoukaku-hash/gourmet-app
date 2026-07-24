@@ -5,7 +5,38 @@
 const Views = (() => {
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
-  const starStr = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+  // ---------- 星評価の表示（角丸SVG・ゴールドグラデ・半星対応） ----------
+  // 文字の「★」ベタ塗りをやめ、丸みのある星形にグラデーションで立体感を出す。
+  // 平均値は 0.5 刻みに丸めて半星で表現する（例: 4.3 → ★4.5相当の半星）
+  const STAR_PATH = 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z';
+  const STAR_EMPTY = '#e8e0d0';
+  const starIc = (kind, size) => {
+    const p = `d="${STAR_PATH}" stroke-width="3" stroke-linejoin="round"`;
+    let body;
+    if (kind === 'full') body = `<path ${p} fill="url(#star-grad)" stroke="#f5a300"/>`;
+    else if (kind === 'half') body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>` +
+      `<path ${p} clip-path="url(#star-half)" fill="url(#star-grad)" stroke="#f5a300"/>`;
+    else body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>`;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
+  };
+  // 星5個の並び。size は星1個の1辺(px)
+  const starSvg = (r, size = 14) => {
+    const v = Math.max(0, Math.min(5, Math.round((+r || 0) * 2) / 2));
+    let h = '';
+    for (let i = 1; i <= 5; i++) h += starIc(v >= i ? 'full' : v >= i - 0.5 ? 'half' : 'empty', size);
+    return `<span class="stars-svg" role="img" aria-label="星${v}">${h}</span>`;
+  };
+  // 入力用ボタンの星（塗りはCSSの .on で切り替える）
+  const starBtn = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`;
+  // グラデーション・クリップの定義を文書に1回だけ入れる（各星が url(#…) で参照）
+  (function () {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+    d.innerHTML = '<svg><defs><linearGradient id="star-grad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#ffd75e"/><stop offset="1" stop-color="#f5a300"/></linearGradient>' +
+      '<clipPath id="star-half"><rect x="0" y="0" width="12" height="24"/></clipPath></defs></svg>';
+    document.body.appendChild(d);
+  })();
   // 白黒ピクトグラム（駅・住所）
   const IC_STATION = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><path d="M9 20l1.5-4"/><path d="M15 20l-1.5-4"/></svg>';
   const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
@@ -135,7 +166,7 @@ const Views = (() => {
     const axes = [['気軽さ', 'casual'], ['雰囲気', 'atmosphere'], ['早さ', 'speed']]
       .map(([label, k]) => { const v = fmtStatAvg(st[k], true); return v ? `${label} ${v}` : null; })
       .filter(Boolean);
-    return `<div class="p-sub">${t ? starStr(Math.round(+t)) : ''} 味 ${t || '－'}</div>`
+    return `<div class="p-sub">${t ? starSvg(+t, 12) : ''} 味 ${t || '－'}</div>`
       + (axes.length ? `<div class="p-sub">${axes.join('　')}</div>` : '');
   }
 
@@ -1551,7 +1582,7 @@ const Views = (() => {
       <div class="thumb" data-thumb="${s.id}">🍽️</div>
       <div class="s-main">
         <div class="s-name">${esc(s.name)}</div>
-        <div class="s-stars">${starStr(avg)} <span class="num">訪問${Store.visitCount(s.id)}回</span></div>
+        <div class="s-stars">${starSvg(avg, 13)} <span class="num">訪問${Store.visitCount(s.id)}回</span></div>
         <div class="s-sub">${esc(shopLabelGenre(s) || '')}${s.station ? '　' + IC_STATION + ' ' + esc(s.station) : ''}${s.city ? '　' + IC_PIN + ' ' + esc(s.city) : ''}</div>
         ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
         <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
@@ -1858,7 +1889,7 @@ const Views = (() => {
       const v = past[0];
       const s = Store.getShop(v.shopId);
       const yearsAgo = year - new Date(v.datetime).getFullYear();
-      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${yearsAgo}年前の今ごろ、<b>${esc(s ? s.name : '')}</b> に行きました（${starStr(v.rating || 0)}）`;
+      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${yearsAgo}年前の今ごろ、<b>${esc(s ? s.name : '')}</b> に行きました（${starSvg(v.rating || 0, 12)}）`;
       memBox.classList.remove('hidden');
     } else {
       memBox.classList.add('hidden');
@@ -2007,7 +2038,7 @@ const Views = (() => {
       </div>` : `
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
-        <div class="d-stars">${starStr(avg)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
+        <div class="d-stars">${starSvg(avg, 16)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
@@ -2044,7 +2075,7 @@ const Views = (() => {
         ${['casual', 'atmosphere', 'speed'].map(k => `
           <div class="axis-row"><span>${AXIS_LABEL[k]}</span>
             <div class="stars small d-axis" data-axis="${k}">
-              ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">★</button>`).join('')}
+              ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">${starBtn()}</button>`).join('')}
             </div>
           </div>`).join('')}
       </div>`;
@@ -2167,7 +2198,7 @@ const Views = (() => {
           const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
           for (let i = 1; i <= 5; i++) {
             const b = document.createElement('button');
-            b.type = 'button'; b.textContent = '★';
+            b.type = 'button'; b.innerHTML = starBtn();
             b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
             starsEl.appendChild(b);
           }
@@ -2266,7 +2297,7 @@ const Views = (() => {
         card.innerHTML = `
           <div class="v-head">
             <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-            <span class="v-stars">${starStr(v.rating)}</span>
+            <span class="v-stars">${starSvg(v.rating, 13)}</span>
             ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
           </div>
           ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
@@ -2511,14 +2542,9 @@ const Views = (() => {
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
     const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
-      .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starStr(p[k])}</span></div>`).join('');
+      .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starSvg(p[k], 13)}</span></div>`).join('');
     const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
       .filter(Boolean).join('　');
-    // 星は常に5個表示（黄色い★＝評価、残りは薄い★）
-    const stars5 = (r) => {
-      const n = Math.max(0, Math.min(5, Math.round(r || 0)));
-      return `<span class="st5"><span class="st5-on">${'★'.repeat(n)}</span><span class="st5-off">${'★'.repeat(5 - n)}</span></span>`;
-    };
     const sect = document.createElement('div');
     sect.className = 'pd-sect';
     sect.innerHTML = `
@@ -2534,7 +2560,7 @@ const Views = (() => {
         </div>
         <div class="pd-body">
           <div class="pd-toprow">
-            ${stars5(p.rating)}
+            ${starSvg(p.rating, 21)}
             <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT}</button>
             <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           </div>
@@ -2954,5 +2980,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, enterMapTab, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, getMap: () => map, baseMapStyle };
+  return { refreshMap, enterMapTab, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
 })();

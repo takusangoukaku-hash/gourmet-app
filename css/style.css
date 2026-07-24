@@ -234,9 +234,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .map-axis-filter::-webkit-scrollbar { display: none; }
 .map-axis-filter select { flex: 1; min-width: 100px; font-size: 12px; padding: 6px 4px; }
 .map-axis-filter .taste-select { border-color: var(--accent); color: var(--accent); font-weight: bold; }
-.stars button { border: none; background: none; font-size: 28px; cursor: pointer; color: #dbdbdb; padding: 0 2px; }
-.stars button.on { color: var(--star); }
-.stars.small button { font-size: 18px; }
+.stars button { border: none; background: none; cursor: pointer; padding: 0 2px; }
+.stars button svg { width: 26px; height: 26px; display: block; }
+.stars button svg path { fill: #e8e0d0; stroke: #e8e0d0; stroke-width: 3; stroke-linejoin: round; }
+.stars button.on svg path { fill: url(#star-grad); stroke: #f5a300; }
+.stars.small button svg { width: 17px; height: 17px; }
+/* SVG星の並び（starSvg）。テキストと混ざっても中央が揃うように */
+.stars-svg { display: inline-flex; gap: 2px; vertical-align: -2px; }
 
 .btn {
   border: 1px solid var(--border); background: var(--card); color: var(--text);
@@ -698,9 +702,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-phwrap .pd-like-fl .fa-n { display: none; } /* いいねの数は出さない */
 /* 星の行: 星の横にコメント、右端に保存 */
 .pd-toprow { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.pd-toprow .st5 { font-size: 20px; letter-spacing: 2px; line-height: 1; }
-.st5-on { color: var(--star); }
-.st5-off { color: var(--border-lite); }
+.pd-toprow .stars-svg { line-height: 1; }
 .pd-cmt-btn {
   display: inline-flex; align-items: center; border: none; background: none;
   cursor: pointer; color: var(--text); padding: 4px 2px;
