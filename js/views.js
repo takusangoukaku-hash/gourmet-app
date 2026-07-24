@@ -2539,6 +2539,8 @@ const Views = (() => {
   // 投稿1件ぶんのセクションを組み立てて返す（写真・評価・お店の情報・いいね・コメント）
   // ホームの一覧と、投稿タップで開く詳細の両方で使う共通の描画関数
   function buildPostSection(p, close) {
+    // 自分の記録かどうか（端末内の訪問に一致）。他人の投稿では日付・編集は出さない
+    const isMine = Store.visits().some(v => v.id === p.id);
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
     const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
@@ -2573,8 +2575,8 @@ const Views = (() => {
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
             ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
-            <div class="pd-date">${p.datetime ? fmtDate(p.datetime) : ''}</div>
-            ${Store.visits().some(v => v.id === p.id) ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
+            ${isMine && p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : ''}
+            ${isMine ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
           </div>
           <div class="pd-cmtbox hidden">
             <div class="pd-comments"></div>
@@ -2596,7 +2598,7 @@ const Views = (() => {
       sect.querySelector('.pd-cmtbox').classList.toggle('hidden');
     });
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
-    const cap = `${p.shopName || ''}　${p.datetime ? fmtDate(p.datetime) : ''}`;
+    const cap = `${p.shopName || ''}${isMine && p.datetime ? '　' + fmtDate(p.datetime) : ''}`;
     (async () => {
       let urls = [];
       if (Store.visits().some(v => v.id === p.id)) {
