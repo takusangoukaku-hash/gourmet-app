@@ -1846,11 +1846,19 @@ const Views = (() => {
     const vById = new Map(Store.visitsOf(g.shopId).map(v => [v.id, v]));
     const repVisit = vById.get(g.photos[0].visitId) || {};
     const photoItems = g.photos.map(ph => ({ ph, rating: (vById.get(ph.visitId) || {}).rating || 0 }));
+    // グループ内の各写真の訪問から料理ジャンルを集める（重複は除く）。
+    // 例: 1枚目がラーメン・2枚目がつけ麺 → 「ラーメン・つけ麺」の2種類を表示
+    const genres = [];
+    for (const ph of g.photos) {
+      for (const gn of ((vById.get(ph.visitId) || {}).dishGenres || [])) {
+        if (gn && !genres.includes(gn)) genres.push(gn);
+      }
+    }
     return {
       id: repVisit.id || g.photos[0].visitId, username: prof.username || '', displayName: prof.name || 'BITEMAP',
       avatar: prof.avatar || '', photoUrl: photoUrl(g.photos[0]),
       rating: Store.avgRating(g.shopId), // 主評価＝店の平均
-      shopName: shop.name || '', genre: (repVisit.dishGenres || []).join('・'),
+      shopName: shop.name || '', genre: genres.join('・'),
       comment: repVisit.comment || '', datetime: repVisit.datetime || '',
       lat: shop.lat, lon: shop.lon, address: shop.address || '',
       pref: shop.pref || '', city: shop.city || '', station: shop.station || '',
@@ -2217,7 +2225,44 @@ const Views = (() => {
     // 訪問記録の一覧表示（訪問ごとに個別編集できる）
     if (!editMode) {
       const vbox = $('#d-visits');
-      for (const v of vs) {
+      // 同じ店の写真は1つにまとめて表示する（プロフィールの写真グリッドと同じ）。
+      // タップすると、その店の全写真を1つの投稿として見られる
+      if (!editVid) {
+        const block = document.createElement('div');
+        block.className = 'visit-block';
+        const avg = Store.avgRating(shopId);
+        block.innerHTML = `
+          <button type="button" class="v-cover">
+            <span class="v-cover-ph">🍽️</span>
+            <span class="v-badge">★${avg || '－'}</span>
+          </button>
+          <div class="v-caption">
+            <span>訪問${vs.length}回</span>
+            <button type="button" class="v-edit-link">${IC_EDIT} 記録を見る</button>
+          </div>`;
+        const cover = block.querySelector('.v-cover');
+        // 各訪問の編集は「記録を見る」（訪問一覧）から行う
+        block.querySelector('.v-edit-link').addEventListener('click', () => showVisitList(shopId));
+        cover.onclick = () => showVisitList(shopId); // 写真が無いときの既定
+        vbox.appendChild(block);
+        Store.allPhotos().then(all => {
+          const vMap = new Map(vs.map(v => [v.id, v]));
+          const shot = (p) => {
+            const v = vMap.get(p.visitId);
+            return (v && v.datetime ? new Date(v.datetime).getTime() : 0) || p.createdAt || 0;
+          };
+          const photos = all.filter(p => p.shopId === shopId)
+            .sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
+          if (!photos.length) return;
+          const cimg = document.createElement('img');
+          cimg.src = photoUrl(photos[0]);
+          cover.querySelector('.v-cover-ph').replaceWith(cimg);
+          const post = buildOwnShopPost({ shopId, photos });
+          cover.onclick = () => showPostDetail(post);
+        });
+      }
+      // 個別の訪問カードは、ある訪問をインライン編集しているときだけ並べる
+      if (editVid) for (const v of vs) {
         const block = document.createElement('div');
         block.className = 'visit-block';
         block.dataset.vid = v.id;
