@@ -333,15 +333,10 @@ const Views = (() => {
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
-  // 個別ピンの半径。クラスタリングを使わず全ズームで個別表示するため、低倍でも
-  // 見えやすい一定サイズにする（重なっても大きくならない）。低倍は約4px＝23区が
-  // 画面から外れるz9あたりの重なり点と同程度の大きさ。z12以降でやや大きくして詳細へ繋ぐ
+  // ピンの半径。低倍でも見えやすい一定サイズ（約4px＝23区が画面から外れるz9あたりの
+  // 大きさ）。近い点をまとめたクラスタも件数で大きくせず、この同じサイズで表示する。
+  // z12以降でやや大きくして詳細（しずく型）へ繋ぐ
   const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 4, 12, 4.8, 13, 5.4];
-  // zoom式は最上位のinterpolateにしか置けないため、件数による加算は出力側に入れる
-  const CSTEP = ['step', ['get', 'point_count'], 1, 10, 2, 30, 3];
-  const CLUSTER_RADIUS = ['interpolate', ['linear'], ['zoom'],
-    8, ['+', 2, CSTEP], 10, ['+', 2.4, CSTEP], 12, ['+', 4.4, CSTEP],
-    14, ['+', 6.2, CSTEP], 15, ['+', 7, CSTEP], 20, ['+', 7, CSTEP]];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
   let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
@@ -424,15 +419,18 @@ const Views = (() => {
       });
       map.addImage('drop-wish', makeDrop(WISH_COLOR, false), { pixelRatio: 2 });
 
-      // 店舗ピン。クラスタリングは使わず、日本全体を映しても全店を個別の点で表示する
-      // （重なっても1つの大きな丸にまとめない）
+      // 店舗ピン（クラスター付き）。近い店の点は1つにまとめる。ただしクラスタも
+      // 件数で大きくせず、個別ピンと同じ固定サイズで表示する（今の大きさを維持）
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
+        cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
+        clusterProperties: { maxR: ['max', ['get', 'r']] }, // クラスタの色は中で一番評価の高い店の色
       });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
-          'circle-stroke-color': '#fff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0, 12, 1] } });
+        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': PIN_RADIUS,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
       // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
       // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
       // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
@@ -1932,10 +1930,11 @@ const Views = (() => {
     const ratingEntries = [1, 2, 3, 4, 5]
       .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
       .filter(e => e[1] > 0);
+    const rTotal = ratingEntries.reduce((a, e) => a + e[1], 0);
     chart('chart-rating', {
       type: 'doughnut',
       data: {
-        labels: ratingEntries.map(e => '★'.repeat(e[0]) + `（${e[1]}件）`),
+        labels: ratingEntries.map(e => '★'.repeat(e[0]) + `（${e[1]}件 ${rTotal ? Math.round(e[1] / rTotal * 100) : 0}%）`),
         datasets: [{ data: ratingEntries.map(e => e[1]),
           backgroundColor: ratingEntries.map(e => RATING_COLORS[5 - e[0]]) }],
       },
@@ -1956,11 +1955,18 @@ const Views = (() => {
       arr.forEach(k => { if (k) m.set(k, (m.get(k) || 0) + 1); });
       return [...m.entries()].sort((a, b) => b[1] - a[1]);
     };
-    const doughnut = (id, entries) => chart(id, {
-      type: 'doughnut',
-      data: { labels: entries.map(e => e[0]), datasets: [{ data: entries.map(e => e[1]), backgroundColor: PALETTE }] },
-      options: { plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } },
-    });
+    const doughnut = (id, entries) => {
+      const total = entries.reduce((a, e) => a + e[1], 0);
+      return chart(id, {
+        type: 'doughnut',
+        data: { labels: entries.map(e => `${e[0]} ${total ? Math.round(e[1] / total * 100) : 0}%`),
+          datasets: [{ data: entries.map(e => e[1]), backgroundColor: PALETTE }] },
+        options: { plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 } } },
+          tooltip: { callbacks: { label: (c) => `${c.raw}件（${total ? Math.round(c.raw / total * 100) : 0}%）` } },
+        } },
+      });
+    };
     // 料理ジャンルを大きなくくり（麺類・和食…）へ畳み込んで集計する。
     // 1回の訪問で同じくくりに複数該当（ラーメン＋つけ麺など）しても1件として数える。
     const catOfGenre = new Map();
