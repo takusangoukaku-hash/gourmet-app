@@ -991,7 +991,7 @@ const Views = (() => {
       const netGroups = [];
       for (const p of networkPosts) {
         // フィルタ: ジャンル・キーワード・味の星（他人の投稿にある情報の範囲で）
-        if (mapGenreFilter.size && !(p.genre || '').split('・').some(g => mapGenreFilter.has(g))) continue;
+        if (mapGenreFilter.size && !genresFromStr(p.genre).some(g => mapGenreFilter.has(g))) continue;
         const minT = +($('#mf-taste').value || 0);
         if (minT && (p.rating || 0) < minT) continue;
         if (kw) {
@@ -1339,6 +1339,22 @@ const Views = (() => {
   let exploreMode = true;      // true = 発見（カテゴリー/写真）、false = 店舗検索
   let exploreNetCache = null;  // { posts, time }: フォロー中の人の投稿の短時間キャッシュ
   let exploreItems = null;     // 読み込み済みの発見アイテム（写真＋ジャンル）
+  // 複数ジャンルをまとめて1つのキーにするときの区切り。ジャンル名には「・」を含むもの
+  //（例:「油そば・まぜそば」）があるため、「・」は区切りに使えない
+  const GKEY_SEP = '|';
+  // 表示用に「・」で連結されたジャンル文字列を配列へ戻す。
+  // 「・」入りのジャンル名を先に取り出してから残りを分割する（そのままsplitすると
+  //「油そば・まぜそば」が2つに割れて、どのジャンルにも一致しなくなる）
+  function genresFromStr(str) {
+    let rest = String(str || '');
+    const out = [];
+    for (const g of Api.DISH_GENRES) {
+      if (!g.includes('・')) continue;
+      while (rest.includes(g)) { out.push(g); rest = rest.replace(g, ''); }
+    }
+    for (const g of rest.split('・')) if (g) out.push(g);
+    return out;
+  }
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
@@ -1423,7 +1439,7 @@ const Views = (() => {
         for (const p of exploreNetCache.posts) {
           if (p.photoUrl) items.push({ kind: 'net', p,
             time: p.datetime ? new Date(p.datetime).getTime() : 0,
-            genres: (p.genre || '').split('・').filter(Boolean) });
+            genres: genresFromStr(p.genre) });
         }
       }
     } catch { /* 未ログイン・通信失敗時は自分の写真のみ */ }
@@ -1484,7 +1500,7 @@ const Views = (() => {
     const items = await loadExploreItems();
     const count = genreCounts(items);
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
-    box.innerHTML = catTile(cat.genres.join('・'), catName + 'すべて', total, CAT_COLORS[0], { wide: true }) +
+    box.innerHTML = catTile(cat.genres.join(GKEY_SEP), catName + 'すべて', total, CAT_COLORS[0], { wide: true }) +
       cat.genres.map((g, i) => catTile(g, g, count.get(g) || 0, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
@@ -1503,12 +1519,12 @@ const Views = (() => {
     renderExploreGrid(genre);
   }
 
-  // 選んだジャンルの写真を敷き詰める（genreが空なら全部、「・」区切りで複数可）。タップで投稿表示
+  // 選んだジャンルの写真を敷き詰める（genreが空なら全部、GKEY_SEP区切りで複数可）。タップで投稿表示
   async function renderExploreGrid(genre) {
     const box = $('#explore-grid');
     box.innerHTML = SKEL_GRID;
     const items = exploreItems || await loadExploreItems();
-    const keys = String(genre || '').split('・').filter(Boolean);
+    const keys = String(genre || '').split(GKEY_SEP).filter(Boolean);
     const list = keys.length ? items.filter(it => it.genres.some(g => keys.includes(g))) : items;
     if (!list.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');

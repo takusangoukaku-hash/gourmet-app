@@ -732,7 +732,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .pd-photos.pd-carousel::-webkit-scrollbar { display: none; }
 .pd-carousel .pd-slide { flex: 0 0 100%; scroll-snap-align: center; }
-.pd-carousel .pd-photo { aspect-ratio: 1 / 1; object-fit: cover; height: auto; }
+/* 複数枚のときは高さを揃える必要があるが、切り抜くと横長の写真の両端が
+   見切れてしまうため、切り抜かずに全体が収まるように表示する */
+.pd-carousel .pd-photo { aspect-ratio: 1 / 1; object-fit: contain; height: auto; background: var(--field); }
 /* 何枚目を見ているかを示す点（写真の下） */
 .pd-dots { display: flex; justify-content: center; gap: 5px; padding: 8px 0 0; }
 .pd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-lite); transition: background .15s; }
