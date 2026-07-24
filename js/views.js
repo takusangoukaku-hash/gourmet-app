@@ -285,10 +285,17 @@ const Views = (() => {
         { id: 'rail', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 11,
           filter: ['==', ['get', 'class'], 'rail'],
           paint: { 'line-color': c.rail, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 16, 2.2] } },
-        { id: 'boundary', type: 'line', source: 'omt', 'source-layer': 'boundary', minzoom: 5,
+        // 国・都道府県の境界。世界全体まで引いても国の形が分かるよう z0 から表示する
+        { id: 'boundary', type: 'line', source: 'omt', 'source-layer': 'boundary',
           filter: ['<=', ['get', 'admin_level'], 4],
-          paint: { 'line-color': c.boundary, 'line-width': 1, 'line-dasharray': [3, 2] } },
-        // ===== ラベル（都市名・駅名・主要施設のみ）=====
+          paint: { 'line-color': c.boundary,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 5, 1],
+            'line-dasharray': [3, 2] } },
+        // ===== ラベル（国名・都市名・駅名・主要施設のみ）=====
+        // 国名: 広域（z1〜）で表示。Googleマップのように引いた状態でも地名が分かる
+        label('place-country', 'place',
+          ['==', ['get', 'class'], 'country'], 1,
+          ['interpolate', ['linear'], ['zoom'], 1, 10, 5, 13], c.text, 1.4),
         label('place-city', 'place',
           ['==', ['get', 'class'], 'city'], 4,
           ['interpolate', ['linear'], ['zoom'], 5, 10, 12, 13], c.text, 1.4),
@@ -375,7 +382,8 @@ const Views = (() => {
     map = new maplibregl.Map({
       container: 'map-canvas',
       style: baseMapStyle(dark),
-      center: [139.7671, 35.6812], zoom: 11, minZoom: 3, maxZoom: 20,
+      // minZoom 0: Googleマップのように世界全体まで引いて見られるようにする
+      center: [139.7671, 35.6812], zoom: 11, minZoom: 0, maxZoom: 20,
       attributionControl: { compact: true },
     });
     // ズーム＋コンパス（回転リセット）は右下へ（左上は検索バーが重なるため）
@@ -1947,23 +1955,54 @@ const Views = (() => {
       [prefCount, '訪れた都道府県'],
     ].map(([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
 
-    // 月別訪問（直近12ヶ月）
-    const months = [], counts = [];
+    // 月別訪問。最初の記録の月から今月までを全部並べ、横スクロールで見られるようにする
+    // （画面に収まらないので、幅は月数ぶん確保して .chart-scroll でスクロールさせる）
     const now = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthCount = new Map(); // 'YYYY/M' → 件数
+    for (const v of visits) {
+      const d = new Date(v.datetime);
+      if (isNaN(d)) continue;
+      const k = `${d.getFullYear()}/${d.getMonth() + 1}`;
+      monthCount.set(k, (monthCount.get(k) || 0) + 1);
+    }
+    let start = new Date(now.getFullYear(), now.getMonth() - 11, 1); // 記録が少なくても直近12ヶ月は出す
+    const times = visits.map(v => new Date(v.datetime).getTime()).filter(t => t && !isNaN(t));
+    if (times.length) {
+      const f = new Date(Math.min(...times));
+      const firstMonth = new Date(f.getFullYear(), f.getMonth(), 1);
+      if (firstMonth < start) start = firstMonth;
+    }
+    let span = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1;
+    if (span > 120) { span = 120; start = new Date(now.getFullYear(), now.getMonth() - 119, 1); } // 上限10年
+    const months = [], counts = [];
+    for (let i = 0; i < span; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
       const key = `${d.getFullYear()}/${d.getMonth() + 1}`;
       months.push(key);
-      counts.push(visits.filter(v => {
-        const vd = new Date(v.datetime);
-        return vd.getFullYear() === d.getFullYear() && vd.getMonth() === d.getMonth();
-      }).length);
+      counts.push(monthCount.get(key) || 0);
     }
+    // 1ヶ月あたりの幅を確保（画面より狭くならないよう最低は画面幅）
+    const wide = document.querySelector('.chart-wide');
+    const scroller = document.querySelector('.chart-scroll');
+    if (wide && scroller) wide.style.width = Math.max(scroller.clientWidth, months.length * 46) + 'px';
+    const hint = document.querySelector('.chart-hint');
+    if (hint) hint.classList.toggle('hidden', months.length <= 12);
     chart('chart-monthly', {
       type: 'bar',
       data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#e1306c', borderRadius: 6 }] },
-      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } },
+          x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 60, font: { size: 10 } } } },
+      },
     });
+    // 最新の月が見えるよう右端から表示する（グラフの描画完了後にもう一度合わせる）
+    if (scroller) {
+      const toEnd = () => { scroller.scrollLeft = scroller.scrollWidth; };
+      requestAnimationFrame(toEnd);
+      setTimeout(toEnd, 300);
+    }
 
     // 味の評価（★1〜5）の割合。★1から右回り（時計回り）に★5まで並べる。
     // 色は星の値ごとに固定（★5→★1で濃い順）

@@ -90,6 +90,12 @@ main { max-width: 860px; margin: 0 auto; padding: 16px 16px 84px; }
   padding: 18px 16px; margin-bottom: 14px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, .04); /* やわらかい影で立体感 */
 }
+/* 月別訪問件数: 月が多いと画面に収まらないので横スクロールで全期間を見られるようにする */
+.chart-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.chart-scroll::-webkit-scrollbar { height: 5px; }
+.chart-scroll::-webkit-scrollbar-thumb { background: var(--border-lite); border-radius: 3px; }
+.chart-wide { height: 220px; }
+.chart-hint { color: var(--muted); font-size: 11px; margin-top: 6px; text-align: right; }
 .card h2 { margin: 0 0 8px; font-size: 16px; font-weight: 700; letter-spacing: .02em; }
 .card h3 { margin: 8px 0 4px; font-size: 14px; }
 .hint { color: var(--muted); font-size: 12.5px; margin: 4px 0 10px; }

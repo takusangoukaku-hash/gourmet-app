@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=207">
+<link rel="stylesheet" href="css/style.css?v=208">
 </head>
 <body>
 
@@ -340,7 +340,10 @@
   <div id="ptab-stats" class="ptab-panel hidden">
     <div id="stat-memory" class="stat-memory hidden"></div>
     <div id="stat-cards" class="stat-cards"></div>
-    <div class="card"><h2>月別訪問件数</h2><canvas id="chart-monthly"></canvas></div>
+    <div class="card"><h2>月別訪問件数</h2>
+      <div class="chart-scroll"><div class="chart-wide"><canvas id="chart-monthly"></canvas></div></div>
+      <div class="chart-hint">← 横にスクロールすると過去の月も見られます</div>
+    </div>
     <div class="card"><h2>味の評価の割合</h2><canvas id="chart-rating"></canvas></div>
     <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
     <div class="card"><h2>都道府県別件数</h2><canvas id="chart-pref"></canvas></div>
@@ -527,11 +530,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=207"></script>
-<script src="js/api.js?v=207"></script>
-<script src="js/cloud.js?v=207"></script>
-<script src="js/register.js?v=207"></script>
-<script src="js/views.js?v=207"></script>
-<script src="js/app.js?v=207"></script>
+<script src="js/store.js?v=208"></script>
+<script src="js/api.js?v=208"></script>
+<script src="js/cloud.js?v=208"></script>
+<script src="js/register.js?v=208"></script>
+<script src="js/views.js?v=208"></script>
+<script src="js/app.js?v=208"></script>
 </body>
 </html>
