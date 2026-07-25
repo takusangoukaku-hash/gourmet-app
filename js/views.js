@@ -2188,7 +2188,8 @@ const Views = (() => {
         </div>
       </div>` : '';
 
-    // お店の評価（3軸）は「詳細」を押したときだけ表示する
+    // 「詳細」の中身: お店の評価（3軸）＋店舗の操作（訪問を追加・店舗情報・閉店・削除）。
+    // よく使う「ここへ行く」とお気に入り♥だけを外に出し、残りはここへ畳む
     const axisHtml = `
       <button type="button" class="btn small d-detail-toggle" id="d-detail-toggle">▸ 詳細（お店の評価）</button>
       <div class="axis-box hidden" id="d-detail-box">
@@ -2199,6 +2200,12 @@ const Views = (() => {
               ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">${starBtn()}</button>`).join('')}
             </div>
           </div>`).join('')}
+        <div class="detail-actions d-sub-actions">
+          <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
+          <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
+          <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
+          <button class="btn small danger" id="d-delete">店舗を削除</button>
+        </div>
       </div>`;
 
     const actionsHtml = editMode ? `
@@ -2206,13 +2213,11 @@ const Views = (() => {
         <button class="btn primary" id="d-save-all">保存</button>
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
-      <div class="detail-actions">
-        ${s.lat != null && s.lon != null ? `<button class="btn small primary" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
-        <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
-        <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
-        <button class="btn small ${s.favorite ? 'on-fav' : ''}" id="d-fav">${IC_FAV} ${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}</button>
-        <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
-        <button class="btn small danger" id="d-delete">店舗を削除</button>
+      <div class="d-mainrow">
+        ${s.lat != null && s.lon != null ? `<button class="btn primary d-nav-btn" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
+        <button class="d-fav-btn${s.favorite ? ' on' : ''}" id="d-fav"
+          title="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}"
+          aria-label="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}">${IC_FAV}</button>
       </div>`;
 
     // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
@@ -2221,8 +2226,8 @@ const Views = (() => {
       ${shopFormHtml}
       ${actionsHtml}` : `
       ${headHtml}
-      ${axisHtml}
       ${actionsHtml}
+      ${axisHtml}
       <h3>訪問記録</h3>
       <div id="d-visits"></div>`;
 

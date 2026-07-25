@@ -654,6 +654,27 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .detail-head .d-stars { color: var(--star); font-size: 16px; }
 .detail-head .d-sub { color: var(--muted); font-size: 13px; margin: 2px 0; }
 .detail-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+/* 店舗詳細の主操作: 幅いっぱいの「ここへ行く」＋丸いお気に入り♥だけをすっきり並べる */
+.d-mainrow { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+.d-mainrow .d-nav-btn {
+  flex: 1; padding: 12px 16px; font-size: 15px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.d-fav-btn {
+  flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--border-lite); background: var(--card); color: var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+  transition: color .15s, background .15s, transform .1s;
+}
+/* 未登録は輪郭だけのハート、登録済みはピンクに塗る（.ic-fav の全体色指定より優先） */
+.d-fav-btn .ic-fav { width: 22px; height: 22px; color: inherit; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.d-fav-btn { color: #9a9a9a; }
+.d-fav-btn.on { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.d-fav-btn.on .ic-fav { fill: currentColor; }
+.d-fav-btn:active { transform: scale(.92); }
+/* 詳細の中の店舗操作（訪問を追加・店舗情報・閉店・削除） */
+.d-sub-actions { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--border-lite); }
 .visit-block {
   border: 1px solid var(--border-lite); border-radius: 12px; padding: 12px; margin-bottom: 10px;
 }
