@@ -656,16 +656,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 2px 9px; border-radius: 999px; line-height: 1.5;
 }
 .visit-block .v-caption { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: bold; color: var(--text); margin: 6px 0 2px; }
-.visit-block .v-edit-link {
+/* 記録の編集ボタン（✎）。訪問記録一覧・投稿詳細でも使うため visit-block の外でも効かせる */
+.v-edit-link {
   display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--border-lite);
   background: var(--field); color: var(--text); font-size: 12px; font-weight: bold;
   padding: 3px 10px; border-radius: 999px; cursor: pointer;
 }
-.visit-block .v-edit-link .ic { width: 13px; height: 13px; }
+.v-edit-link .ic { width: 13px; height: 13px; }
 /* 文字なし（記号だけ）の版。押しやすいよう記号を少し大きく・丸ボタンにする */
-.visit-block .v-edit-link.icon-only { gap: 0; padding: 6px; border-radius: 50%; }
-.visit-block .v-edit-link.icon-only .ic { width: 16px; height: 16px; }
-.visit-block .v-edit-link:hover { background: var(--border-lite); }
+.v-edit-link.icon-only { gap: 0; padding: 6px; border-radius: 50%; }
+.v-edit-link.icon-only .ic { width: 16px; height: 16px; }
+.v-edit-link:hover { background: var(--border-lite); }
 
 /* 店舗詳細の写真: 画面の横幅いっぱい（モーダルの左右余白ぶん外へ広げる）＋左右スワイプ */
 .d-photoblock { border: none; padding: 0; margin-bottom: 12px; }
@@ -696,6 +697,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .vl-card + .vl-card { border-top: 8px solid var(--field); }
 .vl-info { padding: 10px 16px 20px; }
 .vl-card .v-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 編集(✎)は日付・星・ジャンルの段の右端に置く（最下段に単独の段を作らない） */
+.vl-card .v-head .ve-edit { margin-left: auto; }
 .vl-card .v-date { font-weight: bold; font-size: 14px; }
 .vl-card .v-stars { color: var(--star); line-height: 1; }
 .vl-card .v-comment { font-size: 14px; margin: 8px 0 0; white-space: pre-wrap; }
@@ -788,6 +791,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-axstar { color: var(--star); }
 .pd-comment { font-size: 14px; margin: 10px 0; white-space: pre-wrap; }
 .pd-date { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+/* 詳細の日付の段。編集(✎)は日付の右端に置く（最下段に単独の段を作らない） */
+.pd-daterow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.pd-daterow .pd-date { margin-bottom: 0; }
 .pd-nav { width: 100%; }
 
 /* ---------- お知らせ（通知） ---------- */

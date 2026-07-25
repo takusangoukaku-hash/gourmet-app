@@ -2481,10 +2481,11 @@ const Views = (() => {
               <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
               <span class="v-stars">${starSvg(v.rating, 16)}</span>
               ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+              <button type="button" class="v-edit-link icon-only ve-edit" title="この記録を編集"
+                aria-label="この記録を編集">${IC_EDIT}</button>
             </div>
             ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
             <div class="v-btns">
-              <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
               <button type="button" class="btn small danger ve-del">削除</button>
             </div>
           </div>`;
@@ -2771,8 +2772,11 @@ const Views = (() => {
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
             ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
-            ${isMine && p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : ''}
-            ${isMine ? `<button type="button" class="btn full pd-edit">${IC_EDIT} この記録を編集</button>` : ''}
+            ${isMine ? `<div class="pd-daterow">
+              ${p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : '<span></span>'}
+              <button type="button" class="v-edit-link icon-only pd-edit" title="この記録を編集"
+                aria-label="この記録を編集">${IC_EDIT}</button>
+            </div>` : ''}
           </div>
           <div class="pd-cmtbox hidden">
             <div class="pd-comments"></div>
