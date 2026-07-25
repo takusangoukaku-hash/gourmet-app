@@ -342,9 +342,13 @@ const Views = (() => {
     PIN_COLORS[3]];
   // ピンの半径。低倍でも見えやすい一定サイズ（約4px＝23区が画面から外れるz9あたりの
   // 大きさ）。近い点をまとめたクラスタも件数で大きくせず、この同じサイズで表示する。
-  // z12以降でやや大きくして詳細（しずく型）へ繋ぐ
+  // z12以降でやや大きくして詳細（しずく型）へ繋ぐ。
+  // 日本全体〜世界（z0〜5）まで引くと点が現在地の青い点に埋もれるため、その帯だけ大きくする
   const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'],
-    0, 5.5, 7, 4, 10, 4, 12, 4.8, 13, 5.4];
+    0, 7, 5, 6.5, 7, 4.6, 10, 4, 12, 4.8, 13, 5.4];
+  // ピンの白フチ。広域では地図の色に沈まないよう少し太くする
+  const PIN_STROKE = ['interpolate', ['linear'], ['zoom'],
+    0, 1.8, 7, 1.4, 11, 1.4, 12, 2];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
   let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
@@ -439,7 +443,7 @@ const Views = (() => {
         filter: ['has', 'point_count'],
         paint: { 'circle-color': colorByR('maxR'), 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
+          'circle-stroke-width': PIN_STROKE } });
       // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
       // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
       // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
@@ -450,13 +454,14 @@ const Views = (() => {
         layout: { 'circle-sort-key': RATING_ONTOP },
         paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
+          'circle-stroke-width': PIN_STROKE } });
       // 平均が .5 以上（あと一歩でワンランク上）の店は中心に白い点を重ねて区別する
       map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
         layout: { 'circle-sort-key': RATING_ONTOP },
         paint: { 'circle-color': '#ffffff',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1.4, 10, 1.5, 12, 1.9, 13, 2.2] } });
+          'circle-radius': ['interpolate', ['linear'], ['zoom'],
+            0, 2.4, 5, 2.2, 7, 1.5, 10, 1.5, 12, 1.9, 13, 2.2] } });
       // 高倍率: しずく型マーカー（白点＝平均.5以上もしずくの頭に表示）
       map.addLayer({ id: 'pin-drops', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
@@ -498,7 +503,7 @@ const Views = (() => {
       map.addLayer({ id: 'wish-pins', type: 'circle', source: 'wishes', maxzoom: DROP_ZOOM,
         paint: { 'circle-color': WISH_COLOR, 'circle-radius': PIN_RADIUS,
           'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 12, 2] } });
+          'circle-stroke-width': PIN_STROKE } });
       map.addLayer({ id: 'wish-drops', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'icon-image': 'drop-wish',
           'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
@@ -629,6 +634,14 @@ const Views = (() => {
     $('#map-heat').addEventListener('click', toggleHeat);
   }
 
+  // 現在地の青い点は地図キャンバスより上のHTML要素なので、店のピンより必ず前面に出る。
+  // 広域まで引くと自分の店がすべて現在地の近くに集まり、青い点＋パルスに隠れて
+  // 「点が1つも出ない」ように見えるため、引いた倍率では青い点を小さくしパルスを止める
+  function syncUserLocSize() {
+    if (!userMarker || !map) return;
+    userMarker.getElement().classList.toggle('far', map.getZoom() < 10);
+  }
+
   // 現在地を取得して地図上に青い点で表示（recenter=true なら地図を現在地へ移動）
   function locateUser(recenter) {
     if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
@@ -642,9 +655,11 @@ const Views = (() => {
           el.className = 'user-loc';
           el.innerHTML = '<span class="user-loc-pulse"></span><span class="user-loc-dot"></span>';
           userMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
+          map.on('zoom', syncUserLocSize);
         } else {
           userMarker.setLngLat(ll);
         }
+        syncUserLocSize();
         if (recenter) map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 15) });
       },
       () => App.toast('現在地を取得できませんでした（位置情報を許可してください）'),

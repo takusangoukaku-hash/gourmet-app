@@ -374,6 +374,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   0% { transform: scale(1); opacity: .8; }
   100% { transform: scale(3.2); opacity: 0; }
 }
+/* 広域（z10未満）では小さくしてパルスも止める。
+   現在地は地図キャンバスより前面に出るため、そのままだと引いた倍率で
+   近くに集まった店のピンを青い点が覆い隠してしまう */
+.user-loc.far { width: 10px; height: 10px; }
+.user-loc.far .user-loc-dot { width: 8px; height: 8px; border-width: 1.5px; }
+.user-loc.far .user-loc-pulse { display: none; }
 
 /* ---------- ナビ（移動手段の選択シート） ---------- */
 .nav-sheet { align-items: center; }
