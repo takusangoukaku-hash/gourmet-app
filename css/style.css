@@ -662,6 +662,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 3px 10px; border-radius: 999px; cursor: pointer;
 }
 .visit-block .v-edit-link .ic { width: 13px; height: 13px; }
+/* 文字なし（記号だけ）の版。押しやすいよう記号を少し大きく・丸ボタンにする */
+.visit-block .v-edit-link.icon-only { gap: 0; padding: 6px; border-radius: 50%; }
+.visit-block .v-edit-link.icon-only .ic { width: 16px; height: 16px; }
 .visit-block .v-edit-link:hover { background: var(--border-lite); }
 
 /* 店舗詳細の写真: 画面の横幅いっぱい（モーダルの左右余白ぶん外へ広げる）＋左右スワイプ */

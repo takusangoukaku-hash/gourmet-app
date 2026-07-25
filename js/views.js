@@ -2311,7 +2311,8 @@ const Views = (() => {
           </div>
           <div class="v-caption">
             <span>訪問${vs.length}回</span>
-            <button type="button" class="v-edit-link">${IC_EDIT} 記録を見る</button>
+            <button type="button" class="v-edit-link icon-only" title="記録を見る"
+              aria-label="記録を見る">${IC_EDIT}</button>
           </div>`;
         const box = block.querySelector('.d-swipe');
         // 各訪問の編集は「記録を見る」（訪問一覧）から行う
