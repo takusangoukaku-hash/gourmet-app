@@ -381,12 +381,21 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   0% { transform: scale(1); opacity: .8; }
   100% { transform: scale(3.2); opacity: 0; }
 }
-/* 広域（z10未満）では小さくしてパルスも止める。
-   現在地は地図キャンバスより前面に出るため、そのままだと引いた倍率で
-   近くに集まった店のピンを青い点が覆い隠してしまう */
-.user-loc.far { width: 10px; height: 10px; }
+/* 広域（z10未満）: 塗りつぶしの点だと近くに集まった店のピンを覆い隠すため、
+   中が透けた大きな青いリングに切り替える。店の点はリングの中に見えたまま、
+   波紋のように広がる光でひと目で現在地と分かる */
+.user-loc.far { width: 34px; height: 34px; }
 .user-loc.far .user-loc-dot { width: 8px; height: 8px; border-width: 1.5px; }
-.user-loc.far .user-loc-pulse { display: none; }
+.user-loc.far .user-loc-pulse {
+  width: 28px; height: 28px; background: transparent;
+  border: 2.5px solid #1a73e8; outline: 1.5px solid rgba(255, 255, 255, .9);
+  animation: userLocRing 2s ease-out infinite;
+}
+@keyframes userLocRing {
+  0% { box-shadow: 0 0 0 0 rgba(26, 115, 232, .45); }
+  70% { box-shadow: 0 0 0 14px rgba(26, 115, 232, 0); }
+  100% { box-shadow: 0 0 0 14px rgba(26, 115, 232, 0); }
+}
 
 /* ---------- アクションシート（Instagram風・画面下から出るメニュー） ---------- */
 .modal.action-sheet { align-items: flex-end; padding: 0; }
