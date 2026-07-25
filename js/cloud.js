@@ -49,6 +49,10 @@ const Cloud = (() => {
       fb = { app: appM, auth: authM, fs: fsM, st: stM };
       // リダイレクト方式ログインの戻り（インストール済みPWA等）を回収
       authM.getRedirectResult(auth).catch(() => { /* 未使用時は無視 */ });
+      // 自動バックアップの起動タイミングを仕込む（登録は1回だけ。実行はログイン中のみ）
+      setInterval(() => autoBackupSweep(false), 15 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) autoBackupSweep(false); });
+      window.addEventListener('online', () => autoBackupSweep(false));
       authM.onAuthStateChanged(auth, async (u) => {
         user = u;
         if (u) {
@@ -62,6 +66,7 @@ const Cloud = (() => {
             // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
             syncPhotos()
               .then(() => {
+                lastSweepAt = Date.now(); // 起動時に全同期したので自動バックアップの間引き起点にする
                 App.refreshCurrent();
                 // 投稿化は負荷が高いので1セッション1回だけ
                 if (!postsPublishedThisSession) { postsPublishedThisSession = true; return publishAllPosts(); }
@@ -473,6 +478,25 @@ const Cloud = (() => {
     }
     setStatus('synced');
   }
+
+  // ---------- 自動バックアップ（記録＋写真の取りこぼし回収） ----------
+  // 変更時のプッシュが電波状況などで失敗しても、次回起動まで放置せず、
+  // アプリを開いている間に全件の差分バックアップで拾い直す。
+  //  実行タイミング: 15分おき / アプリを前面に戻したとき / オフライン→オンライン復帰時
+  //  （前回から5分以内なら間引く。ログイン中のみ）
+  let sweepRunning = false, lastSweepAt = 0;
+  async function autoBackupSweep(force) {
+    if (!user || sweepRunning) return;
+    if (!force && Date.now() - lastSweepAt < 5 * 60 * 1000) return;
+    sweepRunning = true;
+    try {
+      await pushAllRecords();  // 店・訪問・行きたい・プロフィール（差分ではなく全件上書き＝確実）
+      await syncPhotos();      // 写真はクラウドとの差分だけアップロード/取り込み
+      lastSweepAt = Date.now();
+      setStatus('synced');
+    } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
+    finally { sweepRunning = false; }
+  }
   async function applyOneToCloud({ kind, action, obj }) {
     if (kind === 'shop') return action === 'del' ? fb.fs.deleteDoc(dref('shops', obj.id)) : fb.fs.setDoc(dref('shops', obj.id), clean(obj));
     if (kind === 'visit') {
@@ -675,5 +699,5 @@ const Cloud = (() => {
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
     fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
-    publishPostForVisit, syncApiKeys, clearApiKeys };
+    publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep };
 })();
