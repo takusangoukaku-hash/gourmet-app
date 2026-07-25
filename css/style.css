@@ -381,6 +381,27 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .user-loc.far .user-loc-dot { width: 8px; height: 8px; border-width: 1.5px; }
 .user-loc.far .user-loc-pulse { display: none; }
 
+/* ---------- アクションシート（Instagram風・画面下から出るメニュー） ---------- */
+.modal.action-sheet { align-items: flex-end; padding: 0; }
+.as-box {
+  width: 100%; max-width: 640px; margin: 0 auto;
+  background: var(--card); border-radius: 18px 18px 0 0;
+  padding: 6px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  animation: asSlideUp .18s ease-out;
+}
+@keyframes asSlideUp { from { transform: translateY(30%); opacity: .5; } to { transform: none; opacity: 1; } }
+.as-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 6px auto 12px; }
+.as-group { border-radius: 14px; overflow: hidden; background: var(--field); margin-bottom: 8px; }
+.as-item {
+  display: block; width: 100%; padding: 15px; border: none; cursor: pointer;
+  background: var(--field); color: var(--text); font-size: 15px; font-weight: 600;
+  text-align: center; font-family: inherit;
+}
+.as-group .as-item + .as-item { border-top: 1px solid var(--border-lite); }
+.as-item.danger { color: #ed4956; }
+.as-item.as-cancel { border-radius: 14px; }
+.as-item:active { filter: brightness(.96); }
+
 /* ---------- ナビ（移動手段の選択シート） ---------- */
 .nav-sheet { align-items: center; }
 .nav-sheet-box {
@@ -643,6 +664,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .visit-block .v-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .visit-block .v-photos img { width: 74px; height: 74px; object-fit: cover; border-radius: 8px; cursor: pointer; }
 .visit-block .v-btns { margin-top: 8px; display: flex; gap: 6px; }
+/* インライン編集中のカード: 枠をアクセント色にして、どの記録の編集か分かるようにする */
+.visit-block.ve-editing { border: 1.5px solid var(--accent); }
+.ve-title {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--accent); font-weight: 700; font-size: 14px; margin-bottom: 8px;
+}
+.ve-title .ic { width: 15px; height: 15px; }
+.ve-title-date { color: var(--muted); font-weight: 600; font-size: 13px; }
+.ve-photos { margin-bottom: 4px; }
 /* 一覧の写真: 左上に星の数バッジ、下に日付。タップで訪問記録一覧ページへ */
 .visit-block .v-cover {
   position: relative; display: block; width: 100%; padding: 0; border: none; cursor: pointer;

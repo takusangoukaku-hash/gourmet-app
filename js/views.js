@@ -2361,7 +2361,11 @@ const Views = (() => {
         block.dataset.vid = v.id;
         if (editVid === v.id) {
           // ---- この訪問だけをインライン編集 ----
+          // どの記録か分かるよう、見出しにその訪問の日付、下に写真を出したまま編集する
+          block.classList.add('ve-editing');
           block.innerHTML = `
+            <div class="ve-title">${IC_EDIT} 記録を編集中 <span class="ve-title-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span></div>
+            <div class="v-photos ve-photos"></div>
             <div class="ve-row">味の評価 <span class="stars small ve-stars" data-rating="${v.rating}"></span></div>
             <div class="ve-sub">料理ジャンル</div>
             <div class="ve-genres"></div>
@@ -2372,6 +2376,17 @@ const Views = (() => {
               <button type="button" class="btn small ve-cancel">キャンセル</button>
             </div>`;
           vbox.appendChild(block);
+          // 編集対象の写真（タップで拡大）。写真がない訪問では行ごと消す
+          Store.photosOfVisit(v.id).then(ps => {
+            const row = block.querySelector('.ve-photos');
+            if (!ps.length) { row.remove(); return; }
+            ps.forEach(ph => {
+              const img = document.createElement('img');
+              img.src = photoUrl(ph);
+              img.addEventListener('click', () => openLightbox(photoUrl(ph), `${s.name}　${fmtDate(v.datetime)}`));
+              row.appendChild(img);
+            });
+          });
           const starsEl = block.querySelector('.ve-stars');
           const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
           for (let i = 1; i <= 5; i++) {
@@ -2716,6 +2731,27 @@ const Views = (() => {
     refreshWishData();
   }
 
+  // Instagram風のアクションシート（画面下から出るメニュー）。
+  // actions = [{ label, onClick, danger }]。外側タップ・キャンセルで閉じる
+  function openActionSheet(actions) {
+    const ov = document.createElement('div');
+    ov.className = 'modal action-sheet';
+    ov.innerHTML = `<div class="as-box">
+        <div class="as-handle"></div>
+        <div class="as-group">
+          ${actions.map((a, i) =>
+            `<button type="button" class="as-item${a.danger ? ' danger' : ''}" data-i="${i}">${a.label}</button>`).join('')}
+        </div>
+        <button type="button" class="as-item as-cancel">キャンセル</button>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.as-cancel').addEventListener('click', close);
+    ov.querySelectorAll('.as-item[data-i]').forEach(b =>
+      b.addEventListener('click', () => { close(); actions[+b.dataset.i].onClick(); }));
+    document.body.appendChild(ov);
+  }
+
   // いいねのトグル（楽観的更新。失敗したら元に戻す）
   async function toggleLikeUI(btn) {
     const id = btn.dataset.post;
@@ -2754,8 +2790,8 @@ const Views = (() => {
             <span class="fc-avatar">${av}</span>
             <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
           </button>
-          ${isMine ? `<button type="button" class="pd-menu-btn pd-edit" title="この記録を編集"
-            aria-label="この記録を編集">${IC_MORE}</button>` : ''}
+          ${isMine ? `<button type="button" class="pd-menu-btn pd-edit" title="メニュー"
+            aria-label="メニュー">${IC_MORE}</button>` : ''}
         </div>
         <div class="pd-phwrap">
           <div class="pd-photos"></div>
@@ -2836,13 +2872,15 @@ const Views = (() => {
     })();
     const nav = sect.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
-    // 自分の投稿は編集できる（訪問記録の編集画面へ）
+    // 自分の投稿は「⋯」からメニューを開き、「編集」を選ぶと記録の編集画面へ
+    // （Instagramと同じく、⋯でいきなり編集にせずワンクッション挟む）
     const eb = sect.querySelector('.pd-edit');
     if (eb) eb.addEventListener('click', () => {
       const mv = Store.visits().find(v => v.id === p.id);
       if (!mv) return;
-      close();
-      showShop(mv.shopId, false, mv.id);
+      openActionSheet([
+        { label: '編集', onClick: () => { close(); showShop(mv.shopId, false, mv.id); } },
+      ]);
     });
 
     // いいね（写真右上のハート）
