@@ -654,8 +654,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .detail-head .d-stars { color: var(--star); font-size: 16px; }
 .detail-head .d-sub { color: var(--muted); font-size: 13px; margin: 2px 0; }
 .detail-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
-/* 店舗詳細の主操作: 幅いっぱいの「ここへ行く」＋丸いお気に入り♥だけをすっきり並べる */
-.d-mainrow { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+/* 店舗詳細の主操作: 幅いっぱいの「ここへ行く」＋丸いお気に入り♥。
+   一番下に置き、スクロール中も画面下に張り付く（モーダルの左右パディングぶん広げる） */
+.d-mainrow {
+  display: flex; align-items: center; gap: 10px;
+  position: sticky; bottom: 0; z-index: 5;
+  margin: 14px -20px -20px; padding: 10px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--card); border-top: 1px solid var(--border-lite);
+}
+/* 訪問記録の見出し＋右端に✎（記録を見る） */
+.d-visits-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.d-visits-head h3 { margin: 8px 0; }
 .d-mainrow .d-nav-btn {
   flex: 1; padding: 12px 16px; font-size: 15px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -1259,6 +1268,13 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .modal.modal-full .modal-box {
   width: 100%; max-width: 100%; min-height: 100%; border-radius: 0;
 }
+/* 記録が少なく画面が埋まらないときも、ここへ行く＋♥のバーを画面の一番下へ寄せる */
+.modal.modal-full .modal-box { display: flex; flex-direction: column; }
+.modal.modal-full #modal-body { flex: 1; display: flex; flex-direction: column; }
+.modal.modal-full #modal-body > * { flex-shrink: 0; }
+.modal.modal-full #modal-body > .d-mainrow { margin-top: auto; }
+/* flex化で「▸ 詳細」ボタンが全幅に伸びないよう、元の内容ぶんの幅に留める */
+.modal.modal-full #modal-body > .d-detail-toggle { align-self: flex-start; }
 /* ✕は右上に固定（stickyのまま。全画面でも押しやすいよう少し大きめ） */
 .modal.modal-full .modal-close { top: 12px; right: 12px; width: 34px; height: 34px; }
 

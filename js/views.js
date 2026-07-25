@@ -2221,15 +2221,21 @@ const Views = (() => {
       </div>`;
 
     // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
+    // ここへ行く＋♥は一番下（スクロール中も画面下に張り付く）。
+    // 訪問記録の見出しの右に✎（記録を見る）を置く
     body.innerHTML = editMode ? `
       ${headHtml}
       ${shopFormHtml}
       ${actionsHtml}` : `
       ${headHtml}
-      ${actionsHtml}
       ${axisHtml}
-      <h3>訪問記録</h3>
-      <div id="d-visits"></div>`;
+      <div class="d-visits-head">
+        <h3>訪問記録</h3>
+        <button type="button" class="v-edit-link icon-only" id="d-visitlist"
+          title="記録を見る" aria-label="記録を見る">${IC_EDIT}</button>
+      </div>
+      <div id="d-visits"></div>
+      ${actionsHtml}`;
 
     // 「詳細」ボタンでお店の評価（3軸）を開閉
     const detailToggle = $('#d-detail-toggle');
@@ -2261,6 +2267,7 @@ const Views = (() => {
     } else {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+      $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
         closeModal();
@@ -2315,16 +2322,10 @@ const Views = (() => {
               <span class="v-cover-ph">🍽️</span>
               <span class="pd-photo-star">★${avg || '－'}</span>
             </button>
-          </div>
-          <div class="v-caption">
-            <span>訪問${vs.length}回</span>
-            <button type="button" class="v-edit-link icon-only" title="記録を見る"
-              aria-label="記録を見る">${IC_EDIT}</button>
           </div>`;
         const box = block.querySelector('.d-swipe');
-        // 各訪問の編集は「記録を見る」（訪問一覧）から行う
-        block.querySelector('.v-edit-link').addEventListener('click', () => showVisitList(shopId));
         // 写真が無いときは🍽️のまま。タップで訪問記録の一覧へ
+        // （各訪問の編集は「訪問記録」見出し横の✎＝訪問一覧から行う）
         block.querySelector('.d-noph').addEventListener('click', () => showVisitList(shopId));
         vbox.appendChild(block);
         Store.allPhotos().then(all => {
