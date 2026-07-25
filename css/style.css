@@ -1216,22 +1216,25 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .explore-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 16px; }
 .explore-cats > .empty, .explore-cats > .ex-loading { grid-column: 1 / -1; }
 .ex-loading { text-align: center; color: var(--muted); padding: 24px 0; font-size: 13px; }
+/* 白いカードにジャンル色の文字。色はタイルごとの --cat-c を文字と飾りにだけ使う */
 .ex-cat {
-  position: relative; border: none; cursor: pointer; color: #fff; text-align: left;
-  background: var(--cat-c, #888); border-radius: 14px; padding: 12px 12px 10px;
+  position: relative; cursor: pointer; color: var(--cat-c, #888); text-align: left;
+  background: var(--card); border: 1px solid var(--border-lite);
+  border-radius: 14px; padding: 12px 12px 10px;
   min-height: 78px; display: flex; flex-direction: column; justify-content: space-between;
   font-family: inherit; overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .05);
 }
-.ex-cat::after { /* 右下にうっすら丸い装飾（Podcast風） */
+.ex-cat::after { /* 右下にうっすら丸い装飾（Podcast風）。ジャンル色を淡く敷く */
   content: ''; position: absolute; right: -14px; bottom: -18px;
-  width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.16);
+  width: 60px; height: 60px; border-radius: 50%; background: var(--cat-c, #888); opacity: .12;
 }
 .ex-cat-label { font-size: 18px; font-weight: 700; line-height: 1.3; z-index: 1; }
-.ex-cat-count { font-size: 13px; opacity: .85; z-index: 1; }
+.ex-cat-count { font-size: 13px; color: var(--muted); z-index: 1; }
 /* 「すべて」「◯◯すべて」の横長タイル */
 .ex-cat.ex-all { grid-column: 1 / -1; min-height: 54px; flex-direction: row; align-items: baseline; justify-content: center; gap: 8px; }
 .ex-cat.ex-all .ex-cat-label { font-size: 20px; }
-/* まだ記録がないジャンルは同じ色のまま少し薄く */
+/* まだ記録がないジャンルは色を薄く（カード自体は白のまま） */
 .ex-cat.off { opacity: .55; }
 @media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(3, 1fr); } }
 /* カテゴリー内の見出し（‹ 戻る ＋ ジャンル名） */
