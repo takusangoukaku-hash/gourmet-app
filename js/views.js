@@ -2806,13 +2806,14 @@ const Views = (() => {
       if (isGroup) {
         items = p.photoItems.map(it => ({ url: photoUrl(it.ph), rating: it.rating })).filter(it => it.url);
       } else if (Store.visits().some(v => v.id === p.id)) {
+        // 単独の訪問の投稿: 全写真にその訪問の評価を付ける（グループ投稿と同じ見た目に）
         const ps = await Store.photosOfVisit(p.id).catch(() => []);
-        items = ps.map(x => ({ url: photoUrl(x), rating: 0 })).filter(it => it.url);
+        items = ps.map(x => ({ url: photoUrl(x), rating: p.rating || 0 })).filter(it => it.url);
       }
-      if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: 0 }];
+      if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: p.rating || 0 }];
       const box = sect.querySelector('.pd-photos');
-      // 各写真の右上に、その訪問の星の数（★4のように）。グループ投稿のときだけ出す
-      const badge = (r) => (isGroup && r) ? `<span class="pd-photo-star">★${Math.round(r)}</span>` : '';
+      // 各写真の右上に、その訪問の星の数（★4のように）。ホーム・投稿詳細どの写真にも出す
+      const badge = (r) => r ? `<span class="pd-photo-star">★${Math.round(r)}</span>` : '';
       const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${badge(it.rating)}</div>`;
       if (items.length > 1) {
         // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
@@ -2826,10 +2827,9 @@ const Views = (() => {
           const i = Math.round(box.scrollLeft / box.clientWidth);
           [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
         }, { passive: true });
-      } else if (items.length === 1 && isGroup) {
-        box.innerHTML = slide(items[0]); // 1枚でもバッジを出すためスライド枠で包む
       } else {
-        box.innerHTML = items.map(it => `<img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">`).join('');
+        // 1枚でもバッジを出すためスライド枠で包む
+        box.innerHTML = items.map(slide).join('');
       }
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
         img.addEventListener('click', () => openLightbox(items[i].url, cap)));
