@@ -41,6 +41,8 @@ const Views = (() => {
   const IC_STATION = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><path d="M9 20l1.5-4"/><path d="M15 20l-1.5-4"/></svg>';
   const IC_PIN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
   const IC_EDIT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  // Instagram風の「⋯」（横に点3つ）。投稿ヘッダー右端のメニューボタンに使う
+  const IC_MORE = '<svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>';
   const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
   const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
@@ -2752,6 +2754,8 @@ const Views = (() => {
             <span class="fc-avatar">${av}</span>
             <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
           </button>
+          ${isMine ? `<button type="button" class="pd-menu-btn pd-edit" title="この記録を編集"
+            aria-label="この記録を編集">${IC_MORE}</button>` : ''}
         </div>
         <div class="pd-phwrap">
           <div class="pd-photos"></div>
@@ -2772,11 +2776,7 @@ const Views = (() => {
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
             ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
-            ${isMine ? `<div class="pd-daterow">
-              ${p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : '<span></span>'}
-              <button type="button" class="v-edit-link icon-only pd-edit" title="この記録を編集"
-                aria-label="この記録を編集">${IC_EDIT}</button>
-            </div>` : ''}
+            ${isMine && p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : ''}
           </div>
           <div class="pd-cmtbox hidden">
             <div class="pd-comments"></div>

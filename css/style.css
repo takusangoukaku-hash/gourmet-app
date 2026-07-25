@@ -763,6 +763,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-cmtbox { margin-top: 10px; border-top: 1px solid var(--border-lite); padding-top: 10px; }
 /* 投稿セクション（下スクロールで次の投稿が続く）。各投稿の先頭に投稿者を表示 */
 .pd-sect-head { display: flex; align-items: center; padding: 10px 12px 8px; }
+/* 自分の投稿はヘッダー右端にインスタ風の「⋯」。タップで記録の編集へ */
+.pd-menu-btn {
+  margin-left: auto; flex-shrink: 0; border: none; background: none; cursor: pointer;
+  color: var(--text); padding: 6px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pd-menu-btn .ic { width: 20px; height: 20px; }
+.pd-menu-btn:hover { background: var(--border-lite); }
 .pd-sect + .pd-sect { border-top: 8px solid var(--field); }
 .pd-sect .pd-body { padding-bottom: 20px; }
 .pd-author { display: flex; align-items: center; gap: 10px; border: none; background: none; cursor: pointer; padding: 0; text-align: left; min-width: 0; }
@@ -791,9 +799,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pd-axstar { color: var(--star); }
 .pd-comment { font-size: 14px; margin: 10px 0; white-space: pre-wrap; }
 .pd-date { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
-/* 詳細の日付の段。編集(✎)は日付の右端に置く（最下段に単独の段を作らない） */
-.pd-daterow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.pd-daterow .pd-date { margin-bottom: 0; }
 .pd-nav { width: 100%; }
 
 /* ---------- お知らせ（通知） ---------- */
