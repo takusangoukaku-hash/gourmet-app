@@ -2296,25 +2296,28 @@ const Views = (() => {
     // 訪問記録の一覧表示（訪問ごとに個別編集できる）
     if (!editMode) {
       const vbox = $('#d-visits');
-      // 同じ店の写真は1つにまとめて表示する（プロフィールの写真グリッドと同じ）。
-      // タップすると、その店の全写真を1つの投稿として見られる
+      // 同じ店の写真は1つにまとめ、画面の横幅いっぱいで左右スワイプして見られるようにする
+      // （投稿詳細と同じカルーセル）。写真をタップすると投稿として詳細を開く
       if (!editVid) {
         const block = document.createElement('div');
-        block.className = 'visit-block';
+        block.className = 'visit-block d-photoblock';
         const avg = Store.avgRating(shopId);
         block.innerHTML = `
-          <button type="button" class="v-cover">
-            <span class="v-cover-ph">🍽️</span>
-            <span class="v-badge">★${avg || '－'}</span>
-          </button>
+          <div class="pd-photos d-swipe">
+            <button type="button" class="pd-slide d-noph">
+              <span class="v-cover-ph">🍽️</span>
+              <span class="pd-photo-star">★${avg || '－'}</span>
+            </button>
+          </div>
           <div class="v-caption">
             <span>訪問${vs.length}回</span>
             <button type="button" class="v-edit-link">${IC_EDIT} 記録を見る</button>
           </div>`;
-        const cover = block.querySelector('.v-cover');
+        const box = block.querySelector('.d-swipe');
         // 各訪問の編集は「記録を見る」（訪問一覧）から行う
         block.querySelector('.v-edit-link').addEventListener('click', () => showVisitList(shopId));
-        cover.onclick = () => showVisitList(shopId); // 写真が無いときの既定
+        // 写真が無いときは🍽️のまま。タップで訪問記録の一覧へ
+        block.querySelector('.d-noph').addEventListener('click', () => showVisitList(shopId));
         vbox.appendChild(block);
         Store.allPhotos().then(all => {
           const vMap = new Map(vs.map(v => [v.id, v]));
@@ -2325,11 +2328,27 @@ const Views = (() => {
           const photos = all.filter(p => p.shopId === shopId)
             .sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
           if (!photos.length) return;
-          const cimg = document.createElement('img');
-          cimg.src = photoUrl(photos[0]);
-          cover.querySelector('.v-cover-ph').replaceWith(cimg);
           const post = buildOwnShopPost({ shopId, photos });
-          cover.onclick = () => showPostDetail(post);
+          // 各写真にその訪問の星の数バッジ（投稿詳細と同じ黒背景・金文字）
+          const items = post.photoItems.map(it => ({ url: photoUrl(it.ph), rating: it.rating }))
+            .filter(it => it.url);
+          box.innerHTML = items.map(it =>
+            `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${
+              it.rating ? `<span class="pd-photo-star">★${it.rating}</span>` : ''}</div>`).join('');
+          if (items.length > 1) {
+            // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
+            box.classList.add('pd-carousel');
+            const dots = document.createElement('div');
+            dots.className = 'pd-dots';
+            dots.innerHTML = items.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+            box.after(dots);
+            box.addEventListener('scroll', () => {
+              const i = Math.round(box.scrollLeft / box.clientWidth);
+              [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+            }, { passive: true });
+          }
+          box.querySelectorAll('.pd-photo').forEach(img =>
+            img.addEventListener('click', () => showPostDetail(post)));
         });
       }
       // 個別の訪問カードは、ある訪問をインライン編集しているときだけ並べる

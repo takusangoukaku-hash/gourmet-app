@@ -664,6 +664,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .visit-block .v-edit-link .ic { width: 13px; height: 13px; }
 .visit-block .v-edit-link:hover { background: var(--border-lite); }
 
+/* 店舗詳細の写真: 画面の横幅いっぱい（モーダルの左右余白ぶん外へ広げる）＋左右スワイプ */
+.d-photoblock { border: none; padding: 0; margin-bottom: 12px; }
+.d-swipe { margin-left: -20px; margin-right: -20px; }
+/* 写真がまだ無い店の置き換え表示（🍽️） */
+.d-swipe .d-noph {
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  aspect-ratio: 4 / 3; border: none; padding: 0; cursor: pointer;
+  background: var(--field); font-size: 40px;
+}
+
 /* 訪問記録の一覧ページ: 全画面表示。写真は画面の横幅いっぱい＋複数枚は左右スワイプ */
 /* スクロールは中身（.vl-body）だけに閉じ込め、✕と店名は上に残す */
 .visitlist-modal { overflow: hidden; }
