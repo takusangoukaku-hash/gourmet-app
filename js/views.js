@@ -2428,14 +2428,17 @@ const Views = (() => {
   }
 
   // その店の訪問記録を一覧で見るページ（日付・評価・ジャンル・コメント・写真・編集/削除）
+  // 写真は投稿詳細と同じ見せ方: 画面の横幅いっぱい＋複数枚は左右スワイプ（Instagram風）
   function showVisitList(shopId) {
     const s = Store.getShop(shopId);
     if (!s) return;
     const ov = document.createElement('div');
-    ov.className = 'modal visitlist-modal';
+    ov.className = 'modal modal-full visitlist-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close vl-close" aria-label="閉じる">✕</button>
-        <h2 class="vl-title">${esc(s.name)} の訪問記録</h2>
+        <div class="vl-topbar">
+          <button type="button" class="modal-close vl-close" aria-label="閉じる">✕</button>
+          <span class="vl-title">${esc(s.name)} の訪問記録</span>
+        </div>
         <div class="vl-body"></div>
       </div>`;
     const body = ov.querySelector('.vl-body');
@@ -2449,27 +2452,44 @@ const Views = (() => {
       body.innerHTML = '';
       for (const v of list) {
         const card = document.createElement('div');
-        card.className = 'visit-block';
+        card.className = 'vl-card';
+        // 写真を先頭に全幅で置き、日付・星・ジャンル・コメントはその下にまとめる
         card.innerHTML = `
-          <div class="v-head">
-            <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-            <span class="v-stars">${starSvg(v.rating, 13)}</span>
-            ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
-          </div>
-          ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
-          <div class="v-photos"></div>
-          <div class="v-btns">
-            <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
-            <button type="button" class="btn small danger ve-del">削除</button>
+          <div class="pd-photos vl-photos"></div>
+          <div class="vl-info">
+            <div class="v-head">
+              <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
+              <span class="v-stars">${starSvg(v.rating, 16)}</span>
+              ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+            </div>
+            ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
+            <div class="v-btns">
+              <button type="button" class="btn small ve-edit">${IC_EDIT} この記録を編集</button>
+              <button type="button" class="btn small danger ve-del">削除</button>
+            </div>
           </div>`;
         Store.photosOfVisit(v.id).then(ps => {
-          const row = card.querySelector('.v-photos');
-          ps.forEach(p => {
-            const img = document.createElement('img');
-            img.src = photoUrl(p);
-            img.addEventListener('click', () => openLightbox(photoUrl(p), `${s.name}　${fmtDate(v.datetime)}`));
-            row.appendChild(img);
-          });
+          const box = card.querySelector('.vl-photos');
+          const urls = ps.map(p => photoUrl(p)).filter(Boolean);
+          if (!urls.length) { box.remove(); return; }
+          // 写真の右上にその訪問の星の数（投稿詳細と同じ黒背景・金文字のバッジ）
+          const badge = v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : '';
+          box.innerHTML = urls.map(u =>
+            `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">${badge}</div>`).join('');
+          if (urls.length > 1) {
+            // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
+            box.classList.add('pd-carousel');
+            const dots = document.createElement('div');
+            dots.className = 'pd-dots';
+            dots.innerHTML = urls.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+            box.after(dots);
+            box.addEventListener('scroll', () => {
+              const i = Math.round(box.scrollLeft / box.clientWidth);
+              [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+            }, { passive: true });
+          }
+          box.querySelectorAll('.pd-photo').forEach((img, i) =>
+            img.addEventListener('click', () => openLightbox(urls[i], `${s.name}　${fmtDate(v.datetime)}`)));
         });
         card.querySelector('.ve-edit').addEventListener('click', () => { close(); showShop(shopId, false, v.id); });
         card.querySelector('.ve-del').addEventListener('click', async () => {
