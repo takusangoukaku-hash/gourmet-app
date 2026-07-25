@@ -2191,7 +2191,7 @@ const Views = (() => {
     // 「詳細」の中身: お店の評価（3軸）＋店舗の操作（訪問を追加・店舗情報・閉店・削除）。
     // よく使う「ここへ行く」とお気に入り♥だけを外に出し、残りはここへ畳む
     const axisHtml = `
-      <button type="button" class="btn small d-detail-toggle" id="d-detail-toggle">▸ 詳細（お店の評価）</button>
+      <button type="button" class="btn small d-detail-toggle" id="d-detail-toggle">▸ 詳細</button>
       <div class="axis-box hidden" id="d-detail-box">
         <div class="axis-title">お店の評価（タップで変更・その場で保存されます）</div>
         ${['casual', 'atmosphere', 'speed'].map(k => `
@@ -2243,7 +2243,7 @@ const Views = (() => {
       detailToggle.addEventListener('click', () => {
         const box = $('#d-detail-box');
         const open = box.classList.toggle('hidden'); // true = 閉じた
-        detailToggle.textContent = open ? '▸ 詳細（お店の評価）' : '▾ 詳細（お店の評価）';
+        detailToggle.textContent = open ? '▸ 詳細' : '▾ 詳細';
       });
     }
 

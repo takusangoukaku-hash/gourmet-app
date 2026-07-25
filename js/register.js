@@ -101,8 +101,8 @@ const Register = (() => {
       const fields = $('#detail-fields');
       const open = fields.classList.toggle('hidden'); // true = 閉じた
       $('#detail-toggle').textContent = open
-        ? '▸ もっと見る（コメント・住所など）'
-        : '▾ 閉じる（コメント・住所など）';
+        ? '▸ 詳細'
+        : '▾ 詳細';
     });
 
     // お気に入りの★トグル（店名の右の星）
@@ -818,7 +818,7 @@ const Register = (() => {
     updateFavStar();
     // 詳細欄は閉じた状態に戻す
     $('#detail-fields').classList.add('hidden');
-    $('#detail-toggle').textContent = '▸ もっと見る（コメント・住所など）';
+    $('#detail-toggle').textContent = '▸ 詳細';
     visitDate = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;
