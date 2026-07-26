@@ -306,6 +306,27 @@ out center 25;`;
       }));
   }
 
+  // ---------- Photon: 地名・駅名の入力候補（地図検索バーのオートコンプリート用） ----------
+  // photonSearch は飲食店に絞っているため、こちらは駅・地名・行政区画を対象にする。
+  // Nominatim は利用規約で自動補完への使用が禁止されているため使わない
+  async function suggestPlaces(query, lat, lon) {
+    let url = 'https://photon.komoot.io/api/?limit=12&q=' + encodeURIComponent(query);
+    if (lat != null && lon != null) url += `&lat=${lat}&lon=${lon}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const j = await res.json();
+    const rows = (j.features || []).filter(f => f.properties && f.properties.name && f.geometry);
+    // 駅・地名・行政区画を優先。1件も無ければ全結果から出す（施設名などでも飛べるように）
+    const prefer = rows.filter(f => ['railway', 'place', 'boundary'].includes(f.properties.osm_key));
+    return (prefer.length ? prefer : rows).slice(0, 6).map(f => ({
+      name: f.properties.name,
+      kind: f.properties.osm_key === 'railway' ? '駅' : '',
+      address: [f.properties.state, f.properties.county, f.properties.city, f.properties.district]
+        .filter(Boolean).join(''),
+      lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+    }));
+  }
+
   // ---------- 検索結果の統合（重複除去・距離計算・近い順ソート） ----------
   function mergeCandidates(lists, ref) {
     const norm = id => String(id || '').toLowerCase()
@@ -581,9 +602,9 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v228',
+    FILE_VERSION: 'v229',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
-    reverseGeocode, searchPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
+    reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus,

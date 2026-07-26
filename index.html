@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=228">
+<link rel="stylesheet" href="css/style.css?v=229">
 </head>
 <body>
 
@@ -128,6 +128,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
     </div>
+    <!-- 地名・駅名の入力候補（入力中に表示。タップでその場所へ移動） -->
+    <div id="map-suggest" class="map-suggest hidden"></div>
     <div class="map-scope">
       <button type="button" class="ms-btn on" data-scope="me" title="自分" aria-label="自分の店">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
@@ -530,11 +532,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=228"></script>
-<script src="js/api.js?v=228"></script>
-<script src="js/cloud.js?v=228"></script>
-<script src="js/register.js?v=228"></script>
-<script src="js/views.js?v=228"></script>
-<script src="js/app.js?v=228"></script>
+<script src="js/store.js?v=229"></script>
+<script src="js/api.js?v=229"></script>
+<script src="js/cloud.js?v=229"></script>
+<script src="js/register.js?v=229"></script>
+<script src="js/views.js?v=229"></script>
+<script src="js/app.js?v=229"></script>
 </body>
 </html>

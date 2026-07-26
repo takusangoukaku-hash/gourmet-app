@@ -368,6 +368,25 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .popup .p-actions { display: flex; gap: 6px; margin-top: 6px; }
 .popup .p-actions .btn { flex: 1; padding: 6px 4px; font-size: 12px; }
 
+/* ---------- 地名・駅名の入力候補（地図検索バーの下に表示） ---------- */
+.map-suggest {
+  background: var(--card); border-radius: 14px; margin-top: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .14); overflow: hidden;
+}
+.map-sug-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: none; background: none; padding: 11px 14px; cursor: pointer;
+  font-size: 14px; text-align: left; color: var(--text); font-family: inherit;
+}
+.map-sug-row + .map-sug-row { border-top: 1px solid var(--border-lite); }
+.map-sug-row:active { background: var(--field); }
+.ms-sug-name { font-weight: 600; flex-shrink: 0; }
+.ms-sug-kind {
+  flex-shrink: 0; font-size: 11px; color: var(--accent);
+  border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; line-height: 1.5;
+}
+.ms-sug-addr { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- 地名検索の目印ピン（墨色ピン＋場所名ラベル） ---------- */
 .place-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
 .place-marker svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }

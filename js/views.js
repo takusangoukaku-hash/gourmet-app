@@ -586,13 +586,63 @@ const Views = (() => {
       const tv = $('#mf-taste').value;
       document.querySelectorAll('.map-star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === tv && tv !== '0'));
     });
+    // 検索した場所へ移動して目印ピンを立てる（候補タップ・Enterの両方から使う）
+    const gotoPlace = (r, label) => {
+      hideMapSuggest();
+      $('#map-search').blur(); // キーボードと絞り込みパネルを閉じて地図を見せる
+      $('#map-filter-panel').classList.add('hidden');
+      $('.map-scope').classList.remove('hidden');
+      // 地名で自分のピンまで絞り込まれて消えないよう、キーワード絞り込みは解除して移動する
+      if (mapKeyword) { mapKeyword = ''; if (mapLoaded) refreshMapData(false); }
+      showPlaceMarker(r.lat, r.lon, label || r.name);
+      map.easeTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 });
+      mapHasView = true;
+    };
+
+    // 入力中の地名・駅名の候補（Photon。Nominatimは規約上、自動補完に使えない）
+    const sugBox = $('#map-suggest');
+    let sugTimer = null, sugSeq = 0;
+    const hideMapSuggest = () => { sugBox.classList.add('hidden'); sugBox.innerHTML = ''; };
+    const showMapSuggest = (q) => {
+      clearTimeout(sugTimer);
+      if (q.length < 2) { hideMapSuggest(); return; }
+      sugTimer = setTimeout(async () => {
+        const seq = ++sugSeq;
+        const c = map ? map.getCenter() : null;
+        const rows = await Api.suggestPlaces(q, c && c.lat, c && c.lng).catch(() => []);
+        // 追い越された応答や、入力がもう変わっている場合は捨てる
+        if (seq !== sugSeq || $('#map-search').value.trim() !== q) return;
+        if (!rows.length) { hideMapSuggest(); return; }
+        sugBox.innerHTML = rows.map((r, i) => `
+          <button type="button" class="map-sug-row" data-i="${i}">
+            <span class="ms-sug-name">${esc(r.name)}</span>
+            ${r.kind ? `<span class="ms-sug-kind">${esc(r.kind)}</span>` : ''}
+            <span class="ms-sug-addr">${esc(r.address || '')}</span>
+          </button>`).join('');
+        sugBox.classList.remove('hidden');
+        sugBox.querySelectorAll('.map-sug-row').forEach(b => {
+          b.addEventListener('click', () => {
+            const r = rows[+b.dataset.i];
+            $('#map-search').value = r.name;
+            gotoPlace(r);
+          });
+        });
+      }, 350);
+    };
+    // 候補の外（地図など）をタップしたら候補を閉じる
+    document.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('#map-suggest') && !e.target.closest('.map-search-field')) hideMapSuggest();
+    }, true);
+
     let mapKwTimer = null;
     $('#map-search').addEventListener('input', () => {
       clearTimeout(mapKwTimer);
+      const q = $('#map-search').value.trim();
       // 入力を消したら地名検索の目印も片付ける
-      if (!$('#map-search').value.trim() && placeMarker) { placeMarker.remove(); placeMarker = null; }
+      if (!q && placeMarker) { placeMarker.remove(); placeMarker = null; }
+      showMapSuggest(q);
       mapKwTimer = setTimeout(() => {
-        mapKeyword = $('#map-search').value.trim();
+        mapKeyword = q;
         refitMap();
       }, 300);
     });
@@ -603,19 +653,14 @@ const Views = (() => {
       const q = $('#map-search').value.trim();
       if (!q) return;
       clearTimeout(mapKwTimer);
-      $('#map-search').blur(); // キーボードと絞り込みパネルを閉じて地図を見せる
-      $('#map-filter-panel').classList.add('hidden');
-      $('.map-scope').classList.remove('hidden');
+      clearTimeout(sugTimer);
+      hideMapSuggest();
       App.toast('場所を検索中…');
       try {
         const results = await Api.searchPlaces(q);
         const r = (results || []).find(x => x.lat != null && x.lon != null);
         if (!r) { App.toast('場所が見つかりませんでした'); return; }
-        // 地名で自分のピンまで絞り込まれて消えないよう、キーワード絞り込みは解除して移動する
-        if (mapKeyword) { mapKeyword = ''; refreshMapData(false); }
-        showPlaceMarker(r.lat, r.lon, r.name || q);
-        map.easeTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 });
-        mapHasView = true;
+        gotoPlace(r, r.name || q);
       } catch { App.toast('場所の検索に失敗しました'); }
     });
     $('#map-panel-close').addEventListener('click', () => {
