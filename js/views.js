@@ -1375,8 +1375,8 @@ const Views = (() => {
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
-  const CAT_COLORS = ['#e1306c', '#fa7e1e', '#22c55e', '#3b82f6', '#8b5cf6', '#ef4444',
-    '#14b8a6', '#f59e0b', '#ec4899', '#0ea5e9', '#84cc16', '#a855f7'];
+  const CAT_COLORS = ['#C6613F', '#C08A2E', '#6E8B54', '#5B84A8', '#8B6FA8', '#B04A3D',
+    '#4E8E7F', '#A56A32', '#B65C77', '#4B7BA8', '#7C8F3F', '#96658F'];
 
   function setListMode(explore) {
     exploreMode = explore;
@@ -1943,7 +1943,7 @@ const Views = (() => {
     charts[id] = new Chart(document.getElementById(id), cfg);
   }
   // Instagram風パレット（CSSのアクセントと統一）
-  const PALETTE = ['#e1306c', '#fa7e1e', '#962fbf', '#4f5bd5', '#feda75', '#fd5949', '#8a3ab9', '#f77737', '#c13584', '#5851db', '#ffdc80', '#e95950', '#bc2a8d', '#9e9e9e', '#4caf50'];
+  const PALETTE = ['#C6613F', '#D97757', '#8B6FA8', '#5B84A8', '#D9B36B', '#B04A3D', '#96658F', '#A56A32', '#B65C77', '#4E8E7F', '#E0C98F', '#C9705E', '#7C8F3F', '#A6A49B', '#6E8B54'];
 
   async function renderStats() {
     const shops = Store.shops();
@@ -2023,7 +2023,7 @@ const Views = (() => {
     if (hint) hint.classList.toggle('hidden', months.length <= 12);
     chart('chart-monthly', {
       type: 'bar',
-      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#e1306c', borderRadius: 6 }] },
+      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#C6613F', borderRadius: 6 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
@@ -2040,7 +2040,7 @@ const Views = (() => {
 
     // 味の評価（★1〜5）の割合。★1から右回り（時計回り）に★5まで並べる。
     // 色は星の値ごとに固定（★5→★1で濃い順）
-    const RATING_COLORS = ['#e1306c', '#fa7e1e', '#f5c518', '#22c55e', '#8b9bb4'];
+    const RATING_COLORS = ['#C6613F', '#D97757', '#D9A23C', '#6E8B54', '#A6A49B'];
     const ratingEntries = [1, 2, 3, 4, 5]
       .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
       .filter(e => e[1] > 0);
@@ -2100,7 +2100,7 @@ const Views = (() => {
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
     chart('chart-pref', {
       type: 'bar',
-      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#fa7e1e', borderRadius: 6 }] },
+      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#D97757', borderRadius: 6 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 

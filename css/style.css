@@ -3,17 +3,18 @@
    ピンク〜オレンジのグラデーションアクセント・モノクロのナビ
    ===================================================== */
 :root {
-  --accent: #e1306c;        /* Instagramピンク */
-  --accent2: #fa7e1e;       /* Instagramオレンジ（グラデーションの相方） */
-  --grad: linear-gradient(45deg, #fa7e1e, #e1306c);
-  --accent-soft: #fdeef4;
-  --bg: #ffffff;
-  --card: #ffffff;
-  --text: #262626;
-  --muted: #8e8e8e;
-  --border: #dbdbdb;        /* ヘアライン */
-  --border-lite: #efefef;   /* さらに薄い区切り線 */
-  --field: #fafafa;         /* 入力欄の下地 */
+  /* Claude(Anthropic)風の配色: クリーム地・テラコッタのアクセント・墨色の文字 */
+  --accent: #C6613F;        /* テラコッタ（Claudeのブランド色。やや濃くして白文字とのコントラスト確保） */
+  --accent2: #D97757;       /* 明るいテラコッタ（グラデーションの相方） */
+  --grad: linear-gradient(45deg, #D97757, #BC5B3D);
+  --accent-soft: #F6EAE4;   /* 淡いテラコッタ（選択中の背景） */
+  --bg: #F5F4ED;            /* アイボリー（Claudeの背景） */
+  --card: #FFFFFF;
+  --text: #1F1E1D;          /* 墨色 */
+  --muted: #87867F;         /* 温かみのあるグレー */
+  --border: #DAD8CE;        /* ヘアライン */
+  --border-lite: #EAE8DF;   /* さらに薄い区切り線 */
+  --field: #F5F3EC;         /* 入力欄の下地（薄いクリーム） */
   --star: #ffb400;
   /* 見出し用の明朝体（グルメ雑誌風の上質感）: 色はそのまま、書体だけ上質に */
   --serif: 'Shippori Mincho', 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
@@ -265,8 +266,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .btn.primary:hover { opacity: .92; color: #fff; }
 .btn.big { width: 100%; padding: 14px; font-size: 16px; margin-top: 14px; border-radius: 12px; }
 .btn.small { padding: 6px 10px; font-size: 13px; }
-.btn.danger { color: #ed4956; }
-.btn.danger:hover { border-color: #ed4956; }
+.btn.danger { color: #B04A3D; }
+.btn.danger:hover { border-color: #B04A3D; }
 
 /* ---------- 地図 ---------- */
 /* ボタン5つ（現在地/近い順/ヒートマップ/詳細/✕）を1段に収める: 折り返し禁止＋詰めた余白 */
@@ -414,7 +415,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   text-align: center; font-family: inherit;
 }
 .as-group .as-item + .as-item { border-top: 1px solid var(--border-lite); }
-.as-item.danger { color: #ed4956; }
+.as-item.danger { color: #B04A3D; }
 .as-item.as-cancel { border-radius: 14px; }
 .as-item:active { filter: brightness(.96); }
 
