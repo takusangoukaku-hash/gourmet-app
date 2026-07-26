@@ -636,14 +636,6 @@ const Views = (() => {
     $('#map-heat').addEventListener('click', toggleHeat);
   }
 
-  // 現在地の青い点は地図キャンバスより上のHTML要素なので、店のピンより必ず前面に出る。
-  // 広域まで引くと自分の店がすべて現在地の近くに集まり、青い点＋パルスに隠れて
-  // 「点が1つも出ない」ように見えるため、引いた倍率では青い点を小さくしパルスを止める
-  function syncUserLocSize() {
-    if (!userMarker || !map) return;
-    userMarker.getElement().classList.toggle('far', map.getZoom() < 10);
-  }
-
   // 現在地を取得して地図上に青い点で表示（recenter=true なら地図を現在地へ移動）
   function locateUser(recenter) {
     if (!navigator.geolocation) { App.toast('位置情報が利用できません'); return; }
@@ -657,11 +649,9 @@ const Views = (() => {
           el.className = 'user-loc';
           el.innerHTML = '<span class="user-loc-pulse"></span><span class="user-loc-dot"></span>';
           userMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
-          map.on('zoom', syncUserLocSize);
         } else {
           userMarker.setLngLat(ll);
         }
-        syncUserLocSize();
         if (recenter) map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 15) });
       },
       () => App.toast('現在地を取得できませんでした（位置情報を許可してください）'),
