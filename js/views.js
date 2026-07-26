@@ -121,6 +121,7 @@ const Views = (() => {
   // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
+  let placeMarker = null;     // 地名検索の目印ピン（検索した場所を示す。タップで消える）
   let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
   let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ(既定) / 'all' 自分＋フォロー中 / 'wish' 行きたい店のみ
   let mapHasView = false;     // 一度でも視点が決まったらtrue。以降の再描画では視点を勝手に動かさない
@@ -588,10 +589,34 @@ const Views = (() => {
     let mapKwTimer = null;
     $('#map-search').addEventListener('input', () => {
       clearTimeout(mapKwTimer);
+      // 入力を消したら地名検索の目印も片付ける
+      if (!$('#map-search').value.trim() && placeMarker) { placeMarker.remove(); placeMarker = null; }
       mapKwTimer = setTimeout(() => {
         mapKeyword = $('#map-search').value.trim();
         refitMap();
       }, 300);
+    });
+    // 検索キー（Enter）: 駅名・地名をジオコーディングしてその周辺へ飛び、目印ピンを立てる
+    $('#map-search').addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const q = $('#map-search').value.trim();
+      if (!q) return;
+      clearTimeout(mapKwTimer);
+      $('#map-search').blur(); // キーボードと絞り込みパネルを閉じて地図を見せる
+      $('#map-filter-panel').classList.add('hidden');
+      $('.map-scope').classList.remove('hidden');
+      App.toast('場所を検索中…');
+      try {
+        const results = await Api.searchPlaces(q);
+        const r = (results || []).find(x => x.lat != null && x.lon != null);
+        if (!r) { App.toast('場所が見つかりませんでした'); return; }
+        // 地名で自分のピンまで絞り込まれて消えないよう、キーワード絞り込みは解除して移動する
+        if (mapKeyword) { mapKeyword = ''; refreshMapData(false); }
+        showPlaceMarker(r.lat, r.lon, r.name || q);
+        map.easeTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 });
+        mapHasView = true;
+      } catch { App.toast('場所の検索に失敗しました'); }
     });
     $('#map-panel-close').addEventListener('click', () => {
       $('#map-filter-panel').classList.add('hidden');
@@ -634,6 +659,22 @@ const Views = (() => {
     $('#map-locate').addEventListener('click', () => locateUser(true));
     $('#map-nearby').addEventListener('click', () => openNearby());
     $('#map-heat').addEventListener('click', toggleHeat);
+  }
+
+  // 地名検索の目印ピン（墨色のピン＋場所名のラベル）。もう一度検索すると付け替え、
+  // ピンをタップするか検索欄を空にすると消える
+  function showPlaceMarker(lat, lon, name) {
+    if (placeMarker) { placeMarker.remove(); placeMarker = null; }
+    const el = document.createElement('div');
+    el.className = 'place-marker';
+    el.innerHTML = `
+      <span class="place-marker-label">${esc(name)}</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 22s7-7.6 7-12.5A7 7 0 0 0 5 9.5C5 14.4 12 22 12 22z" fill="#1F1E1D" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="12" cy="9.5" r="2.6" fill="#fff"/>
+      </svg>`;
+    el.addEventListener('click', () => { if (placeMarker) { placeMarker.remove(); placeMarker = null; } });
+    placeMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lon, lat]).addTo(map);
   }
 
   // 現在地を取得して地図上に青い点で表示（recenter=true なら地図を現在地へ移動）

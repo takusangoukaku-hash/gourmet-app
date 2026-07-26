@@ -368,6 +368,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .popup .p-actions { display: flex; gap: 6px; margin-top: 6px; }
 .popup .p-actions .btn { flex: 1; padding: 6px 4px; font-size: 12px; }
 
+/* ---------- 地名検索の目印ピン（墨色ピン＋場所名ラベル） ---------- */
+.place-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.place-marker svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+.place-marker-label {
+  margin-bottom: 2px; background: #1F1E1D; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+
 /* ---------- 現在地マーカー（Appleマップ風: 白フチの青い丸＋柔らかい光） ---------- */
 /* どの倍率でも同じ見た目。塗りつぶしの青 #007AFF に白フチ、
    まわりに淡い青の光がゆっくり脈打つ（Appleマップの現在地と同じ雰囲気） */
