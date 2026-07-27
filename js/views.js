@@ -1964,33 +1964,105 @@ const Views = (() => {
     }).sort((a, b) => b.time - a.time);
     // お店ごとの写真カード（デザインカンプ準拠）: 写真に★平均バッジ（左上）と
     // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。タップで店舗詳細へ
-    box.className = 'pf-photocards';
+    // デザイン案準拠: 店舗ごとのセクションをページ内に縦に並べる連続スクロール。
+    // モーダルの差し替えではなくページ自体のスクロールなので、インスタ同様に途切れない。
+    // 一度に全件は作らず、スクロールが近づいたら数件ずつ継ぎ足す
+    box.className = 'pf-shopfeed';
     box.innerHTML = '';
-    const shopIds = groups.map(g => g.shopId);
-    groups.forEach((g, gi) => {
-      const shop = Store.getShop(g.shopId) || {};
-      const avg = Store.avgRating(g.shopId);
-      const visits = Store.visitCount(g.shopId);
-      const genre = shopLabelGenre(shop) || '';
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = 'ppc';
-      card.innerHTML = `
-        <span class="ppc-ph">
-          <img alt="" loading="lazy" decoding="async">
-          ${avg ? `<span class="ppc-badge">★${avg}</span>` : ''}
-          ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
-        </span>
-        <span class="ppc-info">
-          <span class="ppc-name">${esc(shop.name || '')}</span>
-          ${shop.station ? `<span class="ppc-sub">${esc(shop.station)}</span>` : ''}
-          ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
-        </span>`;
-      setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      // 店舗詳細で開く（上下スクロールの端で前後の店舗へ送れる）
-      card.addEventListener('click', () => showShop(g.shopId, false, null, { list: shopIds, index: gi }));
-      box.appendChild(card);
+    const sentinel = document.createElement('div');
+    box.appendChild(sentinel);
+    let next = 0;
+    const CHUNK = 5;
+    const appendChunk = () => {
+      for (let n = 0; n < CHUNK && next < groups.length; n++, next++) {
+        box.insertBefore(buildShopFeedSection(groups[next]), sentinel);
+      }
+    };
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(en => en.isIntersecting)) {
+        appendChunk();
+        io.unobserve(sentinel); io.observe(sentinel); // 交差したままでも連続で継ぎ足す
+        if (next >= groups.length) io.disconnect();
+      }
+    }, { rootMargin: '1500px 0px' });
+    appendChunk();
+    io.observe(sentinel);
+  }
+
+  // 店舗セクション1つぶん（デザイン案準拠）:
+  //  店名・ジャンル・駅（右上に♥） / 大きな代表写真＋N回訪問 /
+  //  ★平均＋最終訪問日 / 訪問履歴サムネイル＋すべての訪問履歴 /
+  //  地図で見る・ここへ行く・⋯
+  function buildShopFeedSection(g) {
+    const s = Store.getShop(g.shopId) || {};
+    const avg = Store.avgRating(g.shopId);
+    const vs = Store.visitsOf(g.shopId);
+    const genre = shopLabelGenre(s) || '';
+    const last = Store.lastVisitDate(g.shopId);
+    const hasPos = s.lat != null && s.lon != null;
+    const el = document.createElement('div');
+    el.className = 'sfs';
+    el.innerHTML = `
+      <div class="sfs-head">
+        <div class="sfs-titles">
+          <div class="sfs-name">${esc(s.name || '')}</div>
+          ${genre ? `<div class="sfs-sub">🍜 ${esc(genre)}</div>` : ''}
+          ${s.station ? `<div class="sfs-sub">${IC_PIN} ${esc(s.station)}</div>` : ''}
+        </div>
+        <button type="button" class="s-fav ps-favbtn sfs-fav ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}"
+          title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>
+      </div>
+      <button type="button" class="sfs-photo" aria-label="店舗詳細を開く">
+        <img alt="" loading="lazy" decoding="async">
+        <span class="sfs-count">${vs.length}回訪問</span>
+      </button>
+      <div class="sfs-starrow">${starSvg(avg, 18)}<span class="sfs-avg">${avg || '－'}</span>
+        ${last ? `<span class="sfs-last">最終訪問: ${fmtDate(last)}</span>` : ''}</div>
+      <div class="sfs-visits"></div>
+      <div class="sfs-actions">
+        ${hasPos ? `
+        <button type="button" class="btn sfs-map"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
+        <button type="button" class="btn primary sfs-nav">${IC_NAV} ここへ行く</button>` : ''}
+        <button type="button" class="pd-menu-btn sfs-menu" title="メニュー" aria-label="メニュー">${IC_MORE}</button>
+      </div>`;
+    setThumb(el.querySelector('.sfs-photo img'), g.photos[0]); // 代表＝最新の写真
+    el.querySelector('.sfs-photo').addEventListener('click', () => showShop(g.shopId));
+    // 訪問履歴: 訪問ごとの代表写真（★バッジ＋日付）。最後に「すべての訪問履歴」
+    const row = el.querySelector('.sfs-visits');
+    const withPhoto = vs.map(v => ({ v, ph: g.photos.find(p => p.visitId === v.id) }))
+      .filter(x => x.ph).slice(0, 6);
+    withPhoto.forEach(({ v, ph }) => {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.className = 'dvt';
+      t.innerHTML = `
+        <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
+          ${v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : ''}</span>
+        <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
+        <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
+      setThumb(t.querySelector('img'), ph);
+      t.addEventListener('click', () => showVisitList(g.shopId));
+      row.appendChild(t);
     });
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'dvt-all';
+    allBtn.innerHTML = 'すべての<br>訪問履歴 ›';
+    allBtn.addEventListener('click', () => showVisitList(g.shopId));
+    row.appendChild(allBtn);
+    // 操作
+    const mapBtn = el.querySelector('.sfs-map');
+    if (mapBtn) mapBtn.addEventListener('click', () => focusMapAt(s.lat, s.lon));
+    const navBtn = el.querySelector('.sfs-nav');
+    if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+    el.querySelector('.sfs-menu').addEventListener('click', () => {
+      const latest = vs[0];
+      openActionSheet([
+        { label: '店舗の詳細を見る', onClick: () => showShop(g.shopId) },
+        ...(latest ? [{ label: '最新の記録を編集', onClick: () => showShop(g.shopId, false, latest.id) }] : []),
+      ]);
+    });
+    return el;
   }
 
   // 同じ店舗の写真グループ → 1つの投稿オブジェクトにまとめる。
