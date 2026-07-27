@@ -2918,7 +2918,9 @@ const Views = (() => {
       ownLocalPhoto().then(u => { if (u) setImg(u); else card.classList.add('fcard-nophoto'); });
     } else {
       const imEl = card.querySelector('.fcard-img');
-      imEl.addEventListener('error', () => ownLocalPhoto().then(u => { if (u) setImg(u); }), { once: true });
+      imEl.addEventListener('error', () => ownLocalPhoto().then(u => {
+        if (u) setImg(u); else card.classList.add('fcard-nophoto'); // 代わりが無ければコンパクト表示
+      }), { once: true });
       // 自分の記録は端末内の写真のほうが速く確実なので、あれば差し替える
       ownLocalPhoto().then(u => { if (u) setImg(u); });
     }
