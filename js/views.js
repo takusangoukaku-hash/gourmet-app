@@ -1966,7 +1966,10 @@ const Views = (() => {
     // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。タップで店舗詳細へ
     box.className = 'pf-photocards';
     box.innerHTML = '';
-    groups.forEach((g) => {
+    // インスタ風の連続スクロール用: 店舗ごとのまとめ投稿のリスト
+    // （タップした店から始まり、下へスクロールすると次の店の写真が続けて出る）
+    const posts = groups.map(g => buildOwnShopPost(g));
+    groups.forEach((g, gi) => {
       const shop = Store.getShop(g.shopId) || {};
       const avg = Store.avgRating(g.shopId);
       const visits = Store.visitCount(g.shopId);
@@ -1986,9 +1989,8 @@ const Views = (() => {
           ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
         </span>`;
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      // 上下スクロールで前後の店舗へ送れるよう、並び順のリストを渡して開く
-      card.addEventListener('click', () => showShop(g.shopId, false, null,
-        { list: groups.map(x => x.shopId), index: groups.indexOf(g) }));
+      // インスタと同じ連続スクロール表示で開く（下へスクロール→次の店舗の投稿が続く）
+      card.addEventListener('click', () => showPostDetail(posts[gi], { list: posts, index: gi }));
       box.appendChild(card);
     });
   }
@@ -3216,6 +3218,7 @@ const Views = (() => {
       const mv = Store.visits().find(v => v.id === p.id);
       if (!mv) return;
       openActionSheet([
+        { label: '店舗の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
         { label: '編集', onClick: () => { close(); showShop(mv.shopId, false, mv.id); } },
       ]);
     });
