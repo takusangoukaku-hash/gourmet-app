@@ -1707,26 +1707,24 @@ const Views = (() => {
     loadThumbs(box);
   }
 
+  // 店舗一覧の1行（検索タブ・プロフィールの検索サブタブ共通）。
+  // デザインカンプ準拠のカード型: 左＝代表写真、右＝店名・ジャンル・駅・★平均＋大きな数字・訪問回数
   function shopCard(s) {
     const avg = Store.avgRating(s.id);
-    const axes = [
-      s.casual ? `気軽★${s.casual}` : '',
-      s.atmosphere ? `雰囲気★${s.atmosphere}` : '',
-      s.speed ? `早さ★${s.speed}` : '',
-    ].filter(Boolean).join('　');
+    const genre = shopLabelGenre(s) || '';
     const div = document.createElement('div');
-    div.className = 'shop-card';
+    div.className = 'pf-shopcard';
     div.dataset.shopOpen = s.id;
     div.innerHTML = `
-      <div class="thumb" data-thumb="${s.id}">🍽️</div>
-      <div class="s-main">
-        <div class="s-name">${esc(s.name)}</div>
-        <div class="s-stars">${starSvg(avg, 13)} <span class="num">訪問${Store.visitCount(s.id)}回</span></div>
-        <div class="s-sub">${esc(shopLabelGenre(s) || '')}${s.station ? '　' + IC_STATION + ' ' + esc(s.station) : ''}${s.city ? '　' + IC_PIN + ' ' + esc(s.city) : ''}</div>
-        ${axes ? `<div class="s-sub s-axes">${axes}</div>` : ''}
-        <div class="s-sub">最終訪問: ${fmtDate(Store.lastVisitDate(s.id))}</div>
+      <div class="ps-thumb" data-thumb="${s.id}">🍽️</div>
+      <div class="ps-main">
+        <div class="ps-name">${esc(s.name)}</div>
+        ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
+        ${(s.station || s.city) ? `<div class="ps-row">${s.station ? IC_STATION + ' ' + esc(s.station) : ''}${s.city ? (s.station ? '　' : '') + IC_PIN + ' ' + esc(s.city) : ''}</div>` : ''}
+        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg || '－'}</span></div>
+        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span></div>
       </div>
-      <button class="s-fav ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
+      <button class="s-fav ps-favbtn ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
     return div;
   }
 
@@ -1964,32 +1962,18 @@ const Views = (() => {
       g.time = shotTime(g.photos[0]);
       return g;
     }).sort((a, b) => b.time - a.time);
-    // お店ごとのカード（ホームのカードとデザインカンプに合わせた表示）。
-    // 左＝代表写真（最新）、右＝店名・ジャンル・駅・★平均＋大きな数字・訪問回数。
-    // カードのタップで店舗詳細（写真カルーセル＋訪問記録）が開く
-    box.classList.remove('photo-grid');
-    box.classList.add('pf-shoplist');
     box.innerHTML = '';
-    groups.forEach((g) => {
-      const shop = Store.getShop(g.shopId) || {};
-      const avg = Store.avgRating(g.shopId);
-      const visits = Store.visitsOf(g.shopId).length;
-      const genre = shopLabelGenre(shop) || shop.shopGenre || '';
-      const card = document.createElement('div');
-      card.className = 'pf-shopcard';
-      card.innerHTML = `
-        <img class="ps-thumb" alt="" loading="lazy" decoding="async">
-        <div class="ps-main">
-          <div class="ps-name">${esc(shop.name || '')}
-            ${shop.favorite ? `<span class="ps-fav">${IC_FAV}</span>` : ''}</div>
-          ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
-          ${shop.station ? `<div class="ps-row">${IC_STATION} ${esc(shop.station)}</div>` : ''}
-          <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg || '－'}</span></div>
-          <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${visits}回訪問</span></div>
-        </div>`;
-      setThumb(card.querySelector('.ps-thumb'), g.photos[0]); // 代表＝最新の写真
-      card.addEventListener('click', () => showShop(g.shopId));
-      box.appendChild(card);
+    // タップした投稿から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
+    const posts = groups.map(g => buildOwnShopPost(g));
+    groups.forEach((g, i) => {
+      const shop = Store.getShop(g.shopId);
+      const div = document.createElement('div');
+      div.className = 'photo-cell';
+      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
+      setThumb(div.querySelector('img'), g.photos[0]); // 代表＝最新の写真
+      // タップでホームと同じ投稿表示（同じ店の写真はまとめて1投稿・写真をさらにタップで拡大）
+      div.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
+      box.appendChild(div);
     });
   }
 
