@@ -475,7 +475,7 @@ const Register = (() => {
       div.innerHTML = `
         <div class="c-main">
           <div class="c-name">${esc(shop.name)}<span class="badge">登録済み・再訪</span></div>
-          <div class="c-sub">訪問${Store.visitCount(shop.id)}回　味★${Store.avgRating(shop.id) || '－'}</div>
+          <div class="c-sub">訪問${Store.visitCount(shop.id)}回　味★${Store.avgRating(shop.id) ? (Math.round(Store.avgRating(shop.id) * 10) / 10).toFixed(1) : '－'}</div>
         </div>
         <div class="c-dist">${distance != null ? Math.round(distance) + 'm' : ''}</div>`;
       div.addEventListener('click', () => { autoPicked = false; markSelected(div); chooseExisting(shop); });

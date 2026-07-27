@@ -66,6 +66,8 @@ const Views = (() => {
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
+  // 評価の数値表示は全て小数第一位まで（3 → 3.0）。値なしは呼び出し側で分岐する
+  const fmtR = (r) => (Math.round((+r || 0) * 10) / 10).toFixed(1);
   // 「2時間前」「3日前」のような相対表記（フォロワーの写真の撮影時期表示用）
   const relTime = (iso) => {
     if (!iso) return '';
@@ -911,7 +913,7 @@ const Views = (() => {
             <span class="nb-rank">${i + 1}</span>
             <div class="nb-main">
               <div class="nb-name">${esc(r.s.name)}</div>
-              <div class="nb-sub">${esc(shopLabelGenre(r.s) || '')}${avg ? '　★' + avg : ''}</div>
+              <div class="nb-sub">${esc(shopLabelGenre(r.s) || '')}${avg ? '　★' + fmtR(avg) : ''}</div>
             </div>
             <div class="nb-eta">
               <div class="nb-time">${fmtEta(etaMin(r.dist, mode))}</div>
@@ -1099,7 +1101,7 @@ const Views = (() => {
           <button type="button" class="msh-thumb" aria-label="店舗詳細を開く">${photos.length ? '<img alt="" decoding="async">' : '🍽️'}</button>
           <div class="msh-info">
             <button type="button" class="msh-name">${esc(s.name)}</button>
-            <div class="msh-rating">${starIc(avg ? 'full' : 'empty', 20)}<b>${avg || '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span></div>
+            <div class="msh-rating">${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span></div>
             <div class="msh-meta">
               ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
               ${genre && s.station ? '<span class="msh-sep"></span>' : ''}
@@ -1221,7 +1223,7 @@ const Views = (() => {
       const pool2 = [...vs.map(v => v.rating), ...list.map(p => p.rating)].filter(Boolean);
       const a = avgOf(pool2);
       ov.querySelector('.msh-rating').innerHTML =
-        `${starIc(a ? 'full' : 'empty', 20)}<b>${a || '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
+        `${starIc(a ? 'full' : 'empty', 20)}<b>${a ? fmtR(a) : '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
     };
     renderFollow();
     // フォロー中の投稿が未読込なら、読み込み完了後にもう一度描く
@@ -1923,11 +1925,36 @@ const Views = (() => {
         <div class="ps-name">${esc(s.name)}</div>
         ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
         ${(s.station || s.city) ? `<div class="ps-row">${s.station ? IC_STATION + ' ' + esc(s.station) : ''}${s.city ? (s.station ? '　' : '') + IC_PIN + ' ' + esc(s.city) : ''}</div>` : ''}
-        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg || '－'}</span></div>
+        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span></div>
         <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span></div>
       </div>
       <button class="s-fav ps-favbtn ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
+    // 写真タップはホームの投稿と同じ表示（上下スクロールで検索結果の前後の店の投稿へ）。
+    // カードの他の場所のタップは従来どおり店舗詳細（data-shopOpen の委譲）
+    div.querySelector('.ps-thumb').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openShopPostFeed(s.id, sortShops(filteredShops()));
+    });
     return div;
+  }
+
+  // 店の一覧（検索結果など）から、写真がある店を投稿の形にして連続スクロールで見せる。
+  // タップした店から始まり、下スクロールで一覧の並び順に次の店の投稿が出る（ホームと同じ）
+  async function openShopPostFeed(shopId, shops) {
+    const all = await Store.allPhotos();
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const t = (p) => {
+      const v = vById.get(p.visitId);
+      return (v && v.datetime) ? new Date(v.datetime).getTime() : (p.createdAt || 0);
+    };
+    const groups = (shops && shops.length ? shops : [Store.getShop(shopId)]).filter(Boolean)
+      .map(s => ({ shopId: s.id, photos: all.filter(p => p.shopId === s.id) }))
+      .filter(g => g.photos.length);
+    groups.forEach(g => g.photos.sort((a, b) => t(b) - t(a) || (b.createdAt || 0) - (a.createdAt || 0)));
+    const idx = groups.findIndex(g => g.shopId === shopId);
+    if (idx < 0) { showShop(shopId); return; } // 写真のない店は従来の店舗詳細へ
+    const posts = groups.map(g => buildOwnShopPost(g));
+    showPostDetail(posts[idx], { list: posts, index: idx });
   }
 
   async function loadThumbs(root) {
@@ -2180,7 +2207,7 @@ const Views = (() => {
       card.innerHTML = `
         <span class="ppc-ph">
           <img alt="" loading="lazy" decoding="async">
-          ${avg ? `<span class="ppc-badge">★${avg}</span>` : ''}
+          ${avg ? `<span class="ppc-badge">★${fmtR(avg)}</span>` : ''}
           ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
         </span>
         <span class="ppc-info">
@@ -2283,7 +2310,7 @@ const Views = (() => {
         <div class="sfs-carousel"></div>
         <span class="sfs-count">${vs.length}回訪問</span>
       </div>
-      <div class="sfs-starrow">${starSvg(avg, 18)}<span class="sfs-avg">${avg || '－'}</span>
+      <div class="sfs-starrow">${starSvg(avg, 18)}<span class="sfs-avg">${avg ? fmtR(avg) : '－'}</span>
         ${last ? `<span class="sfs-last">最終訪問: ${fmtDate(last)}</span>` : ''}</div>
       <div class="sfs-visits"></div>
       <div class="sfs-actions">
@@ -2303,7 +2330,7 @@ const Views = (() => {
       slide.type = 'button';
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
-      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${r}</span>` : ''}`;
+      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
       if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
@@ -2338,7 +2365,7 @@ const Views = (() => {
       t.className = 'dvt';
       t.innerHTML = `
         <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
-          ${v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : ''}</span>
+          ${v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : ''}</span>
         <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
         <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
       setThumb(t.querySelector('img'), ph);
@@ -2596,7 +2623,7 @@ const Views = (() => {
     };
     rank('#rank-rating',
       shops.filter(s => Store.avgRating(s.id) > 0).sort((a, b) => Store.avgRating(b.id) - Store.avgRating(a.id)),
-      s => `${esc(s.name)} <span class="rv">★${Store.avgRating(s.id)}</span>`);
+      s => `${esc(s.name)} <span class="rv">★${fmtR(Store.avgRating(s.id))}</span>`);
     rank('#rank-visits',
       shops.slice().sort((a, b) => Store.visitCount(b.id) - Store.visitCount(a.id)),
       s => `${esc(s.name)} <span class="rv">${Store.visitCount(s.id)}回</span>`);
@@ -2871,7 +2898,7 @@ const Views = (() => {
           <div class="pd-photos d-swipe">
             <button type="button" class="pd-slide d-noph">
               <span class="v-cover-ph">🍽️</span>
-              <span class="pd-photo-star">★${avg || '－'}</span>
+              <span class="pd-photo-star">★${avg ? fmtR(avg) : '－'}</span>
             </button>
           </div>`;
         const box = block.querySelector('.d-swipe');
@@ -2894,7 +2921,7 @@ const Views = (() => {
             .filter(it => it.url);
           box.innerHTML = items.map(it =>
             `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${
-              it.rating ? `<span class="pd-photo-star">★${it.rating}</span>` : ''}</div>`).join('');
+              it.rating ? `<span class="pd-photo-star">★${fmtR(it.rating)}</span>` : ''}</div>`).join('');
           if (items.length > 1) {
             // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
             box.classList.add('pd-carousel');
@@ -2925,7 +2952,7 @@ const Views = (() => {
               el.className = 'dvt';
               el.innerHTML = `
                 <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
-                  ${v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : ''}</span>
+                  ${v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : ''}</span>
                 <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
                 <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
               setThumb(el.querySelector('img'), ph);
@@ -3004,7 +3031,7 @@ const Views = (() => {
           block.innerHTML = `
             <button type="button" class="v-cover">
               <span class="v-cover-ph">🍽️</span>
-              <span class="v-badge">★${v.rating || '－'}</span>
+              <span class="v-badge">★${v.rating ? fmtR(v.rating) : '－'}</span>
             </button>
             <div class="v-caption">
               <span>${dateStr}</span>
@@ -3033,7 +3060,7 @@ const Views = (() => {
         block.innerHTML = `
           <button type="button" class="v-cover">
             ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : '<span class="v-cover-ph">🍽️</span>'}
-            <span class="v-badge">★${p.rating || '－'}</span>
+            <span class="v-badge">★${p.rating ? fmtR(p.rating) : '－'}</span>
             <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜'}</span>
           </button>
           <div class="v-caption">@${esc(p.username || '')}</div>`;
@@ -3093,7 +3120,7 @@ const Views = (() => {
           const urls = ps.map(p => photoUrl(p)).filter(Boolean);
           if (!urls.length) { box.remove(); return; }
           // 写真の右上にその訪問の星の数（投稿詳細と同じ黒背景・金文字のバッジ）
-          const badge = v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : '';
+          const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
           box.innerHTML = urls.map(u =>
             `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">${badge}</div>`).join('');
           if (urls.length > 1) {
@@ -3357,7 +3384,7 @@ const Views = (() => {
           ${p.station ? `<div class="fcard-sub">${IC_STATION} ${esc(p.station)}</div>` : ''}
           ${genre ? `<span class="fcard-genre" style="background:${catColorForGenre(genre)}">${esc(genre)}</span>` : ''}
         </div>
-        ${rating ? `<div class="fcard-badge"><span class="fb-star">★</span>${rating}</div>` : ''}
+        ${rating ? `<div class="fcard-badge"><span class="fb-star">★</span>${fmtR(rating)}</div>` : ''}
         ${hasPos ? `
           <button type="button" class="fcard-map" title="地図で見る" aria-label="地図で見る">
             <svg viewBox="0 0 24 24"><path d="M12 22s7-7.6 7-12.5A7 7 0 0 0 5 9.5C5 14.4 12 22 12 22z" fill="#C6613F"/><circle cx="12" cy="9.5" r="2.6" fill="#fff"/></svg>
@@ -3567,7 +3594,7 @@ const Views = (() => {
       if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: p.rating || 0 }];
       const box = sect.querySelector('.pd-photos');
       // 各写真の右上に、その訪問の星の数（★4のように）。ホーム・投稿詳細どの写真にも出す
-      const badge = (r) => r ? `<span class="pd-photo-star">★${Math.round(r)}</span>` : '';
+      const badge = (r) => r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : '';
       const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${badge(it.rating)}</div>`;
       if (items.length > 1) {
         // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
@@ -3792,7 +3819,7 @@ const Views = (() => {
           <div class="pp-shop-name">${esc(s.name)}</div>
           <div class="pp-shop-sub">${esc(s.genre || '')}${s.city ? '　' + esc(s.city) : ''}</div>
         </div>
-        <div class="pp-shop-star">${s.rating ? '★' + s.rating : ''}</div>
+        <div class="pp-shop-star">${s.rating ? '★' + fmtR(s.rating) : ''}</div>
       </div>`).join('');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     const isMe = me && me.uid === prof.uid;
