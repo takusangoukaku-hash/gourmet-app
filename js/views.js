@@ -2089,10 +2089,10 @@ const Views = (() => {
         <button type="button" class="s-fav ps-favbtn sfs-fav ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}"
           title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>
       </div>
-      <button type="button" class="sfs-photo" aria-label="店舗詳細を開く">
-        <img alt="" loading="lazy" decoding="async">
+      <div class="sfs-photos">
+        <div class="sfs-carousel"></div>
         <span class="sfs-count">${vs.length}回訪問</span>
-      </button>
+      </div>
       <div class="sfs-starrow">${starSvg(avg, 18)}<span class="sfs-avg">${avg || '－'}</span>
         ${last ? `<span class="sfs-last">最終訪問: ${fmtDate(last)}</span>` : ''}</div>
       <div class="sfs-visits"></div>
@@ -2102,9 +2102,42 @@ const Views = (() => {
         <button type="button" class="btn primary sfs-nav">${IC_NAV} ここへ行く</button>` : ''}
         <button type="button" class="pd-menu-btn sfs-menu" title="メニュー" aria-label="メニュー">${IC_MORE}</button>
       </div>`;
-    // 代表＝最新の写真。全幅表示なのでサムネではなくフル解像度で（サムネ→即差し替え）
-    setFullPhoto(el.querySelector('.sfs-photo img'), g.photos[0]);
-    el.querySelector('.sfs-photo').addEventListener('click', () => showShop(g.shopId));
+    // 大きな写真はその店の全写真を左右スワイプで見られるカルーセル（新しい順）。
+    // 全幅表示なのでサムネではなくフル解像度で（サムネ→即差し替え）。ただし全枚数を
+    // いきなりフルで読むと重いので、フル化は先頭と「スワイプで近づいた写真」だけ
+    const vByIdSec = new Map(vs.map(v => [v.id, v]));
+    const car = el.querySelector('.sfs-carousel');
+    const slides = g.photos.map((ph, i) => {
+      const r = (vByIdSec.get(ph.visitId) || {}).rating || 0;
+      const slide = document.createElement('button');
+      slide.type = 'button';
+      slide.className = 'sfs-slide';
+      slide.setAttribute('aria-label', '店舗詳細を開く');
+      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${r}</span>` : ''}`;
+      if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
+      else setThumb(slide.querySelector('img'), ph);
+      slide.addEventListener('click', () => showShop(g.shopId));
+      car.appendChild(slide);
+      return slide;
+    });
+    const upgrade = (i) => {
+      const s = slides[i];
+      if (!s || s.dataset.full) return;
+      s.dataset.full = '1';
+      setFullPhoto(s.querySelector('img'), g.photos[i]);
+    };
+    if (g.photos.length > 1) {
+      // 何枚目かを示すドット。スワイプ位置に合わせて点灯を切り替え、近くの写真をフル化
+      const dots = document.createElement('div');
+      dots.className = 'pd-dots';
+      dots.innerHTML = g.photos.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+      el.querySelector('.sfs-photos').after(dots);
+      car.addEventListener('scroll', () => {
+        const i = Math.round(car.scrollLeft / car.clientWidth);
+        [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+        upgrade(i); upgrade(i + 1);
+      }, { passive: true });
+    }
     // 訪問履歴: 訪問ごとの代表写真（★バッジ＋日付）。最後に「すべての訪問履歴」
     const row = el.querySelector('.sfs-visits');
     const withPhoto = vs.map(v => ({ v, ph: g.photos.find(p => p.visitId === v.id) }))
