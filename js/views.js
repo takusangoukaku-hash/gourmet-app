@@ -1937,6 +1937,7 @@ const Views = (() => {
   // プロフィールの写真グリッド（全写真・撮影日の新しい順・タップで拡大）
   async function renderProfilePhotos() {
     const box = $('#pf-photo-grid');
+    box.className = 'photo-grid'; // 骨組み・空表示はグリッド、カード一覧のときだけ切り替える
     box.innerHTML = SKEL_GRID;
     const photos = await Store.allPhotos();
     // 撮影日（訪問日）の新しい順。日付が無ければ登録順で補完
@@ -1963,18 +1964,32 @@ const Views = (() => {
       g.time = shotTime(g.photos[0]);
       return g;
     }).sort((a, b) => b.time - a.time);
+    // お店ごとのカード（ホームのカードとデザインカンプに合わせた表示）。
+    // 左＝代表写真（最新）、右＝店名・ジャンル・駅・★平均＋大きな数字・訪問回数。
+    // カードのタップで店舗詳細（写真カルーセル＋訪問記録）が開く
+    box.classList.remove('photo-grid');
+    box.classList.add('pf-shoplist');
     box.innerHTML = '';
-    // タップした投稿から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = groups.map(g => buildOwnShopPost(g));
-    groups.forEach((g, i) => {
-      const shop = Store.getShop(g.shopId);
-      const div = document.createElement('div');
-      div.className = 'photo-cell';
-      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      setThumb(div.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      // タップでホームと同じ投稿表示（同じ店の写真はまとめて1投稿・写真をさらにタップで拡大）
-      div.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
-      box.appendChild(div);
+    groups.forEach((g) => {
+      const shop = Store.getShop(g.shopId) || {};
+      const avg = Store.avgRating(g.shopId);
+      const visits = Store.visitsOf(g.shopId).length;
+      const genre = shopLabelGenre(shop) || shop.shopGenre || '';
+      const card = document.createElement('div');
+      card.className = 'pf-shopcard';
+      card.innerHTML = `
+        <img class="ps-thumb" alt="" loading="lazy" decoding="async">
+        <div class="ps-main">
+          <div class="ps-name">${esc(shop.name || '')}
+            ${shop.favorite ? `<span class="ps-fav">${IC_FAV}</span>` : ''}</div>
+          ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
+          ${shop.station ? `<div class="ps-row">${IC_STATION} ${esc(shop.station)}</div>` : ''}
+          <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg || '－'}</span></div>
+          <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${visits}回訪問</span></div>
+        </div>`;
+      setThumb(card.querySelector('.ps-thumb'), g.photos[0]); // 代表＝最新の写真
+      card.addEventListener('click', () => showShop(g.shopId));
+      box.appendChild(card);
     });
   }
 
