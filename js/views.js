@@ -1201,10 +1201,21 @@ const Views = (() => {
       .setLngLat([w.lon, w.lat]).setDOMContent(node).addTo(map);
   }
 
-  // つながっている人の投稿を読み込む（地図「みんな」用）
+  // つながっている人の投稿を読み込む（地図「みんな」用）。
+  // 前回の結果を端末に控えておき、次回は即表示→裏で最新に差し替える
+  const NET_LS = 'gourmet.netCache';
+  function loadCachedNetwork() {
+    if (networkPosts.length) return;
+    try {
+      const c = JSON.parse(localStorage.getItem(NET_LS) || 'null');
+      if (c && Array.isArray(c.posts)) networkPosts = c.posts;
+    } catch { /* noop */ }
+  }
   async function loadNetworkPosts() {
-    try { networkPosts = (typeof Cloud !== 'undefined') ? await Cloud.fetchNetworkPosts() : []; }
-    catch { networkPosts = []; }
+    try {
+      networkPosts = (typeof Cloud !== 'undefined') ? await Cloud.fetchNetworkPosts() : [];
+      try { localStorage.setItem(NET_LS, JSON.stringify({ posts: networkPosts, time: Date.now() })); } catch { /* noop */ }
+    } catch { loadCachedNetwork(); /* 取得失敗時は前回の控えを使う */ }
   }
 
   function refreshMap() {
@@ -1235,10 +1246,21 @@ const Views = (() => {
   function ensureNetworkLoaded(cb) {
     if (networkLoaded || typeof Cloud === 'undefined' || !Cloud.getUser()) return;
     networkLoaded = true;
+    // 前回の控えがあれば、取得を待たずまず地図へ反映（体感を速くする）
+    loadCachedNetwork();
+    if (networkPosts.length && mapLoaded) refreshMapData(false);
     loadNetworkPosts().then(() => {
       if (mapLoaded) refreshMapData(false);
       if (cb) cb();
     });
+  }
+
+  // ログイン同期の完了直後に、ホーム・地図のフォロー中データと写真を裏で先読みする
+  // （タブを開いた瞬間に読み込みを始めるのではなく、開く前に温めておく）
+  function warmNetwork() {
+    if (typeof Cloud === 'undefined' || !Cloud.getUser()) return;
+    refetchFeed(false).catch(() => {});
+    ensureNetworkLoaded(() => warmPhotos(networkPosts, 8));
   }
 
   function toggleHeat() {
@@ -2710,6 +2732,17 @@ const Views = (() => {
   let feedCache = null;            // { posts, time }：短時間の再表示は再取得しない
   const feedStats = new Map();     // id → { likes, liked, comments }（いいね/コメント数のキャッシュ）
   const FEED_TTL = 45000;          // キャッシュ有効時間（ミリ秒）
+  // 前回のフィードを端末に控えておき、次回起動では即表示→裏で最新に差し替える
+  // （フォロー中の人の写真の読み込み待ちを見せない）
+  const FEED_LS = 'gourmet.feedCache';
+  try {
+    const c = JSON.parse(localStorage.getItem(FEED_LS) || 'null');
+    if (c && Array.isArray(c.posts) && c.posts.length) feedCache = { posts: c.posts, time: 0 }; // time0=要再取得
+  } catch { /* noop */ }
+  // 写真のURLを先読みしてブラウザのキャッシュを温める（表示時に待たせない）
+  function warmPhotos(posts, n) {
+    posts.slice(0, n || 6).forEach(p => { if (p.photoUrl) { const im = new Image(); im.src = p.photoUrl; } });
+  }
 
   // ---------- 下に引っ張って更新（プルリフレッシュ） ----------
   let ptrSetup = false;
@@ -2763,16 +2796,39 @@ const Views = (() => {
       box.innerHTML = `<div class="empty"><p>ホームではフォロー中の人の投稿が見られます。<br>プロフィール画面からGoogleログインしてください。</p></div>`;
       return;
     }
-    // 直近に取得済みなら再取得せず即描画（ホームを開くたびの通信を減らす）
-    let posts;
-    if (!force && feedCache && (Date.now() - feedCache.time < FEED_TTL)) {
-      posts = feedCache.posts;
-    } else {
-      box.innerHTML = SKEL_FEED;
-      try { posts = await Cloud.fetchFeed(); } catch (e) { posts = []; }
-      feedCache = { posts, time: Date.now() };
-      feedStats.clear(); // 取り直したら数値キャッシュも作り直す
+    const fresh = feedCache && (Date.now() - feedCache.time < FEED_TTL);
+    if (!force && fresh) {
+      paintFeed(feedCache.posts); // 直近に取得済みなら再取得せず即描画
+      return;
     }
+    if (!force && feedCache) {
+      // 前回の内容（端末の控え含む）をまず即表示し、裏で最新を取り直す
+      paintFeed(feedCache.posts);
+      refetchFeed(true);
+      return;
+    }
+    // キャッシュが無い初回・プルリフレッシュは取得を待って描画
+    if (!feedCache) box.innerHTML = SKEL_FEED;
+    await refetchFeed(false);
+    paintFeed(feedCache ? feedCache.posts : []);
+  }
+
+  // フィードを取得し直して控えを更新する。repaintChanged=true なら内容が変わったときだけ描き直す
+  async function refetchFeed(repaintChanged) {
+    let posts;
+    try { posts = await Cloud.fetchFeed(); }
+    catch { posts = (feedCache && feedCache.posts) || []; }
+    const changed = !feedCache || JSON.stringify(feedCache.posts) !== JSON.stringify(posts);
+    feedCache = { posts, time: Date.now() };
+    try { localStorage.setItem(FEED_LS, JSON.stringify({ posts, time: Date.now() })); } catch { /* 容量超過時は諦める */ }
+    if (changed) feedStats.clear(); // 取り直したら数値キャッシュも作り直す
+    warmPhotos(posts);
+    if (repaintChanged && changed) paintFeed(posts);
+  }
+
+  // 投稿一覧の描画（renderFeedの表示部分。裏の再取得後の差し替えでも使う）
+  function paintFeed(posts) {
+    const box = $('#feed-list');
     if (!posts.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PEOPLE,
         'まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。',
@@ -3357,5 +3413,5 @@ const Views = (() => {
     $('#modal').classList.add('hidden');
   }
 
-  return { refreshMap, enterMapTab, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
+  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
 })();

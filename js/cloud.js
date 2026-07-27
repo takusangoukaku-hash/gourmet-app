@@ -420,12 +420,13 @@ const Cloud = (() => {
     const uids = [...set];
     if (!uids.length) return [];
     const posts = [];
+    // 30人ずつのinクエリを並列で投げる（直列だとフォローが多いとき遅い）
+    const jobs = [];
     for (let i = 0; i < uids.length; i += 30) {
       const batch = uids.slice(i, i + 30);
-      const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch));
-      const snap = await fb.fs.getDocs(q);
-      snap.forEach(d => posts.push(d.data()));
+      jobs.push(fb.fs.getDocs(fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch))));
     }
+    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(d.data()));
     return posts.filter(p => p.lat != null && p.lon != null);
   }
 
@@ -450,12 +451,13 @@ const Cloud = (() => {
     if (!uids.length) return [];
     const posts = [];
     // Firestoreの in クエリは最大30件ずつ。orderByは付けずに取得しクライアントで並べ替え（索引不要）
+    // 30人ずつのクエリは並列で投げる
+    const jobs = [];
     for (let i = 0; i < uids.length; i += 30) {
       const batch = uids.slice(i, i + 30);
-      const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch));
-      const snap = await fb.fs.getDocs(q);
-      snap.forEach(d => posts.push(d.data()));
+      jobs.push(fb.fs.getDocs(fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch))));
     }
+    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(d.data()));
     posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return posts.slice(0, 60);
   }

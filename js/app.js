@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v229'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v230'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -147,7 +147,15 @@ const App = (() => {
     });
 
     // クラウド同期の初期化（既存ログインがあればセッションを復元して同期）
-    if (typeof Cloud !== 'undefined') Cloud.init();
+    if (typeof Cloud !== 'undefined') {
+      Cloud.init();
+      // 同期が済んだら、ホーム・地図のフォロー中の投稿と写真を裏で先読みしておく
+      // （タブを開いたときの読み込み待ちを短くする。1セッション1回だけ）
+      let warmed = false;
+      Cloud.onStatus((s) => {
+        if (s === 'synced' && !warmed) { warmed = true; setTimeout(() => Views.warmNetwork(), 500); }
+      });
+    }
 
     // サービスワーカー登録（PWA: ホーム画面追加・オフライン起動）
     // ※ https または localhost でのみ有効。LANのhttpでは無視される
