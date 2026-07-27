@@ -66,6 +66,17 @@ const Views = (() => {
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
+  // 「2時間前」「3日前」のような相対表記（フォロワーの写真の撮影時期表示用）
+  const relTime = (iso) => {
+    if (!iso) return '';
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}分前`;
+    if (s < 86400) return `${Math.floor(s / 3600)}時間前`;
+    if (s < 86400 * 7) return `${Math.floor(s / 86400)}日前`;
+    if (s < 86400 * 30) return `${Math.floor(s / 86400 / 7)}週間前`;
+    if (s < 86400 * 365) return `${Math.floor(s / 86400 / 30)}ヶ月前`;
+    return `${Math.floor(s / 86400 / 365)}年前`;
+  };
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
     const d = new Date(iso);
@@ -119,6 +130,13 @@ const Views = (() => {
   // <img> にサムネイルを非同期で差し込む
   function setThumb(img, rec) {
     thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
+  }
+  // 縦向きに撮った写真は横長(4:3)の枠で切り抜くと大きく見切れるので、
+  // 読み込み後に縦横を判定して .portrait を付け、枠内に全体が収まる表示に切り替える
+  function fitPortrait(img) {
+    img.addEventListener('load', () => {
+      img.classList.toggle('portrait', img.naturalHeight > img.naturalWidth);
+    });
   }
   // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
   function setFullPhoto(img, rec) {
@@ -1032,12 +1050,182 @@ const Views = (() => {
       .setLngLat([g.lon, g.lat]).setDOMContent(node).addTo(map);
   }
 
-  // ピンをタップ → 自分の店は全画面の店舗詳細を直接開く（プロフィールの写真タップと同じ操作感）
+  // ピンをタップ → 自分の店はデザイン案準拠の店舗シート（上に地図が見えたまま）
   // つながりの人だけの店はポップアップ（誰の訪問か・平均・投稿へ）
   function openPinPopup(feature) {
     if (feature.properties.kind === 'other') { openOtherPinPopup(feature); return; }
     if (mapPopup) mapPopup.remove();
-    showShop(feature.properties.id);
+    showMapShopSheet(feature.properties.id);
+  }
+
+  // 地図で自分の店をタップしたときの画面（デザイン案準拠）。
+  // 上部は透過で地図（ピン）が見えたまま、下からシートが上がる:
+  //  ＜戻る・♥・共有 / 店の写真＋名前＋★平均(N件の投稿)＋ジャンル・駅＋ボタン /
+  //  あなたの写真（横スワイプ、★と日付） / フォロワーの写真（人ごとに3枚＋相対時刻）
+  async function showMapShopSheet(shopId) {
+    const s = Store.getShop(shopId);
+    if (!s) return;
+    const vs = Store.visitsOf(shopId);
+    const photos = (await Store.allPhotos()).filter(p => p.shopId === shopId);
+    const vById = new Map(vs.map(v => [v.id, v]));
+    const shotTime = (p) => {
+      const v = vById.get(p.visitId);
+      return (v && v.datetime) ? new Date(v.datetime).getTime() : (p.createdAt || 0);
+    };
+    photos.sort((a, b) => shotTime(b) - shotTime(a));
+    const fposts = followerPostsForShop(s)
+      .slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    // ★平均と件数は自分の訪問＋フォロワーの投稿を合算（地図ピンの集計と同じ考え方）
+    const pool = [...vs.map(v => v.rating), ...fposts.map(p => p.rating)].filter(Boolean);
+    const avg = avgOf(pool);
+    const genre = shopLabelGenre(s) || '';
+    const hasPos = s.lat != null && s.lon != null;
+
+    const ov = document.createElement('div');
+    ov.className = 'modal mapshop-modal';
+    ov.innerHTML = `
+      <div class="msh-top">
+        <button type="button" class="msh-round msh-back" aria-label="地図に戻る"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="msh-topright">
+          <button type="button" class="msh-round msh-favbtn ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}" aria-label="お気に入り">${IC_HEART}</button>
+          <button type="button" class="msh-round msh-share" aria-label="共有"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M8 7l4-3.5L16 7"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/></svg></button>
+        </div>
+      </div>
+      <div class="msh-sheet">
+        <div class="msh-card">
+          <button type="button" class="msh-thumb" aria-label="店舗詳細を開く">${photos.length ? '<img alt="" decoding="async">' : '🍽️'}</button>
+          <div class="msh-info">
+            <button type="button" class="msh-name">${esc(s.name)}</button>
+            <div class="msh-rating">${starIc(avg ? 'full' : 'empty', 20)}<b>${avg || '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span></div>
+            <div class="msh-meta">
+              ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
+              ${genre && s.station ? '<span class="msh-sep"></span>' : ''}
+              ${s.station ? `<span>${IC_PIN} ${esc(s.station)}</span>` : ''}
+            </div>
+            <div class="msh-btns">
+              <button type="button" class="btn msh-mapbtn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
+              ${hasPos ? `<button type="button" class="btn primary msh-navbtn">${IC_NAV} ここへ行く</button>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="msh-sec msh-mine ${photos.length ? '' : 'hidden'}">
+          <div class="msh-sechead">
+            <span class="msh-secic">📷</span><b>あなたの写真</b><span class="msh-n">(${photos.length})</span>
+            <button type="button" class="msh-all">すべて見る ›</button>
+          </div>
+          <div class="msh-myrow"></div>
+        </div>
+        <div class="msh-sec msh-follow hidden">
+          <div class="msh-sechead">
+            <span class="msh-secic">👥</span><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
+            <button type="button" class="msh-sort">新しい順 ⇅</button>
+          </div>
+          <div class="msh-frows"></div>
+        </div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.querySelector('.msh-back').addEventListener('click', close);
+    ov.querySelector('.msh-top').addEventListener('click', (e) => { if (e.target === e.currentTarget) close(); });
+    ov.querySelector('.msh-share').addEventListener('click', async () => {
+      const text = `${s.name}${genre ? `（${genre}）` : ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
+      if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
+      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+    });
+    // 店の写真・名前 → 全画面の店舗詳細（記録の閲覧・編集はこちらから）
+    if (photos.length) setThumb(ov.querySelector('.msh-thumb img'), photos[0]);
+    ov.querySelector('.msh-thumb').addEventListener('click', () => showShop(shopId));
+    ov.querySelector('.msh-name').addEventListener('click', () => showShop(shopId));
+    ov.querySelector('.msh-mapbtn').addEventListener('click', close); // 地図はこの画面の後ろに出ている
+    const navBtn = ov.querySelector('.msh-navbtn');
+    if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+
+    // あなたの写真: 横スワイプのカード。★はその訪問の評価、左下に日付
+    const myrow = ov.querySelector('.msh-myrow');
+    photos.forEach(ph => {
+      const v = vById.get(ph.visitId) || {};
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'msh-mycard';
+      c.innerHTML = `<img alt="" loading="lazy" decoding="async">
+        ${v.rating ? `<span class="pd-photo-star">★${(+v.rating).toFixed(1)}</span>` : ''}
+        ${v.datetime ? `<span class="msh-mydate">${fmtDate(v.datetime)}</span>` : ''}`;
+      fitPortrait(c.querySelector('img')); // 縦写真は切り抜かず全体を収める
+      setFullPhoto(c.querySelector('img'), ph);
+      c.addEventListener('click', () => openLightbox(photoUrl(ph), `${s.name}　${fmtDate(v.datetime)}`));
+      myrow.appendChild(c);
+    });
+    ov.querySelector('.msh-all').addEventListener('click', () => showVisitList(shopId));
+
+    // フォロワーの写真: 人ごとに1行（アイコン・名前・@ID・投稿数＋写真3枚＋相対時刻）
+    const renderFollow = () => {
+      const sec = ov.querySelector('.msh-follow');
+      const list = followerPostsForShop(Store.getShop(shopId) || s)
+        .slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+      if (!list.length) { sec.classList.add('hidden'); return; }
+      const byUser = new Map();
+      for (const p of list) {
+        const g = byUser.get(p.username) || { username: p.username, avatar: p.avatar || '', name: p.displayName || '', posts: [] };
+        if (!g.avatar && p.avatar) g.avatar = p.avatar;
+        g.posts.push(p);
+        byUser.set(p.username, g);
+      }
+      let rowsData = [...byUser.values()]; // 各ユーザーのposts[0]が最新（新しい順で回収済み）
+      const newestFirst = sec.dataset.sort !== 'old';
+      rowsData.sort((a, b) => new Date(b.posts[0].datetime || 0) - new Date(a.posts[0].datetime || 0));
+      if (!newestFirst) rowsData.reverse();
+      sec.classList.remove('hidden');
+      ov.querySelector('.msh-fn').textContent = `(${rowsData.length}人)`;
+      ov.querySelector('.msh-sort').textContent = (newestFirst ? '新しい順' : '古い順') + ' ⇅';
+      const rows = ov.querySelector('.msh-frows');
+      rows.innerHTML = '';
+      for (const u of rowsData) {
+        const total = networkPosts.filter(p => p.username === u.username).length; // その人の投稿数（全店）
+        const row = document.createElement('div');
+        row.className = 'msh-frow';
+        row.innerHTML = `
+          <button type="button" class="msh-fuser">
+            <span class="msh-favatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : '🍜'}</span>
+            <span class="msh-fname">${esc(u.name || u.username)}さん</span>
+            <span class="msh-fhandle">@${esc(u.username)}</span>
+            <span class="msh-fposts">${total}投稿</span>
+          </button>
+          <div class="msh-fphotos"></div>
+          <button type="button" class="msh-chev" aria-label="プロフィールを見る"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>`;
+        const ph = row.querySelector('.msh-fphotos');
+        for (const p of u.posts.filter(x => x.photoUrl).slice(0, 3)) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'msh-fph';
+          b.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">
+            ${p.rating ? `<span class="pd-photo-star">★${(+p.rating).toFixed(1)}</span>` : ''}
+            ${p.datetime ? `<span class="msh-ftime">${relTime(p.datetime)}</span>` : ''}`;
+          b.addEventListener('click', () => showPostDetail(p));
+          ph.appendChild(b);
+        }
+        const toProfile = () => showPublicProfile(u.username);
+        row.querySelector('.msh-fuser').addEventListener('click', toProfile);
+        row.querySelector('.msh-chev').addEventListener('click', toProfile);
+        rows.appendChild(row);
+      }
+    };
+    ov.querySelector('.msh-sort').addEventListener('click', () => {
+      const sec = ov.querySelector('.msh-follow');
+      sec.dataset.sort = sec.dataset.sort === 'old' ? 'new' : 'old';
+      renderFollow();
+    });
+    // ★平均と件数（自分＋フォロワー）。フォロー中データが後から届いたら数字も更新する
+    const updateHeader = () => {
+      const list = followerPostsForShop(Store.getShop(shopId) || s);
+      const pool2 = [...vs.map(v => v.rating), ...list.map(p => p.rating)].filter(Boolean);
+      const a = avgOf(pool2);
+      ov.querySelector('.msh-rating').innerHTML =
+        `${starIc(a ? 'full' : 'empty', 20)}<b>${a || '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
+    };
+    renderFollow();
+    // フォロー中の投稿が未読込なら、読み込み完了後にもう一度描く
+    ensureNetworkLoaded(() => { renderFollow(); updateHeader(); });
+
+    document.body.appendChild(ov);
   }
 
   // フィルタ適用後の店舗一覧 → GeoJSONに変換して地図へ反映
@@ -2114,6 +2302,7 @@ const Views = (() => {
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
       slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${r}</span>` : ''}`;
+      fitPortrait(slide.querySelector('img')); // 縦写真は切り抜かず全体を収める
       if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
@@ -3805,5 +3994,5 @@ const Views = (() => {
     shopNavState = null; // 店舗送りの状態も解除（次に地図などから開いたとき誤作動しない）
   }
 
-  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
+  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
 })();

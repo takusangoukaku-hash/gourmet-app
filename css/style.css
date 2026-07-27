@@ -645,6 +645,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border: none; padding: 0; cursor: pointer; background: var(--field); aspect-ratio: 4 / 3;
 }
 .sfs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 縦向き写真: 4:3の枠で切り抜かず、全体が入るように収める（背景は淡色で埋める） */
+.sfs-slide img.portrait, .msh-mycard img.portrait { object-fit: contain; background: var(--field); }
 .sfs-count {
   position: absolute; right: 10px; bottom: 10px;
   background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 700;
@@ -928,6 +930,110 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .modal.shopfeed-modal .modal-box { background: var(--bg); }
 .shopfeed-modal .vl-body { padding: 0 12px; }
 .shopfeed-modal .pf-shopfeed { padding: 12px 0 28px; }
+
+/* 地図で自分の店をタップしたときの店舗シート（デザイン案準拠）。
+   上部は透過で後ろの地図（ピン）が見えたまま、下からシートが上がる。
+   店舗詳細(#modal)より一段下(z-index)にして「シート → 店舗詳細」の順に重なる */
+.modal.mapshop-modal {
+  z-index: 1990; background: transparent; padding: 0;
+  display: flex; flex-direction: column; align-items: stretch; overflow: hidden;
+}
+.msh-top { height: 118px; flex-shrink: 0; position: relative; }
+.msh-top .msh-round { position: absolute; top: 16px; }
+.msh-back { left: 14px; }
+.msh-topright { position: absolute; top: 16px; right: 14px; display: flex; gap: 10px; }
+.msh-topright .msh-round { position: static; }
+.msh-round {
+  width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--card); color: var(--text); box-shadow: 0 2px 12px rgba(0,0,0,.2);
+  display: flex; align-items: center; justify-content: center;
+}
+.msh-round .ic { width: 20px; height: 20px; }
+.msh-favbtn.on { color: var(--accent); }
+.msh-favbtn.on .heart-ic { fill: currentColor; }
+.msh-sheet {
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--bg); border-radius: 22px 22px 0 0;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.18); padding: 16px 14px 28px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.msh-card {
+  background: var(--card); border-radius: 18px; padding: 16px;
+  display: flex; gap: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.07);
+}
+.msh-thumb {
+  flex: 0 0 96px; width: 96px; height: 96px; border-radius: 16px; overflow: hidden;
+  border: none; padding: 0; cursor: pointer; background: var(--field);
+  font-size: 34px; display: flex; align-items: center; justify-content: center;
+}
+.msh-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.msh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.msh-name {
+  border: none; background: none; padding: 0; cursor: pointer; text-align: left;
+  font-family: var(--serif); font-weight: 800; font-size: 22px; color: var(--text); line-height: 1.25;
+}
+.msh-rating { display: flex; align-items: center; gap: 6px; }
+.msh-rating b { color: var(--accent); font-size: 22px; font-weight: 800; }
+.msh-rating span { color: var(--muted); font-size: 13px; }
+.msh-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+.msh-meta .ic { width: 14px; height: 14px; vertical-align: -2px; }
+.msh-sep { width: 1px; height: 14px; background: var(--border-lite); }
+.msh-btns { display: flex; gap: 8px; margin-top: 4px; }
+.msh-btns .btn { flex: 1; justify-content: center; white-space: nowrap; padding-left: 8px; padding-right: 8px; font-size: 13px; }
+.msh-sec { background: var(--card); border-radius: 18px; padding: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+.msh-sechead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.msh-sechead b { font-size: 15px; }
+.msh-secic {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.msh-n { color: var(--muted); font-size: 13px; }
+.msh-all, .msh-sort {
+  margin-left: auto; border: none; background: none; cursor: pointer;
+  color: var(--muted); font-size: 13px; padding: 4px 0 4px 8px;
+}
+/* あなたの写真: 横スワイプのカード */
+.msh-myrow {
+  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px;
+}
+.msh-myrow::-webkit-scrollbar { display: none; }
+.msh-mycard {
+  position: relative; flex: 0 0 72%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
+  border: none; padding: 0; cursor: pointer; background: var(--field); scroll-snap-align: start;
+}
+.msh-mycard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.msh-mydate {
+  position: absolute; left: 10px; bottom: 10px; color: #fff; font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,.55); border-radius: 999px; padding: 3px 9px;
+}
+/* フォロワーの写真: 人ごとの行 */
+.msh-frow { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+.msh-frow + .msh-frow { border-top: 1px solid var(--border-lite); }
+.msh-fuser {
+  flex: 0 0 96px; min-width: 0; border: none; background: none; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+}
+.msh-favatar {
+  width: 46px; height: 46px; border-radius: 50%; overflow: hidden; background: var(--field);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 2px;
+}
+.msh-favatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.msh-fname { font-weight: 700; font-size: 13px; color: var(--text); max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msh-fhandle, .msh-fposts { color: var(--muted); font-size: 11px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msh-fphotos { flex: 1; min-width: 0; display: flex; gap: 6px; }
+.msh-fph {
+  position: relative; flex: 1; min-width: 0; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+  border: none; padding: 0; cursor: pointer; background: var(--field);
+}
+.msh-fph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.msh-fph .pd-photo-star { top: 5px; right: 5px; height: auto; padding: 1px 6px; font-size: 10px; }
+.msh-ftime {
+  position: absolute; left: 5px; bottom: 5px; color: #fff; font-size: 10px; font-weight: 600;
+  background: rgba(0,0,0,.55); border-radius: 999px; padding: 2px 6px;
+}
+.msh-chev { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--muted); padding: 4px; }
+.msh-chev .ic { width: 18px; height: 18px; }
 /* 記録どうしの区切りは投稿詳細と同じ太い線（枠で囲むと写真が全幅にできない） */
 .vl-card + .vl-card { border-top: 8px solid var(--field); }
 .vl-info { padding: 10px 16px 20px; }
