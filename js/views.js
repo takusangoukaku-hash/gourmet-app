@@ -2897,6 +2897,31 @@ const Views = (() => {
           <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
         </div>
       </div>`;
+    // 写真の解決: クラウドURLが欠けた投稿（写真より先に投稿だけ公開された等）や
+    // URLの読み込み失敗時は、自分の記録なら端末内の写真で表示する（旧ホームと同じ挙動）
+    const setImg = (url) => {
+      if (!url) return;
+      const cur = card.querySelector('.fcard-img');
+      if (cur.tagName === 'IMG') { if (cur.src !== url) cur.src = url; return; }
+      const im = document.createElement('img');
+      im.className = 'fcard-img'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
+      im.src = url;
+      cur.replaceWith(im);
+    };
+    const ownLocalPhoto = async () => {
+      if (!Store.visits().some(v => v.id === p.id)) return '';
+      const ps = await Store.photosOfVisit(p.id).catch(() => []);
+      return ps.length ? photoUrl(ps[0]) : '';
+    };
+    if (!p.photoUrl) {
+      ownLocalPhoto().then(setImg);
+    } else {
+      const imEl = card.querySelector('.fcard-img');
+      imEl.addEventListener('error', () => ownLocalPhoto().then(u => { if (u) setImg(u); }), { once: true });
+      // 自分の記録は端末内の写真のほうが速く確実なので、あれば差し替える
+      ownLocalPhoto().then(u => { if (u) setImg(u); });
+    }
+
     // 写真タップ → 投稿詳細（中のボタンは各自の動作を優先）
     const openDetail = () => showPostDetail(p, { list, index });
     card.querySelector('.fcard-photo').addEventListener('click', (e) => {
