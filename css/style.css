@@ -645,8 +645,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border: none; padding: 0; cursor: pointer; background: var(--field); aspect-ratio: 4 / 3;
 }
 .sfs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 縦向き写真: 4:3の枠で切り抜かず、全体が入るように収める（背景は淡色で埋める） */
-.sfs-slide img.portrait, .msh-mycard img.portrait { object-fit: contain; background: var(--field); }
+/* 縦向き写真(.portrait は views.js が読み込み時に付与): 横長・正方形の枠で
+   切り抜かず、横は短くなってよいので全体が入るように収める（余白は淡色で埋める）。
+   ホーム・地図・プロフィール・店舗詳細・検索など写真の表示枠すべてが対象。
+   アバターやアイコンは対象にしない */
+.sfs-slide img.portrait, .msh-mycard img.portrait, .msh-thumb img.portrait,
+.msh-fph img.portrait, .fcard-img.portrait, .ppc-ph img.portrait,
+.dvt-ph img.portrait, .explore-cell img.portrait, .photo-cell img.portrait,
+.pp-wrap img.portrait, .ps-thumb img.portrait, .visit-block .v-cover img.portrait,
+.pd-photo.portrait {
+  object-fit: contain; background: var(--field);
+}
 .sfs-count {
   position: absolute; right: 10px; bottom: 10px;
   background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 700;

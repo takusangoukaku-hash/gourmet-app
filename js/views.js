@@ -131,13 +131,16 @@ const Views = (() => {
   function setThumb(img, rec) {
     thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
   }
-  // 縦向きに撮った写真は横長(4:3)の枠で切り抜くと大きく見切れるので、
-  // 読み込み後に縦横を判定して .portrait を付け、枠内に全体が収まる表示に切り替える
-  function fitPortrait(img) {
-    img.addEventListener('load', () => {
+  // 縦向きに撮った写真は横長・正方形の枠で切り抜くと大きく見切れるので、
+  // 全ての<img>で読み込み完了時に縦横を比べ、縦長なら .portrait を付ける。
+  // どの枠で「全体を収める」表示に切り替えるかはCSS側で指定する（アバター等は対象外）。
+  // loadイベントはバブリングしないため、キャプチャで文書全体の<img>を拾う
+  document.addEventListener('load', (e) => {
+    const img = e.target;
+    if (img && img.tagName === 'IMG' && img.naturalWidth) {
       img.classList.toggle('portrait', img.naturalHeight > img.naturalWidth);
-    });
-  }
+    }
+  }, true);
   // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
   function setFullPhoto(img, rec) {
     setThumb(img, rec);
@@ -1072,7 +1075,7 @@ const Views = (() => {
       const v = vById.get(p.visitId);
       return (v && v.datetime) ? new Date(v.datetime).getTime() : (p.createdAt || 0);
     };
-    photos.sort((a, b) => shotTime(b) - shotTime(a));
+    photos.sort((a, b) => shotTime(b) - shotTime(a) || (b.createdAt || 0) - (a.createdAt || 0));
     const fposts = followerPostsForShop(s)
       .slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
     // ★平均と件数は自分の訪問＋フォロワーの投稿を合算（地図ピンの集計と同じ考え方）
@@ -1149,7 +1152,6 @@ const Views = (() => {
       c.innerHTML = `<img alt="" loading="lazy" decoding="async">
         ${v.rating ? `<span class="pd-photo-star">★${(+v.rating).toFixed(1)}</span>` : ''}
         ${v.datetime ? `<span class="msh-mydate">${fmtDate(v.datetime)}</span>` : ''}`;
-      fitPortrait(c.querySelector('img')); // 縦写真は切り抜かず全体を収める
       setFullPhoto(c.querySelector('img'), ph);
       c.addEventListener('click', () => openLightbox(photoUrl(ph), `${s.name}　${fmtDate(v.datetime)}`));
       myrow.appendChild(c);
@@ -2302,7 +2304,6 @@ const Views = (() => {
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
       slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${r}</span>` : ''}`;
-      fitPortrait(slide.querySelector('img')); // 縦写真は切り抜かず全体を収める
       if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
