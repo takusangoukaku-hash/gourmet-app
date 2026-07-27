@@ -911,6 +911,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .vl-body .empty { padding: 28px 16px; }
+
+/* 写真タップ後の店舗フィード画面。店舗詳細(#modal)は静的要素で後から重ねられないため、
+   この画面の方を一段下(z-index)にして「フィード → 店舗詳細」の順に重なるようにする */
+.modal.shopfeed-modal { z-index: 1990; background: var(--bg); }
+.modal.shopfeed-modal .modal-box { background: var(--bg); }
+.shopfeed-modal .vl-body { padding: 0 12px; }
+.shopfeed-modal .pf-shopfeed { padding: 12px 0 28px; }
 /* 記録どうしの区切りは投稿詳細と同じ太い線（枠で囲むと写真が全幅にできない） */
 .vl-card + .vl-card { border-top: 8px solid var(--field); }
 .vl-info { padding: 10px 16px 20px; }

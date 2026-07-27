@@ -1962,31 +1962,96 @@ const Views = (() => {
       g.time = shotTime(g.photos[0]);
       return g;
     }).sort((a, b) => b.time - a.time);
-    // お店ごとの写真カード（デザインカンプ準拠）: 写真に★平均バッジ（左上）と
-    // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。タップで店舗詳細へ
-    // デザイン案準拠: 店舗ごとのセクションをページ内に縦に並べる連続スクロール。
-    // モーダルの差し替えではなくページ自体のスクロールなので、インスタ同様に途切れない。
-    // 一度に全件は作らず、スクロールが近づいたら数件ずつ継ぎ足す
-    box.className = 'pf-shopfeed';
+    // 最初の画面はお店ごとの写真カード一覧: 写真に★平均バッジ（左上）と
+    // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。
+    // カードをタップすると、その店舗から始まる連続スクロールのフィード画面が開く
+    box.className = 'pf-photocards';
     box.innerHTML = '';
-    const sentinel = document.createElement('div');
-    box.appendChild(sentinel);
-    let next = 0;
-    const CHUNK = 5;
+    groups.forEach((g, idx) => {
+      const shop = Store.getShop(g.shopId) || {};
+      const avg = Store.avgRating(g.shopId);
+      const visits = Store.visitCount(g.shopId);
+      const genre = shopLabelGenre(shop) || '';
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'ppc';
+      card.innerHTML = `
+        <span class="ppc-ph">
+          <img alt="" loading="lazy" decoding="async">
+          ${avg ? `<span class="ppc-badge">★${avg}</span>` : ''}
+          ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
+        </span>
+        <span class="ppc-info">
+          <span class="ppc-name">${esc(shop.name || '')}</span>
+          ${shop.station ? `<span class="ppc-sub">${esc(shop.station)}</span>` : ''}
+          ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
+        </span>`;
+      setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
+      card.addEventListener('click', () => showShopFeed(groups, idx));
+      box.appendChild(card);
+    });
+  }
+
+  // 写真タップ後の画面（デザイン案準拠）: 店舗ごとのセクションを縦に並べ、
+  // ページ内スクロールで前後の店舗へ途切れず送れる。タップした店舗から表示を始め、
+  // 下へスクロールすると次の店舗、上へスクロールすると前の店舗が現れる。
+  // 一度に全件は作らず、スクロールが近づいた側に数件ずつ継ぎ足す
+  function showShopFeed(groups, startIndex) {
+    const ov = document.createElement('div');
+    ov.className = 'modal modal-full visitlist-modal shopfeed-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <div class="vl-topbar">
+          <button type="button" class="modal-close sfm-close" aria-label="閉じる">✕</button>
+          <span class="vl-title">お店の記録</span>
+        </div>
+        <div class="vl-body"><div class="pf-shopfeed"></div></div>
+      </div>`;
+    const scroller = ov.querySelector('.vl-body');
+    const box = ov.querySelector('.pf-shopfeed');
+    ov.querySelector('.sfm-close').addEventListener('click', () => ov.remove());
+
+    const CHUNK = 3;
+    let below = startIndex; // 次に下へ足す添字
+    let above = startIndex; // ここより手前(above-1以前)を上へ足す
+    const topSentinel = document.createElement('div');
+    const botSentinel = document.createElement('div');
+    box.appendChild(topSentinel);
+    box.appendChild(botSentinel);
     const appendChunk = () => {
-      for (let n = 0; n < CHUNK && next < groups.length; n++, next++) {
-        box.insertBefore(buildShopFeedSection(groups[next]), sentinel);
+      for (let n = 0; n < CHUNK && below < groups.length; n++, below++) {
+        box.insertBefore(buildShopFeedSection(groups[below]), botSentinel);
       }
     };
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some(en => en.isIntersecting)) {
+    const prependChunk = () => {
+      // 上に足すと中身が押し下がるので、増えた高さぶんスクロール位置を進めて
+      // 見えている店舗が動かないようにする
+      const before = scroller.scrollHeight;
+      const frag = document.createDocumentFragment();
+      const from = Math.max(0, above - CHUNK);
+      for (let i = from; i < above; i++) frag.appendChild(buildShopFeedSection(groups[i]));
+      above = from;
+      topSentinel.after(frag);
+      scroller.scrollTop += scroller.scrollHeight - before;
+    };
+    const ioBot = new IntersectionObserver((es) => {
+      if (es.some(en => en.isIntersecting)) {
         appendChunk();
-        io.unobserve(sentinel); io.observe(sentinel); // 交差したままでも連続で継ぎ足す
-        if (next >= groups.length) io.disconnect();
+        ioBot.unobserve(botSentinel); ioBot.observe(botSentinel); // 交差したままでも連続で継ぎ足す
+        if (below >= groups.length) ioBot.disconnect();
       }
-    }, { rootMargin: '1500px 0px' });
+    }, { root: scroller, rootMargin: '1200px 0px' });
+    const ioTop = new IntersectionObserver((es) => {
+      if (es.some(en => en.isIntersecting)) {
+        prependChunk();
+        ioTop.unobserve(topSentinel); ioTop.observe(topSentinel);
+        if (above <= 0) ioTop.disconnect();
+      }
+    }, { root: scroller, rootMargin: '600px 0px' });
+
     appendChunk();
-    io.observe(sentinel);
+    document.body.appendChild(ov);
+    ioBot.observe(botSentinel);
+    if (above > 0) ioTop.observe(topSentinel);
   }
 
   // 店舗セクション1つぶん（デザイン案準拠）:
