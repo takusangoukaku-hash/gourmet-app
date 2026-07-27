@@ -82,7 +82,8 @@ const Store = (() => {
     });
   }
   // グリッド表示用のサムネイルを写真レコードに保存（次回から縮小画像を即表示できる）
-  async function putPhotoThumb(id, thumbBlob) {
+  // thumbV はサムネの規格バージョン。表示側が規格を上げたとき古いサムネを作り直すための印
+  async function putPhotoThumb(id, thumbBlob, thumbV) {
     const d = await db();
     return new Promise((resolve, reject) => {
       const tx = d.transaction('photos', 'readwrite');
@@ -90,7 +91,7 @@ const Store = (() => {
       const req = os.get(id);
       req.onsuccess = () => {
         const rec = req.result;
-        if (rec) { rec.thumb = thumbBlob; os.put(rec); }
+        if (rec) { rec.thumb = thumbBlob; rec.thumbV = thumbV || 1; os.put(rec); }
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);

@@ -85,27 +85,30 @@ const Views = (() => {
   }
 
   // ---------- サムネイル（グリッド・一覧用の縮小画像） ----------
-  // 元の写真は大きい（数MB）ので、一覧では320pxに縮小した画像を使って表示を軽くする。
+  // 元の写真は大きい（数MB）ので、一覧では縮小した画像を使って表示を軽くする。
   // 一度作ったサムネイルはIndexedDBに保存し、次回からは生成せずに即表示する。
+  // Retina画面でぼやけないよう長辺640px。THUMB_Vを上げると古いサムネは作り直される
+  const THUMB_DIM = 640, THUMB_V = 2;
   const thumbCache = new Map(); // photoId → Promise<url>
   function thumbUrl(rec) {
     if (!rec) return Promise.resolve(null);
     if (!rec.blob) return Promise.resolve(rec.remoteUrl || null); // 別端末の写真は公開URLのまま
     if (thumbCache.has(rec.id)) return thumbCache.get(rec.id);
     const p = (async () => {
-      let blob = rec.thumb; // 保存済みならそれを使う
+      // 保存済みでも古い規格（小さい320px）のものは作り直す
+      let blob = (rec.thumbV === THUMB_V) ? rec.thumb : null;
       if (!blob) {
         try {
           const bmp = await createImageBitmap(rec.blob);
-          const scale = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+          const scale = Math.min(1, THUMB_DIM / Math.max(bmp.width, bmp.height));
           const w = Math.max(1, Math.round(bmp.width * scale));
           const h = Math.max(1, Math.round(bmp.height * scale));
           const c = document.createElement('canvas');
           c.width = w; c.height = h;
           c.getContext('2d').drawImage(bmp, 0, 0, w, h);
           bmp.close();
-          blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.75));
-          if (blob) Store.putPhotoThumb(rec.id, blob).catch(() => {});
+          blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+          if (blob) Store.putPhotoThumb(rec.id, blob, THUMB_V).catch(() => {});
         } catch (e) { blob = null; } // 生成に失敗したら元画像で表示
       }
       return URL.createObjectURL(blob || rec.blob);
@@ -116,6 +119,15 @@ const Views = (() => {
   // <img> にサムネイルを非同期で差し込む
   function setThumb(img, rec) {
     thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
+  }
+  // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
+  function setFullPhoto(img, rec) {
+    setThumb(img, rec);
+    const full = photoUrl(rec);
+    if (!full) return;
+    const pre = new Image();
+    pre.onload = () => { if (img.isConnected !== false) img.src = full; };
+    pre.src = full;
   }
 
   // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
@@ -2090,7 +2102,8 @@ const Views = (() => {
         <button type="button" class="btn primary sfs-nav">${IC_NAV} ここへ行く</button>` : ''}
         <button type="button" class="pd-menu-btn sfs-menu" title="メニュー" aria-label="メニュー">${IC_MORE}</button>
       </div>`;
-    setThumb(el.querySelector('.sfs-photo img'), g.photos[0]); // 代表＝最新の写真
+    // 代表＝最新の写真。全幅表示なのでサムネではなくフル解像度で（サムネ→即差し替え）
+    setFullPhoto(el.querySelector('.sfs-photo img'), g.photos[0]);
     el.querySelector('.sfs-photo').addEventListener('click', () => showShop(g.shopId));
     // 訪問履歴: 訪問ごとの代表写真（★バッジ＋日付）。最後に「すべての訪問履歴」
     const row = el.querySelector('.sfs-visits');
