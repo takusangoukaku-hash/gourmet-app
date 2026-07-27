@@ -2914,7 +2914,8 @@ const Views = (() => {
       return ps.length ? photoUrl(ps[0]) : '';
     };
     if (!p.photoUrl) {
-      ownLocalPhoto().then(setImg);
+      // 端末内にも写真が無ければ、空の大きな四角を出さずコンパクト表示に切り替える
+      ownLocalPhoto().then(u => { if (u) setImg(u); else card.classList.add('fcard-nophoto'); });
     } else {
       const imEl = card.querySelector('.fcard-img');
       imEl.addEventListener('error', () => ownLocalPhoto().then(u => { if (u) setImg(u); }), { once: true });

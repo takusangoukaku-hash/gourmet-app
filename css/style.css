@@ -960,6 +960,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 9px 16px; border-radius: 999px; font-size: 13.5px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
 }
+/* 写真の無い投稿: 大きな空の四角を出さず、店名・ジャンルだけのコンパクトなカードにする */
+.fcard-nophoto .fcard-photo { aspect-ratio: auto; min-height: 0; background: var(--card); }
+.fcard-nophoto .fcard-img, .fcard-nophoto .fcard-scrim, .fcard-nophoto .fcard-map { display: none; }
+.fcard-nophoto .fcard-head { position: static; padding: 14px 76px 0 16px; color: var(--text); }
+.fcard-nophoto .fcard-name { color: var(--text); text-shadow: none; font-size: 18px; }
+.fcard-nophoto .fcard-sub { color: var(--muted); text-shadow: none; }
+.fcard-nophoto .fcard-badge { top: 14px; right: 14px; width: 46px; height: 46px; font-size: 14px; }
+.fcard-nophoto .fcard-nav { position: static; display: flex; margin: 12px 16px 2px; width: auto; }
+.fcard-nophoto .fcard-foot { border-top: 1px solid var(--border-lite); margin-top: 10px; }
+
 /* 写真の下: 投稿者とアクション */
 .fcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; }
 .fcard-foot .pd-author { min-width: 0; }
