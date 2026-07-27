@@ -2260,16 +2260,24 @@ const Views = (() => {
       modal.scrollTop = 0;
       return true;
     };
-    // スマホ: 端に到達した状態からのスワイプ量で判定
-    let startY = null, fired = false;
-    modal.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; fired = false; }, { passive: true });
+    // スマホ: 「端に張り付いた状態で、さらに動かした量」だけを差分で積算して判定する。
+    // 指を置いた時点からの累計にすると、勢いよく端まで届いた瞬間に発火して
+    // 普通のスクロールが途切れてしまう。端以外での動きが混ざったら積算はリセット
+    let lastY = null, swipeAcc = 0, fired = false;
+    modal.addEventListener('touchstart', (e) => { lastY = e.touches[0].clientY; swipeAcc = 0; fired = false; }, { passive: true });
     modal.addEventListener('touchmove', (e) => {
-      if (!shopNavState || fired || startY == null) return;
-      const dy = startY - e.touches[0].clientY; // 正=指を上へ（下方向へのスクロール）
+      if (!shopNavState || lastY == null) return;
+      const y = e.touches[0].clientY;
+      const dy = lastY - y; // 正=指を上へ（下方向へのスクロール）
+      lastY = y;
+      if (fired) return;
       const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 4;
       const atTop = modal.scrollTop <= 4;
-      if (atBottom && dy > 90) fired = go(1) || true;
-      else if (atTop && dy < -90) fired = go(-1) || true;
+      if (atBottom && dy > 0) swipeAcc = Math.max(0, swipeAcc) + dy;       // 最下部でさらに下へ
+      else if (atTop && dy < 0) swipeAcc = Math.min(0, swipeAcc) + dy;     // 最上部でさらに引っ張る
+      else { swipeAcc = 0; return; }                                       // 通常のスクロールはリセット
+      if (swipeAcc > 90) { fired = true; go(1); }
+      else if (swipeAcc < -90) { fired = true; go(-1); }
     }, { passive: true });
     // PC: 端に到達した後もホイールを回し続けたら切り替え
     let wheelAcc = 0, wheelTimer = null;
