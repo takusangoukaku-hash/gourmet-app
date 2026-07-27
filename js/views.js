@@ -1962,18 +1962,32 @@ const Views = (() => {
       g.time = shotTime(g.photos[0]);
       return g;
     }).sort((a, b) => b.time - a.time);
+    // お店ごとの写真カード（デザインカンプ準拠）: 写真に★平均バッジ（左上）と
+    // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。タップで店舗詳細へ
+    box.className = 'pf-photocards';
     box.innerHTML = '';
-    // タップした投稿から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = groups.map(g => buildOwnShopPost(g));
-    groups.forEach((g, i) => {
-      const shop = Store.getShop(g.shopId);
-      const div = document.createElement('div');
-      div.className = 'photo-cell';
-      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      setThumb(div.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      // タップでホームと同じ投稿表示（同じ店の写真はまとめて1投稿・写真をさらにタップで拡大）
-      div.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
-      box.appendChild(div);
+    groups.forEach((g) => {
+      const shop = Store.getShop(g.shopId) || {};
+      const avg = Store.avgRating(g.shopId);
+      const visits = Store.visitCount(g.shopId);
+      const genre = shopLabelGenre(shop) || '';
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'ppc';
+      card.innerHTML = `
+        <span class="ppc-ph">
+          <img alt="" loading="lazy" decoding="async">
+          ${avg ? `<span class="ppc-badge">★${avg}</span>` : ''}
+          ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
+        </span>
+        <span class="ppc-info">
+          <span class="ppc-name">${esc(shop.name || '')}</span>
+          ${shop.station ? `<span class="ppc-sub">${esc(shop.station)}</span>` : ''}
+          ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
+        </span>`;
+      setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
+      card.addEventListener('click', () => showShop(g.shopId));
+      box.appendChild(card);
     });
   }
 
@@ -2311,7 +2325,9 @@ const Views = (() => {
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
       <div class="d-mainrow">
-        ${s.lat != null && s.lon != null ? `<button class="btn primary d-nav-btn" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
+        ${s.lat != null && s.lon != null ? `
+        <button class="btn d-map-btn" id="d-showmap"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
+        <button class="btn primary d-nav-btn" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
         <button class="d-fav-btn${s.favorite ? ' on' : ''}" id="d-fav"
           title="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}"
           aria-label="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}">${IC_FAV}</button>
@@ -2364,6 +2380,8 @@ const Views = (() => {
     } else {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+      const mapBtn2 = $('#d-showmap');
+      if (mapBtn2) mapBtn2.addEventListener('click', () => { closeModal(); focusMapAt(s.lat, s.lon); });
       $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
@@ -2455,6 +2473,31 @@ const Views = (() => {
           }
           box.querySelectorAll('.pd-photo').forEach(img =>
             img.addEventListener('click', () => showPostDetail(post)));
+
+          // 訪問履歴: 訪問ごとの代表写真のサムネイル（横スクロール）。
+          // 各サムネに★バッジ・日付・星の並び。タップで訪問記録の一覧へ
+          const withPhoto = vs.map(v => ({ v, ph: photos.find(p => p.visitId === v.id) }))
+            .filter(x => x.ph);
+          if (withPhoto.length > 1) {
+            const vh = document.createElement('div');
+            vh.className = 'd-vh';
+            vh.innerHTML = '<div class="d-vh-title">訪問履歴</div><div class="d-visit-thumbs"></div>';
+            const row = vh.querySelector('.d-visit-thumbs');
+            withPhoto.forEach(({ v, ph }) => {
+              const el = document.createElement('button');
+              el.type = 'button';
+              el.className = 'dvt';
+              el.innerHTML = `
+                <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
+                  ${v.rating ? `<span class="pd-photo-star">★${v.rating}</span>` : ''}</span>
+                <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
+                <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
+              setThumb(el.querySelector('img'), ph);
+              el.addEventListener('click', () => showVisitList(shopId));
+              row.appendChild(el);
+            });
+            block.appendChild(vh);
+          }
         });
       }
       // 個別の訪問カードは、ある訪問をインライン編集しているときだけ並べる
