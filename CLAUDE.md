@@ -46,7 +46,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 ## 規約・注意
 - 星評価の表示は `views.js` の `starSvg(rating, size)` を使う（角丸SVG・ゴールドグラデ・半星対応）。
   入力用ボタンは `starBtn()`。文字の「★」ベタ塗りは使わない。
-- 投稿詳細・ホーム一覧は共通の `buildPostSection(p, close)` で描画する。
+- 投稿詳細は `buildPostSection(p, close)`、ホーム一覧はカード型の `buildFeedCard(p, list, i)` で描画する（カードの写真タップで詳細が開く）。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。

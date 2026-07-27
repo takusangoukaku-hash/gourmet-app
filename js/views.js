@@ -2839,12 +2839,86 @@ const Views = (() => {
     }
     feedPosts.clear();
     posts.forEach(p => feedPosts.set(p.id, p));
-    // ホームの一覧も、投稿をタップして開く詳細（buildPostSection）と同じ関数で描画する。
-    // これにより ★・店名・地名・ジャンル・「ここへ行く」まで、詳細と完全に同じ見た目になる。
-    // 各セクションが投稿者・いいね・保存・コメント・ナビの操作を自前で持つ。
-    // （更新は下に引っ張るプルリフレッシュ。一覧自体が縦スクロールの連続表示になる）
+    // ホームは写真が主役のカード型（店名・駅・ジャンルを写真に重ね、下段に投稿者とアクション）。
+    // カードの写真をタップすると従来どおり投稿詳細（buildPostSection）が開く。
+    // （更新は下に引っ張るプルリフレッシュ）
     box.innerHTML = '';
-    posts.forEach(p => box.appendChild(buildPostSection(p, () => {})));
+    posts.forEach((p, i) => box.appendChild(buildFeedCard(p, posts, i)));
+  }
+
+  // ジャンル名 → 発見タイルと同じカテゴリ色（チップの背景に使う）
+  function catColorForGenre(g) {
+    const i = Api.DISH_CATEGORIES.findIndex(c => c.name === g || c.genres.includes(g));
+    return i >= 0 ? CAT_COLORS[(i + 1) % CAT_COLORS.length] : 'var(--accent)';
+  }
+
+  // 地図タブへ切り替えて指定の場所を表示（ホームカードのミニ地図から）
+  function focusMapAt(lat, lon) {
+    App.switchTab('map');
+    setTimeout(() => { if (map) { map.jumpTo({ center: [lon, lat], zoom: 15 }); mapHasView = true; } }, 350);
+  }
+
+  // ホームのフィードカード1枚ぶん（デザインカンプ準拠）
+  //  写真の上: 店名・最寄駅・ジャンルチップ（左上）／★評価バッジ（右上）／
+  //            ミニ地図（左下）・ここへ行く（右下）
+  //  写真の下: 投稿者、いいね・コメント・行きたい保存
+  function buildFeedCard(p, list, index) {
+    const card = document.createElement('div');
+    card.className = 'fcard';
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const genre = String(p.genre || p.shopGenre || '').split('・')[0];
+    const rating = p.rating ? Math.round(p.rating * 10) / 10 : 0;
+    const hasPos = p.lat != null && p.lon != null;
+    card.innerHTML = `
+      <div class="fcard-photo">
+        ${p.photoUrl ? `<img class="fcard-img" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">`
+          : '<div class="fcard-img fcard-noimg">🍽️</div>'}
+        <div class="fcard-scrim"></div>
+        <div class="fcard-head">
+          <div class="fcard-name">${esc(p.shopName || '')}</div>
+          ${p.station ? `<div class="fcard-sub">${IC_STATION} ${esc(p.station)}</div>` : ''}
+          ${genre ? `<span class="fcard-genre" style="background:${catColorForGenre(genre)}">${esc(genre)}</span>` : ''}
+        </div>
+        ${rating ? `<div class="fcard-badge"><span class="fb-star">★</span>${rating}</div>` : ''}
+        ${hasPos ? `
+          <button type="button" class="fcard-map" title="地図で見る" aria-label="地図で見る">
+            <svg viewBox="0 0 24 24"><path d="M12 22s7-7.6 7-12.5A7 7 0 0 0 5 9.5C5 14.4 12 22 12 22z" fill="#C6613F"/><circle cx="12" cy="9.5" r="2.6" fill="#fff"/></svg>
+          </button>
+          <button type="button" class="btn primary fcard-nav">${IC_NAV} ここへ行く</button>` : ''}
+      </div>
+      <div class="fcard-foot">
+        <button type="button" class="feed-author pd-author">
+          <span class="fc-avatar">${av}</span>
+          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
+        </button>
+        <div class="fcard-acts">
+          <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
+          <button type="button" class="fa-comment fcard-cmt" aria-label="コメント">${IC_COMMENT}<span class="fa-n fcard-cmt-n"></span></button>
+          <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
+        </div>
+      </div>`;
+    // 写真タップ → 投稿詳細（中のボタンは各自の動作を優先）
+    const openDetail = () => showPostDetail(p, { list, index });
+    card.querySelector('.fcard-photo').addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      openDetail();
+    });
+    const mapBtn = card.querySelector('.fcard-map');
+    if (mapBtn) mapBtn.addEventListener('click', () => focusMapAt(p.lat, p.lon));
+    const navBtn = card.querySelector('.fcard-nav');
+    if (navBtn) navBtn.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
+    // いいね・コメント数・行きたい保存
+    Cloud.getLikeInfo(p.id).then(info => {
+      const lb = card.querySelector('.pd-like');
+      lb.querySelector('.fa-like-n').textContent = info.count;
+      lb.classList.toggle('liked', info.liked);
+    }).catch(() => {});
+    Cloud.commentCount(p.id).then(n => { card.querySelector('.fcard-cmt-n').textContent = n || ''; }).catch(() => {});
+    card.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(card.querySelector('.pd-like')));
+    card.querySelector('.fcard-cmt').addEventListener('click', openDetail);
+    card.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, card.querySelector('.pd-save')));
+    return card;
   }
 
   // ---------- 行きたい店（投稿から保存） ----------
