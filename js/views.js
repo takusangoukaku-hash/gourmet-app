@@ -1986,7 +1986,9 @@ const Views = (() => {
           ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
         </span>`;
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      card.addEventListener('click', () => showShop(g.shopId));
+      // 上下スクロールで前後の店舗へ送れるよう、並び順のリストを渡して開く
+      card.addEventListener('click', () => showShop(g.shopId, false, null,
+        { list: groups.map(x => x.shopId), index: groups.indexOf(g) }));
       box.appendChild(card);
     });
   }
@@ -2243,16 +2245,62 @@ const Views = (() => {
   // 編集モードの料理ジャンル選択状態（vid → Set）
   let editGenreSets = new Map();
 
-  async function showShop(shopId, editMode = false, editVid = null) {
+  // 店舗詳細の上下スクロールでの店舗送り: 最下部でさらに下へスワイプ→次の店舗、
+  // 最上部で下へ引っ張る→前の店舗（プロフィールの写真カードの並び順）
+  let shopNavState = null, shopNavBound = false;
+  function bindShopNavOnce() {
+    if (shopNavBound) return;
+    shopNavBound = true;
+    const modal = $('#modal');
+    const go = (dir) => {
+      const { list, index } = shopNavState;
+      const ni = index + dir;
+      if (ni < 0 || ni >= list.length) return false;
+      showShop(list[ni], false, null, { list, index: ni });
+      modal.scrollTop = 0;
+      return true;
+    };
+    // スマホ: 端に到達した状態からのスワイプ量で判定
+    let startY = null, fired = false;
+    modal.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; fired = false; }, { passive: true });
+    modal.addEventListener('touchmove', (e) => {
+      if (!shopNavState || fired || startY == null) return;
+      const dy = startY - e.touches[0].clientY; // 正=指を上へ（下方向へのスクロール）
+      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 4;
+      const atTop = modal.scrollTop <= 4;
+      if (atBottom && dy > 90) fired = go(1) || true;
+      else if (atTop && dy < -90) fired = go(-1) || true;
+    }, { passive: true });
+    // PC: 端に到達した後もホイールを回し続けたら切り替え
+    let wheelAcc = 0, wheelTimer = null;
+    modal.addEventListener('wheel', (e) => {
+      if (!shopNavState) return;
+      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 4;
+      const atTop = modal.scrollTop <= 4;
+      if ((e.deltaY > 0 && atBottom) || (e.deltaY < 0 && atTop)) {
+        wheelAcc += e.deltaY;
+        clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(() => { wheelAcc = 0; }, 400);
+        if (wheelAcc > 260) { wheelAcc = 0; go(1); }
+        else if (wheelAcc < -260) { wheelAcc = 0; go(-1); }
+      } else wheelAcc = 0;
+    }, { passive: true });
+  }
+
+  async function showShop(shopId, editMode = false, editVid = null, nav = null) {
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
     const body = $('#modal-body');
+    // 上下スクロールでの店舗送り（プロフィールの写真カードから開いたとき）。
+    // 編集中は誤って切り替わらないよう無効にする
+    shopNavState = (nav && !editMode && !editVid) ? nav : null;
+    bindShopNavOnce();
 
     // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
     if (!editMode && !networkLoaded) {
       ensureNetworkLoaded(() => {
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid);
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid, nav);
       });
     }
     // 地図が「自分」表示のときは店舗詳細も自分の記録だけにする
@@ -2336,10 +2384,16 @@ const Views = (() => {
     // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
     // ここへ行く＋♥は一番下（スクロール中も画面下に張り付く）。
     // 訪問記録の見出しの右に✎（記録を見る）を置く
+    // 店舗送りが有効なとき、前/次の店名のヒントを上下に出す
+    const navPrev = shopNavState && shopNavState.index > 0
+      ? (Store.getShop(shopNavState.list[shopNavState.index - 1]) || {}).name : '';
+    const navNext = shopNavState && shopNavState.index < shopNavState.list.length - 1
+      ? (Store.getShop(shopNavState.list[shopNavState.index + 1]) || {}).name : '';
     body.innerHTML = editMode ? `
       ${headHtml}
       ${shopFormHtml}
       ${actionsHtml}` : `
+      ${navPrev ? `<div class="d-swipehint">︿ 下に引っ張って前の店舗: ${esc(navPrev)}</div>` : ''}
       ${headHtml}
       ${axisHtml}
       <div class="d-visits-head">
@@ -2348,6 +2402,7 @@ const Views = (() => {
           title="記録を見る" aria-label="記録を見る">${IC_EDIT}</button>
       </div>
       <div id="d-visits"></div>
+      ${navNext ? `<div class="d-swipehint">さらにスクロールで次の店舗: ${esc(navNext)} ﹀</div>` : ''}
       ${actionsHtml}`;
 
     // 「詳細」ボタンでお店の評価（3軸）を開閉
@@ -3555,6 +3610,7 @@ const Views = (() => {
 
   function closeModal() {
     $('#modal').classList.add('hidden');
+    shopNavState = null; // 店舗送りの状態も解除（次に地図などから開いたとき誤作動しない）
   }
 
   return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };

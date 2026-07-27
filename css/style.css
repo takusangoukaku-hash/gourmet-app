@@ -618,6 +618,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .ppc-genre { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 10px; margin-top: 2px; min-width: 0; }
 .ppc-genre .ppc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-left: auto; }
 
+/* 店舗送りのヒント（前/次の店名。画面の上下に小さく表示） */
+.d-swipehint { text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0 8px; }
+
 /* ---------- 店舗詳細の訪問履歴（訪問ごとのサムネイル・横スクロール） ---------- */
 .d-vh { padding: 4px 16px 14px; }
 .d-vh-title { font-family: var(--serif); font-weight: 700; font-size: 16px; margin: 10px 0 8px; }
