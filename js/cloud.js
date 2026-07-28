@@ -211,28 +211,67 @@ const Cloud = (() => {
     await fb.fs.setDoc(dref('meta', 'profile'), clean(Store.getProfile()));
   }
 
-  // 写真: クラウド↔ローカルの差分を埋める
+  // 公開URLから画像の実体（バイト）を取得する。Firebaseの v0 ダウンロードURLは
+  // CORSを許可しているため fetch できる（できない環境ではURL参照表示に落とす）
+  async function fetchPhotoBlob(url) {
+    const res = await withTimeout(fetch(url), 20000, '写真ダウンロード');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.blob();
+  }
+
+  // 写真: クラウド↔ローカルの差分を埋める。
+  // 別端末でログインしたときも写真の実体ごとダウンロードして端末に保存する（本当の復元）。
+  // 一度に全部は取り込まず1回あたり上限を設け、残りは次の自動同期（15分ごと・アプリ復帰時）で続きから
   async function syncPhotos() {
     const metaSnap = await fb.fs.getDocs(cref('photos'));
     const cloudMetas = [];
     metaSnap.forEach(d => cloudMetas.push(d.data()));
     const cloudIds = new Set(cloudMetas.map(m => m.id));
     const localIds = await Store.photoIds();
+    let changed = 0;            // 取り込めた枚数（呼び出し側で画面を描き直す判断に使う）
+    let pulls = 0, fails = 0;
+    const MAX_PULL = 60;        // 1回の同期でダウンロードする実体の上限（残りは次回）
+    const MAX_FAIL = 5;         // 連続失敗したら今回は諦めて次回に回す（永久リトライ防止）
 
-    // クラウドにあってローカルに無い写真 → 公開URLを取り込み（<img>で表示。CORS不要）
+    // クラウドにあってローカルに無い写真 → 実体をダウンロードして保存。
+    // ダウンロードに失敗したときは従来どおりURL参照として取り込み、次回の同期で実体を再試行
     for (const m of cloudMetas) {
-      if (localIds.has(m.id)) continue;
+      if (localIds.has(m.id) || pulls >= MAX_PULL || fails >= MAX_FAIL) continue;
       try {
         const remoteUrl = await photoDownloadUrl(m.path);
-        await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl });
-      } catch (e) { console.warn('写真URL取得失敗:', m.id, e); }
+        let blob = null;
+        try { blob = await fetchPhotoBlob(remoteUrl); pulls++; } catch { fails++; }
+        await Store.putPhotoRaw({
+          id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
+          hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl,
+          ...(blob ? { blob } : {}),
+        });
+        changed++;
+      } catch (e) { fails++; console.warn('写真取り込み失敗:', m.id, e); }
     }
-    // ローカルにあってクラウドに無い写真 → アップロード
+    // 以前の同期でURL参照だけになっている写真 → 実体を取り直して端末に保存
+    // （URLが古くて表示できなくなった写真も、URLを取り直してから再挑戦する）
     const localPhotos = await Store.allPhotos();
     for (const p of localPhotos) {
-      if (cloudIds.has(p.id) || !p.blob) continue; // 既にクラウド済み or URL参照のみは上げない
+      if (p.blob || !cloudIds.has(p.id) || pulls >= MAX_PULL || fails >= MAX_FAIL) continue;
+      try {
+        let url = p.remoteUrl, blob = null;
+        if (url) { try { blob = await fetchPhotoBlob(url); } catch { blob = null; } }
+        if (!blob) {
+          const m = cloudMetas.find(x => x.id === p.id);
+          url = await photoDownloadUrl((m && m.path) || `users/${user.uid}/photos/${p.id}.jpg`);
+          blob = await fetchPhotoBlob(url);
+        }
+        await Store.putPhotoRaw({ ...p, remoteUrl: url, blob });
+        pulls++; changed++;
+      } catch (e) { fails++; console.warn('写真の実体取得に失敗:', p.id, e); }
+    }
+    // ローカルにあってクラウドに無い写真 → アップロード
+    for (const p of localPhotos) {
+      if (cloudIds.has(p.id) || !p.blob) continue; // 既にクラウド済み or 実体が無い写真は上げない
       try { await withTimeout(uploadPhoto(p), 25000, 'アップロード'); } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
     }
+    return changed;
   }
 
   async function uploadPhoto(p) {
@@ -493,9 +532,10 @@ const Cloud = (() => {
     sweepRunning = true;
     try {
       await pushAllRecords();  // 店・訪問・行きたい・プロフィール（差分ではなく全件上書き＝確実）
-      await syncPhotos();      // 写真はクラウドとの差分だけアップロード/取り込み
+      const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
       lastSweepAt = Date.now();
       setStatus('synced');
+      if (got) App.refreshCurrent(); // 別端末から届いた写真をすぐ画面に反映
     } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
     finally { sweepRunning = false; }
   }
