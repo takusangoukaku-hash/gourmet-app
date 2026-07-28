@@ -1203,15 +1203,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
 }
 .fcard-badge .fb-star { color: var(--star); font-size: 13px; }
-/* ミニ地図（左下）: タップで地図タブのその場所へ */
-.fcard-map {
-  position: absolute; bottom: 12px; left: 12px; width: 54px; height: 54px;
-  border: none; border-radius: 14px; cursor: pointer;
-  background: var(--card) repeating-linear-gradient(45deg, transparent 0 9px, var(--border-lite) 9px 10px);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+/* 現在地からの距離・徒歩の目安（左下）: タップで地図タブのその場所へ */
+.fcard-dist {
+  position: absolute; bottom: 12px; left: 12px; max-width: 60%;
+  border: none; border-radius: 14px; cursor: pointer; padding: 9px 14px 9px 11px;
+  background: var(--card); color: var(--text); text-align: left;
+  display: flex; flex-direction: column; gap: 3px;
+  font-family: inherit; font-size: 13px; box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
 }
-.fcard-map svg { width: 26px; height: 26px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .2)); }
+.fd-row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.fd-row .ic, .fd-row .nm-svg { width: 17px; height: 17px; color: var(--accent); flex-shrink: 0; }
+.fd-row b { color: var(--accent); font-size: 16px; font-weight: 800; }
 /* ここへ行く（右下） */
 .fcard-nav {
   position: absolute; bottom: 12px; right: 12px;
@@ -1221,7 +1223,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 /* 写真の無い投稿: 大きな空の四角を出さず、店名・ジャンルだけのコンパクトなカードにする */
 .fcard-nophoto .fcard-photo { aspect-ratio: auto; min-height: 0; background: var(--card); }
-.fcard-nophoto .fcard-img, .fcard-nophoto .fcard-scrim, .fcard-nophoto .fcard-map { display: none; }
+.fcard-nophoto .fcard-img, .fcard-nophoto .fcard-scrim, .fcard-nophoto .fcard-dist { display: none; }
 .fcard-nophoto .fcard-head { position: static; padding: 14px 76px 0 16px; color: var(--text); }
 .fcard-nophoto .fcard-name { color: var(--text); text-shadow: none; font-size: 18px; }
 .fcard-nophoto .fcard-sub { color: var(--muted); text-shadow: none; }

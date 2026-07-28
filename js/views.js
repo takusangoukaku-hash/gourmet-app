@@ -3573,8 +3573,9 @@ const Views = (() => {
         </div>
         ${rating ? `<div class="fcard-badge"><span class="fb-star">★</span>${fmtR(rating)}</div>` : ''}
         ${hasPos ? `
-          <button type="button" class="fcard-map" title="地図で見る" aria-label="地図で見る">
-            <svg viewBox="0 0 24 24"><path d="M12 22s7-7.6 7-12.5A7 7 0 0 0 5 9.5C5 14.4 12 22 12 22z" fill="#C6613F"/><circle cx="12" cy="9.5" r="2.6" fill="#fff"/></svg>
+          <button type="button" class="fcard-dist hidden" title="地図で見る" aria-label="地図で見る">
+            <span class="fd-row">${IC_PIN}<span>現在地から <b class="fd-m"></b></span></span>
+            <span class="fd-row">${IC_WALK}<span>徒歩 <b class="fd-min"></b></span></span>
           </button>
           <button type="button" class="btn primary fcard-nav">${IC_NAV} ここへ行く</button>` : ''}
       </div>
@@ -3623,8 +3624,18 @@ const Views = (() => {
       if (e.target.closest('button')) return;
       openDetail();
     });
-    const mapBtn = card.querySelector('.fcard-map');
-    if (mapBtn) mapBtn.addEventListener('click', () => focusMapAt(p.lat, p.lon));
+    // 現在地からの距離・徒歩の目安（デザイン案準拠）。位置が取れたときだけ左下に出す。
+    // タップで地図タブのその店へ（旧ミニ地図ボタンの役割を引き継ぐ）
+    const distBox = card.querySelector('.fcard-dist');
+    if (distBox) {
+      distBox.addEventListener('click', () => focusMapAt(p.lat, p.lon));
+      currentPosition().then(me => {
+        const m = Store.distMeters(me.lat, me.lon, p.lat, p.lon);
+        distBox.querySelector('.fd-m').textContent = fmtDist(m);
+        distBox.querySelector('.fd-min').textContent = Math.max(1, Math.round(m / 80)) + '分'; // 分速80m
+        distBox.classList.remove('hidden');
+      }).catch(() => { /* 位置情報が使えないときは出さない */ });
+    }
     const navBtn = card.querySelector('.fcard-nav');
     if (navBtn) navBtn.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
