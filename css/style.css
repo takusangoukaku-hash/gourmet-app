@@ -8,7 +8,7 @@
   --accent2: #D97757;       /* 明るいテラコッタ（グラデーションの相方） */
   --grad: linear-gradient(45deg, #D97757, #BC5B3D);
   --accent-soft: #F6EAE4;   /* 淡いテラコッタ（選択中の背景） */
-  --bg: #F5F4ED;            /* アイボリー（Claudeの背景） */
+  --bg: #FFFFFF;            /* ヘッダー（BITEMAPのバー）と同じ白 */
   --card: #FFFFFF;
   --text: #1F1E1D;          /* 墨色 */
   --muted: #87867F;         /* 温かみのあるグレー */
