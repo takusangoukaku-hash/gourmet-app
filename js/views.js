@@ -1826,11 +1826,20 @@ const Views = (() => {
     '肉料理': 'yakiniku', '焼肉': 'yakiniku', 'ホルモン': 'yakiniku', 'ジンギスカン': 'yakiniku',
     'ステーキ': 'steak', 'ハンバーグ': 'steak', 'ハンバーガー': 'burger', 'ピザ': 'pizza',
     '中華': 'chuka', '中華料理': 'chuka', 'チャーハン': 'chuka',
-    'アジア': 'thai', '韓国料理': 'korean', 'タイ料理': 'thai', 'ベトナム料理': 'thai', 'エスニック': 'thai', 'インド料理': 'indian',
+    'アジア': 'thai', '韓国料理': 'korean', 'タイ料理': 'thai', 'ベトナム料理': 'thai', 'エスニック': 'ethnic', 'インド料理': 'indian',
     'カフェ・スイーツ': 'sweets', 'カフェメニュー': 'cafe', 'スイーツ': 'sweets', 'ケーキ': 'sweets', 'パン': 'bread',
     '和食': 'washoku', '日本料理': 'washoku', '定食': 'washoku', '郷土料理': 'washoku', '沖縄料理': 'washoku',
     '洋食': 'yoshoku', 'イタリアン': 'italian', 'フレンチ': 'french', 'スペイン料理': 'spanish',
     '和菓子': 'dessert',
+    // 2枚目のデザイン案（不足分33種）から切り出したイラスト
+    '海鮮・魚介': 'kaisen', '海鮮丼': 'kaisendon', '天ぷら': 'tempura', 'とんかつ': 'tonkatsu', '串揚げ': 'kushiage',
+    '焼鳥': 'yakitori', 'うなぎ': 'unagi', 'お好み焼き': 'okonomiyaki', 'たこ焼き': 'takoyaki', 'もんじゃ焼き': 'monja',
+    '鍋': 'nabe', 'もつ鍋': 'motsunabe', 'しゃぶしゃぶ': 'shabushabu', 'すき焼き': 'sukiyaki', 'おでん': 'oden',
+    '釜飯': 'kamameshi', '弁当': 'bento', '丼もの': 'donburi', '牛丼': 'gyudon', '親子丼': 'oyakodon',
+    '餃子': 'gyoza', '小籠包': 'shoronpo', 'サンドイッチ': 'sandwich',
+    'パンケーキ': 'pancake', 'パフェ': 'parfait', 'クレープ': 'crepe', 'アイス・ジェラート': 'icecream',
+    'ドーナツ': 'donut', 'かき氷': 'kakigori', 'タピオカ': 'tapioca', 'ドリンク': 'drink',
+    'ビュッフェ': 'sonota', 'その他': 'sonota',
   };
   // 「◯◯すべて」のような複合ラベルにも対応（先頭一致で探す）
   function genreIcon(label) {
