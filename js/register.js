@@ -782,6 +782,11 @@ const Register = (() => {
       // 下書きから完成させた場合は、その下書きを削除
       if (activeDraftId) { await Store.deleteDraft(activeDraftId).catch(() => {}); activeDraftId = null; refreshDraftsBanner(); }
 
+      // 登録のたびに全体の差分同期を裏で実行（今回の写真に加え、過去に失敗した分も拾い直す）
+      if (typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser()) {
+        Cloud.autoBackupSweep(true).catch(() => {});
+      }
+
       App.toast(`✅ 「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
       resetForm();
       App.switchTab('list');
