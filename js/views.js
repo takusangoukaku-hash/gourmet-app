@@ -1816,16 +1816,41 @@ const Views = (() => {
     '和菓子': 'wagashi', 'タピオカ': 'tapioca', 'スイーツ': 'cake', 'ドリンク': 'drink',
     'その他': 'cloche', 'ビュッフェ': 'cloche',
   };
+  // デザイン案の画像から切り出した本物のイラスト（icons/genre/*.png）。
+  // ここにあるジャンルは画像を使い、無いジャンルだけ上の線画SVGで補う
+  const GENRE_IMG = {
+    'すべて': 'subete',
+    '麺類': 'ramen', 'ラーメン': 'ramen', 'つけ麺': 'tsukemen', '油そば・まぜそば': 'aburasoba',
+    '担々麺': 'tantan', 'うどん': 'udon', 'そば': 'soba', 'パスタ': 'pasta', '焼きそば': 'yakisoba',
+    'カレー': 'curry', 'スープカレー': 'curry', '寿司': 'sushi',
+    '肉料理': 'yakiniku', '焼肉': 'yakiniku', 'ホルモン': 'yakiniku', 'ジンギスカン': 'yakiniku',
+    'ステーキ': 'steak', 'ハンバーグ': 'steak', 'ハンバーガー': 'burger', 'ピザ': 'pizza',
+    '中華': 'chuka', '中華料理': 'chuka', 'チャーハン': 'chuka',
+    'アジア': 'thai', '韓国料理': 'korean', 'タイ料理': 'thai', 'ベトナム料理': 'thai', 'エスニック': 'thai', 'インド料理': 'indian',
+    'カフェ・スイーツ': 'sweets', 'カフェメニュー': 'cafe', 'スイーツ': 'sweets', 'ケーキ': 'sweets', 'パン': 'bread',
+    '和食': 'washoku', '日本料理': 'washoku', '定食': 'washoku', '郷土料理': 'washoku', '沖縄料理': 'washoku',
+    '洋食': 'yoshoku', 'イタリアン': 'italian', 'フレンチ': 'french', 'スペイン料理': 'spanish',
+    '和菓子': 'dessert',
+  };
   // 「◯◯すべて」のような複合ラベルにも対応（先頭一致で探す）
   function genreIcon(label) {
     const l = String(label || '');
+    // まず本物のイラスト（画像）から
+    let img = GENRE_IMG[l];
+    if (!img) {
+      for (const name of Object.keys(GENRE_IMG)) {
+        if (name !== 'すべて' && l.startsWith(name)) { img = GENRE_IMG[name]; break; }
+      }
+    }
+    if (!img && l.endsWith('すべて')) img = 'subete';
+    if (img) return `<img class="gi" src="icons/genre/${img}.png" alt="" loading="lazy" decoding="async">`;
+    // 画像が無いジャンルは線画SVGで補う
     let key = GENRE_ICON_MAP[l];
     if (!key) {
       for (const name of Object.keys(GENRE_ICON_MAP)) {
         if (name !== 'すべて' && l.startsWith(name)) { key = GENRE_ICON_MAP[name]; break; }
       }
     }
-    if (!key && l.endsWith('すべて')) key = 'subete';
     return GENRE_ICONS[key || 'cloche'];
   }
 

@@ -1665,6 +1665,7 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 }
 .ex-cat-ic { display: flex; }
 .ex-cat-ic .gi { width: 52px; height: 52px; }
+.ex-cat-ic img.gi { object-fit: contain; mix-blend-mode: multiply; } /* 画像の白背景をカードに馴染ませる */
 .ex-cat-label { font-size: 15px; font-weight: 700; line-height: 1.25; }
 .ex-cat-count { font-size: 12.5px; color: var(--accent); font-weight: 700; }
 /* 「すべて」「◯◯すべて」の横長タイル */
