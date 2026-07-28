@@ -1731,6 +1731,104 @@ const Views = (() => {
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
+
+  // ========== カテゴリー/ジャンルの手描き風イラスト（線画SVG） ==========
+  // デザイン案準拠: 温かい線画（茶色の輪郭＋クリーム系の塗り）。外部画像は使わず
+  // インラインSVGで描く（オフラインでも表示され、Retinaでも滲まない）
+  const GI = (body) => `<svg class="gi" viewBox="0 0 48 48" fill="none" stroke="#6E4F38" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  // 湯気（2本）。x は中心
+  const gSteam = (x, y = 6) => `<path d="M${x - 4} ${y + 2}c-1.6 2 1.6 3.2 0 5.4M${x + 3} ${y}c-1.6 2 1.6 3.2 0 5.4" stroke-opacity=".55"/>`;
+  // 茶碗/丼の器（下半分）
+  const gBowl = (fill = '#F7EFE3') => `<path d="M7 23h34c0 8-5.5 13.5-12 15v3H19v-3C12.5 36.5 7 31 7 23z" fill="${fill}"/>`;
+  // 平皿
+  const gPlate = (y = 34) => `<ellipse cx="24" cy="${y}" rx="17" ry="5" fill="#FFFDF8"/>`;
+  const GENRE_ICONS = {
+    subete: GI('<rect x="10" y="10" width="11" height="11" rx="3" stroke="#D97757"/><rect x="27" y="10" width="11" height="11" rx="3" stroke="#D97757"/><rect x="10" y="27" width="11" height="11" rx="3" stroke="#D97757"/><rect x="27" y="27" width="11" height="11" rx="3" stroke="#D97757"/>'),
+    ramen: GI(gSteam(20) + '<path d="M31 6l6 3M30 10l8-2" />' + gBowl() + '<path d="M12 23c2-4 6-7 12-7s10 3 12 7" fill="#F0D5B8"/><path d="M15 20c2.5-2 5-3 9-3M18 23c2-1.5 4-2 7-2" stroke-opacity=".7"/>'),
+    tsukemen: GI('<path d="M27 8l7 4M26 12l9-1"/><rect x="6" y="18" width="17" height="8" rx="2" fill="#FFFDF8"/><path d="M8 22h13M9 25h11" stroke-opacity=".6"/><path d="M27 24h14c0 6-3.5 9.5-7 10.5V37h-1v-2.5c-3.5-1-6-4.5-6-10.5z" fill="#F7EFE3"/><path d="M6 30h17c-1 4-4 6-8.5 6S7 34 6 30z" fill="#F0D5B8"/>'),
+    abura: GI(gBowl() + '<path d="M11 23c2-4.5 6.5-7.5 13-7.5S35 18.5 37 23" fill="#F0D5B8"/><circle cx="24" cy="17" r="4" fill="#FFFDF8"/><circle cx="24" cy="17" r="1.6" fill="#E8A33D" stroke="none"/><path d="M13 20c2-1.5 3.5-2 6-2.5M31 17.5c2 .5 3.5 1.2 5 2.5" stroke-opacity=".6"/>'),
+    tantan: GI('<path d="M20 5c-2 2.5 2 4 0 6.5" stroke="#C8542E"/><path d="M27 4c-2 2.5 2 4 0 6.5" stroke="#C8542E"/>' + gBowl() + '<path d="M11 23c2-4 6.5-6.5 13-6.5S35 19 37 23" fill="#E8B27D"/><circle cx="24" cy="16.5" r="3.2" fill="#C8542E" stroke="none" opacity=".85"/>'),
+    yakisoba: GI(gSteam(31, 8) + gPlate(33) + '<path d="M10 32c2-5 7-8 14-8s12 3 14 8" fill="#F0D5B8"/><path d="M13 28.5c3-2 6-3 10-3M20 30c3-1.5 6-2 9-2" stroke-opacity=".65"/><path d="M33 12v10M30 13.5l3-1.5 3 1.5" />'),
+    udon: GI(gSteam(24) + '<path d="M32 7l6 4M31 11l8 0"/>' + gBowl() + '<path d="M12 23c2-3.5 6-6 12-6s10 2.5 12 6" fill="#FFFDF8"/><path d="M16 20.5c2-1.5 4.5-2.5 8-2.5M22 21c2.5-1 5-1.2 8 0" stroke-opacity=".7"/>'),
+    soba: GI('<rect x="9" y="17" width="30" height="14" rx="3" fill="#FFFDF8"/><path d="M9 24h30"/><path d="M13 21.5c3-2 6-2.5 9-2M20 22c3-1.5 6-2 9-1.5M15 20.5c4-1.5 12-1.5 17 .5" stroke-opacity=".65"/><path d="M13 31v3M35 31v3"/>'),
+    pasta: GI(gPlate(33) + '<path d="M11 32c2-4 6.5-7 13-7s11 3 13 7" fill="#F0D5B8"/><path d="M29 8v13M33 8v10M25 8v10"/><path d="M29 21a5 4.5 0 1 1-6-3.5" stroke-opacity=".8"/>'),
+    sushi: GI('<path d="M8 20c0-3 3.5-5 8-5s8 2 8 5l-1 4H9z" fill="#F49A8A"/><path d="M9 24h14v5a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2z" fill="#FFFDF8"/><path d="M26 24c0-3 3.5-5 8-5s8 2 8 5l-1 4h-14z" fill="#F4A96B"/><path d="M27 28h14v4a2 2 0 0 1-2 2H29a2 2 0 0 1-2-2z" fill="#FFFDF8"/><path d="M11 18.5c2-1 3.5-1.2 5.5-1M29 22.5c2-1 3.5-1.2 5.5-1" stroke-opacity=".55"/>'),
+    fish: GI('<path d="M8 26c4-6 10-9 17-9 6 0 10 3 13 7-3 4-7 7-13 7-7 0-13-1-17-5z" fill="#BFD3E0"/><path d="M38 24l6-6-1 8 1 6-6-6" fill="#BFD3E0"/><circle cx="15" cy="24" r="1.2" fill="#6E4F38" stroke="none"/><path d="M22 19c1.5 2 1.5 6 0 9M28 18.5c1.5 2.5 1.5 7 0 10" stroke-opacity=".55"/>'),
+    washoku: GI(gSteam(24) + '<path d="M11 20c2.5-4 7-6.5 13-6.5S34.5 16 37 20" fill="#FFFDF8"/><path d="M8 21h32c0 7-5 12-12 13.5V38H20v-3.5C13 33 8 28 8 21z" fill="#F7EFE3"/><path d="M14 27h20" stroke-opacity=".35"/>'),
+    tempura: GI(gPlate(34) + '<path d="M20 12c1-2 3-2 4 0l7 14-5 3-8-1z" fill="#F0C27D"/><path d="M22 9c.5-2 3-2.5 4-1"/><path d="M16 20c-4 1-6 4-6 8l7 3z" fill="#F0D5B8"/><path d="M21 15l6 11M24 13l5 9" stroke-opacity=".5"/>'),
+    katsu: GI(gPlate(34) + '<path d="M10 22c0-4 5-7 14-7s14 3 14 7-5 8-14 8-14-4-14-8z" fill="#E0A45B"/><path d="M17 16v13M23 15.5v14M29 16v13" stroke-opacity=".7"/><path d="M13 19c1.5-1 3-1.6 5-2" stroke-opacity=".5"/>'),
+    kushi: GI('<path d="M12 8v32"/><circle cx="12" cy="13" r="3.4" fill="#DB8A63"/><circle cx="12" cy="21" r="3.4" fill="#A9BC8B"/><circle cx="12" cy="29" r="3.4" fill="#DB8A63"/><path d="M28 8v32"/><rect x="24" y="10" width="8" height="6" rx="2" fill="#DB8A63"/><rect x="24" y="18" width="8" height="6" rx="2" fill="#F0D5B8"/><rect x="24" y="26" width="8" height="6" rx="2" fill="#DB8A63"/>'),
+    unagi: GI('<rect x="8" y="14" width="32" height="22" rx="3" fill="#3F3A35" stroke="#3F3A35"/><rect x="11" y="17" width="26" height="16" rx="1.5" fill="#FFFDF8" stroke="#6E4F38"/><path d="M13 25c4-3 8-3 11 0s7 3 11 0" stroke="#B9885C" stroke-width="4"/><path d="M15 21h6M27 29h6" stroke-opacity=".4"/>'),
+    konamon: GI(gSteam(20) + '<ellipse cx="22" cy="28" rx="14" ry="8" fill="#E0A45B"/><ellipse cx="22" cy="26" rx="14" ry="7.5" fill="#F0C27D"/><path d="M12 24c3 1.5 7 2 10 2s7-.5 10-2" stroke-opacity=".4"/><path d="M39 14l3 14M36.5 15.5l5-1"/>'),
+    takoyaki: GI('<ellipse cx="24" cy="33" rx="15" ry="5" fill="#FFFDF8"/><circle cx="15" cy="25" r="5.5" fill="#E0A45B"/><circle cx="27" cy="23" r="5.5" fill="#E0A45B"/><circle cx="34" cy="29" r="5" fill="#E0A45B"/><path d="M27 10v8"/><path d="M13 22c1-1 2.5-1.5 4-1.5M25 20c1-1 2.5-1.5 4-1.5" stroke-opacity=".5"/>'),
+    nabe: GI(gSteam(24) + '<path d="M10 20h28v3c0 8-6 13-14 13s-14-5-14-13z" fill="#D97757" stroke="#B85F41"/><path d="M12 18c3-2.5 7.5-4 12-4s9 1.5 12 4" fill="#FFFDF8"/><circle cx="24" cy="12" r="2" fill="#F7EFE3"/><path d="M4 22h6M38 22h6"/>'),
+    bento: GI('<rect x="7" y="15" width="34" height="20" rx="3" fill="#FFFDF8"/><path d="M24 15v20M24 25h17"/><circle cx="15.5" cy="25" r="4.5" fill="#F0D5B8"/><rect x="28" y="18.5" width="9" height="3.5" rx="1.5" fill="#DB8A63"/><rect x="28" y="28.5" width="9" height="3.5" rx="1.5" fill="#A9BC8B"/>'),
+    don: GI(gSteam(24) + gBowl('#F7EFE3') + '<path d="M10 23c2.5-5 7.5-8 14-8s11.5 3 14 8" fill="#E0A45B"/><path d="M14 19.5c2-1.5 4-2.5 7-3M27 16.5c3 .5 5.5 1.5 7.5 3" stroke-opacity=".55"/>'),
+    yakiniku: GI(gSteam(24, 4) + '<path d="M14 18c3-4 9-5 13-2 3 2 8 2 8 7 0 4-4 7-10 7s-13-2-13-7c0-2 1-4 2-5z" fill="#E2917C"/><path d="M17 21c2-1.5 4-2 7-2M22 25c2-1 4-1.2 6-1" stroke-opacity=".5"/><path d="M8 36h32M12 36l-2 4M24 36v4M36 36l2 4"/>'),
+    steak: GI(gPlate(34) + '<path d="M10 24c0-5 5-8 12-8 8 0 16 2 16 8 0 5-6 8-14 8s-14-3-14-8z" fill="#B96A4B"/><path d="M15 20l16 9M15 27l14-8" stroke-opacity=".45"/><path d="M34 18c2 1.5 3.5 3.5 3.5 6" stroke-opacity=".5"/>'),
+    wok: GI(gSteam(21, 4) + '<path d="M8 20h26c-1 8-6.5 13-13 13S9 28 8 20z" fill="#4A413A" stroke="#4A413A"/><path d="M10 20h22c-.8 6.5-5.5 11-11 11s-10.2-4.5-11-11z" fill="#F0D5B8" stroke="#6E4F38"/><path d="M34 21l10-4"/>'),
+    gyoza: GI('<ellipse cx="24" cy="34" rx="16" ry="5" fill="#FFFDF8"/><path d="M10 28c0-6 5-10 11-10 3.5 0 5 2 3 4-4 4-8 6-14 6z" fill="#F0D5B8"/><path d="M22 28c0-6 5-10 11-10 3.5 0 5 2 3 4-4 4-8 6-14 6z" fill="#F0D5B8"/><path d="M13 24c2-.5 4-1.5 6-3M25 24c2-.5 4-1.5 6-3" stroke-opacity=".5"/>'),
+    korean: GI(gSteam(24) + '<path d="M9 20h30v2c0 8-6.5 14-15 14S9 30 9 22z" fill="#4A413A" stroke="#4A413A"/><path d="M12 20c2-3.5 6.5-6 12-6s10 2.5 12 6" fill="#F0D5B8"/><circle cx="24" cy="16" r="3" fill="#FFFDF8"/><circle cx="24" cy="16" r="1.3" fill="#E8A33D" stroke="none"/><path d="M15 17.5c1.5-1 3-1.6 5-2M29 15.5c2 .4 3.5 1 5 2" stroke="#C8542E" stroke-opacity=".8"/>'),
+    thai: GI(gSteam(28, 5) + gBowl() + '<path d="M11 23c2-4 6.5-6.5 13-6.5S35 19 37 23" fill="#E8B27D"/><path d="M18 15c1.5-3 5-4 7.5-2.5-1 2.5-4 4-7.5 2.5z" fill="#A9BC8B"/><path d="M27 13c2.5-1.5 5 .5 5 3-2.5 1-5-.5-5-3z" fill="#F49A8A"/>'),
+    indian: GI('<path d="M8 18c0-5 5-8 10-8 4 0 7 2 6 6-1.5 6-6 12-12 12-3 0-4-2-4-4z" fill="#F0C27D"/><path d="M12 16c1.5-1.5 3.5-2.5 6-3" stroke-opacity=".5"/><circle cx="33" cy="28" r="8" fill="#FFFDF8"/><path d="M27.5 26.5c1.5-2 4-3 6.5-2.5s4 2 4.5 4.5" stroke="#C8542E"/><path d="M22 40h22"/>'),
+    curry: GI(gPlate(32) + '<path d="M9 30c1.5-4 5-6.5 9-6.5 2.5 0 4 1 6 1s4.5-2.5 8-2.5c4.5 0 8 3.5 7 8H9z" fill="#B9885C"/><path d="M10 23c2-3 5-5 9-5.5" stroke-opacity=".55"/><path d="M40 14l-6 12M37 12.5l6 3"/>'),
+    yoshoku: GI(gPlate(33) + '<path d="M12 30c0-4 4-7 9-7s9 3 9 7z" fill="#E0A45B"/><path d="M30 26c3-2 7-2 8 1 1 2-1 4-4 4s-4-2-4-5z" fill="#A9BC8B"/><circle cx="33" cy="22" r="2.5" fill="#D97757"/><path d="M15 26c1.5-1 3-1.6 5-2" stroke-opacity=".5"/>'),
+    italian: GI('<path d="M20 8h6v5l2 3v16a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3V16l2-3z" fill="#F2E4B8"/><path d="M18 22h10" stroke-opacity=".5"/><circle cx="35" cy="30" r="5.5" fill="#D97757"/><path d="M35 24.5c-.5-2 .5-3.5 2-4M33 25c.5-1.5 2-2.5 3.5-2.5" stroke="#5E7A44"/><path d="M8 38h32"/>'),
+    pizza: GI('<path d="M12 10c8-4 18-4 26 0L25 40z" fill="#F0C27D"/><path d="M12 10c8-4 18-4 26 0l-1.5 3.5c-7.5-3.5-15.5-3.5-23 0z" fill="#D97757" stroke="#B85F41"/><circle cx="22" cy="20" r="2.5" fill="#D97757"/><circle cx="29" cy="24" r="2.2" fill="#D97757"/><circle cx="24" cy="29" r="2" fill="#D97757"/>'),
+    french: GI('<path d="M12 8c0 6 3 9 6 9v13h-4v2h10v-2h-4V17c3 0 6-3 6-9z" fill="#F2E4EF" fill-opacity=".5"/><path d="M12 11h14" stroke-opacity=".4"/><ellipse cx="34" cy="32" rx="9" ry="3.5" fill="#FFFDF8"/><circle cx="34" cy="28" r="4" fill="#DB8A63"/>'),
+    spanish: GI('<circle cx="24" cy="27" r="13" fill="#E8B27D"/><circle cx="24" cy="27" r="13" fill="none" stroke="#B85F41" stroke-width="2.4"/><path d="M4 27h7M37 27h7"/><path d="M19 23c2-2 5-2.5 7-1M25 29c2-.5 4-2 4.5-4" stroke="#C8542E"/><circle cx="18" cy="29" r="2" fill="#A9BC8B"/><circle cx="28" cy="33" r="1.8" fill="#F49A8A"/>'),
+    burger: GI('<path d="M10 20c0-6 6-10 14-10s14 4 14 10z" fill="#F0C27D"/><path d="M10 23h28M8 27h32c-1 2.5-2 3-4 3H12c-2 0-3-.5-4-3z" fill="#A9BC8B"/><path d="M10 33h28v2a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" fill="#F0C27D"/><circle cx="18" cy="15" r=".8" fill="#6E4F38" stroke="none"/><circle cx="25" cy="14" r=".8" fill="#6E4F38" stroke="none"/><circle cx="31" cy="16" r=".8" fill="#6E4F38" stroke="none"/>'),
+    sandwich: GI('<path d="M8 30l16-18 16 18z" fill="#F2E4B8"/><path d="M11 27l13-14 13 14" stroke="#DB8A63"/><path d="M8 30h32v4H8z" fill="#F0C27D"/>'),
+    bread: GI('<path d="M7 24c0-5 4-8 9-8s9 3 9 8v9H7z" fill="#F0C27D"/><path d="M10 16.5c1-2 3-3.5 6-3.5s5 1.5 6 3.5" stroke-opacity=".55"/><path d="M28 32c4-6 9-8 12-6s2 7-4 10c-3 1.5-6 1-8-4z" fill="#E0A45B"/><path d="M31 30l6 4M34 27.5l4 5" stroke-opacity=".5"/>'),
+    cafe: GI(gSteam(21) + '<path d="M10 17h22v9a10 10 0 0 1-10 10h-2a10 10 0 0 1-10-10z" fill="#FFFDF8"/><path d="M32 19h4a4 4 0 0 1 0 8h-4"/><path d="M13 20c5 2 11 2 16 0" stroke="#B9885C" stroke-opacity=".7"/><ellipse cx="21" cy="39" rx="12" ry="2.6"/>'),
+    drink: GI('<path d="M14 14h20l-2.5 24a3 3 0 0 1-3 2.5h-9a3 3 0 0 1-3-2.5z" fill="#F7EFE3"/><path d="M13 20h22" stroke-opacity=".5"/><path d="M27 14l4-9 4 1.5"/><circle cx="20" cy="30" r="1.6" fill="#B9885C" stroke="none"/><circle cx="26" cy="27" r="1.6" fill="#B9885C" stroke="none"/><circle cx="24" cy="33" r="1.6" fill="#B9885C" stroke="none"/>'),
+    pancake: GI('<ellipse cx="24" cy="15" rx="12" ry="4" fill="#F0C27D"/><path d="M12 15v5c0 2.2 5.4 4 12 4s12-1.8 12-4v-5" fill="#F0C27D"/><path d="M12 20v5c0 2.2 5.4 4 12 4s12-1.8 12-4v-5" fill="#E0A45B"/><rect x="20" y="11" width="8" height="4" rx="1" fill="#F2E4B8"/><ellipse cx="24" cy="33" rx="15" ry="3.5" fill="#FFFDF8"/>'),
+    cake: GI('<path d="M10 22h20v14H10z" fill="#FFFDF8"/><path d="M10 27h20" stroke="#F49A8A"/><path d="M10 31h20" stroke="#F49A8A"/><path d="M30 22l8 14H30z" fill="#F7EFE3"/><path d="M17 17c0-2 1.5-3.5 3.5-3.5S24 15 24 17c0 1.5-1.5 3-3.5 4-2-1-3.5-2.5-3.5-4z" fill="#D97757"/><path d="M20.5 13v-3"/>'),
+    parfait: GI('<path d="M14 12h20l-3 16h-14z" fill="#F7EFE3"/><path d="M15 17c3 1.5 6-1.5 9 0s6-1.5 9 0" stroke="#F49A8A"/><path d="M24 28v8M18 40h12M24 36h0"/><circle cx="24" cy="9" r="2.6" fill="#C8542E"/><path d="M19 12c1.5-2 3-3 5-3s3.5 1 5 3" stroke-opacity=".5"/>'),
+    crepe: GI('<path d="M12 40L22 12c6-2 12 0 14 4z" fill="#F2E4B8"/><path d="M22 12c2 4 8 6 14 4" stroke-opacity=".7"/><path d="M24 13c2-3 5.5-4.5 8-3.5M28 15c2-1.5 4.5-2 6-1" stroke="#F49A8A"/><circle cx="31" cy="10" r="2" fill="#C8542E"/>'),
+    ice: GI('<path d="M17 22h14L24 42z" fill="#E0A45B"/><path d="M19 26h10M21 31h6" stroke-opacity=".5"/><circle cx="24" cy="14" r="8" fill="#F7EFE3"/><path d="M18 11c1.5-1.5 3.5-2.5 6-2.5" stroke-opacity=".5"/>'),
+    donut: GI('<circle cx="24" cy="26" r="14" fill="#F0C27D"/><path d="M11 24c3-3 7 1 13 0s9-3 13 0" fill="#DB8A63" stroke="#B85F41"/><circle cx="24" cy="26" r="4.5" fill="#FFFDF8"/><path d="M17 18l2 2M29 17l-1.5 2.5M33 22l-2 1.5" stroke="#FFFDF8"/>'),
+    kakigori: GI('<path d="M12 20c0-7 5.5-12 12-12s12 5 12 12z" fill="#FFFDF8"/><path d="M15 14c1.5-2 3.5-3.5 6-4" stroke-opacity=".45"/><path d="M10 22h28l-3 4H13z" fill="#F7EFE3"/><path d="M14 26h20l-3 12H17z" fill="#F49A8A" fill-opacity=".45"/><path d="M31 8l3-5 3 1"/>'),
+    wagashi: GI('<path d="M10 34h28"/><path d="M8 38h32" stroke-opacity=".4"/><path d="M14 30c8-6 12-6 20 0" stroke-opacity="0"/><path d="M12 12l24 18"/><circle cx="16" cy="16" r="4.5" fill="#F49A8A"/><circle cx="24" cy="22" r="4.5" fill="#FFFDF8"/><circle cx="32" cy="28" r="4.5" fill="#A9BC8B"/>'),
+    tapioca: GI('<path d="M15 12h18l-2 26a3 3 0 0 1-3 2.5h-8a3 3 0 0 1-3-2.5z" fill="#F0D5B8" fill-opacity=".6"/><path d="M14 18h20" stroke-opacity=".5"/><path d="M26 12l3-8 4 1"/><circle cx="20" cy="34" r="1.8" fill="#4A413A" stroke="none"/><circle cx="25" cy="36" r="1.8" fill="#4A413A" stroke="none"/><circle cx="28" cy="32" r="1.8" fill="#4A413A" stroke="none"/><circle cx="22" cy="30" r="1.8" fill="#4A413A" stroke="none"/>'),
+    cloche: GI('<path d="M8 32c1-9 7-15 16-15s15 6 16 15z" fill="#F7EFE3"/><circle cx="24" cy="13" r="2.5" fill="#FFFDF8"/><path d="M12 26c1.5-4 4.5-7 8.5-8.5" stroke-opacity=".5"/><path d="M5 34h38"/>'),
+  };
+  // ジャンル名 → アイコンの割り当て（専用の絵が無いジャンルは近い絵を使う）
+  const GENRE_ICON_MAP = {
+    'すべて': 'subete',
+    '麺類': 'ramen', 'ラーメン': 'ramen', 'つけ麺': 'tsukemen', '油そば・まぜそば': 'abura', '担々麺': 'tantan',
+    '焼きそば': 'yakisoba', 'うどん': 'udon', 'そば': 'soba', 'パスタ': 'pasta',
+    '和食': 'washoku', '寿司': 'sushi', '海鮮・魚介': 'fish', '海鮮丼': 'fish', '日本料理': 'washoku',
+    '天ぷら': 'tempura', 'とんかつ': 'katsu', '串揚げ': 'kushi', '焼鳥': 'kushi', 'うなぎ': 'unagi',
+    'お好み焼き': 'konamon', 'たこ焼き': 'takoyaki', 'もんじゃ焼き': 'konamon',
+    '鍋': 'nabe', 'もつ鍋': 'nabe', 'しゃぶしゃぶ': 'nabe', 'すき焼き': 'nabe', 'おでん': 'nabe',
+    '釜飯': 'washoku', '郷土料理': 'washoku', '沖縄料理': 'washoku', '定食': 'washoku', '弁当': 'bento',
+    '丼もの': 'don', '牛丼': 'don', '親子丼': 'don',
+    '肉料理': 'yakiniku', '焼肉': 'yakiniku', 'ホルモン': 'yakiniku', 'ジンギスカン': 'yakiniku',
+    'ステーキ': 'steak', 'ハンバーグ': 'steak',
+    '中華': 'wok', '中華料理': 'wok', 'チャーハン': 'wok', '餃子': 'gyoza', '小籠包': 'gyoza',
+    'アジア': 'thai', '韓国料理': 'korean', 'タイ料理': 'thai', 'ベトナム料理': 'thai', 'インド料理': 'indian', 'エスニック': 'thai',
+    'カレー': 'curry', 'スープカレー': 'curry',
+    '洋食': 'yoshoku', 'イタリアン': 'italian', 'ピザ': 'pizza', 'フレンチ': 'french', 'スペイン料理': 'spanish',
+    'ハンバーガー': 'burger', 'サンドイッチ': 'sandwich', 'パン': 'bread',
+    'カフェ・スイーツ': 'cake', 'カフェメニュー': 'cafe', 'パンケーキ': 'pancake', 'ケーキ': 'cake', 'パフェ': 'parfait',
+    'クレープ': 'crepe', 'アイス・ジェラート': 'ice', 'ドーナツ': 'donut', 'かき氷': 'kakigori',
+    '和菓子': 'wagashi', 'タピオカ': 'tapioca', 'スイーツ': 'cake', 'ドリンク': 'drink',
+    'その他': 'cloche', 'ビュッフェ': 'cloche',
+  };
+  // 「◯◯すべて」のような複合ラベルにも対応（先頭一致で探す）
+  function genreIcon(label) {
+    const l = String(label || '');
+    let key = GENRE_ICON_MAP[l];
+    if (!key) {
+      for (const name of Object.keys(GENRE_ICON_MAP)) {
+        if (name !== 'すべて' && l.startsWith(name)) { key = GENRE_ICON_MAP[name]; break; }
+      }
+    }
+    if (!key && l.endsWith('すべて')) key = 'subete';
+    return GENRE_ICONS[key || 'cloche'];
+  }
+
   const CAT_COLORS = ['#C6613F', '#C08A2E', '#6E8B54', '#5B84A8', '#8B6FA8', '#B04A3D',
     '#4E8E7F', '#A56A32', '#B65C77', '#4B7BA8', '#7C8F3F', '#96658F'];
 
@@ -1832,6 +1930,7 @@ const Views = (() => {
     const o = opt || {};
     return `<button type="button" class="ex-cat${n ? '' : ' off'}${o.wide ? ' ex-all' : ''}"
       data-cat="${esc(key)}"${o.sub ? ` data-sub="${esc(o.sub)}"` : ''} style="--cat-c:${color}">
+      <span class="ex-cat-ic">${genreIcon(label)}</span>
       <span class="ex-cat-label">${esc(label)}</span>
       <span class="ex-cat-count">${n}件</span>
     </button>`;

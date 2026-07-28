@@ -1650,30 +1650,30 @@ details.set-adv[open] .set-caret { transform: rotate(90deg); }
 .modal.modal-full .modal-box { background: var(--card); }
 
 /* ---------- 発見: Podcast風カテゴリータイル ---------- */
-.explore-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 16px; }
+.explore-cats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px 0 16px; }
 .explore-cats > .empty, .explore-cats > .ex-loading { grid-column: 1 / -1; }
 .ex-loading { text-align: center; color: var(--muted); padding: 24px 0; font-size: 13px; }
 /* 白いカードにジャンル色の文字。色はタイルごとの --cat-c を文字と飾りにだけ使う */
+/* デザイン案準拠: クリーム色のカードに手描き風イラスト＋ジャンル名＋件数（アクセント色） */
 .ex-cat {
-  position: relative; cursor: pointer; color: var(--cat-c, #888); text-align: left;
+  position: relative; cursor: pointer; color: var(--text); text-align: center;
   background: var(--card); border: 1px solid var(--border-lite);
-  border-radius: 14px; padding: 12px 12px 10px;
-  min-height: 78px; display: flex; flex-direction: column; justify-content: space-between;
+  border-radius: 14px; padding: 12px 6px 10px;
+  min-height: 108px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   font-family: inherit; overflow: hidden;
   box-shadow: 0 1px 4px rgba(0, 0, 0, .05);
 }
-.ex-cat::after { /* 右下にうっすら丸い装飾（Podcast風）。ジャンル色を淡く敷く */
-  content: ''; position: absolute; right: -14px; bottom: -18px;
-  width: 60px; height: 60px; border-radius: 50%; background: var(--cat-c, #888); opacity: .12;
-}
-.ex-cat-label { font-size: 18px; font-weight: 700; line-height: 1.3; z-index: 1; }
-.ex-cat-count { font-size: 13px; color: var(--muted); z-index: 1; }
+.ex-cat-ic { display: flex; }
+.ex-cat-ic .gi { width: 46px; height: 46px; }
+.ex-cat-label { font-size: 13.5px; font-weight: 700; line-height: 1.25; }
+.ex-cat-count { font-size: 12px; color: var(--accent); font-weight: 700; }
 /* 「すべて」「◯◯すべて」の横長タイル */
-.ex-cat.ex-all { grid-column: 1 / -1; min-height: 54px; flex-direction: row; align-items: baseline; justify-content: center; gap: 8px; }
-.ex-cat.ex-all .ex-cat-label { font-size: 20px; }
+.ex-cat.ex-all { grid-column: 1 / -1; min-height: 56px; flex-direction: row; justify-content: center; gap: 10px; }
+.ex-cat.ex-all .ex-cat-ic .gi { width: 30px; height: 30px; }
+.ex-cat.ex-all .ex-cat-label { font-size: 17px; }
 /* まだ記録がないジャンルは色を薄く（カード自体は白のまま） */
 .ex-cat.off { opacity: .55; }
-@media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(5, 1fr); } }
 /* カテゴリー内の見出し（‹ 戻る ＋ ジャンル名） */
 .explore-head { display: flex; align-items: center; gap: 6px; padding: 4px 0 8px; }
 .ex-back {
