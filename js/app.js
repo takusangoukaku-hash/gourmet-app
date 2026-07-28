@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v259'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v260'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -224,12 +224,12 @@ const App = (() => {
 
   // ---------- トースト ----------
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     const t = $('#toast');
     t.textContent = msg;
     t.classList.remove('hidden');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.add('hidden'), 3000);
+    toastTimer = setTimeout(() => t.classList.add('hidden'), ms || 3000); // 長文の案内は長めに表示できる
   }
 
   // ---------- サンプルデータ（動作確認用） ----------

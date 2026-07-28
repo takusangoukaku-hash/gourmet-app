@@ -38,6 +38,30 @@ PWAのインストールにはhttpsが必要。`gourmet-app/` フォルダを無
 - iPhone: Safariで開く → 共有ボタン → 「ホーム画面に追加」
 - Android: Chromeで開く → メニュー → 「アプリをインストール」
 
+## Firebaseの設定（クラウド同期に必須）
+
+写真の同期で `storage/unauthorized` エラーが出る場合は、Storageのセキュリティルールが
+未設定（またはテストモードの期限切れ）で読み書きが拒否されている。
+[Firebaseコンソール](https://console.firebase.google.com/) → 対象プロジェクト →
+**Storage → ルール** を以下に書き換えて「公開」する:
+
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 自分のフォルダ(users/自分のUID/…)は本人だけが読み書きできる
+    match /users/{uid}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
+
+反映後、アプリのプロフィール → 詳細設定 → 「写真を再同期」を押すと、
+端末内の写真のアップロードとクラウドからの復元がまとめて実行される。
+（フォロワーに見せる投稿写真は、ルールとは別のトークン付きURLで配信されるため
+この設定で問題なく表示される）
+
 ## 構成
 
 | ファイル | 役割 |

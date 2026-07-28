@@ -704,18 +704,21 @@ const Cloud = (() => {
         catch (e) { fail++; noteErr(e); console.warn('再アップロード失敗:', localPhotos[i].id, e); }
         report('upload', i + 1, localPhotos.length);
       }
-      // クラウドにあってローカルに無い写真をダウンロード
+      // クラウドにあってローカルに無い写真＋URL参照だけの写真を、実体ごとダウンロード
       const metaSnap = await fb.fs.getDocs(cref('photos'));
       const metas = []; metaSnap.forEach(d => metas.push(d.data()));
       const localIds = await Store.photoIds();
-      const need = metas.filter(m => !localIds.has(m.id));
+      const urlOnly = new Set((await Store.allPhotos()).filter(p => !p.blob).map(p => p.id));
+      const need = metas.filter(m => !localIds.has(m.id) || urlOnly.has(m.id));
       for (let i = 0; i < need.length; i++) {
         const m = need[i];
         try {
           const remoteUrl = await photoDownloadUrl(m.path);
-          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl });
+          let blob = null;
+          try { blob = await fetchPhotoBlob(remoteUrl); } catch { /* 実体が取れなければURL参照で表示 */ }
+          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl, ...(blob ? { blob } : {}) });
           down++;
-        } catch (e) { fail++; noteErr(e); console.warn('URL取得失敗:', m.id, e); }
+        } catch (e) { fail++; noteErr(e); console.warn('写真ダウンロード失敗:', m.id, e); }
         report('download', i + 1, need.length);
       }
       setStatus('synced');

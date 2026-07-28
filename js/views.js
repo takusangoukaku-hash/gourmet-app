@@ -2273,6 +2273,11 @@ const Views = (() => {
           });
           const detail = r.fail ? `／失敗${r.fail}${r.error ? '（' + r.error + '）' : ''}` : '';
           App.toast(`写真同期: ↑${r.up} ↓${r.down} ${detail}`);
+          // Storageルールで拒否されている場合は、アプリ側では直せないため対処法を案内する
+          if (r.error && String(r.error).includes('unauthorized')) {
+            setTimeout(() => App.toast(
+              'Firebase側で写真の保存が拒否されています。Firebaseコンソール → Storage → ルール を「本人のみ読み書き可」に修正してください（READMEに設定例あり）', 9000), 400);
+          }
         } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
         btn.disabled = false; btn.textContent = '写真を再同期';
       });
