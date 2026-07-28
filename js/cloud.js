@@ -219,68 +219,93 @@ const Cloud = (() => {
     return await res.blob();
   }
 
+  // 並列実行（同時limit件まで）。1件ずつの逐次処理だと枚数分の往復時間がかかるため、
+  // 写真の転送はこれで数件ずつ並行する。エラー処理は worker 側で行う
+  async function runPool(items, limit, worker) {
+    const q = [...items];
+    const runners = Array.from({ length: Math.max(1, Math.min(limit, q.length)) }, async () => {
+      while (q.length) {
+        const item = q.shift();
+        try { await worker(item); } catch { /* workerで記録済み */ }
+      }
+    });
+    await Promise.all(runners);
+  }
+
   // 写真: クラウド↔ローカルの差分を埋める。
   // 別端末でログインしたときも写真の実体ごとダウンロードして端末に保存する（本当の復元）。
-  // 一度に全部は取り込まず1回あたり上限を設け、残りは次の自動同期（15分ごと・アプリ復帰時）で続きから
+  // 転送は数件ずつ並列で行い、1回あたりの取り込み上限を超えた分は次の自動同期で続きから
   async function syncPhotos() {
     const metaSnap = await fb.fs.getDocs(cref('photos'));
     const cloudMetas = [];
     metaSnap.forEach(d => cloudMetas.push(d.data()));
     const cloudIds = new Set(cloudMetas.map(m => m.id));
+    const metaById = new Map(cloudMetas.map(m => [m.id, m]));
     const localIds = await Store.photoIds();
     let changed = 0;            // 取り込めた枚数（呼び出し側で画面を描き直す判断に使う）
-    let pulls = 0, fails = 0;
+    let fails = 0;
     const MAX_PULL = 60;        // 1回の同期でダウンロードする実体の上限（残りは次回）
-    const MAX_FAIL = 5;         // 連続失敗したら今回は諦めて次回に回す（永久リトライ防止）
-
-    // クラウドにあってローカルに無い写真 → 実体をダウンロードして保存。
-    // ダウンロードに失敗したときは従来どおりURL参照として取り込み、次回の同期で実体を再試行
-    for (const m of cloudMetas) {
-      if (localIds.has(m.id) || pulls >= MAX_PULL || fails >= MAX_FAIL) continue;
-      try {
-        const remoteUrl = await photoDownloadUrl(m.path);
-        let blob = null;
-        try { blob = await fetchPhotoBlob(remoteUrl); pulls++; } catch { fails++; }
-        await Store.putPhotoRaw({
-          id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
-          hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl,
-          ...(blob ? { blob } : {}),
-        });
-        changed++;
-      } catch (e) { fails++; console.warn('写真取り込み失敗:', m.id, e); }
-    }
-    // 以前の同期でURL参照だけになっている写真 → 実体を取り直して端末に保存
-    // （URLが古くて表示できなくなった写真も、URLを取り直してから再挑戦する）
+    const MAX_FAIL = 8;         // 失敗が続いたら今回は諦めて次回に回す（永久リトライ防止）
     const localPhotos = await Store.allPhotos();
-    for (const p of localPhotos) {
-      if (p.blob || !cloudIds.has(p.id) || pulls >= MAX_PULL || fails >= MAX_FAIL) continue;
+
+    // ダウンロード対象: ①クラウドにあってローカルに無い写真（新規取り込み）
+    //                  ②URL参照だけで実体が無い写真（実体の取り直し）
+    const newTargets = cloudMetas.filter(m => !localIds.has(m.id));
+    const hydrTargets = localPhotos.filter(p => !p.blob && cloudIds.has(p.id));
+    const targets = [...newTargets.map(m => ({ kind: 'new', m })),
+      ...hydrTargets.map(p => ({ kind: 'hydrate', p }))].slice(0, MAX_PULL);
+    await runPool(targets, 5, async (t) => {
+      if (fails >= MAX_FAIL) return;
       try {
-        let url = p.remoteUrl, blob = null;
-        if (url) { try { blob = await fetchPhotoBlob(url); } catch { blob = null; } }
-        if (!blob) {
-          const m = cloudMetas.find(x => x.id === p.id);
-          url = await photoDownloadUrl((m && m.path) || `users/${user.uid}/photos/${p.id}.jpg`);
-          blob = await fetchPhotoBlob(url);
+        if (t.kind === 'new') {
+          const m = t.m;
+          const remoteUrl = await photoDownloadUrl(m.path);
+          let blob = null;
+          try { blob = await fetchPhotoBlob(remoteUrl); } catch { fails++; }
+          await Store.putPhotoRaw({
+            id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
+            hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl,
+            ...(blob ? { blob } : {}),
+          });
+        } else {
+          const p = t.p;
+          let url = p.remoteUrl, blob = null;
+          if (url) { try { blob = await fetchPhotoBlob(url); } catch { blob = null; } }
+          if (!blob) { // URLが古い可能性 → 取り直して再挑戦
+            const m = metaById.get(p.id);
+            url = await photoDownloadUrl((m && m.path) || `users/${user.uid}/photos/${p.id}.jpg`);
+            blob = await fetchPhotoBlob(url);
+          }
+          await Store.putPhotoRaw({ ...p, remoteUrl: url, blob });
         }
-        await Store.putPhotoRaw({ ...p, remoteUrl: url, blob });
-        pulls++; changed++;
-      } catch (e) { fails++; console.warn('写真の実体取得に失敗:', p.id, e); }
-    }
-    // ローカルにあってクラウドに無い写真 → アップロード
-    for (const p of localPhotos) {
-      if (cloudIds.has(p.id) || !p.blob) continue; // 既にクラウド済み or 実体が無い写真は上げない
-      try { await withTimeout(uploadPhoto(p), 25000, 'アップロード'); } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
-    }
+        changed++;
+      } catch (e) { fails++; console.warn('写真取り込み失敗:', e); }
+    });
+
+    // ローカルにあってクラウドに無い写真 → 並列アップロード。
+    // 投稿の公開は1枚ごとに行わず、アップロード後に訪問単位でまとめて行う（重複した通信を削減）
+    const ups = localPhotos.filter(p => !cloudIds.has(p.id) && p.blob);
+    const okVisits = new Set();
+    await runPool(ups, 3, async (p) => {
+      try {
+        await withTimeout(uploadPhoto(p, true), 25000, 'アップロード');
+        okVisits.add(p.visitId);
+      } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
+    });
+    await runPool([...okVisits], 4, (vid) => publishPostForVisit(vid, null).catch(() => {}));
     return changed;
   }
 
-  async function uploadPhoto(p) {
+  // skipPublish: 一括同期では1枚ごとの投稿公開を省き、呼び出し側で訪問単位にまとめて公開する
+  async function uploadPhoto(p, skipPublish) {
     const path = `users/${user.uid}/photos/${p.id}.jpg`;
     await fb.st.uploadBytes(fb.st.ref(storage, path), p.blob, { contentType: 'image/jpeg' });
-    const { blob, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
+    const { blob, thumb, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
     await fb.fs.setDoc(dref('photos', p.id), clean({ ...meta, path }));
     // フィード用の公開投稿も更新（@ユーザー名を設定している人のみ）
-    try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿の公開に失敗:', e); }
+    if (!skipPublish) {
+      try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿の公開に失敗:', e); }
+    }
   }
 
   // ---------- SNS: フィード（フォロー中の人の投稿） ----------
@@ -402,12 +427,13 @@ const Cloud = (() => {
     const photos = await Store.allPhotos();
     const photoByVisit = new Map();
     for (const p of photos) if (!photoByVisit.has(p.visitId)) photoByVisit.set(p.visitId, p); // 代表1枚
-    for (const v of Store.visits()) {
+    // 訪問数が多いと逐次では時間がかかるため、数件ずつ並列で公開する
+    await runPool(Store.visits(), 4, async (v) => {
       try {
         const p = photoByVisit.get(v.id);
-        if (!p) { await publishPostForVisit(v.id); continue; } // 写真なしでも記録は公開
+        if (!p) { await publishPostForVisit(v.id); return; } // 写真なしでも記録は公開
         // 写真URLの取得を多段で試す: ①取り込み済みURL ②StorageのURL ③未アップならアップロード（完了時に投稿も更新される）
-        if (p.remoteUrl) { await publishPostForVisit(v.id, null, p.remoteUrl); continue; }
+        if (p.remoteUrl) { await publishPostForVisit(v.id, null, p.remoteUrl); return; }
         const path = `users/${user.uid}/photos/${p.id}.jpg`;
         let url = '';
         try { url = await photoDownloadUrl(path); } catch { /* まだStorageに無い */ }
@@ -415,7 +441,7 @@ const Cloud = (() => {
         else if (p.blob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
         else await publishPostForVisit(v.id); // 写真が取れなくても記録自体は公開
       } catch (e) { console.warn('投稿公開に失敗:', v.id, e); }
-    }
+    });
   }
 
   // 写真があるのに公開投稿(publicPosts)に写真URLが付いていない記録を埋め直す。
@@ -697,21 +723,25 @@ const Cloud = (() => {
     const noteErr = (e) => { if (!error) error = (e && (e.code || e.message)) || String(e); };
     const report = (phase, i, total) => { if (onProgress) { try { onProgress({ phase, i, total, up, down, fail }); } catch { /* noop */ } } };
     try {
-      // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。各処理はタイムアウト付き
+      // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。数件ずつ並列で実行し、
+      // 投稿の公開は1枚ごとではなく訪問単位でまとめて行う（時間短縮）
       const localPhotos = (await Store.allPhotos()).filter(p => p.blob); // URL参照のみの写真は上げ直し不要
-      for (let i = 0; i < localPhotos.length; i++) {
-        try { await withTimeout(uploadPhoto(localPhotos[i]), 25000, 'アップロード'); up++; }
-        catch (e) { fail++; noteErr(e); console.warn('再アップロード失敗:', localPhotos[i].id, e); }
-        report('upload', i + 1, localPhotos.length);
-      }
-      // クラウドにあってローカルに無い写真＋URL参照だけの写真を、実体ごとダウンロード
+      let doneUp = 0;
+      const upVisits = new Set();
+      await runPool(localPhotos, 3, async (p) => {
+        try { await withTimeout(uploadPhoto(p, true), 25000, 'アップロード'); up++; upVisits.add(p.visitId); }
+        catch (e) { fail++; noteErr(e); console.warn('再アップロード失敗:', p.id, e); }
+        report('upload', ++doneUp, localPhotos.length);
+      });
+      await runPool([...upVisits], 4, (vid) => publishPostForVisit(vid, null).catch(() => {}));
+      // クラウドにあってローカルに無い写真＋URL参照だけの写真を、実体ごと並列ダウンロード
       const metaSnap = await fb.fs.getDocs(cref('photos'));
       const metas = []; metaSnap.forEach(d => metas.push(d.data()));
       const localIds = await Store.photoIds();
       const urlOnly = new Set((await Store.allPhotos()).filter(p => !p.blob).map(p => p.id));
       const need = metas.filter(m => !localIds.has(m.id) || urlOnly.has(m.id));
-      for (let i = 0; i < need.length; i++) {
-        const m = need[i];
+      let doneDown = 0;
+      await runPool(need, 5, async (m) => {
         try {
           const remoteUrl = await photoDownloadUrl(m.path);
           let blob = null;
@@ -719,8 +749,8 @@ const Cloud = (() => {
           await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl, ...(blob ? { blob } : {}) });
           down++;
         } catch (e) { fail++; noteErr(e); console.warn('写真ダウンロード失敗:', m.id, e); }
-        report('download', i + 1, need.length);
-      }
+        report('download', ++doneDown, need.length);
+      });
       setStatus('synced');
       App.refreshCurrent();
     } catch (e) { setStatus('error', e); throw e; }
