@@ -206,20 +206,30 @@ const Views = (() => {
       byUser.get(p.username).push(p);
     }
     for (const [name, posts] of byUser) {
-      // 共通店舗ごとに「自分の平均」と「その人の平均」の差を取る
-      const diffs = [];
+      // 共通店舗ごとに [自分の平均, その人の平均] を集める
+      const pairs = [];
       for (const { s, avg } of myShops) {
         const rs = posts.filter(p => postMatchesShop(p, s)).map(p => p.rating);
         if (!rs.length) continue;
-        diffs.push(Math.abs(rs.reduce((a, b) => a + b, 0) / rs.length - avg));
+        pairs.push([avg, rs.reduce((a, b) => a + b, 0) / rs.length]);
       }
-      if (!diffs.length) { tasteRates.set(name, { rate: null, common: 0 }); continue; }
-      const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-      const base = (1 - avgDiff / 4) * 100; // 差0→100%、差4(★1と★5)→0%
-      const n = diffs.length;
-      // 共通店舗が少ないうちは50%へ寄せる（1件の偶然で98%にならないように）
-      const rate = Math.round(50 + (base - 50) * (n / (n + 2)));
-      tasteRates.set(name, { rate: Math.max(0, Math.min(100, rate)), common: n });
+      const n = pairs.length;
+      if (!n) { tasteRates.set(name, { rate: null, common: 0, conf: 'none' }); continue; }
+      // 仕様: ピアソン相関係数を基本に0〜1へ正規化。相関は「上下の付け方の一致」を見るので、
+      // 評価水準のずれ（常に+2上に付ける等）を拾うため評価差の近さも3割混ぜる
+      const avgDiff = pairs.reduce((a, [x, y]) => a + Math.abs(x - y), 0) / n;
+      const closeness = 1 - avgDiff / 4; // 差0→1、真逆(差4)→0
+      let sim = closeness;
+      if (n >= 3) {
+        const mx = pairs.reduce((a, p) => a + p[0], 0) / n;
+        const my = pairs.reduce((a, p) => a + p[1], 0) / n;
+        let sxy = 0, sxx = 0, syy = 0;
+        for (const [x, y] of pairs) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; syy += (y - my) ** 2; }
+        if (sxx > 0 && syy > 0) sim = ((sxy / Math.sqrt(sxx * syy) + 1) / 2) * 0.7 + closeness * 0.3;
+      }
+      // 信頼度: 共通5件未満は非表示・5〜19件は薄く・20件以上で通常表示（仕様書4-3）
+      const conf = n < 5 ? 'low' : n < 20 ? 'mid' : 'high';
+      tasteRates.set(name, { rate: Math.max(0, Math.min(100, Math.round(sim * 100))), common: n, conf });
     }
     return tasteRates;
   }
@@ -239,12 +249,13 @@ const Views = (() => {
     }
     const parts = []; // { r, w }
     let sum = 0, n = 0;
-    if (mine) { parts.push({ r: mine, w: 1.6 }); sum += mine; n++; } // 自分の実体験がいちばん確か
+    if (mine) { parts.push({ r: mine, w: 1.0 }); sum += mine; n++; } // 自分の評価は一致率100%扱い
     for (const [name, arr] of byUser) {
       const r = arr.reduce((a, b) => a + b, 0) / arr.length;
       sum += r; n++;
       const m = tasteMatch(name);
-      const w = m.rate == null ? 0.3 : Math.pow(m.rate / 100, 2) * 1.2 + 0.1;
+      // 重み＝味覚一致率。一致率が出せない人はごく弱く反映
+      const w = m.rate == null ? 0.15 : Math.max(0.05, m.rate / 100);
       parts.push({ r, w });
     }
     if (!n) return { personal: 0, overall: 0, raters: 0 };
@@ -258,8 +269,9 @@ const Views = (() => {
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
   function tasteBadge(username, small) {
     const m = tasteMatch(username);
-    if (m.rate == null) return '';
-    return `<span class="tm-badge${small ? ' small' : ''}" title="共通店舗${m.common}件">味覚一致 ${m.rate}%</span>`;
+    if (m.rate == null || m.conf === 'low') return ''; // 共通5件未満は信頼できないため出さない
+    return `<span class="tm-badge${small ? ' small' : ''}${m.conf === 'mid' ? ' dim' : ''}"
+      title="共通店舗${m.common}件">味覚一致 ${m.rate}%</span>`;
   }
   // あなた向け評価と全体評価を並べる共通部品（デザイン案の2枚の箱）
   function ratePairHtml(pair, opt) {
@@ -1483,7 +1495,9 @@ const Views = (() => {
           atmosphere: g.posts.map(p => p.atmosphere || 0).filter(r => r > 0),
           speed: g.posts.map(p => p.speed || 0).filter(r => r > 0),
         });
-        const avg = avgOf(mapStats.get(fid).taste);
+        let avg = avgOf(mapStats.get(fid).taste);
+        const pairN = ratingPair({ name: g.name, lat: g.lat, lon: g.lon });
+        if (pairN.raters > 1) avg = pairN.personal;
         g.avg = avg;
         networkById.set(fid, g);
         features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
@@ -1493,9 +1507,12 @@ const Views = (() => {
       });
     }
 
-    // 自分の店の色を確定（「みんな」ではフォロー中の人の評価も合算済みの平均）
+    // 自分の店のピンの色は「あなた向け評価」（味覚一致率で重み付け。仕様書6-地図）。
+    // フォロー中のデータが無い店は従来どおり自分の平均
     for (const s of shops) {
-      const avg = avgOf(mapStats.get(s.id).taste);
+      let avg = avgOf(mapStats.get(s.id).taste);
+      const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+      if (pair.raters > 1) avg = pair.personal;
       const f = featureByShopId.get(s.id);
       f.properties.r = Math.floor(avg) || 0;
       f.properties.hi = bandOf(avg);
@@ -2775,7 +2792,7 @@ const Views = (() => {
     loadCachedNetwork(); // 未読込なら前回の控えから
     const profs = new Map(networkPosts.map(p => [p.username, p]));
     const ranked = [...tasteData().entries()]
-      .filter(([, m]) => m.rate != null)
+      .filter(([, m]) => m.rate != null && m.conf !== 'low') // 共通5件未満は信頼できないため載せない
       .sort((a, b) => b[1].rate - a[1].rate)
       .slice(0, 5);
     if (!ranked.length) {
@@ -2812,7 +2829,7 @@ const Views = (() => {
       traitBox.classList.add('hidden');
     } else {
       traitBox.classList.remove('hidden');
-      traitBox.innerHTML = '<h2>あなたの味覚の特徴</h2><div class="trait-box">' +
+      traitBox.innerHTML = '<h2>あなたの味覚の傾向</h2><div class="trait-box">' +
         lines.slice(0, 4).map(l => `・${esc(l)}`).join('<br>') + '</div>';
     }
   }
@@ -3768,7 +3785,17 @@ const Views = (() => {
     const genre = String(p.genre || p.shopGenre || '').split('・')[0];
     const rating = p.rating ? Math.round(p.rating * 10) / 10 : 0;
     const hasPos = p.lat != null && p.lon != null;
+    const tm = tasteMatch(p.username);
     card.innerHTML = `
+      <div class="fcard-head2">
+        ${tasteBadge(p.username, true)}
+        <button type="button" class="feed-author pd-author">
+          <span class="fc-avatar">${av}</span>
+          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}
+            <span class="fc-handle">${tm.common ? `共通店舗 ${tm.common}件` : (p.username ? '@' + esc(p.username) : '')}</span></span>
+        </button>
+        ${p.datetime ? `<span class="fcard-time">${relTime(p.datetime)}</span>` : ''}
+      </div>
       <div class="fcard-photo">
         ${p.photoUrl ? `<img class="fcard-img" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">`
           : '<div class="fcard-img fcard-noimg">🍽️</div>'}
@@ -3792,12 +3819,7 @@ const Views = (() => {
         if (!pair.raters && p.rating) return ''; // 情報が投稿1件だけなら右上の★バッジで足りる
         return ratePairHtml(pair, { compact: true });
       })()}
-      <div class="fcard-foot">
-        <button type="button" class="feed-author pd-author">
-          <span class="fc-avatar">${av}</span>
-          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
-          ${tasteBadge(p.username, true)}
-        </button>
+      <div class="fcard-foot acts-only">
         <div class="fcard-acts">
           <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
           <button type="button" class="fa-comment fcard-cmt" aria-label="コメント">${IC_COMMENT}<span class="fa-n fcard-cmt-n"></span></button>

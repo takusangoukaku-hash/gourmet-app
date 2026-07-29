@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=263">
+<link rel="stylesheet" href="css/style.css?v=264">
 </head>
 <body>
 
@@ -82,7 +82,8 @@
       <div class="full flabel">味の評価 <span class="req">必須</span>
         <div id="f-rating" class="stars"></div>
       </div>
-      <div class="full axis-box">
+      <!-- 仕様書5: 評価の3軸は「最初は不要」のため入力欄を隠す（過去データの表示は維持） -->
+      <div class="full axis-box hidden">
         <div class="axis-title">お店の評価（任意）</div>
         <div class="axis-row"><span>カジュアル度</span><div id="f-ax-casual" class="stars small"></div></div>
         <div class="axis-row"><span>雰囲気</span><div id="f-ax-atmosphere" class="stars small"></div></div>
@@ -485,7 +486,7 @@
     <details class="set-adv">
       <summary class="set-row">
         <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2"/><path d="M16 6l2 2"/><path d="M14.5 7.5 17 10"/></svg></span>
-        <span class="set-label">APIキー（AI判定・店舗検索）</span><span class="set-arrow set-caret">›</span>
+        <span class="set-label">開発者向け設定（APIキー）</span><span class="set-arrow set-caret">›</span>
       </summary>
       <div class="set-adv-body">
         <h3>AIによる料理ジャンル判定</h3>
@@ -546,11 +547,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=263"></script>
-<script src="js/api.js?v=263"></script>
-<script src="js/cloud.js?v=263"></script>
-<script src="js/register.js?v=263"></script>
-<script src="js/views.js?v=263"></script>
-<script src="js/app.js?v=263"></script>
+<script src="js/store.js?v=264"></script>
+<script src="js/api.js?v=264"></script>
+<script src="js/cloud.js?v=264"></script>
+<script src="js/register.js?v=264"></script>
+<script src="js/views.js?v=264"></script>
+<script src="js/app.js?v=264"></script>
 </body>
 </html>
