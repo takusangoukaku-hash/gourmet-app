@@ -601,7 +601,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: var(--card); border-radius: 12px; overflow: hidden;
   box-shadow: 0 1px 5px rgba(0, 0, 0, .07); display: flex; flex-direction: column;
 }
-.ppc-ph { position: relative; display: block; aspect-ratio: 1; background: var(--field); }
+/* min-height:0 が無いと、縦長写真のとき画像の高さが「フレックス項目の最小サイズ」になり
+   正方形の枠が縦に伸びてカードの段がずれる（aspect-ratio を優先させる） */
+.ppc-ph { position: relative; display: block; aspect-ratio: 1; background: var(--field);
+  flex: 0 0 auto; min-height: 0; overflow: hidden; }
 .ppc-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ppc-badge {
   position: absolute; top: 6px; left: 6px;
@@ -645,6 +648,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border: none; padding: 0; cursor: pointer; background: var(--field); aspect-ratio: 4 / 3;
 }
 .sfs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 縦長写真でも枠が伸びないように（上の .ppc-ph と同じ理由） */
+.sfs-slide, .msh-fph, .msh-mycard, .dvt-ph, .explore-cell, .photo-cell img { min-width: 0; min-height: 0; }
 /* 縦向き写真(.portrait は views.js が読み込み時に付与): 横長・正方形の枠で
    切り抜かず、横は短くなってよいので全体が入るように収める（余白は淡色で埋める）。
    ホーム・地図・プロフィール・店舗詳細・検索など写真の表示枠すべてが対象。
