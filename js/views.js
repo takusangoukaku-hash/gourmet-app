@@ -184,6 +184,95 @@ const Views = (() => {
     return Store.distMeters(s.lat, s.lon, p.lat, p.lon) < 300;
   }
   const followerPostsForShop = (s) => networkPosts.filter(p => postMatchesShop(p, s));
+
+  // ========== 味覚一致率・あなた向け評価（BITEMAPの核） ==========
+  // 全員の平均ではなく「自分と味覚が近い人の評価」を重視した、自分専用の店舗評価を作る。
+  //  - 味覚一致率: 共通して評価した店舗での評価の近さを 0〜100% に数値化
+  //  - あなた向け評価: 一致率が高い人の評価ほど重くした加重平均（自分の実体験は最重視）
+  let tasteKey = '';
+  let tasteRates = new Map(); // username → { rate, common }
+  function tasteData() {
+    const key = networkPosts.length + ':' + ((networkPosts[0] || {}).id || '') + ':' + Store.visits().length;
+    if (key === tasteKey) return tasteRates;
+    tasteKey = key;
+    tasteRates = new Map();
+    const myShops = Store.shops()
+      .map(s => ({ s, avg: Store.avgRating(s.id) }))
+      .filter(x => x.avg);
+    const byUser = new Map();
+    for (const p of networkPosts) {
+      if (!p.username || !p.rating) continue;
+      if (!byUser.has(p.username)) byUser.set(p.username, []);
+      byUser.get(p.username).push(p);
+    }
+    for (const [name, posts] of byUser) {
+      // 共通店舗ごとに「自分の平均」と「その人の平均」の差を取る
+      const diffs = [];
+      for (const { s, avg } of myShops) {
+        const rs = posts.filter(p => postMatchesShop(p, s)).map(p => p.rating);
+        if (!rs.length) continue;
+        diffs.push(Math.abs(rs.reduce((a, b) => a + b, 0) / rs.length - avg));
+      }
+      if (!diffs.length) { tasteRates.set(name, { rate: null, common: 0 }); continue; }
+      const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+      const base = (1 - avgDiff / 4) * 100; // 差0→100%、差4(★1と★5)→0%
+      const n = diffs.length;
+      // 共通店舗が少ないうちは50%へ寄せる（1件の偶然で98%にならないように）
+      const rate = Math.round(50 + (base - 50) * (n / (n + 2)));
+      tasteRates.set(name, { rate: Math.max(0, Math.min(100, rate)), common: n });
+    }
+    return tasteRates;
+  }
+  function tasteMatch(username) {
+    return tasteData().get(username) || { rate: null, common: 0 };
+  }
+  // 店（{name, lat, lon} があれば何でも）の「全体評価」と「あなた向け評価」。
+  //  全体 = 自分＋評価した人たちの単純平均 ／ あなた向け = 一致率の2乗で重み付けした平均
+  function ratingPair(shopLike) {
+    const my = Store.matchShop({ name: shopLike.name, lat: shopLike.lat, lon: shopLike.lon });
+    const mine = my ? Store.avgRating(my.id) : 0;
+    const byUser = new Map();
+    for (const p of networkPosts) {
+      if (!p.rating || !postMatchesShop(p, shopLike)) continue;
+      if (!byUser.has(p.username)) byUser.set(p.username, []);
+      byUser.get(p.username).push(p.rating);
+    }
+    const parts = []; // { r, w }
+    let sum = 0, n = 0;
+    if (mine) { parts.push({ r: mine, w: 1.6 }); sum += mine; n++; } // 自分の実体験がいちばん確か
+    for (const [name, arr] of byUser) {
+      const r = arr.reduce((a, b) => a + b, 0) / arr.length;
+      sum += r; n++;
+      const m = tasteMatch(name);
+      const w = m.rate == null ? 0.3 : Math.pow(m.rate / 100, 2) * 1.2 + 0.1;
+      parts.push({ r, w });
+    }
+    if (!n) return { personal: 0, overall: 0, raters: 0 };
+    const personal = parts.reduce((a, x) => a + x.r * x.w, 0) / parts.reduce((a, x) => a + x.w, 0);
+    return {
+      personal: Math.round(personal * 10) / 10,
+      overall: Math.round(sum / n * 10) / 10,
+      raters: n,
+    };
+  }
+  // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
+  function tasteBadge(username, small) {
+    const m = tasteMatch(username);
+    if (m.rate == null) return '';
+    return `<span class="tm-badge${small ? ' small' : ''}" title="共通店舗${m.common}件">味覚一致 ${m.rate}%</span>`;
+  }
+  // あなた向け評価と全体評価を並べる共通部品（デザイン案の2枚の箱）
+  function ratePairHtml(pair, opt) {
+    const o = opt || {};
+    if (!pair.raters) return '';
+    return `<div class="rp-wrap${o.compact ? ' compact' : ''}">
+      <div class="rp-box rp-you"><span class="rp-label">あなた向け評価</span>
+        <span class="rp-val">${starIc('full', o.compact ? 14 : 18)}${fmtR(pair.personal)}</span></div>
+      <div class="rp-box"><span class="rp-label">全体評価</span>
+        <span class="rp-val muted">${starIc('full', o.compact ? 12 : 14)}${fmtR(pair.overall)}</span>
+        ${o.count ? `<span class="rp-n">（${pair.raters}人の評価）</span>` : ''}</div>
+    </div>`;
+  }
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
   // ピンfeature id → 本人＋フォロワーの評価プール（味＝各評価、店の3軸＝人ごとの値）
   //  { taste:[], casual:[], atmosphere:[], speed:[] }。ポップアップで平均を出すのに使う
@@ -1066,7 +1155,11 @@ const Views = (() => {
           <button type="button" class="msh-thumb" aria-label="店舗詳細を開く">${photos.length ? '<img alt="" decoding="async">' : '🍽️'}</button>
           <div class="msh-info">
             <button type="button" class="msh-name">${esc(s.name)}</button>
-            <div class="msh-rating">${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span></div>
+            <div class="msh-rating">${(() => {
+              const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+              return pair.raters ? ratePairHtml(pair, { count: true })
+                : `${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span>`;
+            })()}</div>
             <div class="msh-meta">
               ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
               ${genre && s.station ? '<span class="msh-sep"></span>' : ''}
@@ -1131,7 +1224,7 @@ const Views = (() => {
     };
     ov.querySelector('.msh-sort').addEventListener('click', () => {
       const sec = ov.querySelector('.msh-follow');
-      sec.dataset.sort = sec.dataset.sort === 'old' ? 'new' : 'old';
+      sec.dataset.sort = { match: 'new', new: 'old', old: 'match' }[sec.dataset.sort || 'match'];
       renderFollow();
     });
     // ★平均と件数（自分＋フォロワー）。フォロー中データが後から届いたら数字も更新する
@@ -1139,8 +1232,9 @@ const Views = (() => {
       const list = followerPostsForShop(Store.getShop(shopId) || s);
       const pool2 = [...vs.map(v => v.rating), ...list.map(p => p.rating)].filter(Boolean);
       const a = avgOf(pool2);
-      ov.querySelector('.msh-rating').innerHTML =
-        `${starIc(a ? 'full' : 'empty', 20)}<b>${a ? fmtR(a) : '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
+      const pair2 = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+      ov.querySelector('.msh-rating').innerHTML = pair2.raters ? ratePairHtml(pair2, { count: true })
+        : `${starIc(a ? 'full' : 'empty', 20)}<b>${a ? fmtR(a) : '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
     };
     renderFollow();
     // フォロー中の投稿が未読込なら、読み込み完了後にもう一度描く
@@ -1164,12 +1258,15 @@ const Views = (() => {
       byUser.set(p.username, g);
     }
     let rowsData = [...byUser.values()]; // 各ユーザーのposts[0]が最新（新しい順で回収済み）
-    const newestFirst = sec.dataset.sort !== 'old';
+    // 既定は「一致率順」（自分と味覚が近い人を先に）。タップで 新しい順 → 古い順 と切替
+    const mode = sec.dataset.sort || 'match';
     rowsData.sort((a, b) => new Date(b.posts[0].datetime || 0) - new Date(a.posts[0].datetime || 0));
-    if (!newestFirst) rowsData.reverse();
+    if (mode === 'match') {
+      rowsData.sort((a, b) => (tasteMatch(b.username).rate ?? -1) - (tasteMatch(a.username).rate ?? -1));
+    } else if (mode === 'old') rowsData.reverse();
     sec.classList.remove('hidden');
     ov.querySelector('.msh-fn').textContent = `(${rowsData.length}人)`;
-    ov.querySelector('.msh-sort').textContent = (newestFirst ? '新しい順' : '古い順') + ' ⇅';
+    ov.querySelector('.msh-sort').textContent = ({ match: '一致率順', new: '新しい順', old: '古い順' })[mode] + ' ⇅';
     const rows = ov.querySelector('.msh-frows');
     rows.innerHTML = '';
     for (const u of rowsData) {
@@ -1180,6 +1277,7 @@ const Views = (() => {
         <button type="button" class="msh-fuser">
           <span class="msh-favatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : '🍜'}</span>
           <span class="msh-fname">${esc(u.name || u.username)}さん</span>
+          ${tasteBadge(u.username, true)}
           <span class="msh-fhandle">@${esc(u.username)}</span>
           <span class="msh-fposts">${total}投稿</span>
         </button>
@@ -1231,7 +1329,11 @@ const Views = (() => {
           <button type="button" class="msh-thumb" aria-label="投稿を見る">${latest.photoUrl ? '<img alt="" decoding="async">' : '🍽️'}</button>
           <div class="msh-info">
             <button type="button" class="msh-name">${esc(g.name || latest.shopName || '')}</button>
-            <div class="msh-rating">${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${posts.length}件の投稿）</span></div>
+            <div class="msh-rating">${(() => {
+              const pair = ratingPair({ name: g.name || latest.shopName, lat: g.lat, lon: g.lon });
+              return pair.raters ? ratePairHtml(pair, { count: true })
+                : `${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${posts.length}件の投稿）</span>`;
+            })()}</div>
             <div class="msh-meta">
               ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
               ${genre && station ? '<span class="msh-sep"></span>' : ''}
@@ -1279,7 +1381,7 @@ const Views = (() => {
     renderFollowSection(ov, posts, false);
     ov.querySelector('.msh-sort').addEventListener('click', () => {
       const sec = ov.querySelector('.msh-follow');
-      sec.dataset.sort = sec.dataset.sort === 'old' ? 'new' : 'old';
+      sec.dataset.sort = { match: 'new', new: 'old', old: 'match' }[sec.dataset.sort || 'match'];
       renderFollowSection(ov, posts, false);
     });
 
@@ -1685,6 +1787,16 @@ const Views = (() => {
       atmosphere: (a, b) => (b.atmosphere || 0) - (a.atmosphere || 0),
       speed: (a, b) => (b.speed || 0) - (a.speed || 0),
       name: (a, b) => a.name.localeCompare(b.name, 'ja'),
+      // 一致率で重み付けした自分向けの評価が高い順
+      personal: (a, b) => ratingPair({ name: b.name, lat: b.lat, lon: b.lon }).personal -
+        ratingPair({ name: a.name, lat: a.lat, lon: a.lon }).personal,
+      // 現在地から近い順（現在地が未取得なら★順に落とす）
+      distance: (a, b) => {
+        if (!lastKnownPos) return Store.avgRating(b.id) - Store.avgRating(a.id);
+        const d = (s) => (s.lat != null && s.lon != null)
+          ? Store.distMeters(lastKnownPos.lat, lastKnownPos.lon, s.lat, s.lon) : Infinity;
+        return d(a) - d(b);
+      },
     };
     return list.sort(by[mode] || by.newest);
   }
@@ -2112,7 +2224,11 @@ const Views = (() => {
         <div class="ps-name">${esc(s.name)}</div>
         ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
         ${(s.station || s.city) ? `<div class="ps-row">${s.station ? IC_STATION + ' ' + esc(s.station) : ''}${s.city ? (s.station ? '　' : '') + IC_PIN + ' ' + esc(s.city) : ''}</div>` : ''}
-        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span></div>
+        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span>${(() => {
+          // フォロワーの評価があるお店は「あなた向け評価」を並べて出す（一致率で重み付け）
+          const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+          return pair.raters > 1 ? `<span class="ps-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : '';
+        })()}</div>
         <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span></div>
       </div>
       <button class="s-fav ps-favbtn ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
@@ -2650,7 +2766,59 @@ const Views = (() => {
   // Instagram風パレット（CSSのアクセントと統一）
   const PALETTE = ['#C6613F', '#D97757', '#8B6FA8', '#5B84A8', '#D9B36B', '#B04A3D', '#96658F', '#A56A32', '#B65C77', '#4E8E7F', '#E0C98F', '#C9705E', '#7C8F3F', '#A6A49B', '#6E8B54'];
 
+  // 味覚が近いユーザー TOP5 と、自分の味覚の傾向（統計タブ）
+  function renderTasteSections() {
+    const rankBox = $('#taste-rank');
+    const traitBox = $('#taste-traits');
+    if (!rankBox || !traitBox) return;
+    // --- 味覚が近いユーザー TOP5 ---
+    loadCachedNetwork(); // 未読込なら前回の控えから
+    const profs = new Map(networkPosts.map(p => [p.username, p]));
+    const ranked = [...tasteData().entries()]
+      .filter(([, m]) => m.rate != null)
+      .sort((a, b) => b[1].rate - a[1].rate)
+      .slice(0, 5);
+    if (!ranked.length) {
+      rankBox.classList.add('hidden');
+    } else {
+      rankBox.classList.remove('hidden');
+      rankBox.innerHTML = '<h2>味覚が近いユーザー TOP5</h2>' + ranked.map(([name, m], i) => {
+        const p = profs.get(name) || {};
+        const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+        return `<button type="button" class="tr-row" data-user="${esc(name)}">
+          <span class="tr-rank">${i + 1}位</span>
+          <span class="tr-avatar">${av}</span>
+          <span class="tr-names"><b>${esc(p.displayName || name)}さん</b><span>共通店舗 ${m.common}件</span></span>
+          <span class="tr-rate">${m.rate}%</span>
+        </button>`;
+      }).join('');
+      rankBox.querySelectorAll('.tr-row').forEach(b =>
+        b.addEventListener('click', () => showPublicProfile(b.dataset.user)));
+    }
+    // --- あなたの味覚の特徴（カテゴリーごとの評価の偏り） ---
+    const visits = Store.visits().filter(v => v.rating);
+    const all = visits.length ? visits.reduce((s, v) => s + v.rating, 0) / visits.length : 0;
+    const lines = [];
+    if (visits.length >= 5) {
+      for (const c of Api.DISH_CATEGORIES) {
+        const rs = visits.filter(v => (v.dishGenres || []).some(g => c.genres.includes(g))).map(v => v.rating);
+        if (rs.length < 3) continue; // 数件では傾向と言えない
+        const avg = rs.reduce((a, b) => a + b, 0) / rs.length;
+        if (avg <= all - 0.4) lines.push(`${c.name}は評価が厳しめです`);
+        else if (avg >= all + 0.4) lines.push(`${c.name}は高評価をつける傾向があります`);
+      }
+    }
+    if (!lines.length) {
+      traitBox.classList.add('hidden');
+    } else {
+      traitBox.classList.remove('hidden');
+      traitBox.innerHTML = '<h2>あなたの味覚の特徴</h2><div class="trait-box">' +
+        lines.slice(0, 4).map(l => `・${esc(l)}`).join('<br>') + '</div>';
+    }
+  }
+
   async function renderStats() {
+    renderTasteSections();
     const shops = Store.shops();
     const visits = Store.visits();
     const photos = await Store.allPhotos();
@@ -2903,10 +3071,10 @@ const Views = (() => {
         if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid, nav);
       });
     }
-    // 地図が「自分」表示のときは店舗詳細も自分の記録だけにする
-    // （フォロー中の人の写真・評価は、左上の切り替えを「フォロー中」にすると見られる）
-    const fps = (mapScope === 'me') ? []
-      : followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    // 店舗詳細は「店」が主役: 地図の表示切替に関係なく、この店に行った
+    // フォロー中の人の記録も常に表示する（味覚一致率の高い順に並ぶ）
+    loadCachedNetwork();
+    const fps = followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
     // 評価は本人＋フォロワーの合算平均（小数第1位）
     const allRatings = [...vs.map(v => v.rating || 0), ...fps.map(p => p.rating || 0)].filter(r => r > 0);
     const avg = allRatings.length ? Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length * 10) / 10 : 0;
@@ -2919,6 +3087,7 @@ const Views = (() => {
       <div class="detail-head">
         <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
         <div class="d-stars">${starSvg(avg, 16)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
+        ${(() => { const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon }); return pair.raters > 1 ? ratePairHtml(pair, { count: true }) : ''; })()}
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
@@ -3245,7 +3414,8 @@ const Views = (() => {
       }
 
       // フォロー中の人のこの店の記録（写真＋★＋アカウントアイコン。タップで投稿を表示）
-      // 他人の記録なので日付は出さず、@ユーザー名のみ表示する
+      // 他人の記録なので日付は出さず、@ユーザー名のみ表示する。味覚一致率の高い人を先に
+      fps.sort((a, b) => (tasteMatch(b.username).rate ?? -1) - (tasteMatch(a.username).rate ?? -1));
       for (const p of fps) {
         const block = document.createElement('div');
         block.className = 'visit-block';
@@ -3255,7 +3425,7 @@ const Views = (() => {
             <span class="v-badge">★${p.rating ? fmtR(p.rating) : '－'}</span>
             <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜'}</span>
           </button>
-          <div class="v-caption">@${esc(p.username || '')}</div>`;
+          <div class="v-caption">@${esc(p.username || '')} ${tasteBadge(p.username, true)}</div>`;
         block.querySelector('.v-cover').addEventListener('click', () => showPostDetail(p));
         vbox.appendChild(block);
       }
@@ -3446,6 +3616,7 @@ const Views = (() => {
   function setupPullToRefresh() {
     if (ptrSetup) return;
     ptrSetup = true;
+    initFeedSegs();
     const view = $('#view-feed');
     const bar = document.createElement('div');
     bar.className = 'ptr';
@@ -3487,6 +3658,10 @@ const Views = (() => {
 
   async function renderFeed(force) {
     setupPullToRefresh();
+    // 味覚一致率・あなた向け評価はフォロー中の記録(networkPosts)から計算するため、
+    // 地図を開いていなくてもホーム表示時に読み込む（取得後は並びとバッジを描き直す）
+    loadCachedNetwork();
+    ensureNetworkLoaded(() => { if (feedCache) paintFeed(feedCache.posts); });
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     if (!me) {
@@ -3524,7 +3699,34 @@ const Views = (() => {
   }
 
   // 投稿一覧の描画（renderFeedの表示部分。裏の再取得後の差し替えでも使う）
-  function paintFeed(posts) {
+  // ホームの表示モード: おすすめ（味覚一致率の高い人を優先）／最新／フォロー中
+  let feedSeg = 'reco';
+  function initFeedSegs() {
+    document.querySelectorAll('#feed-segs .feed-seg').forEach(b => b.addEventListener('click', () => {
+      feedSeg = b.dataset.seg;
+      document.querySelectorAll('#feed-segs .feed-seg').forEach(x => x.classList.toggle('active', x === b));
+      if (feedCache) paintFeed(feedCache.posts);
+    }));
+  }
+  // モードに応じた並び。おすすめ = 投稿者の味覚一致率 → 新しさ、他 = 新しい順
+  function orderFeed(posts) {
+    const list = posts.slice();
+    if (feedSeg === 'reco') {
+      list.sort((a, b) => {
+        const ma = tasteMatch(a.username).rate ?? -1;
+        const mb = tasteMatch(b.username).rate ?? -1;
+        return (mb - ma) || (new Date(b.datetime || 0) - new Date(a.datetime || 0));
+      });
+    } else {
+      list.sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    }
+    return list;
+  }
+
+  function paintFeed(rawPosts) {
+    const posts = orderFeed(rawPosts);
+    const note = $('#feed-note');
+    if (note) note.classList.toggle('hidden', feedSeg !== 'reco' || !posts.length);
     const box = $('#feed-list');
     if (!posts.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PEOPLE,
@@ -3584,10 +3786,17 @@ const Views = (() => {
           </button>
           <button type="button" class="btn primary fcard-nav">${IC_NAV} ここへ行く</button>` : ''}
       </div>
+      ${(() => {
+        // 店舗と評価が主役: 写真の下に「あなた向け評価」と「全体評価」を並べる
+        const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
+        if (!pair.raters && p.rating) return ''; // 情報が投稿1件だけなら右上の★バッジで足りる
+        return ratePairHtml(pair, { compact: true });
+      })()}
       <div class="fcard-foot">
         <button type="button" class="feed-author pd-author">
           <span class="fc-avatar">${av}</span>
           <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
+          ${tasteBadge(p.username, true)}
         </button>
         <div class="fcard-acts">
           <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>

@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=262">
+<link rel="stylesheet" href="css/style.css?v=263">
 </head>
 <body>
 
@@ -114,6 +114,12 @@
 
 <!-- ========== ホーム／フィード（フォロー中の投稿） ========== -->
 <section id="view-feed" class="view">
+  <div class="feed-segs" id="feed-segs">
+    <button type="button" class="feed-seg active" data-seg="reco">おすすめ</button>
+    <button type="button" class="feed-seg" data-seg="new">最新</button>
+    <button type="button" class="feed-seg" data-seg="follow">フォロー中</button>
+  </div>
+  <div id="feed-note" class="feed-note">✨ 味覚が近い人の投稿を優先的に表示しています</div>
   <div id="feed-list" class="feed-list"></div>
 </section>
 
@@ -236,6 +242,8 @@
     <div class="filter-row">
       <select id="flt-sort">
         <option value="rating" selected>★が高い順</option>
+        <option value="personal">あなた向け評価順</option>
+        <option value="distance">近い順</option>
         <option value="newest">新しく登録した順</option>
         <option value="visitDate">最近行った順</option>
         <option value="visitCount">よく行く順</option>
@@ -346,6 +354,8 @@
   <div id="ptab-stats" class="ptab-panel hidden">
     <div id="stat-memory" class="stat-memory hidden"></div>
     <div id="stat-cards" class="stat-cards"></div>
+    <div id="taste-rank" class="card hidden"></div>
+    <div id="taste-traits" class="card hidden"></div>
     <div class="card"><h2>月別訪問件数</h2>
       <div class="chart-scroll"><div class="chart-wide"><canvas id="chart-monthly"></canvas></div></div>
       <div class="chart-hint">← 横にスクロールすると過去の月も見られます</div>
@@ -536,11 +546,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=262"></script>
-<script src="js/api.js?v=262"></script>
-<script src="js/cloud.js?v=262"></script>
-<script src="js/register.js?v=262"></script>
-<script src="js/views.js?v=262"></script>
-<script src="js/app.js?v=262"></script>
+<script src="js/store.js?v=263"></script>
+<script src="js/api.js?v=263"></script>
+<script src="js/cloud.js?v=263"></script>
+<script src="js/register.js?v=263"></script>
+<script src="js/views.js?v=263"></script>
+<script src="js/app.js?v=263"></script>
 </body>
 </html>
