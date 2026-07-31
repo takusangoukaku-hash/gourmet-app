@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=265">
+<link rel="stylesheet" href="css/style.css?v=266">
 </head>
 <body>
 
@@ -439,80 +439,108 @@
 <div id="settings-modal" class="modal panel-modal hidden">
   <div class="modal-box">
     <div class="modal-head">
-      <h2>設定とアクティビティ</h2>
+      <h2>設定</h2>
       <button class="modal-close" data-close>✕</button>
     </div>
     <div class="modal-scroll">
-    <!-- アカウント -->
-    <div id="settings-account" class="settings-account"></div>
-    <div id="pf-account" class="pf-account">
-      <button id="pf-login" class="btn small full">Googleでログインして同期</button>
+    <!-- LINEの設定画面を参考にした構成:
+         上にプロフィール行 → 用途ごとにグループ化した行リスト → 最下部にバージョン -->
+    <button type="button" id="set-profile" class="set-profile">
+      <span class="sp-avatar" id="set-avatar">🍜</span>
+      <span class="sp-main">
+        <span class="sp-name" id="set-name">BITEMAP</span>
+        <span class="sp-sub" id="set-sub">プロフィールを編集</span>
+      </span>
+      <span class="set-arrow">›</span>
+    </button>
+
+    <div class="set-section-title">アカウント</div>
+    <div class="set-list">
+      <div id="settings-account" class="set-row set-row-static"></div>
+      <button id="pf-login" class="set-row">
+        <span class="set-ic set-ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg></span>
+        <span class="set-label">Googleでログインして同期</span><span class="set-arrow">›</span>
+      </button>
       <div id="pf-account-in" class="hidden">
-        <span id="pf-sync" class="pf-sync">同期中…</span>
-        <div class="set-inline">
-          <button id="pf-resync" class="btn small">写真を再同期</button>
-          <button id="pf-logout" class="btn small">ログアウト</button>
+        <div class="set-row set-row-static">
+          <span class="set-ic set-ic-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.4-7"/><path d="M21 4v5h-5"/></svg></span>
+          <span class="set-label">同期の状態</span><span class="set-value" id="pf-sync">同期中…</span>
         </div>
+        <button id="pf-resync" class="set-row">
+          <span class="set-ic set-ic-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="m3 17 5-4 4 3 4-3 5 4"/></svg></span>
+          <span class="set-label">写真を再同期</span><span class="set-arrow">›</span>
+        </button>
+        <button id="pf-logout" class="set-row set-row-danger">
+          <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></span>
+          <span class="set-label">ログアウト</span><span class="set-arrow">›</span>
+        </button>
       </div>
     </div>
 
-    <!-- メニュー -->
+    <div class="set-section-title">友だち</div>
     <div class="set-list">
       <button id="pf-search" class="set-row">
-        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+        <span class="set-ic set-ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
         <span class="set-label">ユーザーを探す</span><span class="set-arrow">›</span>
       </button>
-      <button id="show-welcome" class="set-row">
-        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg></span>
-        <span class="set-label">使い方を見る</span><span class="set-arrow">›</span>
+      <button id="set-share" class="set-row">
+        <span class="set-ic set-ic-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></span>
+        <span class="set-label">プロフィールを共有</span><span class="set-arrow">›</span>
       </button>
     </div>
 
-    <div class="set-section-title">データのバックアップ</div>
+    <div class="set-section-title">データ</div>
     <div class="set-list">
       <button id="backup-export" class="set-row">
-        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
-        <span class="set-label">書き出す</span><span class="set-arrow">›</span>
+        <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+        <span class="set-label">バックアップを書き出す</span><span class="set-arrow">›</span>
       </button>
       <button id="backup-import" class="set-row">
-        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg></span>
-        <span class="set-label">読み込む</span><span class="set-arrow">›</span>
+        <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg></span>
+        <span class="set-label">バックアップを読み込む</span><span class="set-arrow">›</span>
       </button>
     </div>
-    <p class="set-note">Googleログイン中は、記録と写真が自動でクラウドへバックアップされます（起動時・変更のたび・15分おき）。ここからのファイル書き出しは写真以外の記録のみで、万一の保険です。</p>
+    <p class="set-note">ログイン中は記録と写真が自動でクラウドへ保存されます（起動時・記録のたび・15分おき）。書き出しは写真以外の記録が対象です。</p>
     <input type="file" id="backup-file" accept=".json,application/json" hidden>
 
-    <div class="set-section-title">詳細設定</div>
-    <details class="set-adv">
-      <summary class="set-row">
-        <span class="set-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2"/><path d="M16 6l2 2"/><path d="M14.5 7.5 17 10"/></svg></span>
-        <span class="set-label">開発者向け設定（APIキー）</span><span class="set-arrow set-caret">›</span>
-      </summary>
-      <div class="set-adv-body">
-        <h3>AIによる料理ジャンル判定</h3>
-        <p class="hint">
-          Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、料理ジャンル・店舗ジャンルを自動判定します。
-          キーはこのブラウザ内に保存され、ログイン中はアカウントにも控えが保存されます（消えても自動復元）。
-          キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
-        </p>
-        <label class="full">Anthropic APIキー
-          <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
-        </label>
-        <h3>店舗検索の強化（Googleマップ）</h3>
-        <p class="hint">
-          Google MapsのAPIキーを設定すると、店名検索にGoogleマップのデータが加わり、地図データに載っていない個人店も見つかります。
-          <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> で「Places API (New)」を有効にして取得します（無料枠あり）。
-        </p>
-        <label class="full">Google Maps APIキー
-          <input type="password" id="settings-google-key" placeholder="AIza...">
-        </label>
-        <div class="detail-actions">
-          <button id="settings-save" class="btn primary">保存</button>
-          <button id="settings-clear" class="btn danger">キーを削除</button>
+    <div class="set-section-title">ヘルプ</div>
+    <div class="set-list">
+      <button id="show-welcome" class="set-row">
+        <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg></span>
+        <span class="set-label">使い方を見る</span><span class="set-arrow">›</span>
+      </button>
+      <details class="set-adv">
+        <summary class="set-row">
+          <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2"/><path d="M16 6l2 2"/><path d="M14.5 7.5 17 10"/></svg></span>
+          <span class="set-label">開発者向け設定（APIキー）</span><span class="set-arrow set-caret">›</span>
+        </summary>
+        <div class="set-adv-body">
+          <h3>AIによる料理ジャンル判定</h3>
+          <p class="hint">
+            Anthropic APIキーを設定すると、登録時に料理写真をAI（Claude）が解析し、料理ジャンル・店舗ジャンルを自動判定します。
+            キーはこのブラウザ内に保存され、ログイン中はアカウントにも控えが保存されます（消えても自動復元）。
+            キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
+          </p>
+          <label class="full">Anthropic APIキー
+            <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
+          </label>
+          <h3>店舗検索の強化（Googleマップ）</h3>
+          <p class="hint">
+            Google MapsのAPIキーを設定すると、店名検索にGoogleマップのデータが加わり、地図データに載っていない個人店も見つかります。
+            <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> で「Places API (New)」を有効にして取得します（無料枠あり）。
+          </p>
+          <label class="full">Google Maps APIキー
+            <input type="password" id="settings-google-key" placeholder="AIza...">
+          </label>
+          <div class="detail-actions">
+            <button id="settings-save" class="btn primary">保存</button>
+            <button id="settings-clear" class="btn danger">キーを削除</button>
+          </div>
         </div>
-        <p class="hint" id="settings-status"></p>
-      </div>
-    </details>
+      </details>
+    </div>
+
+    <p class="set-version" id="settings-status"></p>
     </div>
   </div>
 </div>
@@ -547,11 +575,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=265"></script>
-<script src="js/api.js?v=265"></script>
-<script src="js/cloud.js?v=265"></script>
-<script src="js/register.js?v=265"></script>
-<script src="js/views.js?v=265"></script>
-<script src="js/app.js?v=265"></script>
+<script src="js/store.js?v=266"></script>
+<script src="js/api.js?v=266"></script>
+<script src="js/cloud.js?v=266"></script>
+<script src="js/register.js?v=266"></script>
+<script src="js/views.js?v=266"></script>
+<script src="js/app.js?v=266"></script>
 </body>
 </html>

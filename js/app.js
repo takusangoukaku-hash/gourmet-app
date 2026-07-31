@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v265'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v266'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -60,24 +60,31 @@ const App = (() => {
     const renderSettingsAccount = () => {
       const user = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
       const box = $('#settings-account');
-      box.innerHTML = '<span class="sa-icon">👤</span><div class="sa-main">'
-        + '<div class="sa-label"></div><div class="sa-value"></div></div>';
-      const label = box.querySelector('.sa-label');
-      const value = box.querySelector('.sa-value');
-      if (user) {
-        label.textContent = 'ログイン中のアカウント';
-        value.textContent = user.email || user.displayName || 'Googleアカウント';
-      } else {
-        label.textContent = 'アカウント';
-        value.textContent = '未ログイン（プロフィール画面からログインできます）';
-        value.style.fontWeight = '400'; value.style.color = 'var(--muted)';
-      }
+      // ログイン中だけアカウント行を出す（未ログインなら下の「ログイン」行が案内になる）
+      box.classList.toggle('hidden', !user);
+      if (!user) { box.innerHTML = ''; return; }
+      box.innerHTML = '<span class="set-ic set-ic-gray">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
+        + '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>'
+        + '<span class="sa-main"><span class="sa-label">ログイン中のアカウント</span>'
+        + '<span class="sa-value"></span></span>';
+      box.querySelector('.sa-value').textContent = user.email || user.displayName || 'Googleアカウント';
+    };
+    // 設定上部のプロフィール行（名前・@ユーザー名・アイコン）
+    const renderSettingsProfile = () => {
+      const p = Store.getProfile();
+      $('#set-name').textContent = p.name || 'BITEMAP';
+      $('#set-sub').textContent = p.username ? '@' + p.username : 'プロフィールを編集';
+      const av = $('#set-avatar');
+      if (p.avatar) av.innerHTML = '<img src="' + p.avatar + '" alt="">';
+      else av.textContent = '🍜';
     };
     $('#settings-btn').addEventListener('click', () => {
       $('#settings-api-key').value = Api.getApiKey();
       $('#settings-google-key').value = Api.getGoogleKey();
       $('#settings-status').textContent = settingsStatus();
       renderSettingsAccount();
+      renderSettingsProfile();
       $('#settings-modal').classList.remove('hidden');
     });
     $('#settings-save').addEventListener('click', () => {

@@ -2386,11 +2386,13 @@ const Views = (() => {
 
     // クラウド同期（Googleログイン）
     if (typeof Cloud !== 'undefined' && Cloud.isSupported()) {
+      // 設定は行リスト型なので、文字は行内の .set-label を書き換える
+      const loginLabel = () => $('#pf-login').querySelector('.set-label') || $('#pf-login');
       $('#pf-login').addEventListener('click', async () => {
-        $('#pf-login').textContent = 'ログイン中…';
+        loginLabel().textContent = 'ログイン中…';
         try { await Cloud.login(); }
         catch (e) {
-          $('#pf-login').textContent = 'Googleでログインして同期';
+          loginLabel().textContent = 'Googleでログインして同期';
           App.toast('⚠️ ログインに失敗しました: ' + (e && e.message || e));
         }
       });
@@ -2398,11 +2400,12 @@ const Views = (() => {
       // 写真の強制再同期（Storageルール修正後の穴埋め・別端末への取り込み）
       $('#pf-resync').addEventListener('click', async () => {
         const btn = $('#pf-resync');
-        btn.disabled = true; btn.textContent = '再同期中…';
+        const lab = btn.querySelector('.set-label') || btn;
+        btn.disabled = true; lab.textContent = '再同期中…';
         try {
           const r = await Cloud.resyncPhotos(({ phase, i, total }) => {
             const label = phase === 'upload' ? '↑' : '↓';
-            btn.textContent = `${label}${i}/${total}…`;
+            lab.textContent = `${label}${i}/${total}…`;
           });
           const detail = r.fail ? `／失敗${r.fail}${r.error ? '（' + r.error + '）' : ''}` : '';
           App.toast(`写真同期: ↑${r.up} ↓${r.down} ${detail}`);
@@ -2412,7 +2415,7 @@ const Views = (() => {
               'Firebase側で写真の保存が拒否されています。Firebaseコンソール → Storage → ルール を「本人のみ読み書き可」に修正してください（READMEに設定例あり）', 9000), 400);
           }
         } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
-        btn.disabled = false; btn.textContent = '写真を再同期';
+        btn.disabled = false; lab.textContent = '写真を再同期';
       });
       // 同期状態の表示更新
       const SYNC_MSG = { loading: 'ログイン中…', syncing: '同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
@@ -2421,7 +2424,7 @@ const Views = (() => {
         $('#pf-login').classList.toggle('hidden', inNow);
         $('#pf-account-in').classList.toggle('hidden', !inNow);
         if (inNow) {
-          let msg = (u.email ? u.email + '　' : '') + (SYNC_MSG[state] || '');
+          let msg = SYNC_MSG[state] || '';
           if (state === 'error' && detail) {
             const code = detail.code || detail.message || String(detail);
             // 原因の切り分け用にエラーコードを表示。権限エラーはルール未設定の案内を出す
@@ -2435,11 +2438,18 @@ const Views = (() => {
         if (state === 'signedout') { const bd = $('#notif-badge'); if (bd) bd.classList.add('hidden'); }
       });
     } else {
-      $('#pf-login').textContent = 'この端末では同期を利用できません';
+      const l0 = $('#pf-login').querySelector('.set-label') || $('#pf-login');
+      l0.textContent = 'この端末では同期を利用できません';
       $('#pf-login').disabled = true;
     }
 
     $('#pf-share').addEventListener('click', () => openShareProfile());
+    // 設定内の行: プロフィール行→マイページへ、共有→共有シート
+    const hideSettings = () => { const m = $('#settings-modal'); if (m) m.classList.add('hidden'); };
+    const setProf = $('#set-profile');
+    if (setProf) setProf.addEventListener('click', () => { hideSettings(); App.switchTab('profile'); });
+    const setShare = $('#set-share');
+    if (setShare) setShare.addEventListener('click', () => { hideSettings(); openShareProfile(); });
     $('#pf-edit').addEventListener('click', () => {
       const p = Store.getProfile();
       $('#pf-name-input').value = p.name;
