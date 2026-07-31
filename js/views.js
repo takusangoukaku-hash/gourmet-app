@@ -3471,71 +3471,209 @@ const Views = (() => {
     ov.className = 'modal modal-full visitlist-modal';
     ov.innerHTML = `<div class="modal-box">
         <div class="vl-topbar">
-          <button type="button" class="modal-close vl-close" aria-label="閉じる">✕</button>
-          <span class="vl-title">${esc(s.name)} の訪問記録</span>
+          <button type="button" class="vl-back" aria-label="閉じる">‹</button>
+          <div class="vl-titles">
+            <span class="vl-title">${esc(s.name)} の訪問記録</span>
+            <span class="vl-sub"></span>
+          </div>
         </div>
         <div class="vl-body"></div>
+        <div class="vl-addbar">
+          <button type="button" class="btn primary vl-add">＋ 新しい記録を追加</button>
+        </div>
       </div>`;
     const body = ov.querySelector('.vl-body');
     const close = () => ov.remove();
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    ov.querySelector('.vl-close').addEventListener('click', close);
+    ov.querySelector('.vl-back').addEventListener('click', close);
+    // 下部の固定ボタン: この店を選んだ状態で登録タブへ
+    ov.querySelector('.vl-add').addEventListener('click', () => {
+      close();
+      App.switchTab('register');
+      Register.preselectShop(shopId);
+    });
 
-    const render = () => {
-      const list = Store.visitsOf(shopId);
-      if (!list.length) { body.innerHTML = '<div class="empty"><p>訪問記録がありません。</p></div>'; return; }
-      body.innerHTML = '';
-      for (const v of list) {
-        const card = document.createElement('div');
-        card.className = 'vl-card';
-        // 写真を先頭に全幅で置き、日付・星・ジャンル・コメントはその下にまとめる
-        card.innerHTML = `
-          <div class="pd-photos vl-photos"></div>
-          <div class="vl-info">
-            <div class="v-head">
-              <span class="v-date">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}</span>
-              <span class="v-stars">${starSvg(v.rating, 16)}</span>
-              ${(v.dishGenres || []).map(g => `<span class="chip tag">${esc(g)}</span>`).join('')}
+    let mode = 'list';   // 'list'（写真主役のカード） | 'tl'（タイムライン）
+    let genreSel = '';   // ジャンル絞り込み（'' = すべて）
+
+    const editVisit = (v) => { close(); showShop(shopId, false, v.id); };
+    const delVisit = async (v) => {
+      if (!confirm('この記録を削除しますか？')) return;
+      await Store.deleteVisit(v.id);
+      App.refreshCurrent();
+      render();
+    };
+
+    // カードを左へスワイプすると 編集/削除 ボタンが現れる（写真カルーセル上は除外）
+    function attachSwipe(card, v) {
+      const main = card.querySelector('.vlc-main');
+      const W = 132;
+      let sx = 0, sy = 0, dx = 0, open = false, drag = null;
+      const set = (x, anim) => {
+        main.style.transition = anim ? 'transform .18s ease' : 'none';
+        main.style.transform = `translateX(${x}px)`;
+      };
+      card.addEventListener('touchstart', (e) => {
+        const t = e.touches[0]; sx = t.clientX; sy = t.clientY; dx = 0;
+        drag = e.target.closest('.pd-carousel') ? false : null;
+      }, { passive: true });
+      card.addEventListener('touchmove', (e) => {
+        const t = e.touches[0]; dx = t.clientX - sx;
+        const dy = t.clientY - sy;
+        if (drag === null) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          drag = Math.abs(dx) > Math.abs(dy);
+        }
+        if (!drag) return;
+        set(Math.max(-W, Math.min(0, (open ? -W : 0) + dx)), false);
+      }, { passive: true });
+      card.addEventListener('touchend', () => {
+        if (!drag) return;
+        open = (open ? -W : 0) + dx < -W / 2;
+        set(open ? -W : 0, true);
+        drag = null;
+      });
+      // 開いたまま本文をタップしたら閉じる
+      main.addEventListener('click', () => { if (open) { open = false; set(0, true); } });
+      // PC（マウス操作）はダブルクリックで開閉
+      main.addEventListener('dblclick', () => { open = !open; set(open ? -W : 0, true); });
+      card.querySelector('.vlc-a-edit').addEventListener('click', () => editVisit(v));
+      card.querySelector('.vlc-a-del').addEventListener('click', () => delVisit(v));
+    }
+
+    // リスト表示: 角丸写真の上に 星バッジ（右上）・日付（左下）・ジャンル（右下）を重ねる
+    function buildCard(v) {
+      const card = document.createElement('div');
+      card.className = 'vl-card2';
+      const gtxt = (v.dishGenres || []).join('・');
+      card.innerHTML = `
+        <div class="vlc-actions">
+          <button type="button" class="vlc-act vlc-a-edit">${IC_EDIT}<span>編集</span></button>
+          <button type="button" class="vlc-act vlc-a-del"><span>削除</span></button>
+        </div>
+        <div class="vlc-main">
+          <div class="vlc-photobox">
+            <div class="pd-photos vl-photos"></div>
+            ${v.rating ? `<span class="pd-photo-star vlc-star">★${fmtR(v.rating)}</span>` : ''}
+            <span class="vlc-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
+            ${gtxt ? `<span class="vlc-genre">${esc(gtxt)}</span>` : ''}
+          </div>
+          <div class="vlc-info">
+            <div class="vlc-raterow">
+              <span class="v-stars">${starSvg(v.rating, 17)}</span>
+              ${v.rating ? `<b class="vlc-num">${fmtR(v.rating)}</b>` : ''}
+              ${gtxt ? `<span class="vlc-gtxt">${esc(gtxt)}</span>` : ''}
               <button type="button" class="v-edit-link icon-only ve-edit" title="この記録を編集"
                 aria-label="この記録を編集">${IC_EDIT}</button>
             </div>
-            ${v.comment ? `<div class="v-comment">${esc(v.comment)}</div>` : ''}
-            <div class="v-btns">
-              <button type="button" class="btn small danger ve-del">削除</button>
+            ${v.comment ? `<div class="vlc-comment">「${esc(v.comment)}」</div>` : ''}
+          </div>
+        </div>`;
+      Store.photosOfVisit(v.id).then(ps => {
+        const box = card.querySelector('.vl-photos');
+        const urls = ps.map(p => photoUrl(p)).filter(Boolean);
+        if (!urls.length) { box.innerHTML = '<div class="vlc-noph">🍽️</div>'; return; }
+        box.innerHTML = urls.map(u =>
+          `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async"></div>`).join('');
+        if (urls.length > 1) {
+          box.classList.add('pd-carousel');
+          const dots = document.createElement('div');
+          dots.className = 'pd-dots';
+          dots.innerHTML = urls.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+          card.querySelector('.vlc-photobox').after(dots);
+          box.addEventListener('scroll', () => {
+            const i = Math.round(box.scrollLeft / box.clientWidth);
+            [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+          }, { passive: true });
+        }
+        box.querySelectorAll('.pd-photo').forEach((img, i) =>
+          img.addEventListener('click', () => openLightbox(urls[i], `${s.name}　${fmtDate(v.datetime)}`)));
+      });
+      card.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
+      attachSwipe(card, v);
+      return card;
+    }
+
+    // タイムライン表示: 縦の線と点で時系列に並べる
+    function renderTimeline(list) {
+      const tl = document.createElement('div');
+      tl.className = 'vl-tl';
+      for (const v of list) {
+        const it = document.createElement('div');
+        it.className = 'vl-tli';
+        const gtxt = (v.dishGenres || []).join('・');
+        it.innerHTML = `
+          <div class="vl-tldate">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}<span>${relTime(v.datetime)}</span></div>
+          <div class="vl-tlrow">
+            <button type="button" class="vl-tlph">🍽️</button>
+            <div class="vl-tlinfo">
+              <div class="vl-tlstars">${starSvg(v.rating, 14)}${v.rating ? `<b>${fmtR(v.rating)}</b>` : ''}</div>
+              ${gtxt ? `<div class="vl-tlg">${esc(gtxt)}</div>` : ''}
+              ${v.comment ? `<div class="vl-tlcm">${esc(v.comment)}</div>` : ''}
             </div>
+            <button type="button" class="v-edit-link icon-only ve-edit" title="この記録を編集"
+              aria-label="この記録を編集">${IC_EDIT}</button>
           </div>`;
         Store.photosOfVisit(v.id).then(ps => {
-          const box = card.querySelector('.vl-photos');
-          const urls = ps.map(p => photoUrl(p)).filter(Boolean);
-          if (!urls.length) { box.remove(); return; }
-          // 写真の右上にその訪問の星の数（投稿詳細と同じ黒背景・金文字のバッジ）
-          const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
-          box.innerHTML = urls.map(u =>
-            `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async">${badge}</div>`).join('');
-          if (urls.length > 1) {
-            // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
-            box.classList.add('pd-carousel');
-            const dots = document.createElement('div');
-            dots.className = 'pd-dots';
-            dots.innerHTML = urls.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
-            box.after(dots);
-            box.addEventListener('scroll', () => {
-              const i = Math.round(box.scrollLeft / box.clientWidth);
-              [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
-            }, { passive: true });
-          }
-          box.querySelectorAll('.pd-photo').forEach((img, i) =>
-            img.addEventListener('click', () => openLightbox(urls[i], `${s.name}　${fmtDate(v.datetime)}`)));
+          const u = ps.length ? photoUrl(ps[0]) : '';
+          if (!u) return;
+          it.querySelector('.vl-tlph').innerHTML = `<img src="${esc(u)}" alt="" loading="lazy" decoding="async">`;
+          it.querySelector('.vl-tlph').addEventListener('click', () =>
+            openLightbox(u, `${s.name}　${fmtDate(v.datetime)}`));
         });
-        card.querySelector('.ve-edit').addEventListener('click', () => { close(); showShop(shopId, false, v.id); });
-        card.querySelector('.ve-del').addEventListener('click', async () => {
-          if (!confirm('この記録を削除しますか？')) return;
-          await Store.deleteVisit(v.id);
-          App.refreshCurrent();
-          render();
-        });
-        body.appendChild(card);
+        it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
+        tl.appendChild(it);
       }
+      body.appendChild(tl);
+    }
+
+    const render = () => {
+      const all = Store.visitsOf(shopId);
+      ov.querySelector('.vl-sub').textContent = `あなたの記録（${all.length}件）`;
+      body.innerHTML = '';
+      if (!all.length) { body.innerHTML = '<div class="empty"><p>訪問記録がありません。</p></div>'; return; }
+
+      const genres = [...new Set(all.flatMap(v => v.dishGenres || []))];
+      if (genreSel && !genres.includes(genreSel)) genreSel = '';
+      const list = genreSel ? all.filter(v => (v.dishGenres || []).includes(genreSel)) : all;
+
+      // ヘッダー: 訪問回数・平均評価・最終訪問 ＋ ジャンル絞り込み ＋ 表示切り替え
+      const head = document.createElement('div');
+      head.className = 'vl-head';
+      head.innerHTML = `
+        <div class="vl-stats">
+          <div class="vl-stat"><b>${all.length}<small>回</small></b><span>訪問回数</span></div>
+          <div class="vl-stat"><b class="vl-avg">★${fmtR(Store.avgRating(shopId))}</b><span>平均評価</span></div>
+          <div class="vl-stat"><b>${relTime(all[0].datetime)}</b><span>最終訪問</span></div>
+        </div>
+        <div class="vl-tools">
+          <div class="vl-chips"></div>
+          <div class="vl-segs">
+            <button type="button" class="vl-seg" data-m="list">リスト</button>
+            <button type="button" class="vl-seg" data-m="tl">タイムライン</button>
+          </div>
+        </div>`;
+      const chips = head.querySelector('.vl-chips');
+      if (genres.length) {
+        chips.innerHTML = `<button type="button" class="vl-chip${genreSel ? '' : ' on'}" data-g="">すべて</button>` +
+          genres.map(g => `<button type="button" class="vl-chip${genreSel === g ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('');
+        chips.querySelectorAll('.vl-chip').forEach(c =>
+          c.addEventListener('click', () => { genreSel = c.dataset.g; render(); }));
+      } else chips.remove();
+      head.querySelectorAll('.vl-seg').forEach(b => {
+        b.classList.toggle('on', b.dataset.m === mode);
+        b.addEventListener('click', () => { mode = b.dataset.m; render(); });
+      });
+      body.appendChild(head);
+
+      if (!list.length) {
+        const e = document.createElement('div');
+        e.className = 'empty';
+        e.innerHTML = '<p>該当する記録がありません。</p>';
+        body.appendChild(e);
+        return;
+      }
+      if (mode === 'tl') { renderTimeline(list); return; }
+      for (const v of list) body.appendChild(buildCard(v));
     };
     render();
     document.body.appendChild(ov);

@@ -919,16 +919,61 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .visitlist-modal { overflow: hidden; }
 .visitlist-modal .modal-box { padding: 0; height: 100%; display: flex; flex-direction: column; }
 .vl-topbar {
-  flex-shrink: 0; display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; border-bottom: 1px solid var(--border-lite); background: var(--card);
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-bottom: 1px solid var(--border-lite); background: var(--card);
 }
 .vl-topbar .modal-close { position: static; margin: 0; flex-shrink: 0; }
+.vl-back {
+  flex: 0 0 40px; width: 40px; height: 40px; border: none; background: none; cursor: pointer;
+  font-size: 28px; line-height: 1; color: var(--text); padding: 0 0 4px;
+}
+/* タイトルを中央に置くため、右側に戻るボタンと同じ幅の余白を作る */
+.vl-topbar::after { content: ''; flex: 0 0 40px; }
+.vl-titles {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
 .vl-title {
-  font-family: var(--serif); font-weight: 700; font-size: 16px; margin: 0; min-width: 0;
+  font-family: var(--serif); font-weight: 700; font-size: 15px; margin: 0; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.vl-sub { color: var(--muted); font-size: 11px; }
 .vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .vl-body .empty { padding: 28px 16px; }
+/* 下部の固定「＋ 新しい記録を追加」 */
+.vl-addbar {
+  flex-shrink: 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--card); border-top: 1px solid var(--border-lite);
+}
+.vl-add {
+  width: 100%; justify-content: center; padding: 13px; border-radius: 999px;
+  font-size: 15px; font-weight: 700;
+}
+/* ヘッダーの統計（訪問回数・平均評価・最終訪問）と絞り込み・表示切り替え */
+.vl-head { padding: 14px 16px 12px; }
+.vl-stats { display: flex; gap: 8px; }
+.vl-stat {
+  flex: 1; background: var(--field); border-radius: 14px; padding: 10px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
+}
+.vl-stat b { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.vl-stat b small { font-size: 11px; font-weight: 600; }
+.vl-stat .vl-avg { color: var(--star); }
+.vl-stat span { font-size: 10.5px; color: var(--muted); }
+/* 1行目: 表示切り替え（右寄せ）／2行目: ジャンル絞り込み（横スクロール） */
+.vl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.vl-chips { order: 2; flex: 1 1 100%; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.vl-chips::-webkit-scrollbar { display: none; }
+.vl-chip {
+  flex: 0 0 auto; border: 1px solid var(--border-lite); background: var(--card); cursor: pointer;
+  border-radius: 999px; padding: 5px 12px; font-size: 12px; color: var(--muted); font-family: inherit;
+}
+.vl-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.vl-segs { flex: 0 0 auto; margin-left: auto; display: flex; background: var(--field); border-radius: 999px; padding: 3px; }
+.vl-seg {
+  border: none; background: none; cursor: pointer; border-radius: 999px; font-family: inherit;
+  padding: 4px 10px; font-size: 11.5px; color: var(--muted); white-space: nowrap;
+}
+.vl-seg.on { background: var(--card); color: var(--text); font-weight: 700; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 
 /* 写真タップ後の店舗フィード画面。店舗詳細(#modal)は静的要素で後から重ねられないため、
    この画面の方を一段下(z-index)にして「フィード → 店舗詳細」の順に重なるようにする */
@@ -1043,16 +1088,72 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 .msh-chev { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--muted); padding: 4px; }
 .msh-chev .ic { width: 18px; height: 18px; }
-/* 記録どうしの区切りは投稿詳細と同じ太い線（枠で囲むと写真が全幅にできない） */
-.vl-card + .vl-card { border-top: 8px solid var(--field); }
-.vl-info { padding: 10px 16px 20px; }
-.vl-card .v-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-/* 編集(✎)は日付・星・ジャンルの段の右端に置く（最下段に単独の段を作らない） */
-.vl-card .v-head .ve-edit { margin-left: auto; }
-.vl-card .v-date { font-weight: bold; font-size: 14px; }
-.vl-card .v-stars { color: var(--star); line-height: 1; }
-.vl-card .v-comment { font-size: 14px; margin: 8px 0 0; white-space: pre-wrap; }
-.vl-card .v-btns { margin-top: 12px; display: flex; gap: 6px; }
+/* 訪問記録カード（写真主役）: 左スワイプで 編集/削除 が現れる */
+.vl-card2 { position: relative; overflow: hidden; }
+.vl-card2 + .vl-card2 { border-top: 1px solid var(--border-lite); }
+.vlc-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 132px; display: flex; }
+.vlc-act {
+  flex: 1; border: none; cursor: pointer; font-family: inherit; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12px; font-weight: 700;
+}
+.vlc-act .ic { width: 18px; height: 18px; }
+.vlc-a-edit { background: #4A90D9; }
+.vlc-a-del { background: #E0554D; }
+.vlc-main { position: relative; background: var(--card); padding: 16px 0 18px; }
+/* 角丸写真。バッジ・日付・ジャンルを写真の上に重ねる */
+.vlc-photobox { position: relative; margin: 0 16px; border-radius: 16px; overflow: hidden; background: var(--field); }
+.vlc-star.pd-photo-star { top: 10px; right: 10px; }
+.vlc-date {
+  position: absolute; left: 10px; bottom: 10px; pointer-events: none;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 600;
+  border-radius: 999px; padding: 3px 10px;
+}
+.vlc-genre {
+  position: absolute; right: 10px; bottom: 10px; pointer-events: none;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px;
+  border-radius: 999px; padding: 3px 10px; max-width: 55%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vlc-noph { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+.vlc-info { padding: 10px 20px 0; }
+.vlc-raterow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.vlc-raterow .v-stars { line-height: 1; flex-shrink: 0; }
+.vlc-num { font-size: 15px; font-weight: 800; }
+.vlc-gtxt { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vlc-raterow .ve-edit { margin-left: auto; flex-shrink: 0; }
+.vlc-comment { margin-top: 6px; font-size: 13.5px; white-space: pre-wrap; }
+
+/* タイムライン表示: 左の縦線と点で時系列に */
+.vl-tl { padding: 2px 16px 20px; }
+.vl-tli { position: relative; padding: 0 0 18px 26px; }
+.vl-tli::before { content: ''; position: absolute; left: 8px; top: 6px; bottom: 0; width: 2px; background: var(--border-lite); }
+.vl-tli:last-child::before { bottom: auto; height: 20px; }
+.vl-tli::after {
+  content: ''; position: absolute; left: 3px; top: 4px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--accent);
+}
+.vl-tldate { font-size: 13px; font-weight: 700; }
+.vl-tldate span { margin-left: 7px; color: var(--muted); font-weight: 500; font-size: 11px; }
+.vl-tlrow {
+  display: flex; align-items: center; gap: 10px; margin-top: 8px;
+  background: var(--field); border-radius: 14px; padding: 10px;
+}
+.vl-tlph {
+  flex: 0 0 64px; width: 64px; height: 64px; border-radius: 10px; overflow: hidden;
+  border: none; padding: 0; cursor: pointer; background: var(--card);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.vl-tlph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vl-tlinfo { flex: 1; min-width: 0; }
+.vl-tlstars { display: flex; align-items: center; gap: 5px; line-height: 1; }
+.vl-tlstars b { font-size: 13px; }
+.vl-tlg { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.vl-tlcm {
+  font-size: 12.5px; margin-top: 3px; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.vl-tlrow .ve-edit { flex-shrink: 0; }
 
 /* ---------- あとで記録（下書き） ---------- */
 .drafts-banner {
