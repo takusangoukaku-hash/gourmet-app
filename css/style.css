@@ -737,11 +737,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .pf-shopcard .ps-row .ic { width: 14px; height: 14px; }
 .pf-shopcard .ps-stars { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .pf-shopcard .ps-avg { color: var(--accent); font-size: 23px; font-weight: 800; line-height: 1; }
-.pf-shopcard .ps-meta { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; color: var(--text); }
+.pf-shopcard .ps-meta {
+  display: flex; align-items: center; gap: 6px 8px; margin-top: 7px; font-size: 12.5px; color: var(--text);
+  flex-wrap: wrap; /* バッジが入りきらないときはラベルごと次の行へ（文字の途中で折らない） */
+}
+.pf-shopcard .ps-meta > span { white-space: nowrap; }
 .pf-shopcard .ps-chip {
   background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 11.5px;
   padding: 2px 9px; border-radius: 6px;
 }
+/* 星絞り込みの通過理由バッジ: 平均で超えている店（金色）／1回の記録だけで超えている店（白抜き） */
+.pf-shopcard .ps-hit { font-weight: 700; font-size: 11px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pf-shopcard .ps-hit-avg { background: var(--star); color: #fff; }
+.pf-shopcard .ps-hit-once { background: var(--card); color: var(--star); border: 1.5px solid var(--star); }
 
 /* ---------- 統計 ---------- */
 .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }

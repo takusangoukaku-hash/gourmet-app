@@ -1784,7 +1784,10 @@ const Views = (() => {
       if (pref && s.pref !== pref) return false;
       const vs = Store.visitsOf(s.id);
       if (dg && !vs.some(v => (v.dishGenres || []).includes(dg))) return false;
-      if (minR && (Store.avgRating(s.id) || 0) < minR) return false;
+      // 星の絞り込みは平均だけでなく、1回でも★minR以上の記録があれば表示する
+      //（平均で超えている店とそうでない店はカード上のバッジで見分けられる）
+      if (minR && (Store.avgRating(s.id) || 0) < minR
+        && !vs.some(v => (v.rating || 0) >= minR)) return false;
       if (kw) {
         const hay = [s.name, s.station, s.pref, s.city, s.address, ...vs.map(v => v.comment || '')].join(' ').toLowerCase();
         if (!hay.includes(kw)) return false;
@@ -2246,7 +2249,15 @@ const Views = (() => {
           const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
           return pair.raters > 1 ? `<span class="ps-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : '';
         })()}</div>
-        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span></div>
+        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span>${(() => {
+          // 星絞り込み中: 平均で超えている店は金色、1回の記録だけで超えている店は白抜きのバッジで区別
+          const minR = +($('#flt-rating').value || 0);
+          if (!minR) return '';
+          const lbl = minR === 5 ? '★5' : `★${minR}以上`;
+          if (avg >= minR) return `<span class="ps-hit ps-hit-avg">平均で${lbl}</span>`;
+          const best = Math.max(0, ...Store.visitsOf(s.id).map(v => v.rating || 0));
+          return best >= minR ? `<span class="ps-hit ps-hit-once">${lbl}の記録あり</span>` : '';
+        })()}</div>
       </div>
       <button class="s-fav ps-favbtn ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
     // 写真タップはホームの投稿と同じ表示（上下スクロールで検索結果の前後の店の投稿へ）。
