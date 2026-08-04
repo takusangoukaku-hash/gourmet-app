@@ -511,7 +511,10 @@ const Views = (() => {
   const AXIS_LABEL = { taste: '味', casual: 'カジュアル度', atmosphere: '雰囲気', speed: '提供の早さ' };
   function shopMatchesAxes(shop) {
     const tasteMin = +($('#mf-taste').value || 0);
-    if (tasteMin > 0 && Store.avgRating(shop.id) < tasteMin) return false;
+    // 味は平均だけでなく、1回でも★tasteMin以上の記録があれば通す（検索タブと同じ基準。
+    // ピンの色は平均評価のままなので、平均で超えている店との違いは色でわかる）
+    if (tasteMin > 0 && Store.avgRating(shop.id) < tasteMin
+      && !Store.visitsOf(shop.id).some(v => (v.rating || 0) >= tasteMin)) return false;
     for (const k of ['casual', 'atmosphere', 'speed']) {
       const min = +($('#mf-' + k).value || 0);
       if (min > 0 && (shop[k] || 0) < min) return false;
@@ -1172,6 +1175,16 @@ const Views = (() => {
               return pair.raters ? ratePairHtml(pair, { count: true })
                 : `${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${vs.length + fposts.length}件の投稿）</span>`;
             })()}</div>
+            ${(() => {
+              // 星絞り込み中は検索タブと同じ通過理由バッジを出す（平均で超えた/記録だけで超えた）
+              const minT = +($('#mf-taste').value || 0);
+              if (!minT) return '';
+              const myAvg = Store.avgRating(s.id) || 0;
+              const lbl = minT === 5 ? '★5' : `★${minT}以上`;
+              if (myAvg >= minT) return `<div class="msh-hitrow"><span class="ps-hit ps-hit-avg">平均で${lbl}</span></div>`;
+              return vs.some(v => (v.rating || 0) >= minT)
+                ? `<div class="msh-hitrow"><span class="ps-hit ps-hit-once">${lbl}の記録あり</span></div>` : '';
+            })()}
             <div class="msh-meta">
               ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
               ${genre && s.station ? '<span class="msh-sep"></span>' : ''}
