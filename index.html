@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=271">
+<link rel="stylesheet" href="css/style.css?v=272">
 </head>
 <body>
 
@@ -273,6 +273,11 @@
       <option value="3">味★3以上</option><option value="2">味★2以上</option><option value="1">味★1以上</option>
     </select>
     </div>
+    </div>
+    <!-- 検索結果の表示切り替え（お店＝店舗カード／写真＝写真グリッド）。店舗検索モード中だけ表示 -->
+    <div id="list-mode-segs" class="vl-segs list-segs hidden">
+      <button type="button" class="vl-seg on" data-m="shop">お店</button>
+      <button type="button" class="vl-seg" data-m="photo">写真</button>
     </div>
   </div>
   <!-- 発見（Podcast風: カテゴリータイル → タップでそのジャンルの写真一覧） -->
@@ -575,11 +580,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=271"></script>
-<script src="js/api.js?v=271"></script>
-<script src="js/cloud.js?v=271"></script>
-<script src="js/register.js?v=271"></script>
-<script src="js/views.js?v=271"></script>
-<script src="js/app.js?v=271"></script>
+<script src="js/store.js?v=272"></script>
+<script src="js/api.js?v=272"></script>
+<script src="js/cloud.js?v=272"></script>
+<script src="js/register.js?v=272"></script>
+<script src="js/views.js?v=272"></script>
+<script src="js/app.js?v=272"></script>
 </body>
 </html>

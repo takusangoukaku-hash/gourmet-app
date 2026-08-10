@@ -1726,6 +1726,12 @@ const Views = (() => {
       document.querySelectorAll('.star-chip').forEach(x => x.classList.toggle('on', x.dataset.r === next));
       renderList();
     }));
+    // 検索結果の「お店/写真」切り替え（写真＝「ラーメン」等の検索で写真一覧を出すモード）
+    document.querySelectorAll('#list-mode-segs .vl-seg').forEach(b => b.addEventListener('click', () => {
+      listResultMode = b.dataset.m;
+      document.querySelectorAll('#list-mode-segs .vl-seg').forEach(x => x.classList.toggle('on', x === b));
+      renderList();
+    }));
     // ←（戻る）で最初の画面（発見グリッド）へ。下の検索タブの再タップでも戻れる
     $('#list-back').addEventListener('click', enterListTab);
     // 行きたい店リスト
@@ -1875,6 +1881,8 @@ const Views = (() => {
   }
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
   let exploreGenre = null;     // 開いている写真グリッド { genre, label }。nullならグリッド以外の画面
+  let listResultMode = 'shop'; // 店舗検索の結果表示: 'shop'=店舗カード / 'photo'=写真グリッド
+  let searchPhotoSeq = 0;      // 写真グリッドの描画順を守る（連続入力時に古い結果で上書きしない）
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
 
@@ -2016,6 +2024,7 @@ const Views = (() => {
     exploreMode = explore;
     $('#shop-list').classList.toggle('hidden', explore);
     $('#list-back').classList.toggle('hidden', explore); // 店舗検索モード中だけ←（戻る）を出す
+    $('#list-mode-segs').classList.toggle('hidden', explore); // お店/写真の切り替えも検索モード中だけ
     if (explore) showExploreCats(); else { hideExplore(); renderList(); }
   }
 
@@ -2054,6 +2063,9 @@ const Views = (() => {
     $('#flt-fav').checked = false;
     document.querySelectorAll('#list-genre-chips .chip, .star-chip').forEach(x => x.classList.remove('on'));
     $('#list-filter-panel').classList.add('hidden');
+    // 結果表示は「お店」から（写真モードのまま残さない）
+    listResultMode = 'shop';
+    document.querySelectorAll('#list-mode-segs .vl-seg').forEach(x => x.classList.toggle('on', x.dataset.m === 'shop'));
     setListMode(true);
   }
 
@@ -2213,6 +2225,7 @@ const Views = (() => {
     }
     hideExplore();
     refreshPrefOptions();
+    if (listResultMode === 'photo') { renderSearchPhotos(); return; }
     const box = $('#shop-list');
     const shops = sortShops(filteredShops());
 
@@ -2250,6 +2263,67 @@ const Views = (() => {
       });
     }
     loadThumbs(box);
+  }
+
+  // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
+  // キーワード・ジャンル・星・お気に入り・都道府県の絞り込みを写真1枚ごとに適用する
+  async function renderSearchPhotos() {
+    const seq = ++searchPhotoSeq;
+    const box = $('#shop-list');
+    box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
+    const kw = $('#flt-keyword').value.trim().toLowerCase();
+    const dg = $('#flt-dish-genre').value;
+    const minR = +($('#flt-rating').value || 0);
+    const favOnly = $('#flt-fav').checked;
+    const pref = $('#flt-pref').value;
+    const items = exploreItems || await loadExploreItems();
+    if (seq !== searchPhotoSeq) return; // 入力が続いた場合は新しい方の描画に任せる
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const list = items.filter(it => {
+      if (dg && !it.genres.includes(dg)) return false;
+      if (it.kind === 'mine') {
+        const shop = Store.getShop(it.ph.shopId) || {};
+        const v = vById.get(it.ph.visitId) || {};
+        if (favOnly && !shop.favorite) return false;
+        if (pref && shop.pref !== pref) return false;
+        if (minR && (v.rating || 0) < minR) return false;
+        if (kw) {
+          const hay = [shop.name, shop.station, shop.pref, shop.city, shop.address,
+            v.comment, ...it.genres].map(x => x || '').join(' ').toLowerCase();
+          if (!hay.includes(kw)) return false;
+        }
+        return true;
+      }
+      // フォロー中の人の投稿（お気に入りは自分の店だけの概念なので対象外）
+      const p = it.p;
+      if (favOnly) return false;
+      if (pref && (p.pref || '') !== pref) return false;
+      if (minR && (p.rating || 0) < minR) return false;
+      if (kw) {
+        const hay = [p.shopName, p.station, p.pref, p.city, p.comment, p.username,
+          p.displayName, ...it.genres].map(x => x || '').join(' ').toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    });
+    if (!list.length) {
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません。');
+      return;
+    }
+    const grid = box.firstElementChild;
+    grid.innerHTML = '';
+    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
+    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
+    list.forEach((it, i) => {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'explore-cell';
+      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
+      if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
+      else cell.querySelector('img').src = it.p.photoUrl;
+      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
+      grid.appendChild(cell);
+    });
   }
 
   // 店舗一覧の1行（検索タブ・プロフィールの検索サブタブ共通）。
