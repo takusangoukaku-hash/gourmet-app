@@ -1874,6 +1874,7 @@ const Views = (() => {
     return out;
   }
   let exploreSub = null;       // 開いている大きなくくり（麺類・和食…）。nullなら最初の画面
+  let exploreGenre = null;     // 開いている写真グリッド { genre, label }。nullならグリッド以外の画面
 
   // カテゴリータイルの配色（Podcastアプリ風のカラフルなタイル）
 
@@ -2026,6 +2027,7 @@ const Views = (() => {
   }
   function showExploreCats() {
     exploreSub = null;
+    exploreGenre = null;
     $('#shop-list').classList.add('hidden');
     $('#explore-head').classList.add('hidden');
     $('#explore-grid').classList.add('hidden');
@@ -2140,6 +2142,7 @@ const Views = (() => {
     const cat = Api.DISH_CATEGORIES.find(c => c.name === catName);
     if (!cat) { showExploreCats(); return; }
     exploreSub = catName;
+    exploreGenre = null;
     $('#explore-grid').classList.add('hidden');
     $('#explore-cats').classList.remove('hidden');
     const head = $('#explore-head');
@@ -2159,6 +2162,7 @@ const Views = (() => {
 
   // ジャンルを開く → 写真グリッド（戻ると開いていたくくりのジャンル一覧へ）
   function openExploreCat(genre, label) {
+    exploreGenre = { genre, label };
     $('#explore-cats').classList.add('hidden');
     const back = exploreSub;
     const head = $('#explore-head');
@@ -2198,8 +2202,13 @@ const Views = (() => {
 
   function renderList() {
     if (exploreMode) {
-      // タブを開いた直後はカテゴリー一覧を表示（検索バーをタップすると店舗検索へ）
-      showExploreCats();
+      // 同期完了などの再描画(App.refreshCurrent)で呼ばれても、開いている画面
+      //（写真グリッド・ジャンル一覧）からカテゴリー一覧へ勝手に戻らないよう、
+      // 今の画面をそのまま新しいデータで描き直す
+      exploreItems = null; // 追加された写真を拾い直す
+      if (exploreGenre) renderExploreGrid(exploreGenre.genre);
+      else if (exploreSub) openExploreSub(exploreSub);
+      else showExploreCats();
       return;
     }
     hideExplore();
