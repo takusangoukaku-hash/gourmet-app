@@ -3478,6 +3478,7 @@ const Views = (() => {
             <div class="v-btns">
               <button type="button" class="btn small primary ve-save">保存</button>
               <button type="button" class="btn small ve-cancel">キャンセル</button>
+              <button type="button" class="btn small danger ve-del">削除</button>
             </div>`;
           vbox.appendChild(block);
           // 編集対象の写真（タップで拡大）。写真がない訪問では行ごと消す
@@ -3503,6 +3504,14 @@ const Views = (() => {
           const set = new Set(v.dishGenres || []);
           Api.buildGenrePicker(block.querySelector('.ve-genres'), set);
           block.querySelector('.ve-cancel').addEventListener('click', () => showShop(shopId, false, null));
+          // 編集中の記録をその場で削除できる（訪問一覧の削除と同じ処理。写真も一緒に消える）
+          block.querySelector('.ve-del').addEventListener('click', async () => {
+            if (!confirm('この記録を削除しますか？写真も一緒に削除されます。')) return;
+            await Store.deleteVisit(v.id);
+            App.toast('記録を削除しました');
+            showShop(shopId, false, null);
+            App.refreshCurrent();
+          });
           block.querySelector('.ve-save').addEventListener('click', () => {
             const dateVal = block.querySelector('.ve-date').value;
             if (!dateVal) { App.toast('訪問日を入力してください'); return; }

@@ -880,6 +880,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .visit-block .v-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .visit-block .v-photos img { width: 74px; height: 74px; object-fit: cover; border-radius: 8px; cursor: pointer; }
 .visit-block .v-btns { margin-top: 8px; display: flex; gap: 6px; }
+/* 編集フォームの削除は保存・キャンセルと間違えないよう右端に離す */
+.visit-block .v-btns .ve-del { margin-left: auto; }
 /* インライン編集中のカード: 枠をアクセント色にして、どの記録の編集か分かるようにする */
 .visit-block.ve-editing { border: 1.5px solid var(--accent); }
 .ve-title {
