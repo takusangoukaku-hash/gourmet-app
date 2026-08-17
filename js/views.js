@@ -4374,6 +4374,7 @@ const Views = (() => {
   function showPostDetail(p, ctx) {
     const list = (ctx && ctx.list && ctx.list.length) ? ctx.list : [p];
     let next = (ctx && ctx.index != null) ? ctx.index : 0;
+    let prev = next - 1; // タップした投稿より前（一覧で上にある）投稿は上へ継ぎ足す
     const ov = document.createElement('div');
     ov.className = 'modal postdetail-modal';
     ov.innerHTML = `<div class="modal-box pd-full">
@@ -4381,14 +4382,15 @@ const Views = (() => {
           <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
           <span class="pd-top-title">投稿</span>
         </div>
-        <div class="pd-scroll"><div class="pd-sentinel"></div></div>
+        <div class="pd-scroll"><div class="pd-sentinel-top"></div><div class="pd-sentinel"></div></div>
       </div>`;
-    const close = () => { io.disconnect(); ov.remove(); };
+    const close = () => { io.disconnect(); ioTop.disconnect(); ov.remove(); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.pd-close').addEventListener('click', close);
 
     const scroll = ov.querySelector('.pd-scroll');
     const sentinel = ov.querySelector('.pd-sentinel');
+    const sentinelTop = ov.querySelector('.pd-sentinel-top');
     const appendNext = () => {
       if (next >= list.length) { io.disconnect(); return; }
       scroll.insertBefore(buildPostSection(list[next], close), sentinel);
@@ -4398,14 +4400,29 @@ const Views = (() => {
       io.unobserve(sentinel);
       io.observe(sentinel);
     };
+    // 上端が近づいたら前の投稿を上へ継ぎ足す。挿入した高さぶんスクロール位置を
+    // ずらして、いま見ている投稿が動かないようにする
+    const prependPrev = () => {
+      if (prev < 0) { ioTop.disconnect(); return; }
+      const sec = buildPostSection(list[prev], close);
+      sentinelTop.after(sec);
+      prev--;
+      scroll.scrollTop += sec.offsetHeight;
+      ioTop.unobserve(sentinelTop);
+      ioTop.observe(sentinelTop);
+    };
     // 末尾の見張り役が近づいたら次の投稿を継ぎ足す（画面2つ分手前から先読み）
     const io = new IntersectionObserver((entries) => {
       if (entries.some(en => en.isIntersecting)) appendNext();
+    }, { root: scroll, rootMargin: '1200px 0px' });
+    const ioTop = new IntersectionObserver((entries) => {
+      if (entries.some(en => en.isIntersecting)) prependPrev();
     }, { root: scroll, rootMargin: '1200px 0px' });
 
     appendNext(); // タップした投稿
     io.observe(sentinel);
     document.body.appendChild(ov);
+    ioTop.observe(sentinelTop); // DOMに載って高さが決まってから上方向の監視を始める
   }
 
   // ========== 通知（フォローされたお知らせ） ==========
