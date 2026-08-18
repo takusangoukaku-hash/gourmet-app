@@ -1374,8 +1374,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .tm-badge.small { padding: 2px 8px; font-size: 11px; }
 .tm-badge.dim { opacity: .55; } /* 共通店舗5〜19件: 参考値として薄く表示（仕様書4-3） */
 /* ホームカードの最上部: 一致率・投稿者・共通店舗数・投稿時期 */
-.fcard-head2 { display: flex; align-items: center; gap: 8px; padding: 9px 12px 8px; }
+/* 投稿者の行は補足情報なので控えめに（主役は店名・写真・あなた向け評価） */
+.fcard-head2 { display: flex; align-items: center; gap: 8px; padding: 8px 12px 7px; }
 .fcard-head2 .pd-author { min-width: 0; flex: 1; }
+.fcard-head2 .fc-avatar { width: 28px; height: 28px; font-size: 13px; }
+.fcard-head2 .fc-name { font-size: 13px; font-weight: 600; }
+.fcard-head2 .pd-author .fc-handle { font-size: 11px; }
 .fcard-time { color: var(--muted); font-size: 11.5px; flex-shrink: 0; }
 .fcard-foot.acts-only { justify-content: flex-end; padding-top: 4px; }
 /* あなた向け評価／全体評価の2箱 */
@@ -1394,6 +1398,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .rp-wrap.compact { padding: 10px 12px 0; }
 .rp-wrap.compact .rp-val { font-size: 17px; }
 .rp-wrap.compact .rp-you .rp-val { font-size: 19px; }
+/* ホームカードでは「あなた向け評価」を主役に、全体評価は控えめな枠だけの箱に */
+.rp-wrap.compact .rp-you { flex: 1.35; }
+.rp-wrap.compact .rp-box:not(.rp-you) { background: transparent; border: 1px solid var(--border-lite); }
+.rp-wrap.compact .rp-box:not(.rp-you) .rp-val { color: var(--muted); font-size: 15px; }
 /* 検索カードの「あなた向け」表示 */
 .ps-you { margin-left: 8px; font-size: 12px; color: var(--muted); }
 .ps-you b { color: var(--accent); font-size: 15px; }
@@ -1909,3 +1917,34 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 }
 .ex-back:hover { background: var(--border-lite); }
 .ex-head-title { font-family: var(--serif); font-weight: 700; font-size: 18px; }
+
+/* ---------- ダークモード（端末の設定に追従） ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #D97757;        /* 暗色地でも読めるよう一段明るいテラコッタ */
+    --accent2: #E08A66;
+    --grad: linear-gradient(45deg, #D97757, #B4552F);
+    --accent-soft: #3D2A20;
+    --bg: #171412;            /* 焦げ茶寄りの黒（クリーム地の暗色版） */
+    --card: #211E1B;
+    --text: #EDEAE4;
+    --muted: #A5A29A;
+    --border: #4A463F;
+    --border-lite: #2F2C27;
+    --field: #2B2723;
+  }
+  .app-header { background: rgba(23, 20, 18, .95); }
+  /* 白決め打ちだった部分を暗色へ */
+  input:focus, select:focus, textarea:focus { background: var(--card); }
+  .chip { background: var(--card); }
+  .exif-status.warn { background: #382E1C; border-color: #55462A; }
+  .skeleton {
+    background: linear-gradient(90deg, var(--field) 25%, #383530 37%, var(--field) 63%);
+    background-size: 200% 100%;
+  }
+  #map-search, #map-search:focus, .map-wish-btn { background: var(--card); }
+  .pin-count, .avatar-cam, .fcard-badge { background: var(--card); }
+  .toast { background: rgba(58, 55, 52, .97); }
+  /* ジャンルのイラスト（白地PNG）: multiplyだと暗色で消えるため、白の丸角チップとして見せる */
+  .ex-cat-ic img.gi { mix-blend-mode: normal; background: #fff; border-radius: 12px; padding: 2px; }
+}

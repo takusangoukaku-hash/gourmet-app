@@ -2145,7 +2145,9 @@ const Views = (() => {
     box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
     const items = await loadExploreItems();
     if (!items.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>最初の一皿を記録してみましょう。',
+        '<button class="btn primary empty-add">写真を登録する</button>');
+      box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
       return;
     }
     const count = genreCounts(items);
@@ -2439,7 +2441,9 @@ const Views = (() => {
       cells.push({ p, shop, visit });
     }
     if (!cells.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '写真がありません。');
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '写真がありません。',
+        '<button class="btn primary empty-add">写真を登録する</button>');
+      box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
       return;
     }
     box.innerHTML = '';
@@ -2627,7 +2631,9 @@ const Views = (() => {
       return t || p.createdAt || 0;
     };
     if (!photos.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>「＋」から最初の一皿を記録しましょう。');
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>最初の一皿を記録してみましょう。',
+        '<button class="btn primary empty-add">写真を登録する</button>');
+      box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
       return;
     }
     // 同じ店舗の写真（複数訪問・複数枚）を1つのグループにまとめる
