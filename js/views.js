@@ -62,6 +62,10 @@ const Views = (() => {
     return card + card;
   })();
   const SKEL_GRID = '<div class="skel-grid">' + Array(9).fill('<div class="skeleton"></div>').join('') + '</div>';
+  // 地図の店舗シート「フォロワーの写真」読み込み中の骨組み（人の行×2）
+  const SKEL_FROWS = Array(2).fill(
+    '<div class="msh-frow"><div class="skeleton skel-favatar"></div>'
+    + '<div class="msh-fphotos">' + Array(3).fill('<div class="skeleton skel-fph"></div>').join('') + '</div></div>').join('');
   const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
@@ -1262,7 +1266,13 @@ const Views = (() => {
         : `${starIc(a ? 'full' : 'empty', 20)}<b>${a ? fmtR(a) : '－'}</b><span>（${vs.length + list.length}件の投稿）</span>`;
     };
     renderFollow();
-    // フォロー中の投稿が未読込なら、読み込み完了後にもう一度描く
+    // フォロー中の投稿が未読込なら骨組みを見せて、読み込み完了後にもう一度描く
+    if (!networkLoaded && typeof Cloud !== 'undefined' && Cloud.getUser()) {
+      const sec = ov.querySelector('.msh-follow');
+      sec.classList.remove('hidden');
+      ov.querySelector('.msh-fn').textContent = '';
+      ov.querySelector('.msh-frows').innerHTML = SKEL_FROWS;
+    }
     ensureNetworkLoaded(() => { renderFollow(); updateHeader(); });
 
     document.body.appendChild(ov);
@@ -1642,7 +1652,7 @@ const Views = (() => {
     loadNetworkPosts().then(() => {
       if (mapLoaded) refreshMapData(false);
       if (cb) cb();
-    });
+    }).catch(() => { if (cb) cb(); }); // 失敗しても骨組み表示のままにしない
   }
 
   // ログイン同期の完了直後に、ホーム・地図のフォロー中データと写真を裏で先読みする

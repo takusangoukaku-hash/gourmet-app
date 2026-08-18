@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=274">
+<link rel="stylesheet" href="css/style.css?v=275">
 </head>
 <body>
 
@@ -108,6 +108,8 @@
         </label>
       </div>
     </div>
+    <!-- 必須（店舗名・味の評価）が埋まるまで保存ボタンを薄くし、足りないものを案内する -->
+    <div id="save-hint" class="save-hint hidden"></div>
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
     <button type="button" id="save-later-btn" class="btn full save-later hidden">あとで記録（写真だけ保存）</button>
   </div>
@@ -389,23 +391,23 @@
   <button class="tab" data-tab="feed" title="ホーム" aria-label="ホーム"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>
-    </svg></span></button>
+    </svg></span><span class="t-label">ホーム</span></button>
   <button class="tab" data-tab="list" title="検索" aria-label="検索"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-    </svg></span></button>
+    </svg></span><span class="t-label">検索</span></button>
   <button class="tab tab-add" data-tab="register" title="登録" aria-label="登録"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8"/><path d="M8 12h8"/>
-    </svg></span></button>
+    </svg></span><span class="t-label">登録</span></button>
   <button class="tab" data-tab="map" title="地図" aria-label="地図"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/>
-    </svg></span></button>
+    </svg></span><span class="t-label">地図</span></button>
   <button class="tab" data-tab="profile" title="プロフィール" aria-label="プロフィール"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
-    </svg></span></button>
+    </svg></span><span class="t-label">プロフィール</span></button>
 </nav>
 
 <!-- 店舗詳細モーダル -->
@@ -580,11 +582,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=274"></script>
-<script src="js/api.js?v=274"></script>
-<script src="js/cloud.js?v=274"></script>
-<script src="js/register.js?v=274"></script>
-<script src="js/views.js?v=274"></script>
-<script src="js/app.js?v=274"></script>
+<script src="js/store.js?v=275"></script>
+<script src="js/api.js?v=275"></script>
+<script src="js/cloud.js?v=275"></script>
+<script src="js/register.js?v=275"></script>
+<script src="js/views.js?v=275"></script>
+<script src="js/app.js?v=275"></script>
 </body>
 </html>

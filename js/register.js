@@ -113,8 +113,11 @@ const Register = (() => {
     });
 
     // 評価スター（味）＋ 店の評価3軸
-    mountStars($('#f-rating'), 0, v => { currentRating = v; });
+    mountStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); });
     mountAxisStars();
+    // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
+    $('#f-shop-name').addEventListener('input', updateSaveState);
+    updateSaveState();
 
     // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
     visitDate = toLocalInput(new Date());
@@ -341,7 +344,12 @@ const Register = (() => {
     if (pendingPhotos.length > before) {
       App.switchTab('register');
       window.scrollTo({ top: 0 });
+      // 次に必要なのは店舗名なので、未入力なら自動でフォーカスして迷わせない
+      // （タブ切り替えの描画が落ち着いてから。EXIFの候補が出たらそのままタップでもOK）
+      const nameIn = $('#f-shop-name');
+      if (!nameIn.value.trim()) setTimeout(() => nameIn.focus(), 350);
     }
+    updateSaveState();
     await analyzeExif();
   }
 
@@ -634,6 +642,7 @@ const Register = (() => {
     shopRatings = { casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0 };
     mountAxisStars();
     $('#selected-shop-note').classList.add('hidden'); // 選択後は候補行が確認になるため案内は出さない（画面内に収める）
+    updateSaveState(); // 店舗名がプログラムから入るためここでも更新
     backfillMissing(shop);
   }
 
@@ -709,6 +718,20 @@ const Register = (() => {
         stationInput.placeholder = '自動入力されます';
       }
     }
+  }
+
+  // 必須（店舗名・味の評価）が埋まるまで保存ボタンを薄くし、足りないものを下に案内する。
+  // ボタン自体は押せるままにして、押されたら save() のトーストで理由を伝える
+  function updateSaveState() {
+    const btn = $('#save-btn');
+    const hint = $('#save-hint');
+    if (!btn || !hint) return;
+    const need = [];
+    if (!$('#f-shop-name').value.trim()) need.push('店舗名');
+    if (!currentRating) need.push('味の評価（★）');
+    btn.classList.toggle('is-disabled', !!need.length);
+    hint.classList.toggle('hidden', !need.length);
+    if (need.length) hint.textContent = `${need.join(' と ')}を入れると保存できます`;
   }
 
   function note(msg) {
@@ -829,9 +852,10 @@ const Register = (() => {
     userTouchedGenres = false;
     autoFilledGenres = false;
     dishPicker.reset();
-    mountStars($('#f-rating'), 0, v => { currentRating = v; });
+    mountStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); });
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
+    updateSaveState();
   }
 
   // 店舗詳細から「訪問を追加」（§4.4 再訪の登録）
