@@ -468,7 +468,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .nearby-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 16px 8px; }
 .nearby-title { font-weight: bold; font-size: 16px; }
 .nearby-cond { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.nearby-close { border: none; background: var(--border-lite); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; flex-shrink: 0; }
+.nearby-close {
+  border: none; background: none; width: 40px; height: 40px; cursor: pointer; flex-shrink: 0;
+  font-size: 19px; line-height: 1; color: var(--text); order: -1; margin: -6px 0 0 -8px;
+}
 .nearby-origin { padding: 0 16px 8px; }
 .nb-origin-row { display: flex; gap: 6px; }
 .nb-origin-input {
@@ -836,13 +839,18 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 20px; position: relative;
 }
 .modal-close {
-  /* スクロールしても右上に残る（お知らせ・設定などの長いモーダル用） */
-  position: sticky; top: 10px; z-index: 5;
-  display: block; margin-left: auto; margin-bottom: -32px;
-  border: none; background: var(--border-lite);
-  border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 14px;
+  /* 統一デザイン: 背景なしの✕だけ（ゴースト）・全画面で左上に置く。
+     スクロールしても左上に残る（お知らせ・設定などの長いモーダル用） */
+  position: sticky; top: 8px; z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  margin-right: auto; margin-left: -8px; margin-bottom: -40px;
+  border: none; background: none; padding: 0;
+  width: 40px; height: 40px; cursor: pointer;
+  font-size: 19px; line-height: 1; color: var(--text);
 }
-.detail-head h2 { margin: 0 0 2px; font-size: 20px; padding-right: 36px; }
+/* ✕の隣（直後）の見出しは、✕と同じ段で中央に置く */
+.modal-close + h2 { text-align: center; padding: 8px 40px 0; }
+.detail-head h2 { margin: 0 0 2px; font-size: 20px; padding-left: 40px; }
 .detail-head .d-stars { color: var(--star); font-size: 16px; }
 .detail-head .d-sub { color: var(--muted); font-size: 13px; margin: 2px 0; }
 .detail-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
@@ -1553,6 +1561,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .ve-visit:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 
 .lightbox-box { text-align: center; margin: auto; }
+.lb-close {
+  position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px;
+  width: 44px; height: 44px; border: none; background: none; cursor: pointer;
+  color: #fff; font-size: 20px; line-height: 1; z-index: 2;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .7));
+}
 .lightbox-box img { max-width: 92vw; max-height: 80vh; border-radius: 10px; }
 .lightbox-box p { color: #fff; font-size: 13px; }
 
@@ -1563,9 +1577,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 }
 #cam-video { width: 100%; height: 100%; object-fit: cover; }
 .cam-close {
-  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 16px;
-  width: 40px; height: 40px; border-radius: 50%; border: none;
-  background: rgba(0,0,0,.45); color: #fff; font-size: 18px; cursor: pointer; z-index: 2;
+  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 12px;
+  width: 40px; height: 40px; border: none;
+  background: none; color: #fff; font-size: 20px; cursor: pointer; z-index: 2;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .7));
 }
 .cam-controls {
   position: absolute; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom));
@@ -1697,7 +1712,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border-radius: 18px 18px 0 0; border-bottom: 1px solid var(--border-lite);
 }
 .modal-head h2 { margin: 0; font-size: 17px; }
-.modal-head .modal-close { position: static; margin: 0; flex-shrink: 0; }
+.modal-head .modal-close { position: static; margin: 0 0 0 -8px; flex-shrink: 0; order: -1; }
+.modal-head h2 { flex: 1; }
 
 /* ---------- 検索の絞り込み: 「詳細」ボタンの選択状態 ---------- */
 /* 検索の絞り込みの「詳細」も右寄せ・枠なしのテキストに */
@@ -1868,7 +1884,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 /* flex化で「▸ 詳細」ボタンが全幅に伸びないよう、内容ぶんの幅で右端に置く */
 .modal.modal-full #modal-body > .d-detail-toggle { align-self: flex-end; }
 /* ✕は右上に固定（stickyのまま。全画面でも押しやすいよう少し大きめ） */
-.modal.modal-full .modal-close { top: 12px; right: 12px; width: 34px; height: 34px; }
+.modal.modal-full .modal-close { top: 12px; left: 12px; }
 
 /* ---------- 公開プロフィール: 全画面＋写真グリッド ---------- */
 .pubprofile-modal.panel-modal { padding: 0; }
