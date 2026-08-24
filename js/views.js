@@ -2611,6 +2611,10 @@ const Views = (() => {
       exploreMode = false;
       $('#shop-list').classList.remove('hidden');
       $('#list-back').classList.add('hidden'); // プロフィール内では戻る矢印は不要
+      // 検索タブと同じ「お店/写真」の切り替えをここでも使えるようにする（開くたびに「お店」から）
+      listResultMode = 'shop';
+      document.querySelectorAll('#list-mode-segs .vl-seg').forEach(x => x.classList.toggle('on', x.dataset.m === 'shop'));
+      $('#list-mode-segs').classList.remove('hidden');
       renderList();
     } else {
       renderProfilePhotos();
