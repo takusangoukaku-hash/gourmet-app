@@ -603,10 +603,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 @media (min-width: 640px) { .photo-grid { grid-template-columns: repeat(4, 1fr); } }
 
 /* ---------- プロフィールの写真: お店ごとの写真カード（3列・デザインカンプ準拠） ---------- */
-/* スマホは2列にして写真を大きく（プロフィール・検索・カテゴリの写真一覧で共通） */
-.pf-photocards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 4px 0 16px; }
-@media (min-width: 640px) { .pf-photocards { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 900px) { .pf-photocards { grid-template-columns: repeat(4, 1fr); } }
+.pf-photocards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 4px 0 16px; }
+@media (min-width: 640px) { .pf-photocards { grid-template-columns: repeat(4, 1fr); } }
 .ppc {
   border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit;
   background: var(--card); border-radius: 12px; overflow: hidden;
@@ -627,9 +625,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   text-shadow: 0 1px 3px rgba(0, 0, 0, .7);
 }
 .ppc-info { display: block; padding: 6px 8px 8px; min-width: 0; }
-.ppc-name { display: block; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ppc-sub { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ppc-genre { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; margin-top: 2px; min-width: 0; }
+.ppc-name { display: block; font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppc-sub { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppc-genre { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 10px; margin-top: 2px; min-width: 0; }
 .ppc-genre .ppc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-left: auto; }
 
 /* 店舗送りのヒント（前/次の店名。画面の上下に小さく表示） */
@@ -1691,7 +1689,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
   margin: 0 -16px; /* BITEMAPヘッダーの下を画面の端まで使う */
 }
-.explore-grid > .empty, .explore-grid > .skel-grid, .explore-grid > .pf-photocards { grid-column: 1 / -1; }
+.explore-grid > .empty, .explore-grid > .skel-grid { grid-column: 1 / -1; }
 .explore-cell {
   border: none; padding: 0; background: #f2f2f2; cursor: pointer;
   aspect-ratio: 1; overflow: hidden;
