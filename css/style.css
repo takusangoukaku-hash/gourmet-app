@@ -1689,7 +1689,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
   margin: 0 -16px; /* BITEMAPヘッダーの下を画面の端まで使う */
 }
-.explore-grid > .empty, .explore-grid > .skel-grid { grid-column: 1 / -1; }
+.explore-grid > .empty, .explore-grid > .skel-grid, .explore-grid > .pf-photocards { grid-column: 1 / -1; }
 .explore-cell {
   border: none; padding: 0; background: #f2f2f2; cursor: pointer;
   aspect-ratio: 1; overflow: hidden;

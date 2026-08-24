@@ -2209,19 +2209,8 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');
       return;
     }
-    box.innerHTML = '';
-    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
-    list.forEach((it, i) => {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'explore-cell';
-      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
-      if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
-      else cell.querySelector('img').src = it.p.photoUrl;
-      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
-      box.appendChild(cell);
-    });
+    // プロフィールの写真一覧と同じ「お店ごとのカード」で表示（検索の写真モードと共通）
+    paintPhotoCards(box, list);
   }
 
   function renderList() {
@@ -2322,8 +2311,14 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません。');
       return;
     }
-    // プロフィールの写真一覧と同じ「お店ごとのカード」で表示する。
-    // 自分の記録は店舗ごと、フォロー中の投稿は 人×店 ごとにまとめる
+    paintPhotoCards(box, list);
+  }
+
+  // 発見・検索の写真一覧を、プロフィールの写真一覧と同じ「お店ごとのカード」で描く共通部品。
+  // 自分の記録は店舗ごと、フォロー中の投稿は 人×店 ごとにまとめる
+  // list: loadExploreItems() 形式（{kind:'mine', ph}|{kind:'net', p}, time, genres）
+  function paintPhotoCards(box, list) {
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
     box.innerHTML = '<div class="pf-photocards"></div>';
     const grid = box.firstElementChild;
     const ownMap = new Map();
