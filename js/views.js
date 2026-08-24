@@ -2282,7 +2282,7 @@ const Views = (() => {
   async function renderSearchPhotos() {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
-    box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
+    box.innerHTML = SKEL_GRID;
     const kw = $('#flt-keyword').value.trim().toLowerCase();
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
@@ -2322,20 +2322,83 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません。');
       return;
     }
+    // プロフィールの写真一覧と同じ「お店ごとのカード」で表示する。
+    // 自分の記録は店舗ごと、フォロー中の投稿は 人×店 ごとにまとめる
+    box.innerHTML = '<div class="pf-photocards"></div>';
     const grid = box.firstElementChild;
-    grid.innerHTML = '';
-    // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
-    list.forEach((it, i) => {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'explore-cell';
-      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
-      if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
-      else cell.querySelector('img').src = it.p.photoUrl;
-      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
-      grid.appendChild(cell);
-    });
+    const ownMap = new Map();
+    const netMap = new Map();
+    for (const it of list) {
+      if (it.kind === 'mine') {
+        const g = ownMap.get(it.ph.shopId) || { shopId: it.ph.shopId, photos: [], time: 0 };
+        g.photos.push(it.ph);
+        g.time = Math.max(g.time, it.time);
+        ownMap.set(it.ph.shopId, g);
+      } else {
+        const key = (it.p.username || '') + '|' + (it.p.shopName || '');
+        const g = netMap.get(key) || { posts: [], time: 0 };
+        g.posts.push(it.p);
+        g.time = Math.max(g.time, it.time);
+        netMap.set(key, g);
+      }
+    }
+    const shotTime = (ph) => {
+      const v = vById.get(ph.visitId);
+      return (v && v.datetime ? new Date(v.datetime).getTime() : 0) || ph.createdAt || 0;
+    };
+    const ownGroups = [...ownMap.values()].sort((a, b) => b.time - a.time);
+    ownGroups.forEach(g => g.photos.sort((a, b) => shotTime(b) - shotTime(a) || (b.createdAt || 0) - (a.createdAt || 0)));
+    const netGroups = [...netMap.values()].sort((a, b) => b.time - a.time);
+    netGroups.forEach(g => g.posts.sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0)));
+    const netPosts = netGroups.flatMap(g => g.posts); // タップ時の連続スクロール用
+    const cards = [
+      ...ownGroups.map(g => ({ own: g, time: g.time })),
+      ...netGroups.map(g => ({ net: g, time: g.time })),
+    ].sort((a, b) => b.time - a.time);
+
+    for (const c of cards) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'ppc';
+      if (c.own) {
+        // 自分の記録: プロフィールの写真カードと同じ（★平均・×訪問回数・店名・駅・ジャンル）
+        const shop = Store.getShop(c.own.shopId) || {};
+        const avg = Store.avgRating(c.own.shopId);
+        const visits = Store.visitCount(c.own.shopId);
+        const genre = shopLabelGenre(shop) || '';
+        card.innerHTML = `
+          <span class="ppc-ph">
+            <img alt="" loading="lazy" decoding="async">
+            ${avg ? `<span class="ppc-badge">★${fmtR(avg)}</span>` : ''}
+            ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
+          </span>
+          <span class="ppc-info">
+            <span class="ppc-name">${esc(shop.name || '')}</span>
+            ${shop.station ? `<span class="ppc-sub">${esc(shop.station)}</span>` : ''}
+            ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
+          </span>`;
+        setThumb(card.querySelector('img'), c.own.photos[0]); // 代表＝最新の写真
+        card.addEventListener('click', () => showShopFeed(ownGroups, ownGroups.indexOf(c.own)));
+      } else {
+        // フォロー中の人の投稿: 同じカード見た目で、店名の下に投稿者を出す
+        const p0 = c.net.posts[0];
+        const genre = String(p0.genre || '').split('・')[0];
+        card.innerHTML = `
+          <span class="ppc-ph">
+            <img alt="" loading="lazy" decoding="async" src="${esc(p0.photoUrl || '')}">
+            ${p0.rating ? `<span class="ppc-badge">★${fmtR(p0.rating)}</span>` : ''}
+            ${c.net.posts.length > 1 ? `<span class="ppc-count">×${c.net.posts.length}</span>` : ''}
+          </span>
+          <span class="ppc-info">
+            <span class="ppc-name">${esc(p0.shopName || '')}</span>
+            <span class="ppc-sub">@${esc(p0.username || '')}</span>
+            ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
+          </span>`;
+        card.addEventListener('click', () =>
+          showPostDetail(p0, { list: netPosts, index: netPosts.indexOf(p0) }));
+      }
+      grid.appendChild(card);
+    }
   }
 
   // 店舗一覧の1行（検索タブ・プロフィールの検索サブタブ共通）。
