@@ -613,12 +613,20 @@ const Views = (() => {
         cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
         clusterProperties: { maxR: ['max', ['get', 'r']] }, // クラスタの色は中で一番評価の高い店の色
       });
+      // クラスターは中に件数の数字を出すため、個別ピンより一回り大きい丸にする
+      const CLUSTER_RADIUS = ['interpolate', ['linear'], ['zoom'],
+        0, 10, 5, 9.5, 7, 8.5, 10, 8.5, 12, 9.5];
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': PIN_RADIUS,
+        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': PIN_STROKE } });
-      // クラスターに件数の数字は表示しない（丸の大きさだけでまとまりを表す）
+      // 重なっている件数をピンの中に白文字で表示
+      map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
+        filter: ['has', 'point_count'],
+        layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
+          'text-size': 10.5, 'text-allow-overlap': true },
+        paint: { 'text-color': '#ffffff' } });
       // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
       // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
       // ピンが重なったとき、評価（平均）の高い店が上に来るよう ravg を指定する。
