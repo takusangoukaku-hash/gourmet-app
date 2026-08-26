@@ -2786,13 +2786,27 @@ const Views = (() => {
     // いきなりフルで読むと重いので、フル化は先頭と「スワイプで近づいた写真」だけ
     const vByIdSec = new Map(vs.map(v => [v.id, v]));
     const car = el.querySelector('.sfs-carousel');
+    // 同じ訪問の写真をまとめる（写真は訪問日順に並んでいるので同じ訪問は連続する）。
+    // 各写真に「7/3の訪問・2/3枚」のラベルを重ね、1回の訪問に複数枚あることを分かるようにする
+    const byVisit = new Map();
+    g.photos.forEach(ph => {
+      const a = byVisit.get(ph.visitId) || [];
+      a.push(ph);
+      byVisit.set(ph.visitId, a);
+    });
     const slides = g.photos.map((ph, i) => {
-      const r = (vByIdSec.get(ph.visitId) || {}).rating || 0;
+      const vv = vByIdSec.get(ph.visitId) || {};
+      const r = vv.rating || 0;
+      const grp = byVisit.get(ph.visitId) || [];
+      const k = grp.indexOf(ph) + 1;
+      const label = vv.datetime
+        ? `${fmtDate(vv.datetime)}の訪問${grp.length > 1 ? `・${k}/${grp.length}枚` : ''}`
+        : (grp.length > 1 ? `${k}/${grp.length}枚` : '');
       const slide = document.createElement('button');
       slide.type = 'button';
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
-      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
+      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}${label ? `<span class="sfs-visitlabel">${esc(label)}</span>` : ''}`;
       if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
@@ -2806,14 +2820,23 @@ const Views = (() => {
       setFullPhoto(s.querySelector('img'), g.photos[i]);
     };
     if (g.photos.length > 1) {
-      // 何枚目かを示すドット。スワイプ位置に合わせて点灯を切り替え、近くの写真をフル化
+      // 何枚目かを示すドット。訪問ごとに小さな隙間で区切り、
+      // 「どこからどこまでが同じ訪問か」を点の並びでも分かるようにする
       const dots = document.createElement('div');
       dots.className = 'pd-dots';
-      dots.innerHTML = g.photos.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+      let dotsHtml = '';
+      let lastVid = null;
+      g.photos.forEach((p2, i) => {
+        if (i && p2.visitId !== lastVid) dotsHtml += '<span class="pd-gap"></span>';
+        lastVid = p2.visitId;
+        dotsHtml += `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`;
+      });
+      dots.innerHTML = dotsHtml;
       el.querySelector('.sfs-photos').after(dots);
+      const dotEls = [...dots.querySelectorAll('.pd-dot')];
       car.addEventListener('scroll', () => {
         const i = Math.round(car.scrollLeft / car.clientWidth);
-        [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+        dotEls.forEach((d, j) => d.classList.toggle('on', j === i));
         upgrade(i); upgrade(i + 1);
       }, { passive: true });
     }

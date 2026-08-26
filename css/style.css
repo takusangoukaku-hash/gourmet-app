@@ -675,6 +675,15 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 700;
   padding: 3px 10px; border-radius: 999px;
 }
+/* 写真の左下: どの訪問の何枚目か（例: 2026/7/3の訪問・2/3枚） */
+.sfs-visitlabel {
+  position: absolute; left: 10px; bottom: 10px; pointer-events: none;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; max-width: 60%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ドットの訪問ごとの区切り（隙間） */
+.pd-gap { width: 8px; flex-shrink: 0; }
 .sfs-starrow { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; }
 .sfs-avg { color: var(--accent); font-size: 22px; font-weight: 800; line-height: 1; }
 .sfs-last { margin-left: auto; color: var(--muted); font-size: 12px; }
