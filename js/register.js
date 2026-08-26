@@ -113,7 +113,7 @@ const Register = (() => {
     });
 
     // 評価スター（味）＋ 店の評価3軸
-    mountStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); });
+    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); }); // 0.5刻み対応
     mountAxisStars();
     // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
     $('#f-shop-name').addEventListener('input', updateSaveState);
@@ -852,7 +852,7 @@ const Register = (() => {
     userTouchedGenres = false;
     autoFilledGenres = false;
     dishPicker.reset();
-    mountStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); });
+    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); }); // 0.5刻み対応
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
     updateSaveState();

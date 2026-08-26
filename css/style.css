@@ -255,6 +255,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .stars button svg { width: 26px; height: 26px; display: block; }
 .stars button svg path { fill: #e8e0d0; stroke: #e8e0d0; stroke-width: 3; stroke-linejoin: round; }
 .stars button.on svg path { fill: url(#star-grad); stroke: #f5a300; }
+/* 0.5刻み入力の半星: 灰色の星の上に、左半分だけ金色の星(.sb-fill)を重ねる */
+.stars button svg .sb-fill { display: none; fill: url(#star-grad); stroke: #f5a300; }
+.stars button.half svg .sb-fill { display: block; }
+.stars button.on svg .sb-fill { display: none; }
 .stars.small button svg { width: 17px; height: 17px; }
 /* SVG星の並び（starSvg）。テキストと混ざっても中央が揃うように */
 .stars-svg { display: inline-flex; gap: 2px; vertical-align: -2px; }

@@ -28,6 +28,34 @@ const Views = (() => {
   };
   // 入力用ボタンの星（塗りはCSSの .on で切り替える）
   const starBtn = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`;
+  // 味の評価の入力（0.5刻み対応）: 星の左半分タップ＝◯.5、右半分タップ＝◯.0
+  // 登録フォームと記録の編集フォームで共用する
+  function mountRatingStars(el, initial, onChange) {
+    el.innerHTML = '';
+    const btns = [];
+    const paint = (val) => {
+      btns.forEach((b, idx) => {
+        const i = idx + 1;
+        b.classList.toggle('on', val >= i);
+        b.classList.toggle('half', val >= i - 0.5 && val < i);
+      });
+    };
+    for (let i = 1; i <= 5; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', `星${i}（左半分で${i - 0.5}）`);
+      b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path class="sb-base" d="${STAR_PATH}"/><path class="sb-fill" d="${STAR_PATH}" clip-path="url(#star-half)"/></svg>`;
+      b.addEventListener('click', (e) => {
+        const r = b.getBoundingClientRect();
+        const val = (e.clientX - r.left) < r.width / 2 ? i - 0.5 : i;
+        paint(val);
+        onChange(val);
+      });
+      el.appendChild(b);
+      btns.push(b);
+    }
+    paint(+initial || 0);
+  }
   // グラデーション・クリップの定義を文書に1回だけ入れる（各星が url(#…) で参照）
   (function () {
     const d = document.createElement('div');
@@ -3535,15 +3563,9 @@ const Views = (() => {
               row.appendChild(img);
             });
           });
-          const starsEl = block.querySelector('.ve-stars');
-          const paint = (r) => [...starsEl.children].forEach((x, i) => x.classList.toggle('on', i < r));
-          for (let i = 1; i <= 5; i++) {
-            const b = document.createElement('button');
-            b.type = 'button'; b.innerHTML = starBtn();
-            b.addEventListener('click', () => { starsEl.dataset.rating = i; paint(i); });
-            starsEl.appendChild(b);
-          }
-          paint(v.rating || 0);
+          // 0.5刻みで入力できる共通の星入力（左半分タップ＝◯.5）
+          let veRating = v.rating || 0;
+          mountRatingStars(block.querySelector('.ve-stars'), veRating, (val) => { veRating = val; });
           const set = new Set(v.dishGenres || []);
           Api.buildGenrePicker(block.querySelector('.ve-genres'), set);
           block.querySelector('.ve-cancel').addEventListener('click', () => showShop(shopId, false, null));
@@ -3560,7 +3582,7 @@ const Views = (() => {
             if (!dateVal) { App.toast('訪問日を入力してください'); return; }
             Store.updateVisit(v.id, {
               datetime: new Date(dateVal + 'T12:00:00').toISOString(),
-              rating: +(starsEl.dataset.rating || 3),
+              rating: veRating || 3,
               dishGenres: [...set],
               comment: block.querySelector('.ve-comment').value.trim(),
             });
@@ -4780,5 +4802,5 @@ const Views = (() => {
     shopNavState = null; // 店舗送りの状態も解除（次に地図などから開いたとき誤作動しない）
   }
 
-  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, getMap: () => map, baseMapStyle };
+  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle };
 })();
