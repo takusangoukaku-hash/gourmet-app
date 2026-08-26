@@ -1475,6 +1475,7 @@ const Views = (() => {
       }
       return;
     }
+    refreshWishData(); // 行きたい店の紫ピンは通常表示でも出す
     const shops = Store.shops().filter(s =>
       s.lat != null && s.lon != null && shopMatchesGenre(s.id) && shopMatchesAxes(s) && shopMatchesKeyword(s));
     // フィルタ選択中は件数を表示
@@ -1592,16 +1593,13 @@ const Views = (() => {
   }
 
   // 行きたい店のピンを地図へ反映（保存/削除のたびに呼べる）
-  // 行きたいピンは「行きたいのみ」表示（mapScope==='wish'）のときだけ出す。
-  // 「自分」「フォロー中」では自分の訪問した店だけを見せたいので出さない
-  // （フォロワーの投稿を行きたいに保存した紫ピンが自分ビューに混ざるのを防ぐ）
+  // 行きたいピン（紫）はどの表示モードでも出す。訪問を記録すると
+  // Store.addVisit が行きたいから自動で外すので、ピンは訪問済み（通常ピン）に変わる
   function refreshWishData() {
     if (!map || !mapLoaded || !map.getSource('wishes')) return;
-    const features = (mapScope === 'wish')
-      ? Store.wishes().filter(w => w.lat != null && w.lon != null)
-          .map(w => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
-            properties: { id: w.id, name: w.name || '' } }))
-      : [];
+    const features = Store.wishes().filter(w => w.lat != null && w.lon != null)
+      .map(w => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
+        properties: { id: w.id, name: w.name || '' } }));
     map.getSource('wishes').setData({ type: 'FeatureCollection', features });
   }
 

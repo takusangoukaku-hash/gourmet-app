@@ -123,6 +123,8 @@ const Register = (() => {
     visitDate = toLocalInput(new Date());
 
     $('#save-btn').addEventListener('click', save);
+    // 行きたい店として保存（店舗名だけでOK。訪問を記録すると自動で外れる）
+    $('#save-wish-btn').addEventListener('click', saveWish);
     // 「あとで記録」: 写真だけ下書き保存 ／ 下書き一覧を開く
     $('#save-later-btn').addEventListener('click', saveLater);
     $('#drafts-btn').addEventListener('click', openDrafts);
@@ -137,6 +139,25 @@ const Register = (() => {
       $('#drafts-count').textContent = n;
       $('#drafts-btn').classList.toggle('hidden', !n);
     } catch { /* noop */ }
+  }
+
+  // 行きたい店として保存: 店舗名だけでOK。検索で候補を選んでいれば位置・ジャンルも保存され、
+  // 地図に紫のピンで表示される。その店の訪問を記録すると自動で行きたいから外れる
+  function saveWish() {
+    const name = $('#f-shop-name').value.trim();
+    if (!name) { App.toast('店舗名を入力してください'); return; }
+    const m = Store.matchShop({ name, lat: selected ? selected.lat : null, lon: selected ? selected.lon : null });
+    if (m) { App.toast('この店はすでに訪問の記録があります'); return; }
+    const w = Store.addWish({
+      name,
+      lat: selected && selected.lat != null ? selected.lat : null,
+      lon: selected && selected.lon != null ? selected.lon : null,
+      genre: derivedShopGenre || '',
+    });
+    App.toast(w.lat != null
+      ? '🔖 行きたい店に保存しました。地図に紫のピンで表示されます'
+      : '🔖 行きたい店に保存しました。検索から候補を選んで保存すると地図にもピンが出ます', 4500);
+    resetForm();
   }
 
   // いまの写真を評価なしで下書き保存（食事中はサッと撮るだけ）

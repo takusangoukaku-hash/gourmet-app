@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=285">
+<link rel="stylesheet" href="css/style.css?v=286">
 </head>
 <body>
 
@@ -113,6 +113,8 @@
     <div id="save-hint" class="save-hint hidden"></div>
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
     <button type="button" id="save-later-btn" class="btn full save-later hidden">あとで記録（写真だけ保存）</button>
+    <!-- 行きたい店: 店舗名だけで保存できる（写真・評価は不要）。訪問を記録すると自動で外れる -->
+    <button type="button" id="save-wish-btn" class="btn full save-wish">🔖 行きたい店として保存（店舗名だけでOK）</button>
   </div>
 </section>
 
@@ -584,11 +586,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=285"></script>
-<script src="js/api.js?v=285"></script>
-<script src="js/cloud.js?v=285"></script>
-<script src="js/register.js?v=285"></script>
-<script src="js/views.js?v=285"></script>
-<script src="js/app.js?v=285"></script>
+<script src="js/store.js?v=286"></script>
+<script src="js/api.js?v=286"></script>
+<script src="js/cloud.js?v=286"></script>
+<script src="js/register.js?v=286"></script>
+<script src="js/views.js?v=286"></script>
+<script src="js/app.js?v=286"></script>
 </body>
 </html>

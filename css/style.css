@@ -1204,6 +1204,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer;
 }
 .save-later { margin-top: 8px; color: var(--muted); }
+/* 行きたい店として保存（店舗名だけでOK） */
+.save-wish { margin-top: 8px; color: #8B5CF6; border-color: #C9B8F5; font-weight: 600; }
 /* 必須が埋まるまで保存ボタンを薄く（タップは受け付けて理由をトーストで案内） */
 #save-btn.is-disabled { opacity: .45; }
 .save-hint { color: var(--muted); font-size: 12.5px; text-align: center; margin: 8px 0 2px; }
