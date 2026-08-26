@@ -60,6 +60,16 @@ const Register = (() => {
     $('#cam-shutter').addEventListener('click', capturePhoto);
     $('#cam-library').addEventListener('click', () => { stopCamera(); $('#photo-input').click(); });
     $('#cam-close').addEventListener('click', () => { stopCamera(); App.switchTab('profile'); });
+    // 行きたい店は写真がないので、カメラを使わず店舗名だけの登録フォームへ進む
+    $('#cam-wish').addEventListener('click', () => {
+      stopCamera();
+      resetForm();
+      App.switchTab('register');
+      window.scrollTo({ top: 0 });
+      const nameIn = $('#f-shop-name');
+      setTimeout(() => nameIn.focus(), 300);
+      App.toast('店舗名を入れて「🔖 行きたい店として保存」を押してください', 4500);
+    });
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);

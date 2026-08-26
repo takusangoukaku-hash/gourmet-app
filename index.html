@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=287">
+<link rel="stylesheet" href="css/style.css?v=288">
 </head>
 <body>
 
@@ -560,6 +560,8 @@
   <video id="cam-video" autoplay playsinline muted></video>
   <canvas id="cam-canvas" hidden></canvas>
   <button id="cam-close" class="cam-close" aria-label="閉じる">✕</button>
+  <!-- 行きたい店は写真がないので、カメラを使わず店舗名だけの登録へ進める -->
+  <button id="cam-wish" class="cam-wish" type="button">🔖 行きたい店だけ登録（写真なし）</button>
   <div id="cam-error" class="cam-error hidden"></div>
   <div class="cam-controls">
     <button id="cam-library" class="cam-library" aria-label="写真から選択">
@@ -586,11 +588,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=287"></script>
-<script src="js/api.js?v=287"></script>
-<script src="js/cloud.js?v=287"></script>
-<script src="js/register.js?v=287"></script>
-<script src="js/views.js?v=287"></script>
-<script src="js/app.js?v=287"></script>
+<script src="js/store.js?v=288"></script>
+<script src="js/api.js?v=288"></script>
+<script src="js/cloud.js?v=288"></script>
+<script src="js/register.js?v=288"></script>
+<script src="js/views.js?v=288"></script>
+<script src="js/app.js?v=288"></script>
 </body>
 </html>
