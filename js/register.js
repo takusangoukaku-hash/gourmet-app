@@ -59,17 +59,7 @@ const Register = (() => {
     // 独自カメラ画面の操作
     $('#cam-shutter').addEventListener('click', capturePhoto);
     $('#cam-library').addEventListener('click', () => { stopCamera(); $('#photo-input').click(); });
-    $('#cam-close').addEventListener('click', () => { stopCamera(); App.switchTab('profile'); });
-    // 行きたい店は写真がないので、カメラを使わず店舗名だけの登録フォームへ進む
-    $('#cam-wish').addEventListener('click', () => {
-      stopCamera();
-      resetForm();
-      App.switchTab('register');
-      window.scrollTo({ top: 0 });
-      const nameIn = $('#f-shop-name');
-      setTimeout(() => nameIn.focus(), 300);
-      App.toast('店舗名を入れて「🔖 行きたい店として保存」を押してください', 4500);
-    });
+    $('#cam-close').addEventListener('click', () => { stopCamera(); App.switchTab('register'); }); // ✕で入力フォームへ戻る
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
@@ -139,6 +129,7 @@ const Register = (() => {
     $('#save-later-btn').addEventListener('click', saveLater);
     $('#drafts-btn').addEventListener('click', openDrafts);
     refreshDraftsBanner();
+    renderPreviews(); // 初期表示から「＋写真」タイルを出す
   }
 
   // ---------- あとで記録（下書き） ----------
@@ -400,6 +391,14 @@ const Register = (() => {
       });
       box.appendChild(div);
     });
+    // 写真を追加するタイル（常に表示）: タップでカメラ／写真から選択を開く
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'photo-add';
+    add.title = '写真を追加';
+    add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>写真</span>';
+    add.addEventListener('click', openCamera);
+    box.appendChild(add);
     // 写真があるときだけ「あとで記録」を表示
     $('#save-later-btn').classList.toggle('hidden', !pendingPhotos.length);
   }

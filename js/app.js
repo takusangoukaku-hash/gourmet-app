@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v288'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v289'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -15,8 +15,7 @@ const App = (() => {
     // タブ切り替え
     document.querySelectorAll('#tabs .tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        // 下のバー中央の＋（登録）はアプリ内カメラを開く（撮影→記録入力／×でプロフィールへ）
-        if (btn.dataset.tab === 'register') { Register.openCamera(); return; }
+        // 下のバー中央の＋（登録）は入力フォームを直接開く（写真はフォーム内の「＋写真」から追加）
         switchTab(btn.dataset.tab);
       });
     });
