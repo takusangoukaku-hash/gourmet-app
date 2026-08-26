@@ -567,6 +567,13 @@ const Views = (() => {
     });
     // ズーム＋コンパス（回転リセット）は右下へ（左上は検索バーが重なるため）
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    // 現在地ボタン: ワンタップで現在地周辺へ移動（ズーム16まで寄る）。現在地は青い点で表示
+    map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true, timeout: 8000 },
+      fitBoundsOptions: { maxZoom: 16 },
+      trackUserLocation: false,
+      showUserLocation: true,
+    }), 'bottom-right');
     // 出典表示(ⓘ)は初期状態では閉じておき、タップしたときだけ詳細を開く
     // （MapLibreはデータ読み込みのたびに開き直すことがあるため、読み込み完了後に閉じる）
     const closeAttrib = () => {
