@@ -2724,6 +2724,38 @@ const Views = (() => {
     });
   }
 
+  // 「上への継ぎ足し」や「写真の非同期読み込み」で前方の内容が伸び縮みしても、
+  // いま見ている投稿が画面から動かないようにする仕組み。
+  // 基準となるセクション要素とその画面内位置(rel)を覚えておき、レイアウトが
+  // 変わるたびに scrollTop を合わせ直す。挿入時に高さぶんを足すだけの方式だと、
+  // 写真が未読込で内容が画面より短い間は scrollTop が端で切り詰められ、
+  // 「タップした投稿より前の写真」が表示されてしまう
+  function makeScrollAnchor(scroller, getSections) {
+    let el = null, rel = 0, lastWrite = 0;
+    const fix = () => {
+      if (!el || !el.isConnected) return;
+      const d = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - rel;
+      if (Math.abs(d) < 0.5) return;
+      lastWrite = performance.now();
+      scroller.scrollTop += d;
+    };
+    // 利用者が自分でスクロールしたら、一番上に見えているセクションを新しい基準にする
+    scroller.addEventListener('scroll', () => {
+      if (performance.now() - lastWrite < 120) return; // 直前の自動補正によるスクロールは無視
+      const top = scroller.getBoundingClientRect().top;
+      for (const sec of getSections()) {
+        const r = sec.getBoundingClientRect();
+        if (r.bottom > top + 1) { el = sec; rel = r.top - top; break; }
+      }
+    }, { passive: true });
+    return {
+      set(newEl, newRel) { el = newEl; rel = newRel || 0; },
+      fix,
+      // セクションの高さ変化（写真読み込みなど）に追従して合わせ直す
+      watch(sec) { const ro = new ResizeObserver(fix); ro.observe(sec); return ro; },
+    };
+  }
+
   // 写真タップ後の画面（デザイン案準拠）: 店舗ごとのセクションを縦に並べ、
   // ページ内スクロールで前後の店舗へ途切れず送れる。タップした店舗から表示を始め、
   // 下へスクロールすると次の店舗、上へスクロールすると前の店舗が現れる。
@@ -2740,7 +2772,9 @@ const Views = (() => {
       </div>`;
     const scroller = ov.querySelector('.vl-body');
     const box = ov.querySelector('.pf-shopfeed');
-    ov.querySelector('.sfm-close').addEventListener('click', () => ov.remove());
+    const ros = []; // セクションの高さ変化の監視（閉じるときに解除）
+    const anchorCtl = makeScrollAnchor(scroller, () => box.querySelectorAll('.sfs'));
+    ov.querySelector('.sfm-close').addEventListener('click', () => { ros.forEach(r => r.disconnect()); ov.remove(); });
 
     const CHUNK = 3;
     let below = startIndex; // 次に下へ足す添字
@@ -2751,19 +2785,22 @@ const Views = (() => {
     box.appendChild(botSentinel);
     const appendChunk = () => {
       for (let n = 0; n < CHUNK && below < groups.length; n++, below++) {
-        box.insertBefore(buildShopFeedSection(groups[below]), botSentinel);
+        const sec = buildShopFeedSection(groups[below]);
+        box.insertBefore(sec, botSentinel);
+        if (below === startIndex) anchorCtl.set(sec, 0); // タップした店舗を画面最上部に固定
+        ros.push(anchorCtl.watch(sec));
       }
     };
     const prependChunk = () => {
-      // 上に足すと中身が押し下がるので、増えた高さぶんスクロール位置を進めて
-      // 見えている店舗が動かないようにする
-      const before = scroller.scrollHeight;
+      // 上に足すと中身が押し下がるので、基準の店舗が動かないよう位置を合わせ直す
       const frag = document.createDocumentFragment();
       const from = Math.max(0, above - CHUNK);
-      for (let i = from; i < above; i++) frag.appendChild(buildShopFeedSection(groups[i]));
+      const added = [];
+      for (let i = from; i < above; i++) { const sec = buildShopFeedSection(groups[i]); added.push(sec); frag.appendChild(sec); }
       above = from;
       topSentinel.after(frag);
-      scroller.scrollTop += scroller.scrollHeight - before;
+      anchorCtl.fix();
+      added.forEach(sec => ros.push(anchorCtl.watch(sec)));
     };
     const ioBot = new IntersectionObserver((es) => {
       if (es.some(en => en.isIntersecting)) {
@@ -4462,16 +4499,21 @@ const Views = (() => {
         </div>
         <div class="pd-scroll"><div class="pd-sentinel-top"></div><div class="pd-sentinel"></div></div>
       </div>`;
-    const close = () => { io.disconnect(); ioTop.disconnect(); ov.remove(); };
+    const ros = []; // セクションの高さ変化の監視（閉じるときに解除）
+    const close = () => { io.disconnect(); ioTop.disconnect(); ros.forEach(r => r.disconnect()); ov.remove(); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.pd-close').addEventListener('click', close);
 
     const scroll = ov.querySelector('.pd-scroll');
     const sentinel = ov.querySelector('.pd-sentinel');
     const sentinelTop = ov.querySelector('.pd-sentinel-top');
+    const anchorCtl = makeScrollAnchor(scroll, () => scroll.querySelectorAll('.pd-sect'));
     const appendNext = () => {
       if (next >= list.length) { io.disconnect(); return; }
-      scroll.insertBefore(buildPostSection(list[next], close), sentinel);
+      const sec = buildPostSection(list[next], close);
+      scroll.insertBefore(sec, sentinel);
+      if (ctx && ctx.index != null ? next === ctx.index : next === 0) anchorCtl.set(sec, 0); // タップした投稿を画面最上部に固定
+      ros.push(anchorCtl.watch(sec));
       next++;
       // 監視を貼り直して現在の状態を再評価させる（「交差したまま」だと
       // IntersectionObserverは再発火しないため、範囲内にいる限り連続で継ぎ足す）
@@ -4485,7 +4527,8 @@ const Views = (() => {
       const sec = buildPostSection(list[prev], close);
       sentinelTop.after(sec);
       prev--;
-      scroll.scrollTop += sec.offsetHeight;
+      anchorCtl.fix(); // 基準の投稿が動かないよう位置を合わせ直す
+      ros.push(anchorCtl.watch(sec));
       ioTop.unobserve(sentinelTop);
       ioTop.observe(sentinelTop);
     };

@@ -984,7 +984,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .vl-sub { color: var(--muted); font-size: 11px; }
-.vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ */ }
 .vl-body .empty { padding: 28px 16px; }
 /* 下部の固定「＋ 新しい記録を追加」 */
 .vl-addbar {
@@ -1237,7 +1237,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   padding: 8px 12px; border-bottom: 1px solid var(--border-lite); background: var(--card);
 }
 .pd-topbar .pd-close { position: static; margin: 0; flex-shrink: 0; }
-.pd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.pd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ */ }
 .pd-top-title { font-family: var(--serif); font-weight: 700; font-size: 16px; }
 .pd-phwrap { position: relative; }
 /* 各写真の右上に、その訪問の星の数（★4）。地図の写真バッジ(.v-badge)と同じ黒背景・金文字 */
