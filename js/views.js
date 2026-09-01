@@ -2731,22 +2731,38 @@ const Views = (() => {
   // 写真が未読込で内容が画面より短い間は scrollTop が端で切り詰められ、
   // 「タップした投稿より前の写真」が表示されてしまう
   function makeScrollAnchor(scroller, getSections) {
-    let el = null, rel = 0, lastWrite = 0;
-    const fix = () => {
+    let el = null, rel = 0, lastWrite = 0, lastUser = 0, timer = null, raf = 0;
+    const applyFix = () => {
       if (!el || !el.isConnected) return;
       const d = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - rel;
       if (Math.abs(d) < 0.5) return;
       lastWrite = performance.now();
       scroller.scrollTop += d;
     };
+    // 指やホイールで動かしている最中に scrollTop を書き換えると慣性スクロールが
+    // 止まってガタつくので、操作が止まってから合わせ直す
+    const fix = () => {
+      if (performance.now() - lastUser < 160) {
+        clearTimeout(timer);
+        timer = setTimeout(fix, 180);
+        return;
+      }
+      applyFix();
+    };
     // 利用者が自分でスクロールしたら、一番上に見えているセクションを新しい基準にする
+    // （位置の取得はレイアウト計算を伴うので1フレームに1回だけ）
     scroller.addEventListener('scroll', () => {
       if (performance.now() - lastWrite < 120) return; // 直前の自動補正によるスクロールは無視
-      const top = scroller.getBoundingClientRect().top;
-      for (const sec of getSections()) {
-        const r = sec.getBoundingClientRect();
-        if (r.bottom > top + 1) { el = sec; rel = r.top - top; break; }
-      }
+      lastUser = performance.now();
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const top = scroller.getBoundingClientRect().top;
+        for (const sec of getSections()) {
+          const r = sec.getBoundingClientRect();
+          if (r.bottom > top + 1) { el = sec; rel = r.top - top; break; }
+        }
+      });
     }, { passive: true });
     return {
       set(newEl, newRel) { el = newEl; rel = newRel || 0; },
@@ -4408,7 +4424,7 @@ const Views = (() => {
       const box = sect.querySelector('.pd-photos');
       // 各写真の右上に、その訪問の星の数（★4のように）。ホーム・投稿詳細どの写真にも出す
       const badge = (r) => r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : '';
-      const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${badge(it.rating)}</div>`;
+      const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" decoding="async">${badge(it.rating)}</div>`;
       if (items.length > 1) {
         // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
         box.classList.add('pd-carousel');
@@ -4427,7 +4443,12 @@ const Views = (() => {
       }
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
         img.addEventListener('click', () => openLightbox(items[i].url, cap)));
-    })();
+      // 写真の読み込み完了＝セクションの高さ確定を伝える（上への継ぎ足しが待つ）
+      await Promise.all([...box.querySelectorAll('img.pd-photo')].map(im => im.complete
+        ? Promise.resolve()
+        : new Promise(res => { im.addEventListener('load', res, { once: true }); im.addEventListener('error', res, { once: true }); })));
+    })().then(() => { if (sect.__readyResolve) sect.__readyResolve(); });
+    sect.__ready = new Promise(r => { sect.__readyResolve = r; });
     const nav = sect.querySelector('.pd-nav');
     if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     // 自分の投稿は「⋯」からメニューを開き、「編集」を選ぶと記録の編集画面へ
@@ -4522,13 +4543,21 @@ const Views = (() => {
     };
     // 上端が近づいたら前の投稿を上へ継ぎ足す。挿入した高さぶんスクロール位置を
     // ずらして、いま見ている投稿が動かないようにする
-    const prependPrev = () => {
+    let prepending = false; // 連続発火で同じ投稿を二重に作らないように
+    const prependPrev = async () => {
+      if (prepending) return;
       if (prev < 0) { ioTop.disconnect(); return; }
+      prepending = true;
       const sec = buildPostSection(list[prev], close);
-      sentinelTop.after(sec);
       prev--;
+      // 写真が読み込まれて高さが確定してから挿入する。挿入後にセクションが
+      // 伸びると、その都度スクロール位置の合わせ直しが走ってガタつくため
+      await Promise.race([sec.__ready, new Promise(r => setTimeout(r, 800))]);
+      if (!scroll.isConnected) { prepending = false; return; } // すでに閉じられていたら何もしない
+      sentinelTop.after(sec);
       anchorCtl.fix(); // 基準の投稿が動かないよう位置を合わせ直す
       ros.push(anchorCtl.watch(sec));
+      prepending = false;
       ioTop.unobserve(sentinelTop);
       ioTop.observe(sentinelTop);
     };
