@@ -1,0 +1,177 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<!-- 紹介動画の舞台（1920x1080）。tools/promo/README.md 参照。index.html と同じ階層に置いて Playwright で収録する -->
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1920px; height:1080px; overflow:hidden; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic",sans-serif; }
+  body { background:#FAF6F0; position:relative; }
+  [hidden] { display:none !important; }
+  .scene { position:absolute; inset:0; opacity:0; transition:opacity .55s ease; pointer-events:none; }
+  .scene.active { opacity:1; }
+  .grad { background:linear-gradient(135deg,#B4552F 0%,#C6613F 45%,#D97757 100%); color:#fff; }
+  .center { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; }
+  .up { opacity:0; }
+  .scene.active .up { animation:fadeUp .7s ease both; animation-delay:var(--d,0s); }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:none; } }
+  @keyframes pop { from { opacity:0; transform:translateY(20px) scale(.75); } to { opacity:1; transform:none; } }
+  .cold1 { font-size:96px; font-weight:800; color:#1F1E1D; letter-spacing:.02em; }
+  .cold1 .st { color:#E8A33D; }
+  .cold2 { font-size:84px; font-weight:800; color:#1F1E1D; margin-top:26px; letter-spacing:.02em; }
+  .cold2 .em { color:#C6613F; }
+  .dish { width:210px; height:210px; background:#fff; border-radius:50%; padding:26px; object-fit:contain; box-shadow:0 18px 40px rgba(60,30,10,.16); }
+  .dishname { font-size:30px; font-weight:800; color:#6E6960; margin-top:18px; letter-spacing:.06em; }
+  .people { display:flex; gap:40px; margin-top:46px; }
+  .pc { width:260px; background:#fff; border:2px solid #EAE3D8; border-radius:26px; padding:28px 20px 26px; text-align:center; box-shadow:0 14px 34px rgba(60,30,10,.08); opacity:0; }
+  .scene.active .pc { animation:pop .5s ease both; animation-delay:var(--d); }
+  .pc .av { width:74px; height:74px; border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:34px; font-weight:800; color:#fff; }
+  .pc .nm { font-size:24px; font-weight:800; color:#4A453D; margin-top:14px; }
+  .pc .rt { font-size:50px; font-weight:800; color:#E8A33D; margin-top:6px; line-height:1.1; }
+  .avgbox { margin-top:40px; display:inline-flex; align-items:center; gap:22px; background:#EFEAE2; border-radius:999px; padding:16px 40px; }
+  .avgbox .l { font-size:26px; font-weight:800; color:#8A857D; letter-spacing:.06em; }
+  .avgbox .v { font-size:46px; font-weight:800; color:#8A857D; }
+  .avgbox .v .st { color:#C9B48A; }
+  .punch { font-size:66px; font-weight:800; color:#1F1E1D; margin-top:44px; letter-spacing:.03em; }
+  .punch .em { color:#C6613F; }
+  .brand { font-family:"Hiragino Mincho ProN","Noto Serif CJK JP","Yu Mincho",serif; font-weight:800; font-size:170px; letter-spacing:.04em; line-height:1; }
+  .chip { display:inline-block; border:2px solid rgba(255,255,255,.75); border-radius:999px; padding:10px 30px; font-size:27px; font-weight:700; letter-spacing:.14em; }
+  .catch { font-size:52px; font-weight:800; letter-spacing:.05em; }
+  .catch .em { color:#FFD75E; }
+  .iconrow { display:flex; gap:26px; margin-top:64px; }
+  .iconrow img { width:88px; height:88px; object-fit:contain; background:#fff; border-radius:50%; padding:15px; box-shadow:0 12px 28px rgba(60,30,10,.28); opacity:0; }
+  .scene.active .iconrow img { animation:pop .5s ease both; animation-delay:calc(var(--i)*.09s + .55s); }
+  .tagline { font-size:46px; font-weight:800; margin-top:44px; letter-spacing:.06em; }
+  .credit { position:absolute; bottom:34px; left:0; right:0; text-align:center; font-size:21px; color:rgba(255,255,255,.72); letter-spacing:.03em; }
+  .appscene { display:flex; align-items:center; height:100%; }
+  .cap { width:900px; padding:0 40px 0 130px; }
+  .cap .tag { display:inline-flex; align-items:center; gap:14px; background:#C6613F; color:#fff; border-radius:999px; padding:10px 30px 10px 14px; font-size:26px; font-weight:800; letter-spacing:.1em; margin-bottom:34px; }
+  .cap .tag .no { background:#fff; color:#C6613F; border-radius:999px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-size:22px; letter-spacing:0; }
+  .cap h2 { font-size:66px; font-weight:800; color:#1F1E1D; line-height:1.32; letter-spacing:.02em; }
+  .cap p { font-size:32px; color:#6E6960; line-height:1.7; margin-top:30px; font-weight:600; transition:opacity .35s ease; }
+  .cap p b { color:#C6613F; }
+  .scene.active .cap > * { animation:fadeUp .7s ease both; }
+  .scene.active .cap h2 { animation-delay:.12s; }
+  .scene.active .cap p { animation-delay:.26s; }
+  .counter { margin-top:40px; opacity:0; transition:opacity .4s ease; }
+  .counter.on { opacity:1; }
+  .counter .n { font-size:112px; font-weight:800; color:#C6613F; line-height:1; letter-spacing:.02em; }
+  .counter .n small { font-size:40px; color:#6E6960; margin-left:10px; }
+  .counter .l { font-size:26px; font-weight:700; color:#8A857D; margin-top:10px; }
+  .pills { display:flex; flex-direction:column; gap:14px; margin-top:34px; }
+  .pill { display:inline-flex; align-items:center; gap:14px; align-self:flex-start; background:#fff; border:2px solid #EAE3D8; border-radius:999px; padding:10px 24px 10px 12px; font-size:26px; font-weight:800; color:#4A453D; box-shadow:0 8px 20px rgba(60,30,10,.08); opacity:0; }
+  .pill .ic { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; background:#FBEFE9; }
+  .pill .auto { margin-left:6px; background:#C6613F; color:#fff; border-radius:999px; padding:3px 14px; font-size:20px; letter-spacing:.06em; }
+  .pill.you .auto { background:#E8A33D; }
+  .pill.on { animation:pop .45s ease both; }
+  #phoneLayer { position:absolute; top:50%; left:1210px; transform:translateY(-50%); opacity:0; transition:opacity .55s ease; z-index:5; }
+  #phoneLayer.on { opacity:1; }
+  #phoneLayer.on .phone { animation:float 5.5s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-9px); } }
+  .phone { width:422px; height:920px; background:#1F1E1D; border-radius:58px; padding:16px; box-shadow:0 40px 90px rgba(60,30,10,.35); position:relative; }
+  .phone .island { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:110px; height:26px; background:#000; border-radius:14px; z-index:2; }
+  .phone iframe { width:390px; height:888px; border:0; border-radius:42px; background:#fff; }
+  #s-map .mapwrap { position:absolute; top:0; right:0; width:1050px; height:1080px; overflow:hidden; }
+  #s-map.active .mapwrap { animation:mapzoom 12s ease-in-out both; transform-origin:55% 45%; }
+  @keyframes mapzoom { from { transform:scale(1); } to { transform:scale(1.07); } }
+  #s-map .mapbg { position:absolute; inset:0; background:#F3EBDD; }
+  #s-map .road { position:absolute; background:#fff; border-radius:20px; box-shadow:0 0 0 3px #EADFCB; }
+  #s-map .park { position:absolute; background:#DCE8CF; border-radius:60px; }
+  #s-map .water { position:absolute; background:#CFE2E8; border-radius:60px; }
+  .pin { position:absolute; width:96px; text-align:center; opacity:0; }
+  .pin .head { width:84px; height:84px; margin:0 auto; background:#fff; border:5px solid var(--pc,#C6613F); border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(60,30,10,.28); position:relative; z-index:1; }
+  .pin .head img { width:58px; height:58px; object-fit:contain; }
+  .pin .tail { width:16px; height:16px; background:var(--pc,#C6613F); margin:-10px auto 0; transform:rotate(45deg); border-radius:3px; }
+  .pin .lbl { display:inline-block; white-space:nowrap; margin-top:10px; background:#fff; border-radius:999px; padding:5px 16px; font-size:21px; font-weight:800; color:#4A453D; box-shadow:0 4px 12px rgba(60,30,10,.18); }
+  .pin.sm { width:72px; }
+  .pin.sm .head { width:60px; height:60px; border-width:4px; }
+  .pin.sm .head img { width:40px; height:40px; }
+  .pin.sm .tail { width:12px; height:12px; margin-top:-8px; }
+  .pin.wish .head { border-color:#8B5CF6; font-size:40px; }
+  .pin.wish .tail { background:#8B5CF6; }
+  .pin.wish .lbl { color:#8B5CF6; }
+  .scene.active .pin { animation:drop .55s cubic-bezier(.2,.9,.3,1.3) both; animation-delay:var(--d,0s); }
+  @keyframes drop { from { opacity:0; transform:translateY(-60px) scale(.7); } to { opacity:1; transform:none; } }
+</style></head><body>
+<div class="scene active" id="s-cold"><div class="center">
+  <div class="cold1 up" style="--d:.2s">その<span class="st"> ★3.5 </span>、</div>
+  <div class="cold2 up" style="--d:1.1s"><span class="em">誰の舌</span>で決まった？</div>
+</div></div>
+<div class="scene" id="s-insight"><div class="center">
+  <img class="dish up" src="icons/genre/ramen.png" style="--d:0s">
+  <div class="dishname up" style="--d:.1s">おなじ一杯を、3人が食べたら</div>
+  <div class="people">
+    <div class="pc" style="--d:.5s"><div class="av" style="background:#C6613F">た</div><div class="nm">たくみ</div><div class="rt">★5.0</div></div>
+    <div class="pc" style="--d:.95s"><div class="av" style="background:#5B84A8">ゆ</div><div class="nm">ゆかり</div><div class="rt">★2.0</div></div>
+    <div class="pc" style="--d:1.4s"><div class="av" style="background:#6E8B54">け</div><div class="nm">けん</div><div class="rt">★4.0</div></div>
+  </div>
+  <div class="avgbox up" style="--d:2.6s"><span class="l">レビューサイトの表示</span><span class="v"><span class="st">★</span>3.7</span></div>
+  <div class="punch up" style="--d:4.6s">平均は、<span class="em">あなたの舌</span>じゃない。</div>
+</div></div>
+<div class="scene grad" id="s-title"><div class="center">
+  <div class="chip up" style="--d:.1s">じぶんの舌で選ぶ、グルメアルバム</div>
+  <div class="brand up" style="margin-top:52px; --d:.3s">BITEMAP</div>
+  <div class="catch up" style="margin-top:56px; --d:.6s">おいしいは、<span class="em">人の数だけ</span>ある。</div>
+  <div class="iconrow"><img src="icons/genre/ramen.png" style="--i:0"><img src="icons/genre/sushi.png" style="--i:1"><img src="icons/genre/yakiniku.png" style="--i:2"><img src="icons/genre/tempura.png" style="--i:3"><img src="icons/genre/curry.png" style="--i:4"><img src="icons/genre/parfait.png" style="--i:5"></div>
+</div></div>
+<div class="scene" id="s-reg"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">01</span>記録</div>
+  <h2>撮るだけで、<br>記録完了。</h2>
+  <p>場所も料理ジャンルも、<b>AIが自動入力</b>。<br>自分で入れるのは店名と★だけ。</p>
+  <div class="pills">
+    <div class="pill" id="pill1"><span class="ic">📍</span>お店の場所<span class="auto">写真から自動</span></div>
+    <div class="pill" id="pill2"><span class="ic">🍜</span>料理ジャンル<span class="auto">AIが判定</span></div>
+    <div class="pill you" id="pill3"><span class="ic">⭐</span>味の評価<span class="auto">あなたが0.5刻みで</span></div>
+  </div>
+</div></div></div>
+<div class="scene" id="s-album"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">02</span>アルバム</div>
+  <h2>一皿ごとに、<br>思い出が残る。</h2>
+  <p>写真は店ごとに自動で整理。<br>いつ・何を・何点だったか、<b>すぐ見返せる</b>。</p>
+</div></div></div>
+<div class="scene" id="s-map">
+  <div class="mapwrap">
+    <div class="mapbg"></div>
+    <div class="water" style="right:-140px; top:-120px; width:480px; height:400px; transform:rotate(-12deg);"></div>
+    <div class="park" style="left:110px; bottom:90px; width:340px; height:260px;"></div>
+    <div class="road" style="left:-60px; top:270px; width:1300px; height:44px; transform:rotate(7deg);"></div>
+    <div class="road" style="left:-60px; top:640px; width:1300px; height:56px; transform:rotate(-5deg);"></div>
+    <div class="road" style="left:330px; top:-80px; width:40px; height:1300px; transform:rotate(9deg);"></div>
+    <div class="road" style="left:760px; top:-80px; width:34px; height:1300px; transform:rotate(-7deg);"></div>
+    <div class="pin" style="--pc:#C0392B; --d:.15s; left:210px; top:160px;"><div class="head"><img src="icons/genre/ramen.png"></div><div class="tail"></div><div class="lbl">★5.0</div></div>
+    <div class="pin" style="--pc:#16A085; --d:.5s; left:600px; top:300px;"><div class="head"><img src="icons/genre/sushi.png"></div><div class="tail"></div><div class="lbl">★4.5</div></div>
+    <div class="pin" style="--pc:#8E44AD; --d:.85s; left:400px; top:560px;"><div class="head"><img src="icons/genre/yakiniku.png"></div><div class="tail"></div><div class="lbl">★4.0</div></div>
+    <div class="pin" style="--pc:#E67E22; --d:1.2s; left:790px; top:680px;"><div class="head"><img src="icons/genre/parfait.png"></div><div class="tail"></div><div class="lbl">★3.5</div></div>
+    <div class="pin sm" style="--pc:#C0392B; --d:2.6s; left:120px; top:430px;"><div class="head"><img src="icons/genre/tempura.png"></div><div class="tail"></div></div>
+    <div class="pin sm" style="--pc:#E67E22; --d:3.1s; left:560px; top:820px;"><div class="head"><img src="icons/genre/curry.png"></div><div class="tail"></div></div>
+    <div class="pin sm" style="--pc:#16A085; --d:3.6s; left:850px; top:180px;"><div class="head"><img src="icons/genre/gyoza.png"></div><div class="tail"></div></div>
+    <div class="pin sm" style="--pc:#C0392B; --d:4.1s; left:260px; top:840px;"><div class="head"><img src="icons/genre/yakitori.png"></div><div class="tail"></div></div>
+    <div class="pin sm" style="--pc:#8E44AD; --d:4.6s; left:920px; top:520px;"><div class="head"><img src="icons/genre/pizza.png"></div><div class="tail"></div></div>
+    <div class="pin sm" style="--pc:#16A085; --d:5.1s; left:60px; top:640px;"><div class="head"><img src="icons/genre/udon.png"></div><div class="tail"></div></div>
+    <div class="pin wish" style="--d:5.8s; left:660px; top:120px;"><div class="head">💜</div><div class="tail"></div><div class="lbl">行きたい</div></div>
+  </div>
+  <div class="appscene"><div class="cap">
+    <div class="tag"><span class="no">03</span>地図</div>
+    <h2>食べた店が、<br>地図に育つ。</h2>
+    <p>訪問した店は、評価つきのピンに。<br><b>「行きたい店」も店名だけで保存</b>。</p>
+    <div class="counter" id="mapcounter"><div class="n"><span id="cnt">0</span><small>店舗</small></div><div class="l">制作者が実際に記録した店の数</div></div>
+  </div></div>
+</div>
+<div class="scene" id="s-sns"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">04</span>つながる</div>
+  <h2>味覚の近い人が、<br>次の一軒をくれる。</h2>
+  <p>友だちと★を突き合わせて<br><b>「味覚一致率」</b>を自動計算。</p>
+</div></div></div>
+<div class="scene grad" id="s-outro">
+  <div class="center"><div class="brand up" style="--d:.1s">BITEMAP</div><div class="tagline up" style="--d:.5s">あなたの味覚で、店を選ぶ。</div></div>
+  <div class="credit" id="credit">BGM: 仮（自動生成）</div>
+</div>
+<div id="phoneLayer"><div class="phone"><div class="island"></div><iframe id="appframe" src="index.html"></iframe></div></div>
+<script>
+  window.Stage = {
+    show(id, phone) { document.querySelectorAll('.scene').forEach(s => s.classList.toggle('active', s.id === id)); document.getElementById('phoneLayer').classList.toggle('on', !!phone); },
+    swapSub(sceneId, html) { const el = document.querySelector('#' + sceneId + ' .cap p'); el.style.opacity = 0; setTimeout(() => { el.innerHTML = html; el.style.opacity = 1; }, 380); },
+    pill(id) { document.getElementById(id).classList.add('on'); },
+    credit(text) { document.getElementById('credit').textContent = text; },
+    count(to, ms) { const box = document.getElementById('mapcounter'), el = document.getElementById('cnt'); box.classList.add('on'); const t0 = performance.now();
+      const step = (t) => { const k = Math.min(1, (t - t0) / ms); const e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(to * e); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+  };
+</script>
+</body></html>
