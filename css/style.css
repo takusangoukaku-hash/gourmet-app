@@ -247,7 +247,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .chip.on { background: var(--grad); border-color: transparent; color: #fff; }
 .chip.tag { cursor: default; background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent); padding: 2px 9px; font-size: 11px; }
 
-.stars { display: flex; gap: 4px; }
+.stars { display: flex; gap: 4px; touch-action: pan-y; user-select: none; -webkit-user-select: none; } /* 横になぞって0.5刻み入力（縦スクロールは通す） */
+/* 登録フォームの味の評価: スマホで .5 を狙えるよう大きめ＋選択値の数字 */
+.rating-row { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+.stars.taste { gap: 6px; }
+.stars.taste button svg { width: 36px; height: 36px; }
+.rating-val { min-width: 2.4em; font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rating-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
 .axis-box {
   border: 1px solid var(--border-lite); border-radius: 12px; padding: 11px 12px; margin-top: 4px;
   background: var(--field);

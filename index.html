@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=291">
+<link rel="stylesheet" href="css/style.css?v=292">
 </head>
 <body>
 
@@ -81,7 +81,8 @@
         <div id="f-dish-genres" class="chips"></div>
       </div>
       <div class="full flabel">味の評価 <span class="req">必須</span>
-        <div id="f-rating" class="stars"></div>
+        <div class="rating-row"><div id="f-rating" class="stars taste"></div><span id="f-rating-val" class="rating-val"></span></div>
+        <div class="rating-hint">星をなぞる／もう一度タップで 0.5 刻み</div>
       </div>
       <!-- 仕様書5: 評価の3軸は「最初は不要」のため入力欄を隠す（過去データの表示は維持） -->
       <div class="full axis-box hidden">
@@ -586,11 +587,11 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=291"></script>
-<script src="js/api.js?v=291"></script>
-<script src="js/cloud.js?v=291"></script>
-<script src="js/register.js?v=291"></script>
-<script src="js/views.js?v=291"></script>
-<script src="js/app.js?v=291"></script>
+<script src="js/store.js?v=292"></script>
+<script src="js/api.js?v=292"></script>
+<script src="js/cloud.js?v=292"></script>
+<script src="js/register.js?v=292"></script>
+<script src="js/views.js?v=292"></script>
+<script src="js/app.js?v=292"></script>
 </body>
 </html>

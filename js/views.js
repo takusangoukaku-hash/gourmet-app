@@ -33,6 +33,7 @@ const Views = (() => {
   function mountRatingStars(el, initial, onChange) {
     el.innerHTML = '';
     const btns = [];
+    let cur = +initial || 0;
     const paint = (val) => {
       btns.forEach((b, idx) => {
         const i = idx + 1;
@@ -45,16 +46,54 @@ const Views = (() => {
       b.type = 'button';
       b.setAttribute('aria-label', `星${i}（左半分で${i - 0.5}）`);
       b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path class="sb-base" d="${STAR_PATH}"/><path class="sb-fill" d="${STAR_PATH}" clip-path="url(#star-half)"/></svg>`;
-      b.addEventListener('click', (e) => {
-        const r = b.getBoundingClientRect();
-        const val = (e.clientX - r.left) < r.width / 2 ? i - 0.5 : i;
-        paint(val);
-        onChange(val);
+      // キーボード操作（Enter/Space）は整数の星
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cur = i; paint(cur); onChange(cur); }
       });
       el.appendChild(b);
       btns.push(b);
     }
-    paint(+initial || 0);
+    // 指の位置 → 値。星の左半分なら i-0.5、右半分なら i。星と星の隙間は近い方に寄せる
+    const valueAt = (x) => {
+      for (let idx = 0; idx < btns.length; idx++) {
+        const r = btns[idx].getBoundingClientRect();
+        if (x < r.left + r.width / 2) return idx + 0.5;
+        const next = btns[idx + 1];
+        const edge = next ? (r.right + next.getBoundingClientRect().left) / 2 : r.right;
+        if (x <= edge) return idx + 1;
+      }
+      return btns.length;
+    };
+    // スマホでも0.5刻みを確実に選べるように:
+    //  - 指でなぞる（ドラッグ）と、その位置の値を追いかけて表示
+    //  - すでに選んでいる値と同じ場所をもう一度タップすると、.5 と整数を切り替える
+    //    （小さな星の左半分を正確に狙わなくても .5 にできる）
+    let pressed = false, dragging = false, startX = 0;
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button != null && e.button !== 0) return;
+      pressed = true; dragging = false; startX = e.clientX;
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      paint(valueAt(e.clientX));
+      e.preventDefault();
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!pressed) return;
+      if (Math.abs(e.clientX - startX) > 6) dragging = true;
+      paint(valueAt(e.clientX));
+    });
+    const finish = (e) => {
+      if (!pressed) return;
+      pressed = false;
+      let v = valueAt(e.clientX);
+      if (!dragging && v === cur) v = Number.isInteger(cur) ? cur - 0.5 : cur + 0.5;
+      v = Math.min(5, Math.max(0.5, v));
+      cur = v;
+      paint(cur);
+      onChange(cur);
+    };
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', () => { pressed = false; paint(cur); }); // 縦スクロール等で中断
+    paint(cur);
   }
   // グラデーション・クリップの定義を文書に1回だけ入れる（各星が url(#…) で参照）
   (function () {

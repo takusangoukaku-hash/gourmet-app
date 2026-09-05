@@ -113,7 +113,7 @@ const Register = (() => {
     });
 
     // 評価スター（味）＋ 店の評価3軸
-    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); }); // 0.5刻み対応
+    mountTasteStars();
     mountAxisStars();
     // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
     $('#f-shop-name').addEventListener('input', updateSaveState);
@@ -262,6 +262,14 @@ const Register = (() => {
   }
 
   // 店の評価3軸のスターを（再）描画する
+  // 味の評価（0.5刻み）。選んだ値を星の右に数字でも出して、.5 が入ったか分かるようにする
+  function mountTasteStars() {
+    const val = $('#f-rating-val');
+    const show = (v) => { if (val) val.textContent = v ? v.toFixed(1) : ''; };
+    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; show(v); updateSaveState(); });
+    show(0);
+  }
+
   function mountAxisStars() {
     for (const k of AXES) {
       mountStars($('#f-ax-' + k), shopRatings[k], v => { shopRatings[k] = v; });
@@ -882,7 +890,7 @@ const Register = (() => {
     userTouchedGenres = false;
     autoFilledGenres = false;
     dishPicker.reset();
-    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; updateSaveState(); }); // 0.5刻み対応
+    mountTasteStars();
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
     updateSaveState();
