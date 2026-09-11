@@ -1331,7 +1331,7 @@ const Views = (() => {
 
     // フォロワーの写真: 人ごとに1行（共通部品 renderFollowSection を使用）
     const renderFollow = () => {
-      renderFollowSection(ov, followerPostsForShop(Store.getShop(shopId) || s), true);
+      renderFollowSection(ov, followerPostsForShop(Store.getShop(shopId) || s));
     };
     ov.querySelector('.msh-sort').addEventListener('click', () => {
       const sec = ov.querySelector('.msh-follow');
@@ -1362,8 +1362,8 @@ const Views = (() => {
 
   // 店舗シートの「フォロワーの写真」欄を描く共通部品（自分の店・フォロワーの店で共用）。
   // 人ごとに1行: アイコン・名前・@ID・投稿数（全店の合計）＋その店の写真最大3枚。
-  // showTime=false のときは相対時刻を出さない（他人の店では日付を出さない方針）
-  function renderFollowSection(ov, posts, showTime) {
+  // 他人の投稿には日付・相対時刻を一切出さない（自分の店でもフォロワーの店でも同じ）
+  function renderFollowSection(ov, posts) {
     const sec = ov.querySelector('.msh-follow');
     const list = (posts || []).slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
     if (!list.length) { sec.classList.add('hidden'); return; }
@@ -1406,8 +1406,7 @@ const Views = (() => {
         b.type = 'button';
         b.className = 'msh-fph';
         b.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">
-          ${p.rating ? `<span class="pd-photo-star">★${fmtR(p.rating)}</span>` : ''}
-          ${showTime && p.datetime ? `<span class="msh-ftime">${relTime(p.datetime)}</span>` : ''}`;
+          ${p.rating ? `<span class="pd-photo-star">★${fmtR(p.rating)}</span>` : ''}`;
         b.addEventListener('click', () => showPostDetail(p));
         ph.appendChild(b);
       }
@@ -1495,11 +1494,11 @@ const Views = (() => {
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav({ name: g.name, lat: g.lat, lon: g.lon }));
     // フォロワーの写真（相対時刻なし）。並び替えも共通部品で
-    renderFollowSection(ov, posts, false);
+    renderFollowSection(ov, posts);
     ov.querySelector('.msh-sort').addEventListener('click', () => {
       const sec = ov.querySelector('.msh-follow');
       sec.dataset.sort = { match: 'new', new: 'old', old: 'match' }[sec.dataset.sort || 'match'];
-      renderFollowSection(ov, posts, false);
+      renderFollowSection(ov, posts);
     });
 
     document.body.appendChild(ov);
@@ -4220,6 +4219,9 @@ const Views = (() => {
     const rating = p.rating ? Math.round(p.rating * 10) / 10 : 0;
     const hasPos = p.lat != null && p.lon != null;
     const tm = tasteMatch(p.username);
+    // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
+    const me = (Store.getProfile() || {}).username;
+    const isMine = Store.visits().some(v => v.id === p.id) || (!!me && p.username === me);
     card.innerHTML = `
       <div class="fcard-head2">
         ${tasteBadge(p.username, true)}
@@ -4228,7 +4230,7 @@ const Views = (() => {
           <span class="fc-name">${esc(p.displayName || 'BITEMAP')}
             <span class="fc-handle">${tm.common ? `共通店舗 ${tm.common}件` : (p.username ? '@' + esc(p.username) : '')}</span></span>
         </button>
-        ${p.datetime ? `<span class="fcard-time">${relTime(p.datetime)}</span>` : ''}
+        ${isMine && p.datetime ? `<span class="fcard-time">${relTime(p.datetime)}</span>` : ''}
       </div>
       <div class="fcard-photo">
         ${p.photoUrl ? `<img class="fcard-img" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">`
