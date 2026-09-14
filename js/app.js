@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v293'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v294'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -109,20 +109,36 @@ const App = (() => {
       toast('APIキーを削除しました。');
     });
 
-    // バックアップ（記録の書き出し・読み込み。写真は容量のため対象外＝クラウド同期でカバー）
-    $('#backup-export').addEventListener('click', () => {
-      const data = {
-        app: 'BITEMAP', version: APP_VERSION, exportedAt: new Date().toISOString(),
-        shops: Store.shops(), visits: Store.visits(), wishes: Store.wishes(), profile: Store.getProfile(),
-      };
-      const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    // バックアップ（記録の書き出し・読み込み）
+    //  - 通常: 店舗・訪問・行きたい店・プロフィール（写真なし・軽量）
+    //  - 写真込み: 上記＋各写真を長辺640pxのJPEGにして同梱（別端末や検証環境で
+    //    写真ごと再現できる。容量が大きいので専用ボタン）
+    const downloadJson = (data, name) => {
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      const d = new Date();
-      a.download = `bitemap-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+      a.download = name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+    const backupName = (suffix) => {
+      const d = new Date();
+      return `bitemap-backup${suffix}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+    };
+    $('#backup-export').addEventListener('click', async () => {
+      downloadJson(await buildBackup(false), backupName(''));
       toast('✅ バックアップを書き出しました');
+    });
+    $('#backup-export-photos').addEventListener('click', async () => {
+      const btn = $('#backup-export-photos');
+      btn.disabled = true;
+      try {
+        const data = await buildBackup(true, (done, total) => { toast(`写真を準備中… ${done}/${total}`); });
+        downloadJson(data, backupName('-photos'));
+        toast(`✅ 写真込みで書き出しました（写真${(data.photos || []).length}枚）`);
+      } catch (err) {
+        toast('⚠️ 書き出せませんでした: ' + (err && err.message || err));
+      } finally { btn.disabled = false; }
     });
     $('#backup-import').addEventListener('click', () => $('#backup-file').click());
     $('#backup-file').addEventListener('change', async (e) => {
@@ -131,21 +147,10 @@ const App = (() => {
       if (!file) return;
       try {
         const data = JSON.parse(await file.text());
-        if (data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
-        // 新しい方を採用して取り込む（既存の記録は消さない）
-        let added = 0;
-        const merge = (kind, locals, list) => {
-          const map = new Map(locals.map(x => [x.id, x]));
-          for (const r of (list || [])) {
-            if (!r || !r.id) continue;
-            const l = map.get(r.id);
-            if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
-          }
-        };
-        merge('shop', Store.rawShops(), data.shops);
-        merge('visit', Store.rawVisits(), data.visits);
-        merge('wish', Store.rawWishes(), data.wishes);
-        toast(added ? `✅ 読み込みました（${added}件を追加・更新）` : '追加の記録はありませんでした（すべて登録済み）');
+        const r = await restoreBackup(data);
+        toast(r.added || r.photos
+          ? `✅ 読み込みました（記録${r.added}件・写真${r.photos}枚を追加・更新）`
+          : '追加の記録はありませんでした（すべて登録済み）');
         refreshCurrent();
       } catch (err) {
         toast('⚠️ 読み込めませんでした: ' + (err && err.message || err));
@@ -252,6 +257,89 @@ const App = (() => {
     return new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
   }
 
+  // ---------- バックアップの作成・復元 ----------
+  // 写真は長辺640pxのJPEG（データURL）にして同梱する。元画像は大きいため、
+  // 別端末で「見返す・共有する」用途に十分な大きさに抑える
+  async function photoToDataUrl(rec) {
+    let blob = (rec.thumbV === 2 && rec.thumb) ? rec.thumb : null;
+    if (!blob && rec.blob) {
+      try {
+        const bmp = await createImageBitmap(rec.blob);
+        const scale = Math.min(1, 640 / Math.max(bmp.width, bmp.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * scale));
+        c.height = Math.max(1, Math.round(bmp.height * scale));
+        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+        bmp.close();
+        blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+      } catch { blob = rec.blob; }
+    }
+    if (!blob) return null;
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => rej(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }
+  async function buildBackup(withPhotos, onProgress) {
+    const data = {
+      app: 'BITEMAP', version: APP_VERSION, exportedAt: new Date().toISOString(),
+      shops: Store.shops(), visits: Store.visits(), wishes: Store.wishes(), profile: Store.getProfile(),
+    };
+    if (!withPhotos) return data;
+    const all = await Store.allPhotos();
+    const photos = [];
+    for (let i = 0; i < all.length; i++) {
+      const rec = all[i];
+      const item = { id: rec.id, shopId: rec.shopId, visitId: rec.visitId, type: rec.type || 'dish', createdAt: rec.createdAt || 0, hash: rec.hash || '' };
+      const dataUrl = await photoToDataUrl(rec);
+      if (dataUrl) item.data = dataUrl; else if (rec.remoteUrl) item.remoteUrl = rec.remoteUrl; else continue;
+      photos.push(item);
+      if (onProgress && (i % 10 === 0)) onProgress(i + 1, all.length);
+    }
+    data.photos = photos;
+    // フォロー中の人の投稿の控え（ホーム・地図の表示に使う）も同梱。別端末での再現用
+    const social = {};
+    for (const k of ['gourmet.netCache', 'gourmet.feedCache']) { const v = localStorage.getItem(k); if (v) social[k] = v; }
+    if (Object.keys(social).length) data.social = social;
+    return data;
+  }
+  async function restoreBackup(data) {
+    if (!data || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
+    // 新しい方を採用して取り込む（既存の記録は消さない）
+    let added = 0;
+    const merge = (kind, locals, list) => {
+      const map = new Map(locals.map(x => [x.id, x]));
+      for (const r of (list || [])) {
+        if (!r || !r.id) continue;
+        const l = map.get(r.id);
+        if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
+      }
+    };
+    merge('shop', Store.rawShops(), data.shops);
+    merge('visit', Store.rawVisits(), data.visits);
+    merge('wish', Store.rawWishes(), data.wishes);
+    if (data.profile && !Store.getProfile().username) Store.setProfile(data.profile);
+    // 写真: 同じ訪問に同じ指紋（または同じ撮影登録時刻）の写真があれば二重に入れない
+    let photos = 0;
+    for (const p of (data.photos || [])) {
+      if (!p || !p.visitId || !p.shopId) continue;
+      if (!Store.visits().some(v => v.id === p.visitId)) continue;
+      const have = await Store.photosOfVisit(p.visitId);
+      if (have.some(x => (p.hash && x.hash === p.hash) || (p.createdAt && x.createdAt === p.createdAt))) continue;
+      let blob = null;
+      if (p.data) { try { blob = await (await fetch(p.data)).blob(); } catch { blob = null; } }
+      if (!blob) continue;
+      const newId = await Store.addPhoto(p.shopId, p.visitId, p.type || 'dish', blob, p.hash || '');
+      // 取り込んだ写真の登録時刻を元の値に揃える（並び順を保つ）
+      if (p.createdAt && newId) { try { await Store.setPhotoCreatedAt(newId, p.createdAt); } catch { /* 任意 */ } }
+      photos++;
+    }
+    if (data.social) for (const k of Object.keys(data.social)) { if (!localStorage.getItem(k)) localStorage.setItem(k, data.social[k]); }
+    return { added, photos };
+  }
+
   async function seedSample() {
     toast('サンプルデータを作成中…');
     const now = new Date();
@@ -310,5 +398,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, toast, seedSample };
+  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup };
 })();
