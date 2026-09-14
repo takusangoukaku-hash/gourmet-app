@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v294'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v295'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -133,7 +133,7 @@ const App = (() => {
       const btn = $('#backup-export-photos');
       btn.disabled = true;
       try {
-        const data = await buildBackup(true, (done, total) => { toast(`写真を準備中… ${done}/${total}`); });
+        const data = await buildBackup(true, (done, total, label) => { toast(`${label || '写真'}を準備中… ${done}/${total}`); });
         downloadJson(data, backupName('-photos'));
         toast(`✅ 写真込みで書き出しました（写真${(data.photos || []).length}枚）`);
       } catch (err) {
@@ -262,9 +262,21 @@ const App = (() => {
   // 別端末で「見返す・共有する」用途に十分な大きさに抑える
   async function photoToDataUrl(rec) {
     let blob = (rec.thumbV === 2 && rec.thumb) ? rec.thumb : null;
-    if (!blob && rec.blob) {
+    // クラウド同期で入った写真は端末に本体が無い（URLだけ）ことがある。
+    // その場合はこの端末で取得してから縮小する（書き出す本人の操作の中で完結させる）
+    let src = rec.blob || null;
+    if (!blob && !src && rec.remoteUrl) {
       try {
-        const bmp = await createImageBitmap(rec.blob);
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 20000);
+        const res = await fetch(rec.remoteUrl, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (res.ok) src = await res.blob();
+      } catch { src = null; }
+    }
+    if (!blob && src) {
+      try {
+        const bmp = await createImageBitmap(src);
         const scale = Math.min(1, 640 / Math.max(bmp.width, bmp.height));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(bmp.width * scale));
@@ -272,7 +284,7 @@ const App = (() => {
         c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
         bmp.close();
         blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
-      } catch { blob = rec.blob; }
+      } catch { blob = src; }
     }
     if (!blob) return null;
     return new Promise((res, rej) => {
@@ -296,13 +308,27 @@ const App = (() => {
       const dataUrl = await photoToDataUrl(rec);
       if (dataUrl) item.data = dataUrl; else if (rec.remoteUrl) item.remoteUrl = rec.remoteUrl; else continue;
       photos.push(item);
-      if (onProgress && (i % 10 === 0)) onProgress(i + 1, all.length);
+      if (onProgress && (i % 5 === 0 || i === all.length - 1)) onProgress(i + 1, all.length);
     }
     data.photos = photos;
     // フォロー中の人の投稿の控え（ホーム・地図の表示に使う）も同梱。別端末での再現用
     const social = {};
     for (const k of ['gourmet.netCache', 'gourmet.feedCache']) { const v = localStorage.getItem(k); if (v) social[k] = v; }
     if (Object.keys(social).length) data.social = social;
+    // フォロー中の人の投稿写真（公開投稿）も縮小して同梱。URLごとに1回だけ取得
+    const urls = new Set();
+    for (const k of Object.keys(social)) { try { for (const p of (JSON.parse(social[k]).posts || [])) if (p.photoUrl && /^https?:/.test(p.photoUrl)) urls.add(p.photoUrl); } catch { /* 壊れた控えは無視 */ } }
+    if (urls.size) {
+      const socialPhotos = {};
+      let n = 0;
+      for (const u of urls) {
+        const dataUrl = await photoToDataUrl({ remoteUrl: u });
+        if (dataUrl) socialPhotos[u] = dataUrl;
+        n++;
+        if (onProgress) onProgress(n, urls.size, 'フォロー中の投稿の写真');
+      }
+      data.socialPhotos = socialPhotos;
+    }
     return data;
   }
   async function restoreBackup(data) {
@@ -336,7 +362,20 @@ const App = (() => {
       if (p.createdAt && newId) { try { await Store.setPhotoCreatedAt(newId, p.createdAt); } catch { /* 任意 */ } }
       photos++;
     }
-    if (data.social) for (const k of Object.keys(data.social)) { if (!localStorage.getItem(k)) localStorage.setItem(k, data.social[k]); }
+    if (data.social) {
+      for (const k of Object.keys(data.social)) {
+        if (localStorage.getItem(k)) continue;
+        let v = data.social[k];
+        if (data.socialPhotos) {
+          try {
+            const obj = JSON.parse(v);
+            for (const p of (obj.posts || [])) if (p.photoUrl && data.socialPhotos[p.photoUrl]) p.photoUrl = data.socialPhotos[p.photoUrl];
+            v = JSON.stringify(obj);
+          } catch { /* そのまま */ }
+        }
+        localStorage.setItem(k, v);
+      }
+    }
     return { added, photos };
   }
 
