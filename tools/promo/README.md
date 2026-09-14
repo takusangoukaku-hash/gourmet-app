@@ -11,3 +11,8 @@ ffmpeg -ss <marks.json の trimSec> -i raw/*.webm -t <総尺> -c:v libx264 -crf 
 ffmpeg -i bgm.mp3 -t <総尺> -af "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=1.2,afade=t=out:st=<総尺-5>:d=5" bgm.wav
 ffmpeg -i noaudio.mp4 -i bgm.wav -c:v copy -c:a aac -b:a 192k -shortest final.mp4
 ```
+
+## 実データ版（v295以降）
+- アプリの「設定 → 写真込みで書き出す」で作ったバックアップを `real.json` として `index.html` と同じ階層に置く
+  （個人データなのでリポジトリには入れない）
+- `record_real.js` を `record.js` の代わりに実行すると、実データでアルバム・ホームのシーンを収録する
