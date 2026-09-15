@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<!-- 紹介動画の舞台（1920x1080）。tools/promo/README.md 参照。index.html と同じ階層に置いて Playwright で収録する -->
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1920px; height:1080px; overflow:hidden; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic",sans-serif; }
+  body { background:#FAF6F0; position:relative; }
+  [hidden] { display:none !important; }
+  .scene { position:absolute; inset:0; opacity:0; transition:opacity .55s ease; pointer-events:none; }
+  .scene.active { opacity:1; }
+  .grad { background:linear-gradient(135deg,#B4552F 0%,#C6613F 45%,#D97757 100%); color:#fff; }
+  .center { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; }
+  .up { opacity:0; }
+  .scene.active .up { animation:fadeUp .7s ease both; animation-delay:var(--d,0s); }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:none; } }
+  @keyframes pop { from { opacity:0; transform:translateY(20px) scale(.75); } to { opacity:1; transform:none; } }
+  .cold1 { font-size:96px; font-weight:800; color:#1F1E1D; letter-spacing:.02em; }
+  .cold1 .st { color:#E8A33D; }
+  .cold2 { font-size:84px; font-weight:800; color:#1F1E1D; margin-top:26px; letter-spacing:.02em; }
+  .cold2 .em { color:#C6613F; }
+  .dish { width:210px; height:210px; background:#fff; border-radius:50%; padding:26px; object-fit:contain; box-shadow:0 18px 40px rgba(60,30,10,.16); }
+  .dishname { font-size:30px; font-weight:800; color:#6E6960; margin-top:18px; letter-spacing:.06em; }
+  .people { display:flex; gap:40px; margin-top:46px; }
+  .pc { width:260px; background:#fff; border:2px solid #EAE3D8; border-radius:26px; padding:28px 20px 26px; text-align:center; box-shadow:0 14px 34px rgba(60,30,10,.08); opacity:0; }
+  .scene.active .pc { animation:pop .5s ease both; animation-delay:var(--d); }
+  .pc .av { width:74px; height:74px; border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:34px; font-weight:800; color:#fff; }
+  .pc .nm { font-size:24px; font-weight:800; color:#4A453D; margin-top:14px; }
+  .pc .rt { font-size:50px; font-weight:800; color:#E8A33D; margin-top:6px; line-height:1.1; }
+  .avgbox { margin-top:40px; display:inline-flex; align-items:center; gap:22px; background:#EFEAE2; border-radius:999px; padding:16px 40px; }
+  .avgbox .l { font-size:26px; font-weight:800; color:#8A857D; letter-spacing:.06em; }
+  .avgbox .v { font-size:46px; font-weight:800; color:#8A857D; }
+  .avgbox .v .st { color:#C9B48A; }
+  .punch { font-size:66px; font-weight:800; color:#1F1E1D; margin-top:44px; letter-spacing:.03em; }
+  .punch .em { color:#C6613F; }
+  .brand { font-family:"Hiragino Mincho ProN","Noto Serif CJK JP","Yu Mincho",serif; font-weight:800; font-size:170px; letter-spacing:.04em; line-height:1; }
+  .chip { display:inline-block; border:2px solid rgba(255,255,255,.75); border-radius:999px; padding:10px 30px; font-size:27px; font-weight:700; letter-spacing:.14em; }
+  .catch { font-size:52px; font-weight:800; letter-spacing:.05em; }
+  .catch .em { color:#FFD75E; }
+  .iconrow { display:flex; gap:26px; margin-top:64px; }
+  .iconrow img { width:88px; height:88px; object-fit:contain; background:#fff; border-radius:50%; padding:15px; box-shadow:0 12px 28px rgba(60,30,10,.28); opacity:0; }
+  .scene.active .iconrow img { animation:pop .5s ease both; animation-delay:calc(var(--i)*.09s + .55s); }
+  .tagline { font-size:46px; font-weight:800; margin-top:44px; letter-spacing:.06em; }
+  .credit { position:absolute; bottom:34px; left:0; right:0; text-align:center; font-size:21px; color:rgba(255,255,255,.72); letter-spacing:.03em; }
+  .appscene { display:flex; align-items:center; height:100%; }
+  .cap { width:900px; padding:0 40px 0 130px; }
+  .cap .tag { display:inline-flex; align-items:center; gap:14px; background:#C6613F; color:#fff; border-radius:999px; padding:10px 30px 10px 14px; font-size:26px; font-weight:800; letter-spacing:.1em; margin-bottom:34px; }
+  .cap .tag .no { background:#fff; color:#C6613F; border-radius:999px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-size:22px; letter-spacing:0; }
+  .cap h2 { font-size:66px; font-weight:800; color:#1F1E1D; line-height:1.32; letter-spacing:.02em; }
+  .cap p { font-size:32px; color:#6E6960; line-height:1.7; margin-top:30px; font-weight:600; transition:opacity .35s ease; }
+  .cap p b { color:#C6613F; }
+  .scene.active .cap > * { animation:fadeUp .7s ease both; }
+  .scene.active .cap h2 { animation-delay:.12s; }
+  .scene.active .cap p { animation-delay:.26s; }
+  .counter { margin-top:40px; opacity:0; transition:opacity .4s ease; }
+  .counter.on { opacity:1; }
+  .counter .n { font-size:112px; font-weight:800; color:#C6613F; line-height:1; letter-spacing:.02em; }
+  .counter .n small { font-size:40px; color:#6E6960; margin-left:10px; }
+  .counter .l { font-size:26px; font-weight:700; color:#8A857D; margin-top:10px; }
+  .pills { display:flex; flex-direction:column; gap:14px; margin-top:34px; }
+  .pill { display:inline-flex; align-items:center; gap:14px; align-self:flex-start; background:#fff; border:2px solid #EAE3D8; border-radius:999px; padding:10px 24px 10px 12px; font-size:26px; font-weight:800; color:#4A453D; box-shadow:0 8px 20px rgba(60,30,10,.08); opacity:0; }
+  .pill .ic { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; background:#FBEFE9; }
+  .pill .auto { margin-left:6px; background:#C6613F; color:#fff; border-radius:999px; padding:3px 14px; font-size:20px; letter-spacing:.06em; }
+  .pill.you .auto { background:#E8A33D; }
+  .pill.on { animation:pop .45s ease both; }
+  #phoneLayer { position:absolute; top:50%; left:1210px; transform:translateY(-50%); opacity:0; transition:opacity .55s ease; z-index:5; }
+  #phoneLayer.on { opacity:1; }
+  #phoneLayer.on .phone { animation:float 5.5s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-9px); } }
+  .phone { width:422px; height:920px; background:#1F1E1D; border-radius:58px; padding:16px; box-shadow:0 40px 90px rgba(60,30,10,.35); position:relative; }
+  .phone .island { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:110px; height:26px; background:#000; border-radius:14px; z-index:2; }
+  .phone iframe { width:390px; height:888px; border:0; border-radius:42px; background:#fff; }
+  #s-map .mapwrap { position:absolute; top:0; right:0; width:1050px; height:1080px; overflow:hidden; }
+  #s-map.active .mapwrap { animation:mapzoom 12s ease-in-out both; transform-origin:55% 45%; }
+  @keyframes mapzoom { from { transform:scale(1); } to { transform:scale(1.07); } }
+  #s-map .mapbg { position:absolute; inset:0; background:#F3EBDD; }
+  #s-map .road { position:absolute; background:#fff; border-radius:20px; box-shadow:0 0 0 3px #EADFCB; }
+  #s-map .park { position:absolute; background:#DCE8CF; border-radius:60px; }
+  #s-map .water { position:absolute; background:#CFE2E8; border-radius:60px; }
+  .pin { position:absolute; width:96px; text-align:center; opacity:0; }
+  .pin .head { width:84px; height:84px; margin:0 auto; background:#fff; border:5px solid var(--pc,#C6613F); border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(60,30,10,.28); position:relative; z-index:1; }
+  .pin .head img { width:58px; height:58px; object-fit:contain; }
+  .pin .tail { width:16px; height:16px; background:var(--pc,#C6613F); margin:-10px auto 0; transform:rotate(45deg); border-radius:3px; }
+  .pin .lbl { display:inline-block; white-space:nowrap; margin-top:10px; background:#fff; border-radius:999px; padding:5px 16px; font-size:21px; font-weight:800; color:#4A453D; box-shadow:0 4px 12px rgba(60,30,10,.18); }
+  .pin.sm { width:72px; }
+  .pin.sm .head { width:60px; height:60px; border-width:4px; }
+  .pin.sm .head img { width:40px; height:40px; }
+  .pin.sm .tail { width:12px; height:12px; margin-top:-8px; }
+  .pin.wish .head { border-color:#8B5CF6; font-size:40px; }
+  .pin.wish .tail { background:#8B5CF6; }
+  .pin.wish .lbl { color:#8B5CF6; }
+  .scene.active .pin { animation:drop .55s cubic-bezier(.2,.9,.3,1.3) both; animation-delay:var(--d,0s); }
+  @keyframes drop { from { opacity:0; transform:translateY(-60px) scale(.7); } to { opacity:1; transform:none; } }
+</style></head><body>
+
+<div class="scene active" id="d-home"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">1</span>ホーム</div>
+  <h2>味覚が近い人ほど、<br>上に来る。</h2>
+  <p>フォロー中の人との<b>味覚一致率</b>を計算し、同じ店でも「あなた向け評価」と「全体評価」を並べて表示。</p>
+  <div class="counter on" style="margin-top:28px"><div class="l">実機・本人アカウントの実データ（2026年9月時点）</div></div>
+</div></div></div>
+<div class="scene" id="d-album"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">2</span>アルバム</div>
+  <h2>自分の食日記が、<br>店ごとにたまる。</h2>
+  <p>SNSであると同時に、<b>自分だけの記録</b>。190店舗・223枚が自動で店ごとにまとまり、タップすれば<b>いつ・何を・何点</b>だったかすぐ見返せる。</p>
+</div></div></div>
+<div class="scene" id="d-search"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">3</span>検索</div>
+  <h2>ラーメンだけで、<br>100店。</h2>
+  <p>AIが判定したジャンルで写真を横断検索。<b>「あのとき食べた一杯」</b>に写真から辿り着ける。</p>
+</div></div></div>
+<div class="scene" id="d-stats"><div class="appscene"><div class="cap">
+  <div class="tag"><span class="no">4</span>ふりかえり</div>
+  <h2>食べた記録が、<br>数字と思い出になる。</h2>
+  <p>訪問回数・味の平均・<b>「1年前の今ごろ」</b>の通知。自分の記録を続けるほど、自分の味覚が見えてくる。</p>
+</div></div></div>
+<div id="phoneLayer"><div class="phone"><div class="island"></div><iframe id="appframe" src="index.html"></iframe></div></div>
+<script>
+  window.Stage = {
+    show(id, phone) { document.querySelectorAll('.scene').forEach(s => s.classList.toggle('active', s.id === id)); document.getElementById('phoneLayer').classList.toggle('on', !!phone); },
+    swapSub(sceneId, html) { const el = document.querySelector('#' + sceneId + ' .cap p'); el.style.opacity = 0; setTimeout(() => { el.innerHTML = html; el.style.opacity = 1; }, 380); },
+    pill(id) { document.getElementById(id).classList.add('on'); },
+    credit(text) { document.getElementById('credit').textContent = text; },
+    count(to, ms) { const box = document.getElementById('mapcounter'), el = document.getElementById('cnt'); box.classList.add('on'); const t0 = performance.now();
+      const step = (t) => { const k = Math.min(1, (t - t0) / ms); const e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(to * e); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+  };
+</script>
+</body></html>

@@ -50,7 +50,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   s.addText('BITEMAP', { x: 0.7, y: 1.6, w: 8, h: 1.5, fontFace: FS, fontSize: 88, bold: true, color: C.white, isTextBox: true, margin: 0, charSpacing: 4 });
   rich(s, [{ text: 'その', options: { color: C.white } }, { text: '★3.5', options: { color: 'FFD75E', bold: true } }, { text: 'は、みんなの平均。', options: { color: C.white } }], 0.7, 3.25, 8, 0.7, 32);
   s.addText('BITEMAPは「あなたの味覚」で店を選ぶ。', { x: 0.7, y: 3.95, w: 8, h: 0.6, fontFace: F, fontSize: 24, bold: true, color: C.white, isTextBox: true, margin: 0 });
-  s.addText('写真を撮るだけで育つグルメ地図 × 味覚一致率でパーソナライズされる評価\nAIと二人三脚で開発した PWA アプリ（本番公開・実運用中）', { x: 0.7, y: 4.75, w: 8, h: 0.9, fontFace: F, fontSize: 14, color: 'FFE9DF', isTextBox: true, margin: 0 });
+  s.addText('自分だけの食の記録（アルバム・地図・統計） × 味覚一致率でパーソナライズされる評価\nAIと二人三脚で開発した PWA アプリ（本番公開・実運用中）', { x: 0.7, y: 4.75, w: 8, h: 0.9, fontFace: F, fontSize: 14, color: 'FFE9DF', isTextBox: true, margin: 0 });
   s.addText('実機画面はすべて本人アカウントの実データ（208店舗）', { x: 0.7, y: 5.75, w: 8, h: 0.35, fontFace: F, fontSize: 11, color: 'FFE1D2', isTextBox: true, margin: 0 });
   s.addText('［チーム名 ／ 氏名 ／ 学部学科］', { x: 0.7, y: 6.3, w: 8, h: 0.5, fontFace: F, fontSize: 16, bold: true, color: C.white, isTextBox: true, margin: 0 });
   shot(s, 'home.png', 9.75, 0.55, 6.4, true);
@@ -70,7 +70,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   bullets(s, ['食べた記録は写真フォルダに埋もれる', '記録アプリは店名・住所・ジャンル…入力が面倒で三日坊主', '「自分の味覚」はデータとして残らない'], 0.85, 4.95, 5.1, 1.4, 13.5, C.muted);
   s.addImage({ path: SHOT + 'insight.png', x: 6.5, y: 1.75, w: 6.25, h: 3.52, rounding: false, shadow: sh() });
   s.addText('同じ一杯を3人が食べたら ★5.0／★2.0／★4.0 ― サイトの表示は「★3.7」', { x: 6.5, y: 5.4, w: 6.25, h: 0.4, fontFace: F, fontSize: 11.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
-  rich(s, [{ text: 'BITEMAPの答え：', options: { bold: true, color: C.terra } }, '①記録の手間はAIが消す　②たまった記録から「自分の味覚」をデータ化する'], 6.5, 5.95, 6.25, 0.9, 14);
+  rich(s, [{ text: 'BITEMAPの答え：', options: { bold: true, color: C.terra } }, '①記録の手間はAIが消す　②たまった記録から「自分の味覚」をデータ化する　③自分の食日記としても、SNSとしても使える'], 6.5, 5.95, 6.25, 0.9, 14);
   foot(s, 2);
   s.addNotes('【0:50】課題は2つ。①平均点は誰の舌でもない。同じ一杯でも★5と★2の人がいて、表示されるのは★3.7。②自分の記録は続かない。入力が面倒。この2つに、記録の手間をAIで消し、たまった記録から味覚をデータ化する、という答えを出しました。');
 }
@@ -80,7 +80,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   header(s, '撮るだけで、グルメ地図が育つ', 'BITEMAP とは');
   const cols = [
     { n: 1, t: '撮って選ぶだけ', d: '写真のEXIF位置から周辺の店を自動提示。料理ジャンルはAIが写真から判定。手で入れるのは店名と★だけ（0.5刻み）。', img: 'register.png' },
-    { n: 2, t: '地図とアルバムに', d: '訪問店は評価色のピンに。写真は店ごとに自動整理され、「いつ・何を・何点」がすぐ見返せる。クラウドに自動バックアップ。', img: 'profile.png', real: true },
+    { n: 2, t: '自分の記録が育つ', d: '訪問店は評価色のピンに。写真は店ごとに自動整理され、「いつ・何を・何点」がすぐ見返せる。SNSであると同時に、自分だけの食日記・地図・統計として毎日使える。', img: 'profile.png', real: true },
     { n: 3, t: '味覚でつながる', d: 'フォロー・いいね・コメント。味覚の近い人の投稿ほど上に出て、店の評価は「あなた向け」に並び替わる。', img: 'home.png', real: true },
   ];
   cols.forEach((c, i) => {
@@ -153,7 +153,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   }
   s.addText('動画は本人アカウントの実データ（208店舗・251訪問・242枚）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 5);
-  s.addNotes('【0:45】実機・実データの録画（43秒）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：208店舗・242枚の写真グリッド→お店の記録 ③検索：ラーメン112店の写真一覧 ④ふりかえり：統計。地図は録画に含まれないので、必要なら手元のスマホで見せる。再生できない場合は本番URLをブラウザで開いて実演。');
+  s.addNotes('【0:45】実機・実データの録画（42秒・表示は★3以上の記録のみ）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③検索：ラーメン100店の写真一覧 ④ふりかえり：統計。地図は録画に含まれないので、必要なら手元のスマホで見せる。再生できない場合は本番URLをブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {
@@ -308,7 +308,7 @@ function appendixAI3() {
     s.addText(st[0], { x, y: 1.8, w: 1.95, h: 0.9, fontFace: F, fontSize: 40, bold: true, color: C.terra, align: 'center', isTextBox: true, margin: 0 });
     s.addText(st[1], { x, y: 2.7, w: 1.95, h: 0.7, fontFace: F, fontSize: 10.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
   });
-  bullets(s, ['本番公開済み（PWA・URLを開くだけ・インストール不要）。制作者自身が毎日の外食で利用', '記録の手間：AIジャンル判定＋位置の自動補完で、手入力は店名と★だけ', 'データは本人のアカウント領域にのみ保存（Firebaseセキュリティルール）。公開は本人が公開した投稿のみ', 'AI判定は利用者自身のAPIキーで実行。最終確認・修正は利用者が行う', 'オフライン起動（Service Worker）・ダークモード・地図クラスタ表示・行きたい店ピン'], 0.6, 3.85, 8.2, 3.0, 12.5);
+  bullets(s, ['本番公開済み（PWA・URLを開くだけ・インストール不要）。制作者自身が毎日の外食の記録（食日記）として利用', '記録の手間：AIジャンル判定＋位置の自動補完で、手入力は店名と★だけ', 'データは本人のアカウント領域にのみ保存（Firebaseセキュリティルール）。公開は本人が公開した投稿のみ', 'AI判定は利用者自身のAPIキーで実行。最終確認・修正は利用者が行う', 'オフライン起動（Service Worker）・ダークモード・地図クラスタ表示・行きたい店ピン'], 0.6, 3.85, 8.2, 3.0, 12.5);
   shot(s, 'stats.png', 9.55, 1.65, 5.2, true);
   s.addText('統計画面（実データ）：208店舗・251訪問・242枚', { x: 8.9, y: 6.9, w: 4.4, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 8);
@@ -351,7 +351,7 @@ function appendixAI3() {
   s.background = { path: SHOT + 'grad.png' };
   s.addText('BITEMAP', { x: 0.7, y: 0.9, w: 8, h: 1.2, fontFace: FS, fontSize: 64, bold: true, color: C.white, isTextBox: true, margin: 0, charSpacing: 4 });
   s.addText('あなたの味覚で、店を選ぶ。', { x: 0.7, y: 2.1, w: 8, h: 0.8, fontFace: F, fontSize: 32, bold: true, color: C.white, isTextBox: true, margin: 0 });
-  const pts = [['1', '平均点ではなく、個人の味覚をデータ化して評価を並び替える'], ['2', 'AIは実装と判定を担い、判断と採否は人が実機で決める'], ['3', '295回のループで、実生活で毎日使えるアプリに'] ];
+  const pts = [['1', '自分の食の記録を、AIの手を借りて無理なく続けられる'], ['2', '平均点ではなく、個人の味覚をデータ化して評価を並び替える'], ['3', 'AIは実装と判定、判断は人。295回のループで完成'] ];
   pts.forEach((p, i) => {
     const y = 3.35 + i * 0.85;
     s.addShape(pres.shapes.OVAL, { x: 0.7, y, w: 0.55, h: 0.55, fill: { color: C.white }, line: { color: C.white, width: 0 } });
