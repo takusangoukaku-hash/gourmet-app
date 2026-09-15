@@ -141,7 +141,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   const s = pres.addSlide(); s.background = { color: C.white };
   header(s, '実機デモ ― 実際に使っている画面と実データ（43秒）', 'DEMO');
   const fs = require('fs');
-  const REAL = '/home/user/gourmet-app/tools/final/real_demo.mp4';
+  const REAL = process.env.DEMO_EMBED || '/home/user/gourmet-app/tools/final/real_demo.mp4';
   if (fs.existsSync(REAL)) {
     s.addMedia({ type: 'video', path: REAL, x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
   } else {
@@ -389,7 +389,7 @@ appendixAI1(); appendixAI2(); appendixAI3();
 {
   const s = pres.addSlide(); s.background = { color: C.white };
   header(s, '参考：一般向け紹介動画（アニメ＋実演・1分08秒）', '補足');
-  s.addMedia({ type: 'video', path: REPO + 'promo/bitemap_intro.mp4', x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
+  s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
   foot(s, 15);
   s.addNotes('質疑で「一般の人にどう伝えるか」と聞かれたときの参考。発表では使わない。');
 }
