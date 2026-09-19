@@ -61,7 +61,7 @@ const OUT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755
   await f.evaluate(() => window.__map && window.__map.jumpTo({ center: [139.72, 35.66], zoom: 10.6 })); await wait(1200);
   await f.evaluate(GROW_SRC);
   // iframe と親は同一オリジンなので、親の Stage を直接呼んでカウンターを更新する
-  await f.evaluate(async () => { await window.growMap({ stepMs: 55, onTick: (n, total, t) => { const d = t ? new Date(t) : null; try { window.parent.Stage.setCount(n, d ? `${d.getFullYear()}年${d.getMonth() + 1}月 までの記録` : ''); } catch (e) {} } }); });
+  await f.evaluate(async () => { await window.growMap({ stepMs: 55, onTick: null }); });
   await wait(1200);
   await f.evaluate(() => window.__map.flyTo({ center: [139.700, 35.660], zoom: 13.0, duration: 2600, essential: true })); await wait(3400);
   // 画面中央に近いピンをタップして店舗シートを開く

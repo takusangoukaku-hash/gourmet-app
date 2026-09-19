@@ -68,13 +68,13 @@ const BASE = process.argv[3] || 'http://localhost:5960';
   await f.evaluate(() => { const sc = document.querySelector('.shopfeed-modal .vl-body'); if (sc) sc.scrollBy({ top: 300, behavior: 'smooth' }); }); await wait(2600);
   await f.evaluate(() => { const m = document.querySelector('.shopfeed-modal'); if (m) m.remove(); }); await wait(800);
   cap('S5 map'); await p.evaluate(() => Stage.show('s-map', false)); await wait(6800);
-  await p.evaluate(() => Stage.count(190, 1800)); await wait(4200);
+  await wait(4200);
   cap('S5b map-real'); await p.evaluate(() => Stage.show('s-map2', true));
   await f.evaluate(() => document.querySelector('[data-tab="map"]').click()); await wait(1200);
   await f.evaluate(() => window.__map && window.__map.jumpTo({ center: [139.72, 35.66], zoom: 10.6 })); await wait(1200);
   await f.evaluate(GROW_SRC);
   // iframe と親は同一オリジンなので、親の Stage を直接呼んでカウンターを更新する
-  await f.evaluate(async () => { await window.growMap({ stepMs: 55, onTick: (n, total, t) => { const d = t ? new Date(t) : null; try { window.parent.Stage.setCount(n, d ? `${d.getFullYear()}年${d.getMonth() + 1}月 までの記録` : ''); } catch (e) {} } }); });
+  await f.evaluate(async () => { await window.growMap({ stepMs: 55, onTick: null }); });
   await wait(1200);
   await f.evaluate(() => window.__map.flyTo({ center: [139.700, 35.660], zoom: 13.0, duration: 2600, essential: true })); await wait(3400);
   await f.evaluate(() => {

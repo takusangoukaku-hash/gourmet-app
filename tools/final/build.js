@@ -151,9 +151,9 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
     s.addText('PowerPoint: 挿入 → ビデオ → このデバイス… でこの枠の位置に配置（枠は削除）\nおすすめ構成: ①ホーム（味覚一致バッジ・あなた向け評価） ②地図（208店舗のピン→タップで記録） ③お店の記録 の順・合計60秒以内', { x: 2.5, y: 4.1, w: 8.3, h: 1.2, fontFace: F, fontSize: 12.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
     s.addText('録画データを送っていただければ、こちらで埋め込んだ版を作成します（ステータスバー切り抜き・末尾のトリミング込み）', { x: 2.5, y: 5.5, w: 8.3, h: 0.5, fontFace: F, fontSize: 11, color: C.gray, align: 'center', isTextBox: true, margin: 0 });
   }
-  s.addText('動画は本人アカウントの実データ（表示は★3以上：190店舗・231訪問・223枚）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
+  s.addText('動画は本人アカウントの実データ（表示は★3以上の記録のみ）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 5);
-  s.addNotes('【1:15】実機・実データの録画（74秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③地図：2024年から訪問順にピンが1本ずつ増えて190店舗になる → 渋谷へズーム → ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
+  s.addNotes('【1:15】実機・実データの録画（74秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド→お店の記録 ③地図：訪問順にピンが1本ずつ増えていく → 渋谷へズーム → ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {
