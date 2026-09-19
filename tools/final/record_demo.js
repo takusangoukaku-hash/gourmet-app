@@ -1,5 +1,6 @@
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
+const GROW_SRC = "// ページ内（アプリの iframe）で実行する。window.__map と Store を使う\nwindow.growMap = async function (opts) {\n  const { stepMs = 55, onTick } = opts || {};\n  const m = window.__map;\n  const src = m.getSource('shops');\n  const full = src._data || (await new Promise(r => r({ type: 'FeatureCollection', features: [] })));\n  const feats = full.features.slice();\n  const firstDate = (f) => {\n    const vs = Store.visitsOf(f.properties.id);\n    return vs.length ? Math.min(...vs.map(v => new Date(v.datetime).getTime())) : Infinity;\n  };\n  feats.sort((a, b) => firstDate(a) - firstDate(b));\n  // 落ちたてのピンを光らせるレイヤー（age: 0=いま落ちた → 1=落ち着いた）\n  if (!m.getLayer('pin-pop')) {\n    m.addLayer({ id: 'pin-pop', type: 'circle', source: 'shops', filter: ['all', ['!', ['has', 'point_count']], ['has', 'age'], ['<', ['get', 'age'], 1]],\n      paint: { 'circle-color': '#C6613F', 'circle-opacity': ['interpolate', ['linear'], ['get', 'age'], 0, 0.55, 1, 0],\n        'circle-radius': ['interpolate', ['linear'], ['get', 'age'], 0, 22, 1, 6], 'circle-blur': 0.4 } });\n  }\n  src.setData({ type: 'FeatureCollection', features: [] });\n  const shown = [];\n  let i = 0;\n  await new Promise(resolve => {\n    let last = performance.now();\n    const tick = (now) => {\n      // 新しいピンを追加\n      while (i < feats.length && now - last >= stepMs) { const f = feats[i++]; f.properties = Object.assign({}, f.properties, { age: 0, born: now }); shown.push(f); last += stepMs; }\n      for (const f of shown) f.properties.age = Math.min(1, (now - f.properties.born) / 700);\n      src.setData({ type: 'FeatureCollection', features: shown });\n      if (onTick) onTick(shown.length, feats.length, shown.length ? firstDate(shown[shown.length - 1]) : 0);\n      if (i < feats.length || shown.some(f => f.properties.age < 1)) requestAnimationFrame(tick); else resolve();\n    };\n    requestAnimationFrame(tick);\n  });\n  return feats.length;\n};\n";
 const OUT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/demo';
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
@@ -57,8 +58,11 @@ const OUT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755
 
   cap('D3 map'); await p.evaluate(() => Stage.show('d-map', true));
   await f.evaluate(() => document.querySelector('[data-tab="map"]').click()); await wait(1500);
-  await f.evaluate(() => window.__map && window.__map.jumpTo({ center: [136.5, 36.0], zoom: 5.3 })); await wait(1800);
-  await f.evaluate(() => window.__map.flyTo({ center: [139.72, 35.66], zoom: 11.2, duration: 3200, essential: true })); await wait(4200);
+  await f.evaluate(() => window.__map && window.__map.jumpTo({ center: [139.72, 35.66], zoom: 10.6 })); await wait(1200);
+  await f.evaluate(GROW_SRC);
+  // iframe と親は同一オリジンなので、親の Stage を直接呼んでカウンターを更新する
+  await f.evaluate(async () => { await window.growMap({ stepMs: 55, onTick: (n, total, t) => { const d = t ? new Date(t) : null; try { window.parent.Stage.setCount(n, d ? `${d.getFullYear()}年${d.getMonth() + 1}月 までの記録` : ''); } catch (e) {} } }); });
+  await wait(1200);
   await f.evaluate(() => window.__map.flyTo({ center: [139.700, 35.660], zoom: 13.0, duration: 2600, essential: true })); await wait(3400);
   // 画面中央に近いピンをタップして店舗シートを開く
   await f.evaluate(() => {

@@ -139,7 +139,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
 // ================= 5. 実機デモ =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '実機デモ ― 実際に使っている画面と実データ（66秒）', 'DEMO');
+  header(s, '実機デモ ― 実際に使っている画面と実データ（74秒）', 'DEMO');
   const fs = require('fs');
   const REAL = process.env.DEMO_EMBED || '/home/user/gourmet-app/tools/final/real_demo.mp4';
   if (fs.existsSync(REAL)) {
@@ -153,7 +153,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   }
   s.addText('動画は本人アカウントの実データ（表示は★3以上：190店舗・231訪問・223枚）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 5);
-  s.addNotes('【1:05】実機・実データの録画（66秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③地図：日本全体→東京→渋谷へズーム、190店舗のピンとクラスタ、ピンをタップして店舗シート ④検索：ラーメン100店の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
+  s.addNotes('【1:15】実機・実データの録画（74秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③地図：2024年から訪問順にピンが1本ずつ増えて190店舗になる → 渋谷へズーム → ピンをタップして店舗シート ④検索：ラーメン100店の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {

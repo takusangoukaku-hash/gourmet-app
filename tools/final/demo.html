@@ -105,7 +105,8 @@
 <div class="scene" id="d-map"><div class="appscene"><div class="cap">
   <div class="tag"><span class="no">3</span>地図</div>
   <h2>食べた店が、<br>地図に育つ。</h2>
-  <p>190店舗が評価色のピンに。重なりは<b>件数つきのクラスタ</b>にまとまり、ズームすると店ごとに。ピンをタップすれば記録へ。</p>
+  <p>訪問した順に、ピンが1本ずつ増えていく。重なりは<b>件数つきのクラスタ</b>に。ピンをタップすれば記録へ。</p>
+  <div class="counter on" id="mapcounter2" style="margin-top:34px"><div class="n"><span id="cnt2">0</span><small>店舗</small></div><div class="l" id="cntdate">&nbsp;</div></div>
 </div></div></div>
 <div class="scene" id="d-search"><div class="appscene"><div class="cap">
   <div class="tag"><span class="no">4</span>検索</div>
@@ -124,6 +125,7 @@
     swapSub(sceneId, html) { const el = document.querySelector('#' + sceneId + ' .cap p'); el.style.opacity = 0; setTimeout(() => { el.innerHTML = html; el.style.opacity = 1; }, 380); },
     pill(id) { document.getElementById(id).classList.add('on'); },
     credit(text) { document.getElementById('credit').textContent = text; },
+    setCount(n, dateText) { const c = document.getElementById('cnt2'); if (c) c.textContent = n; const d = document.getElementById('cntdate'); if (d) d.textContent = dateText || ''; },
     count(to, ms) { const box = document.getElementById('mapcounter'), el = document.getElementById('cnt'); box.classList.add('on'); const t0 = performance.now();
       const step = (t) => { const k = Math.min(1, (t - t0) / ms); const e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(to * e); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
   };
