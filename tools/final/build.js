@@ -80,7 +80,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   header(s, '撮るだけで、グルメ地図が育つ', 'BITEMAP とは');
   const cols = [
     { n: 1, t: '撮って選ぶだけ', d: '写真のEXIF位置から周辺の店を自動提示。料理ジャンルはAIが写真から判定。手で入れるのは店名と★だけ（0.5刻み）。', img: 'register.png' },
-    { n: 2, t: '自分の記録が育つ', d: '訪問店は評価色のピンに。写真は店ごとに自動整理され、「いつ・何を・何点」がすぐ見返せる。SNSであると同時に、自分だけの食日記・地図・統計として毎日使える。', img: 'profile.png', real: true },
+    { n: 2, t: '自分の記録が育つ', d: '訪問店は評価色のピンに。写真は店ごとに自動整理され、「いつ・何を・何点」がすぐ見返せる。SNSであると同時に、自分だけの食日記・地図・統計として毎日使える。', img: 'map.png', real: true },
     { n: 3, t: '味覚でつながる', d: 'フォロー・いいね・コメント。味覚の近い人の投稿ほど上に出て、店の評価は「あなた向け」に並び替わる。', img: 'home.png', real: true },
   ];
   cols.forEach((c, i) => {
@@ -139,7 +139,7 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
 // ================= 5. 実機デモ =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '実機デモ ― 実際に使っている画面と実データ（43秒）', 'DEMO');
+  header(s, '実機デモ ― 実際に使っている画面と実データ（66秒）', 'DEMO');
   const fs = require('fs');
   const REAL = process.env.DEMO_EMBED || '/home/user/gourmet-app/tools/final/real_demo.mp4';
   if (fs.existsSync(REAL)) {
@@ -151,9 +151,9 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
     s.addText('PowerPoint: 挿入 → ビデオ → このデバイス… でこの枠の位置に配置（枠は削除）\nおすすめ構成: ①ホーム（味覚一致バッジ・あなた向け評価） ②地図（208店舗のピン→タップで記録） ③お店の記録 の順・合計60秒以内', { x: 2.5, y: 4.1, w: 8.3, h: 1.2, fontFace: F, fontSize: 12.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
     s.addText('録画データを送っていただければ、こちらで埋め込んだ版を作成します（ステータスバー切り抜き・末尾のトリミング込み）', { x: 2.5, y: 5.5, w: 8.3, h: 0.5, fontFace: F, fontSize: 11, color: C.gray, align: 'center', isTextBox: true, margin: 0 });
   }
-  s.addText('動画は本人アカウントの実データ（208店舗・251訪問・242枚）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
+  s.addText('動画は本人アカウントの実データ（表示は★3以上：190店舗・231訪問・223枚）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 5);
-  s.addNotes('【0:45】実機・実データの録画（42秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③検索：ラーメン100店の写真一覧 ④ふりかえり：統計。地図は録画に含まれないので、必要なら手元のスマホで見せる。再生できない場合は本番URLをブラウザで開いて実演。');
+  s.addNotes('【1:05】実機・実データの録画（66秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド（190店舗・223枚）→お店の記録 ③地図：日本全体→東京→渋谷へズーム、190店舗のピンとクラスタ、ピンをタップして店舗シート ④検索：ラーメン100店の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {

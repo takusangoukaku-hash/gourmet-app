@@ -16,3 +16,10 @@ ffmpeg -i noaudio.mp4 -i bgm.wav -c:v copy -c:a aac -b:a 192k -shortest final.mp
 - アプリの「設定 → 写真込みで書き出す」で作ったバックアップを `real.json` として `index.html` と同じ階層に置く
   （個人データなのでリポジトリには入れない）
 - `record_real.js` を `record.js` の代わりに実行すると、実データでアルバム・ホームのシーンを収録する
+
+## 検証環境で地図を描画する（tools/localmap/）
+外部に出られない環境では地図タイル・フォントが取れないため、`localmap.src.js`（geojson-vt + vt-pbf + tiny-sdf を
+esbuild で束ねる）を `vendor/localmap.js` として置き、ハーネスの `views.js` だけタイルURLを
+`local://tiles/{z}/{x}/{y}`、glyphs を `glyph://{fontstack}/{range}` に差し替える（本番コードは変更しない）。
+下地データは `build_basemap.py` が npm の公開データ（@geo-maps/countries-coastline-1km・japan-choropleth・
+@worldwideview/wwv-plugin-osm-rail-network）から `basemap.json` を生成する。
