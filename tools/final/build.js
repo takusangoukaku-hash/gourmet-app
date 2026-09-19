@@ -388,7 +388,7 @@ function appendixAI3() {
 appendixAI1(); appendixAI2(); appendixAI3();
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '参考：一般向け紹介動画（アニメ＋実演・1分08秒）', '補足');
+  header(s, '参考：一般向け紹介動画（アニメ＋実演・約1分）', '補足');
   s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
   foot(s, 15);
   s.addNotes('質疑で「一般の人にどう伝えるか」と聞かれたときの参考。発表では使わない。');
