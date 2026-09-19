@@ -11,7 +11,7 @@ const BASE = process.argv[3] || 'http://localhost:5960';
   const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, recordVideo: { dir: OUT + '/raw', size: { width: 1920, height: 1080 } } });
   const p = await ctx.newPage();
   await p.route(/nominatim|photon|overpass/, r => r.fulfill({ json: [] }));
-  await p.goto(BASE + '/promo4.html');
+  await p.goto(BASE + '/promo5.html');
   await p.waitForTimeout(1200);
   const appFrame = () => p.frames().find(f => f.url().endsWith('/index.html') || /:\d+\/$/.test(f.url()));
   let f = appFrame();
@@ -45,40 +45,27 @@ const BASE = process.argv[3] || 'http://localhost:5960';
   const marks = { marks: [] }; const t0 = Date.now(); marks.trimSec = (t0 - ctxStart) / 1000;
   const cap = (t) => marks.marks.push({ t: (Date.now() - t0) / 1000, text: t });
   const wait = (ms) => p.waitForTimeout(ms);
+  // 先にフィードを開いておく（S5で即スクロールできるように）
+  await f.evaluate(() => { document.querySelector('[data-tab="feed"]').click(); }); await wait(2500);
+  await f.evaluate(() => window.scrollTo(0, 0));
 
-  cap('S1 title'); await p.evaluate(() => Stage.show('s-title', false)); await wait(4500);
-  cap('S2 hook'); await p.evaluate(() => Stage.show('s-hook', false)); await wait(6500);
-
-  cap('S3 register'); await p.evaluate(() => Stage.show('s-reg', true));
-  await f.evaluate(() => App.switchTab('register')); await wait(1600);
-  await f.click('#f-shop-name'); await f.type('#f-shop-name', '焼鳥 とり匠 別邸', { delay: 130 }); await wait(900);
-  const stars = await f.$$('#f-rating button');
-  if (stars.length >= 5) {
-    const b4 = await stars[3].boundingBox(); if (b4) await p.mouse.click(b4.x + b4.width * 0.75, b4.y + b4.height / 2);
-    await wait(900);
-    const b5 = await stars[4].boundingBox(); if (b5) await p.mouse.click(b5.x + b5.width * 0.25, b5.y + b5.height / 2);
-  }
-  await wait(3800);
-
-  cap('S4 album'); await p.evaluate(() => Stage.show('s-album', true));
-  await f.evaluate(() => App.switchTab('profile')); await wait(2000);
-  await f.evaluate(() => { const sc = [document.scrollingElement, document.querySelector('main')].find(el => el && el.scrollHeight > el.clientHeight + 40); if (sc) sc.scrollBy({ top: 160, behavior: 'smooth' }); }); await wait(1200);
-  await f.evaluate(() => { const c = document.querySelectorAll('#pf-photo-grid .ppc')[7]; if (c) c.click(); }); await wait(3800);
-  await f.evaluate(() => { const sc = document.querySelector('.shopfeed-modal .vl-body'); if (sc) sc.scrollBy({ top: 300, behavior: 'smooth' }); }); await wait(2600);
-  await f.evaluate(() => { const m = document.querySelector('.shopfeed-modal'); if (m) m.remove(); }); await wait(900);
-
-  cap('S5 map'); await p.evaluate(() => Stage.show('s-map', false)); await wait(11000);
-
-  cap('S6 sns'); await p.evaluate(() => Stage.show('s-sns', true));
-  await f.evaluate(() => { document.querySelector('[data-tab="feed"]').click(); }); await wait(2800);
+  cap('S1'); await p.evaluate(() => Stage.show('s1', false)); await wait(4000);
+  cap('S2'); await p.evaluate(() => Stage.show('s2', false)); await wait(4500);
+  cap('S3'); await p.evaluate(() => Stage.show('s3', false)); await wait(5500);
+  cap('S4'); await p.evaluate(() => Stage.show('s4', false)); await wait(7000);
+  cap('S5'); await p.evaluate(() => Stage.show('s5', true));
+  await wait(1200);
   await f.evaluate(() => {
     const cands = [document.scrollingElement, document.querySelector('main'), document.querySelector('#feed-list')];
     const sc = cands.find(el => el && el.scrollHeight > el.clientHeight + 40) || document.scrollingElement;
-    let i = 0; const iv = setInterval(() => { sc.scrollBy(0, 14); if (++i > 90) clearInterval(iv); }, 60);
+    let i = 0; const iv = setInterval(() => { sc.scrollBy(0, 14); if (++i > 95) clearInterval(iv); }, 60);
   });
-  await wait(8700);
-
-  cap('S7 outro'); await p.evaluate(() => Stage.show('s-outro', false)); await wait(8000);
+  await wait(6800);
+  cap('S6'); await p.evaluate(() => Stage.show('s6', false)); await wait(7000);
+  cap('S7'); await p.evaluate(() => Stage.show('s7', false)); await wait(8000);
+  cap('S8'); await p.evaluate(() => Stage.show('s8', false)); await wait(8000);
+  cap('S9'); await p.evaluate(() => Stage.show('s9', false)); await wait(5000);
+  cap('S10'); await p.evaluate(() => Stage.show('s10', false)); await wait(6000);
 
   marks.total = (Date.now() - t0) / 1000;
   fs.writeFileSync(OUT + '/marks.json', JSON.stringify(marks, null, 2));
