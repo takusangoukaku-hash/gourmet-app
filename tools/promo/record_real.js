@@ -13,6 +13,8 @@ const BASE = process.argv[3] || 'http://localhost:5960';
   await p.route(/nominatim|photon|overpass/, r => r.fulfill({ json: [] }));
   await p.goto(BASE + '/promo5.html');
   await p.waitForTimeout(1200);
+  // S1 は読み込み時点で表示済みなので一旦隠し、本番の Stage.show('s1') でフェードインさせる
+  await p.evaluate(() => document.getElementById('s1').classList.remove('active'));
   const appFrame = () => p.frames().find(f => f.url().endsWith('/index.html') || /:\d+\/$/.test(f.url()));
   let f = appFrame();
   await f.waitForSelector('.tabs', { timeout: 15000 }).catch(() => {});
@@ -49,7 +51,7 @@ const BASE = process.argv[3] || 'http://localhost:5960';
   await f.evaluate(() => { document.querySelector('[data-tab="feed"]').click(); }); await wait(2500);
   await f.evaluate(() => window.scrollTo(0, 0));
 
-  cap('S1'); await p.evaluate(() => Stage.show('s1', false)); await wait(4000);
+  cap('S1'); await p.evaluate(() => Stage.show('s1', false)); await wait(6500);
   cap('S2'); await p.evaluate(() => Stage.show('s2', false)); await wait(4500);
   cap('S3'); await p.evaluate(() => Stage.show('s3', false)); await wait(5500);
   cap('S4'); await p.evaluate(() => Stage.show('s4', false)); await wait(7000);

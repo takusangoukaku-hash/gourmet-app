@@ -2,6 +2,7 @@ const pptxgen = require('pptxgenjs');
 const SHOT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/final/shots/';
 const REALSHOT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/real/shots/';
 const REPO = '/home/user/gourmet-app/';
+const SP_FINAL = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/final/';
 const pres = new pptxgen();
 pres.layout = 'LAYOUT_WIDE'; // 13.33 x 7.5
 pres.lang = 'ja-JP';
@@ -142,8 +143,11 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   header(s, '実機デモ ― 実際に使っている画面と実データ（74秒）', 'DEMO');
   const fs = require('fs');
   const REAL = process.env.DEMO_EMBED || '/home/user/gourmet-app/tools/final/real_demo.mp4';
-  if (fs.existsSync(REAL)) {
+  if (fs.existsSync(REAL) && !process.env.NOVIDEO) {
     s.addMedia({ type: 'video', path: REAL, x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
+  } else if (process.env.NOVIDEO) {
+    s.addImage({ path: SP_FINAL + 'demo_poster.jpg', x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
+    s.addText('▶ 実機デモ動画（74秒）― PDF版では静止画。動画は .pptx で再生', { x: 1.87, y: 6.35, w: 9.6, h: 0.3, fontFace: F, fontSize: 10, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } });
   } else {
     s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 1.87, y: 1.55, w: 9.6, h: 5.0, fill: { color: 'FBF8F3' }, line: { color: C.terra, width: 1.5, dashType: 'dash' }, rectRadius: 0.15 });
     s.addText('▶', { x: 1.87, y: 2.4, w: 9.6, h: 1.0, fontFace: F, fontSize: 54, color: C.terra, align: 'center', isTextBox: true, margin: 0 });
@@ -159,41 +163,36 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
 {
   const s = pres.addSlide(); s.background = { color: C.white };
   header(s, 'AIの使い方 ― つくるも、つかうもAI。決めるのは人', '審査観点 ①②③ AI活用の目的と方法／プロンプト設計／人の判断');
+  // 上段：開発ループ（横4段）＋ 回転数
+  card(s, 0.6, 1.6, 12.13, 1.75, { fill: 'FBF8F3', noShadow: true });
+  s.addText('開発ループ', { x: 0.85, y: 1.72, w: 2.5, h: 0.3, fontFace: F, fontSize: 11, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  const steps = [['人', '要望を言葉・画像で伝える', C.soft, C.terra], ['AI', '実装＋自動テスト', 'EEF3FB', '2F5D8A'], ['AI', 'コミット＆本番デプロイ', 'EEF3FB', '2F5D8A'], ['人', '実機で検証→採否を決める', C.soft, C.terra]];
+  steps.forEach((st, i) => {
+    const x = 0.85 + i * 2.25;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: 2.1, w: 2.0, h: 1.0, fill: { color: st[2] }, line: { color: st[2], width: 0 }, rectRadius: 0.1 });
+    s.addText(st[0], { x, y: 2.16, w: 2.0, h: 0.3, fontFace: F, fontSize: 11, bold: true, color: st[3], align: 'center', isTextBox: true, margin: 0 });
+    s.addText(st[1], { x: x + 0.08, y: 2.46, w: 1.84, h: 0.6, fontFace: F, fontSize: 11, color: C.ink, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
+    if (i < 3) arrow(s, x + 2.02, 2.45, 0.2);
+  });
+  s.addText('295', { x: 9.85, y: 1.7, w: 1.75, h: 1.0, fontFace: F, fontSize: 54, bold: true, color: C.terra, align: 'right', isTextBox: true, margin: 0, valign: 'middle' });
+  s.addText('回転', { x: 11.62, y: 1.95, w: 0.9, h: 0.6, fontFace: F, fontSize: 20, bold: true, color: C.terra, isTextBox: true, margin: 0, valign: 'middle' });
+  s.addText('コードは全量AI実装（Claude Code）\n人は要望・検証・採否だけ', { x: 9.85, y: 2.7, w: 2.7, h: 0.6, fontFace: F, fontSize: 10, color: C.muted, align: 'right', isTextBox: true, margin: 0 });
+  // 下段：①②③ 各3点
   const colX = [0.6, 4.72, 8.84], W = 3.9;
-  const heads = [['①', '目的と方法'], ['②', 'プロンプト設計'], ['③', '人の判断・修正']];
-  heads.forEach((h, i) => {
-    card(s, colX[i], 1.65, W, 5.25);
-    numCircle(s, colX[i] + 0.22, 1.85, h[0], 0.4);
-    s.addText(h[1], { x: colX[i] + 0.72, y: 1.83, w: 3.0, h: 0.44, fontFace: F, fontSize: 16, bold: true, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
+  const cols = [
+    ['①', '目的と方法', ['実装はAIに全量任せ、人は「判断の回数」を最大化する', 'アプリ内：料理写真を Claude API で 70+ ジャンルに自動判定', '迷ったら空欄にして人が選ぶ。キー未設定でも地図タグ推定で動く']],
+    ['②', 'プロンプト設計', ['守るルールは CLAUDE.md に明文化し、全会話で共有（版番号4箇所・共通部品・日付非表示）', '要望は「現象」で伝える：「タップすると少し前の投稿が出る」。原因特定はAIに任せる', 'アプリ内の分類器は enum 一覧・confident フラグ・JSON Schema で縛り、幻覚を出さない']],
+    ['③', '人の判断・修正', ['写真一覧の2列化：実機で「一覧性が落ちた」→ 3版分を差し戻し', '味覚一致率：偶然の一致を防ぐ「共通5件未満は非表示」を人が定義', 'AIの「直りました」を実機で差し戻し、計測で本当の原因を特定させた（次ページ）']],
+  ];
+  cols.forEach((c, i) => {
+    card(s, colX[i], 3.55, W, 2.95);
+    numCircle(s, colX[i] + 0.22, 3.75, c[0], 0.4);
+    s.addText(c[1], { x: colX[i] + 0.72, y: 3.73, w: 3.0, h: 0.44, fontFace: F, fontSize: 16, bold: true, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
+    bullets(s, c[2], colX[i] + 0.22, 4.3, 3.5, 2.1, 12);
   });
-  // ① 開発ループ（縦4段）＋アプリ内AI
-  const steps = [['人', '要望を日本語・画像で伝える', C.soft, C.terra], ['AI', '実装＋自動テスト（Playwright）', 'EEF3FB', '2F5D8A'], ['AI', 'コミット＆本番デプロイ', 'EEF3FB', '2F5D8A'], ['人', '実機で検証 → 採用／差し戻し', C.soft, C.terra]];
-  steps.forEach((st, k) => {
-    const y = 2.45 + k * 0.62;
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: colX[0] + 0.22, y, w: 3.45, h: 0.5, fill: { color: st[2] }, line: { color: st[2], width: 0 }, rectRadius: 0.1 });
-    s.addText(st[0], { x: colX[0] + 0.3, y, w: 0.45, h: 0.5, fontFace: F, fontSize: 11, bold: true, color: st[3], align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
-    s.addText(st[1], { x: colX[0] + 0.78, y, w: 2.85, h: 0.5, fontFace: F, fontSize: 10.5, color: C.ink, valign: 'middle', isTextBox: true, margin: 0 });
-    if (k < 3) s.addText('▼', { x: colX[0] + 1.85, y: y + 0.46, w: 0.3, h: 0.2, fontSize: 8, color: 'C9BFB2', align: 'center', isTextBox: true, margin: 0 });
-  });
-  rich(s, [{ text: '開発：', options: { bold: true, color: C.terra } }, 'コードは全量AI実装（Claude Code）。人は要望・検証・採否に専念。このループを ', { text: '295回転', options: { bold: true, color: C.terra } }, '。'], colX[0] + 0.22, 5.0, 3.45, 0.75, 10.5);
-  rich(s, [{ text: 'アプリ内：', options: { bold: true, color: C.terra } }, '料理写真を Claude API（画像入力）で70+ジャンルに自動判定。迷ったら空欄にして人が選ぶ。キー未設定でも地図タグ推定で動く。'], colX[0] + 0.22, 5.75, 3.45, 1.05, 10.5);
-  // ② プロンプト設計 3層
-  const p2 = [['CLAUDE.md にルールを明文化', '「変更のたびに4箇所のバージョンを揃える」「星は共通SVG部品」「他人の投稿に日付を出さない」など、毎回守る決め事を文書化して全会話で共有'], ['要望は「現象」で伝える', '例：「写真一覧をタップすると少し前の投稿が出るので直して」。原因の特定はAIに任せ、人はコードを読まない。デザインは文章より画像で渡す'], ['アプリ内の分類器は「制約」で縛る', 'ジャンルは enum で一覧に固定（幻覚を出さない）／自信がなければ confident=false で空欄／JSON Schema で構造化出力']];
-  p2.forEach((t, k) => {
-    const y = 2.45 + k * 1.45;
-    s.addText(t[0], { x: colX[1] + 0.22, y, w: 3.45, h: 0.32, fontFace: F, fontSize: 11.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
-    s.addText(t[1], { x: colX[1] + 0.22, y: y + 0.34, w: 3.45, h: 1.05, fontFace: F, fontSize: 10, color: C.ink, isTextBox: true, margin: 0, valign: 'top' });
-  });
-  // ③ 人の判断 Before→After 3例
-  const p3 = [['写真一覧の2列化', 'AIが提案・実装（v278〜280）', '実機で「一覧性が落ちた」→3版分を差し戻し'], ['ジャンルアイコン', 'AIがSVGで71種を自作', '絵柄が不統一で不採用→手持ちイラストから切り出し'], ['味覚一致率の表示', '共通2〜3店でも計算', '偶然の一致を防ぐ「5件未満は非表示」を人が定義'], ['スクロールの修正', '1回目の修正で「直った」と報告', '「まだ滑らかでない」と差し戻し→計測で原因特定させ方式変更']];
-  p3.forEach((t, k) => {
-    const y = 2.45 + k * 1.02;
-    s.addText(t[0], { x: colX[2] + 0.22, y, w: 3.45, h: 0.28, fontFace: F, fontSize: 11, bold: true, color: C.ink, isTextBox: true, margin: 0 });
-    s.addText([{ text: 'AI ', options: { bold: true, color: '2F5D8A' } }, { text: t[1], options: { color: C.muted } }, { text: '\n人 ', options: { bold: true, color: C.terra } }, { text: t[2], options: { color: C.ink } }], { x: colX[2] + 0.22, y: y + 0.28, w: 3.45, h: 0.72, fontFace: F, fontSize: 9.5, isTextBox: true, margin: 0, valign: 'top' });
-  });
-  s.addText('原則：AIの出力は「提案」。採否は必ず実機で触って決める', { x: colX[2] + 0.22, y: 6.5, w: 3.45, h: 0.32, fontFace: F, fontSize: 10, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  s.addText('原則：AIの出力は「提案」。採否は必ず実機で触って決める', { x: 0.6, y: 6.62, w: 12.1, h: 0.32, fontFace: F, fontSize: 11, bold: true, color: C.terra, isTextBox: true, margin: 0, align: 'right' });
   foot(s, 6);
-  s.addNotes('【0:50】AIの使い方を1枚で。①開発はClaude Codeにコードを全量書かせ、人は要望・検証・採否に専念。このループを295回。アプリ内では写真のジャンル判定にClaude APIを使い、迷ったら人が選ぶ。②プロンプトは3層：ルールはCLAUDE.mdに、要望は現象で、判定は制約で。③人の判断の代表例：2列UIの差し戻し、SVGアイコン不採用、信頼度ルール、スクロール修正の差し戻し。原則は、AIの出力は提案、採否は実機で決める。詳細は補足スライドに。');
+  s.addNotes('【0:50】AIの使い方を1枚で。上が開発ループ。要望を伝える→AIが実装と自動テスト→デプロイ→人が実機で検証して採否。これを295回。①目的は、実装をAIに任せて人の判断の回数を最大化すること。アプリ内でも写真のジャンル判定にAIを使い、迷ったら人が選ぶ。②プロンプトは、ルールは文書に、要望は現象で、判定は制約で。③人の判断の代表例が3つ。特に3つ目、AIが直ったと言っても人が触るまで直っていない、これを次で。詳細は補足スライドに。');
 }
 function appendixAI1() {
   const s = pres.addSlide(); s.background = { color: C.white };
@@ -209,7 +208,7 @@ function appendixAI1() {
     s.addText(st[1], { x: x + 0.05, y: 2.78, w: 1.45, h: 0.8, fontFace: F, fontSize: 10.5, color: C.ink, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
     if (i < 3) arrow(s, x + 1.57, 2.85, 0.24);
   });
-  rich(s, [{ text: 'このループを ', options: {} }, { text: '295回転', options: { bold: true, color: C.terra } }, { text: '（v1〜v295）。仕様書・デザイン案は画像のまま渡し、守るべき決め事は ', options: {} }, { text: 'CLAUDE.md', options: { bold: true } }, { text: ' に明文化して全会話で共有。', options: {} }], 0.85, 3.85, 7.1, 0.75, 12);
+  rich(s, [{ text: 'このループを毎日回した', options: { bold: true, color: C.terra } }, { text: '。仕様書・デザイン案は画像のまま渡し、守るべき決め事は ', options: {} }, { text: 'CLAUDE.md', options: { bold: true } }, { text: ' に明文化して全会話で共有。', options: {} }], 0.85, 3.85, 7.1, 0.75, 12);
   bullets(s, ['目的：実装速度ではなく「判断の回数」を最大化する。1日で十数回、実機で試して直す', '人の役割：要望・検証・採否の決定。AIの役割：実装・テスト・デプロイ・原因調査', '自動テスト（Playwright）で回帰を防ぎ、本番デプロイまでAIが完結'], 0.85, 4.7, 7.1, 2.0, 12);
   // 右: アプリ内AI
   card(s, 8.45, 1.65, 4.28, 5.2);
@@ -222,8 +221,8 @@ function appendixAI1() {
     s.addText(c[1], { x: 9.32, y: y - 0.02, w: 3.3, h: 0.56, fontFace: F, fontSize: 11.5, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
   });
   rich(s, [{ text: '目的：', options: { bold: true, color: C.terra } }, '記録の手間を「店名と★だけ」に減らす。AIは提案役、決定は利用者。判定は利用者自身のAPIキーで実行。'], 8.7, 5.75, 3.85, 1.0, 11.5);
-  foot(s, 12);
-  s.addNotes('【0:45】AIは2か所。開発ではClaude Codeにコードを全量書かせ、人は要望・検証・採否に専念。このループを295回。アプリ内では写真のジャンル判定にClaude APIを使い、自信がなければ空欄にして人が選ぶ。AIは提案役、決定は人、が一貫した方針です。');
+  foot(s, 13);
+  s.addNotes('【0:45】AIは2か所。開発ではClaude Codeにコードを全量書かせ、人は要望・検証・採否に専念。アプリ内では写真のジャンル判定にClaude APIを使い、自信がなければ空欄にして人が選ぶ。AIは提案役、決定は人、が一貫した方針です。');
 }
 
 function appendixAI2() {
@@ -251,7 +250,7 @@ function appendixAI2() {
     s.addText(t[0], { x: 7.3, y, w: 1.55, h: 0.5, fontFace: F, fontSize: 10.5, bold: true, color: C.terra, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
     s.addText(t[1], { x: 8.95, y, w: 3.55, h: 0.5, fontFace: F, fontSize: 10.5, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
   });
-  foot(s, 13);
+  foot(s, 14);
   s.addNotes('【0:50】プロンプト設計は3層。①CLAUDE.mdに毎回守るルールを明文化し、会話をまたいで共有。②要望は現象ベースで伝え、原因特定はAIに任せる。実物のプロンプトはこの3つ。③アプリ内の分類器はenum制約とconfidentフラグ、JSONスキーマ出力で、幻覚を出さず、迷ったら人に委ねる設計。');
 }
 
@@ -269,81 +268,150 @@ function appendixAI3() {
   s.addTable(rows.map((r, ri) => r.map((c, ci) => ({ text: c, options: { bold: ri === 0 || ci === 0, color: ri === 0 ? C.white : (ci === 2 ? C.dark : C.ink), fill: { color: ri === 0 ? C.terra : (ci === 2 ? C.soft : C.white) }, fontFace: F, fontSize: ri === 0 ? 12 : 11, valign: 'middle' } }))),
     { x: 0.6, y: 1.65, w: 12.13, colW: [2.1, 4.4, 5.63], rowH: [0.42, 0.78, 0.78, 0.78, 0.78, 0.9], border: { type: 'solid', color: C.line, pt: 0.75 } });
   rich(s, [{ text: '共通する原則：', options: { bold: true, color: C.terra } }, 'AIの出力は「提案」。採否は必ず実機で触って決める。品質の基準（一覧性・絵柄の統一・信頼度）は人が言葉にして渡す。'], 0.6, 6.4, 12.1, 0.5, 12.5);
-  foot(s, 14);
+  foot(s, 15);
   s.addNotes('【0:50】AIの提案をそのまま採用しなかった代表例。写真一覧の2列化は一覧性が落ちて3バージョン差し戻し。SVGアイコンは絵柄が不統一で不採用。一致率の信頼度ルールは人が定義。ジャンル判定は所有権ルール。最後は決勝までに起きた例で、1回目の修正を「まだ滑らかでない」と差し戻し、計測で原因を特定させました。共通原則は、AIの出力は提案、採否は実機で決める。');
 }
 
-// ================= 9. 予選からの改善 =================
+// ================= 7. 予選からの改良 =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '予選からの改善（v289 → v295）― 実利用で見つけた5点', '予選後の改良');
-  const items = [
-    ['v290', '写真一覧から開いた投稿がズレる不具合を修正', '検索の写真一覧をタップすると「少し前の投稿」が表示された。写真の非同期読み込みで高さが後から伸び、位置補正が切り詰められていたのが原因。「基準の投稿を画面上端に固定する」方式に変更'],
-    ['v291', '投稿詳細のスクロールを滑らかに', 'v290の方式だと慣性スクロール中に補正が割り込んで止まる。写真の高さが確定してから継ぎ足し、操作中は補正しない設計に'],
-    ['v292', '味の評価を0.5刻みでスマホでも確実に', '「左半分タップで.5」は26pxの星では狙えなかった。星を36pxに拡大、なぞって選択、同じ星の再タップで .5 切替、数値表示を追加'],
-    ['v293', '他人の投稿の日付を全画面で非表示', 'ホームのカードと店舗シートに残っていた相対時刻を廃止。プライバシー配慮を全画面で統一'],
-  ];
-  // 5件目（v294-295）は下の帯で紹介
-  items.forEach((it, i) => {
-    const x = 0.6 + (i % 2) * 6.15, y = 1.65 + Math.floor(i / 2) * 2.2;
-    card(s, x, y, 5.98, 2.0);
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: x + 0.22, y: y + 0.2, w: 0.85, h: 0.36, fill: { color: C.terra }, line: { color: C.terra, width: 0 }, rectRadius: 0.18 });
-    s.addText(it[0], { x: x + 0.22, y: y + 0.2, w: 0.85, h: 0.36, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
-    s.addText(it[1], { x: x + 1.2, y: y + 0.18, w: 4.6, h: 0.4, fontFace: F, fontSize: 13.5, bold: true, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
-    s.addText(it[2], { x: x + 0.22, y: y + 0.7, w: 5.5, h: 1.2, fontFace: F, fontSize: 11, color: C.muted, isTextBox: true, margin: 0, valign: 'top' });
+  header(s, 'AIは「直った」と言った。人が触ると、直っていなかった。', '予選後の改良 ｜ 実利用で見つけた課題を、同じループで');
+  // 上段：エピソード（v290→v291）
+  card(s, 0.6, 1.6, 12.13, 1.85, { fill: '2B2825', line: '2B2825', noShadow: true });
+  s.addText('投稿詳細のスクロールが、途中で止まる', { x: 0.85, y: 1.7, w: 6, h: 0.35, fontFace: F, fontSize: 12, bold: true, color: 'FFD75E', isTextBox: true, margin: 0 });
+  const ep = [['AI', '1回目の修正\n「直りました」', '2F5D8A', 'EEF3FB'], ['人', '実機で確認\n「まだ滑らかでない」→差し戻し', C.terra, C.soft], ['AI', '計測させて原因を特定\n（位置補正の切り詰め）', '2F5D8A', 'EEF3FB'], ['人', '方式変更を実機で検証\n→ 採用', C.terra, C.soft]];
+  ep.forEach((e, i) => {
+    const x = 0.85 + i * 3.0;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: 2.15, w: 2.7, h: 1.15, fill: { color: e[3] }, line: { color: e[3], width: 0 }, rectRadius: 0.1 });
+    s.addText(e[0], { x: x + 0.1, y: 2.2, w: 0.45, h: 0.3, fontFace: F, fontSize: 10.5, bold: true, color: e[2], isTextBox: true, margin: 0 });
+    s.addText(e[1], { x: x + 0.12, y: 2.5, w: 2.5, h: 0.78, fontFace: F, fontSize: 11, color: C.ink, isTextBox: true, margin: 0, valign: 'top' });
+    if (i < 3) s.addText('▶', { x: x + 2.72, y: 2.55, w: 0.28, h: 0.35, fontSize: 12, color: 'FFD75E', align: 'center', isTextBox: true, margin: 0 });
   });
-  card(s, 0.6, 6.05, 12.13, 0.85, { fill: C.soft, line: 'EFD3C6', noShadow: true });
-  rich(s, [{ text: 'v294-295 写真込みバックアップ：', options: { bold: true, color: C.terra } }, 'クラウド保存の写真も端末で取得して同梱し、別端末で写真ごと復元できるように（このデモ動画の実データ再現にも使用）。', { text: '　進め方は予選と同じループ：', options: { bold: true, color: C.terra } }, '日常利用で気づく → 現象を伝える → AIが修正・自動テスト → 実機で検証。'], 0.85, 6.12, 11.7, 0.75, 11.5, { valign: 'middle' });
+  s.addText('AIの報告を鵜呑みにせず、実機で触って判断する', { x: 6.9, y: 1.7, w: 5.6, h: 0.35, fontFace: F, fontSize: 10.5, color: 'F4EFE8', isTextBox: true, margin: 0, align: 'right' });
+  // 下段：Before / After
+  const rows = [
+    ['検索の写真一覧をタップすると「少し前の投稿」が開く', '基準の投稿を画面上端に固定し、写真の高さが後から伸びてもズレない'],
+    ['投稿詳細のスクロールが途中で止まる', '写真の高さが確定してから継ぎ足し、操作中は補正しない'],
+    ['★0.5刻みの入力が、小さな星ではスマホで狙えない', '星を36pxに拡大。なぞって選択、同じ星の再タップで .5、数値表示'],
+    ['他人の投稿の日付が、一部の画面に残っていた', '全画面で非表示に統一（プライバシー配慮）'],
+    ['写真はクラウドにしかなく、端末バックアップに含まれない', '写真込みで書き出し・別端末で復元（本日のデモ用の実データ再現にも使用）'],
+  ];
+  const y0 = 3.62, rh = 0.58;
+  s.addText('Before ― 予選のとき', { x: 0.6, y: y0, w: 5.6, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.gray, isTextBox: true, margin: 0 });
+  s.addText('After ― 決勝のいま', { x: 7.1, y: y0, w: 5.6, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  rows.forEach((r, i) => {
+    const y = y0 + 0.42 + i * rh;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 0.6, y, w: 5.6, h: rh - 0.1, fill: { color: 'F3F1EC' }, line: { color: 'F3F1EC', width: 0 }, rectRadius: 0.08 });
+    s.addText(r[0], { x: 0.75, y, w: 5.35, h: rh - 0.1, fontFace: F, fontSize: 11, color: C.muted, isTextBox: true, margin: 0, valign: 'middle' });
+    arrow(s, 6.4, y + 0.08, 0.5);
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.1, y, w: 5.63, h: rh - 0.1, fill: { color: C.soft }, line: { color: 'EFD3C6', width: 0.75 }, rectRadius: 0.08 });
+    s.addText(r[1], { x: 7.25, y, w: 5.38, h: rh - 0.1, fontFace: F, fontSize: 11, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
+  });
   foot(s, 7);
-  s.addNotes('【0:40】予選後の改善は4点、いずれも実利用で見つけたもの。特にv290→291は、1回目の修正で直ったと報告されたものを実機で差し戻し、計測で本当の原因を特定させた例。進め方は予選と同じループです。');
+  s.addNotes('【0:40】予選のあと1週間、毎日使って見つけた5点を、予選と同じループで直しました。いちばん覚えているのがこれ。スクロールが止まる不具合を、AIは1回目の修正で「直りました」と報告した。でも実機で触ると直っていない。差し戻して、計測させて、本当の原因を特定させ、方式を変えて採用。AIの報告を鵜呑みにせず、実機で判断する。この姿勢が決勝までに日常になりました。');
 }
-// ================= 10. 成果 =================
+// ================= 8. 成果 =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '成果 ― 「動くもの」を実生活で運用中', '審査観点 ⑤ 成果物の完成度');
-  const stats = [['295', 'リリースした\nバージョン数'], ['208', '実運用で登録した\n店舗数'], ['70+', 'AI判定に対応する\n料理ジャンル'], ['1分', '1回の記録にかかる\n時間（目安）']];
-  stats.forEach((st, i) => {
-    const x = 0.6 + i * 2.1;
-    card(s, x, 1.65, 1.95, 1.9, { fill: 'FBF8F3', noShadow: true });
-    s.addText(st[0], { x, y: 1.8, w: 1.95, h: 0.9, fontFace: F, fontSize: 40, bold: true, color: C.terra, align: 'center', isTextBox: true, margin: 0 });
-    s.addText(st[1], { x, y: 2.7, w: 1.95, h: 0.7, fontFace: F, fontSize: 10.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
+  header(s, '成果 ― 毎日の食日記として、実運用中', '審査観点 ⑤ 成果物の完成度');
+  // 主役：208店舗
+  card(s, 0.6, 1.65, 5.3, 2.05, { fill: C.soft, line: 'EFD3C6' });
+  s.addText('208', { x: 0.8, y: 1.7, w: 2.6, h: 1.3, fontFace: F, fontSize: 66, bold: true, color: C.terra, isTextBox: true, margin: 0, valign: 'middle' });
+  s.addText('店舗', { x: 3.35, y: 2.15, w: 1.0, h: 0.6, fontFace: F, fontSize: 22, bold: true, color: C.terra, isTextBox: true, margin: 0, valign: 'middle' });
+  s.addText('制作者自身が本番アプリに登録した実データ（訪問251回・写真242枚）。\n本番公開済み（PWA・URLを開くだけ）。毎日の外食を記録する食日記として使っている', { x: 0.8, y: 2.95, w: 4.9, h: 0.7, fontFace: F, fontSize: 10.5, color: C.ink, isTextBox: true, margin: 0 });
+  [['70+', 'AI判定に対応する\n料理ジャンル'], ['約1分', '1回の記録に\nかかる時間']].forEach((st, i) => {
+    const x = 6.1 + i * 1.6;
+    card(s, x, 1.65, 1.5, 2.05, { fill: 'FBF8F3', noShadow: true });
+    s.addText(st[0], { x, y: 1.8, w: 1.5, h: 0.8, fontFace: F, fontSize: 28, bold: true, color: C.terra, align: 'center', isTextBox: true, margin: 0 });
+    s.addText(st[1], { x, y: 2.65, w: 1.5, h: 0.8, fontFace: F, fontSize: 9.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
   });
-  bullets(s, ['本番公開済み（PWA・URLを開くだけ・インストール不要）。制作者自身が毎日の外食の記録（食日記）として利用', '記録の手間：AIジャンル判定＋位置の自動補完で、手入力は店名と★だけ', 'データは本人のアカウント領域にのみ保存（Firebaseセキュリティルール）。公開は本人が公開した投稿のみ', 'AI判定は利用者自身のAPIキーで実行。最終確認・修正は利用者が行う', 'オフライン起動（Service Worker）・ダークモード・地図クラスタ表示・行きたい店ピン'], 0.6, 3.85, 8.2, 3.0, 12.5);
+  // 記録の Before / After
+  card(s, 0.6, 3.95, 8.6, 2.95);
+  s.addText('記録の手間 ― Before / After', { x: 0.85, y: 4.07, w: 6, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.ink, isTextBox: true, margin: 0 });
+  s.addText('従来の記録アプリ', { x: 0.85, y: 4.5, w: 3.8, h: 0.3, fontFace: F, fontSize: 11, bold: true, color: C.gray, isTextBox: true, margin: 0 });
+  const chips = ['店名', '住所', 'ジャンル', '料理', '日時', '写真', '評価'];
+  chips.forEach((c, i) => {
+    const x = 0.85 + (i % 4) * 0.95, y = 4.85 + Math.floor(i / 4) * 0.5;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: 0.85, h: 0.38, fill: { color: 'F3F1EC' }, line: { color: 'DDD6CB', width: 0.75 }, rectRadius: 0.19 });
+    s.addText(c, { x, y, w: 0.85, h: 0.38, fontFace: F, fontSize: 10.5, color: C.muted, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+  });
+  s.addText('7項目を手入力 → 続かない', { x: 0.85, y: 5.95, w: 3.8, h: 0.35, fontFace: F, fontSize: 11.5, bold: true, color: C.gray, isTextBox: true, margin: 0 });
+  arrow(s, 4.75, 5.05, 0.55);
+  s.addText('BITEMAP', { x: 5.5, y: 4.5, w: 3.5, h: 0.3, fontFace: F, fontSize: 11, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 5.5, y: 4.85, w: 1.35, h: 0.88, fill: { color: C.soft }, line: { color: 'EFD3C6', width: 0.75 }, rectRadius: 0.12 });
+  s.addText('📷 写真', { x: 5.5, y: 4.85, w: 1.35, h: 0.88, fontFace: F, fontSize: 14, bold: true, color: C.dark, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+  s.addText('＋', { x: 6.85, y: 4.85, w: 0.4, h: 0.88, fontFace: F, fontSize: 18, bold: true, color: C.terra, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.25, y: 4.85, w: 1.7, h: 0.88, fill: { color: C.soft }, line: { color: 'EFD3C6', width: 0.75 }, rectRadius: 0.12 });
+  s.addText('★ 評価 ＋ 店名', { x: 7.25, y: 4.85, w: 1.7, h: 0.88, fontFace: F, fontSize: 14, bold: true, color: C.dark, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+  s.addText('約1分。場所は写真の位置情報から、ジャンルはAIが判定、日時は写真から', { x: 5.5, y: 5.85, w: 3.55, h: 0.6, fontFace: F, fontSize: 10.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  s.addText('データは本人のアカウント領域のみに保存（Firebaseルール）／AI判定は利用者自身のキーで実行／オフライン起動・ダークモード・地図クラスタ', { x: 0.85, y: 6.45, w: 8.1, h: 0.4, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0 });
   shot(s, 'stats.png', 9.55, 1.65, 5.2, true);
-  s.addText('統計画面（実データ）：208店舗・251訪問・242枚', { x: 8.9, y: 6.9, w: 4.4, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
+  s.addText('ふりかえり画面（画面・動画は★3以上のみ：190店舗）', { x: 8.9, y: 6.9, w: 3.3, h: 0.3, fontFace: F, fontSize: 8.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
   foot(s, 8);
-  s.addNotes('【0:25】数字で。295バージョン、実運用で208店舗、70以上のジャンル、1回の記録は1分。本番公開済みで、制作者が毎日使っています。個人情報は本人の領域にのみ保存。');
+  s.addNotes('【0:25】成果。いちばん大事な数字は208店舗。デモ用のダミーではなく、私が本番アプリに毎日記録してきた実データです。記録の手間はここまで下がりました。従来は店名・住所・ジャンル・料理・日時・写真・評価の7項目。BITEMAPは写真と★と店名だけ、約1分。だから続く。');
 }
-// ================= 11. オリジナリティ・今後 =================
+// ================= 9. オリジナリティ =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, 'オリジナリティと、これから', '審査観点 ④ テーマのオリジナリティ');
-  const cols = [
-    ['オリジナリティ', C.terra, ['「平均点」ではなく、個人の味覚をデータ化して評価を並び替える切り口', '記録のハードルをAIで「店名と★だけ」まで下げ、データが自然にたまる設計', '295バージョンのAI協働開発プロセスの記録そのものも成果物']],
-    ['今後の展開', '2F5D8A', ['おすすめをフォロー外へ拡大し、「味覚の近い人」を発見できる場に', '記録に応じたバッジ・コレクションで継続を後押し', '「次に行くべき店」をAIが提案（味覚一致率×未訪問店×現在地）']],
-    ['課題（正直に）', C.gray, ['店舗検索の Google Places API とクラウドは利用量に応じて課金。多人数への一般公開はコスト面の壁があり、当面は利用者自身のキー＋無料の OpenStreetMap 検索で運用', '一致率の精度向上には共通店数が必要。初期ユーザー同士をつなぐ仕組みづくり', 'AI判定の誤りの継続観測と、判定根拠の可視化']],
-  ];
-  cols.forEach((c, i) => {
-    const x = 0.6 + i * 4.12;
-    card(s, x, 1.65, 3.9, 3.15);
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: x + 0.25, y: 1.9, w: 2.2, h: 0.42, fill: { color: c[1] }, line: { color: c[1], width: 0 }, rectRadius: 0.21 });
-    s.addText(c[0], { x: x + 0.25, y: 1.9, w: 2.2, h: 0.42, fontFace: F, fontSize: 13, bold: true, color: C.white, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
-    bullets(s, c[2], x + 0.25, 2.5, 3.4, 2.2, 12);
+  header(s, 'オリジナリティ ― 情報の流れを、逆にする', '審査観点 ④ テーマのオリジナリティ');
+  const flow = (y, label, nodes, color, fill, lineC) => {
+    s.addText(label, { x: 0.85, y, w: 4, h: 0.3, fontFace: F, fontSize: 11, bold: true, color, isTextBox: true, margin: 0 });
+    const n = nodes.length, gap = 0.45, w = (7.4 - gap * (n - 1)) / n;
+    nodes.forEach((t, i) => {
+      const x = 0.85 + i * (w + gap);
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: y + 0.38, w, h: 0.85, fill: { color: fill }, line: { color: lineC, width: 1 }, rectRadius: 0.1 });
+      s.addText(t, { x: x + 0.05, y: y + 0.38, w: w - 0.1, h: 0.85, fontFace: F, fontSize: 12, bold: true, color, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+      if (i < n - 1) s.addShape(pres.shapes.RIGHT_ARROW, { x: x + w + 0.06, y: y + 0.64, w: gap - 0.12, h: 0.32, fill: { color: lineC }, line: { color: lineC, width: 0 } });
+    });
+  };
+  card(s, 0.6, 1.65, 8.4, 3.2);
+  flow(1.8, '一般的なグルメサイト', ['店', '評価（みんなの平均）', 'あなた'], C.gray, 'F3F1EC', 'DDD6CB');
+  flow(3.2, 'BITEMAP', ['あなたの評価', '味覚が近い人', 'その人の評価', 'まだ行っていない店'], C.dark, C.soft, C.terra);
+  s.addText('評価の主語が「みんな」から「あなた」に変わる。記録するほど、自分の地図が賢くなる', { x: 0.85, y: 4.45, w: 7.9, h: 0.35, fontFace: F, fontSize: 11.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  const orig = [['評価の重み付けを個人化', '「平均点」ではなく、共通店の★の突き合わせから味覚一致率を出し、その値で評価を並び替える'], ['記録が自然にたまる設計', '入力は写真と★だけ。場所・ジャンル・日時はAIと位置情報が埋める。食日記として毎日使うから、比較のためのデータが自然にたまる']];
+  orig.forEach((o, i) => {
+    const x = 0.6 + i * 4.3;
+    card(s, x, 5.05, 4.1, 1.85, { fill: 'FBF8F3', noShadow: true });
+    s.addText(o[0], { x: x + 0.22, y: 5.17, w: 3.7, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.ink, isTextBox: true, margin: 0 });
+    s.addText(o[1], { x: x + 0.22, y: 5.55, w: 3.7, h: 1.25, fontFace: F, fontSize: 12, color: C.muted, isTextBox: true, margin: 0, valign: 'top' });
   });
-  // 開発タイムライン（AI協働開発の記録そのものも成果物）
-  card(s, 0.6, 5.05, 12.13, 1.85, { fill: 'FBF8F3', noShadow: true });
-  s.addText('295回のループの記録 ― プロセスそのものが成果物', { x: 0.85, y: 5.17, w: 8, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.terra, isTextBox: true, margin: 0 });
-  s.addShape(pres.shapes.LINE, { x: 1.3, y: 6.05, w: 10.7, h: 0, line: { color: 'D9CFC2', width: 3 } });
-  const tl = [['v1', '2026/6\n最初の記録機能'], ['v100', '地図・アルバム\nクラウド同期'], ['v200', '味覚一致率\nSNS機能'], ['v289', '8/31 予選提出\nポスター・動画'], ['v295', '決勝\n実利用での改善5件']];
+  card(s, 9.25, 1.65, 3.48, 5.25);
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 9.5, y: 1.9, w: 2.0, h: 0.42, fill: { color: C.gray }, line: { color: C.gray, width: 0 }, rectRadius: 0.21 });
+  s.addText('課題（正直に）', { x: 9.5, y: 1.9, w: 2.0, h: 0.42, fontFace: F, fontSize: 13, bold: true, color: C.white, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+  bullets(s, ['費用：店舗検索の Google Places API とクラウドは利用量課金。多人数への一般公開はコストの壁があり、当面は利用者自身のキー＋無料の OpenStreetMap 検索で運用', '初期の一致率：共通店が少ないうちは出せない。共通5件未満は非表示、自分の評価は一致率100%、一致率が出せない人の評価は弱く（0.15）反映し、1人でも食日記として成立する設計', 'AI判定の誤りの継続観測と、判定根拠の可視化'], 9.5, 2.5, 3.0, 4.3, 11);
+  foot(s, 9);
+  s.addNotes('【0:30】オリジナリティは情報の流れです。一般のサイトは、店の評価の平均があなたに届く。BITEMAPは逆で、あなたの評価から味覚が近い人を見つけ、その人の評価で、まだ行っていない店を選ぶ。評価の主語が「みんな」から「あなた」に変わる。課題は正直に。Google Places やクラウドは使うほど課金され、一般公開にはコストの壁。初期の一致率は共通店が少ないと出せないので、5件未満は非表示、自分の評価を100%として使う設計で、1人でも食日記として成立します。');
+}
+// ================= 10. これから =================
+{
+  const s = pres.addSlide(); s.background = { color: C.white };
+  header(s, 'これから ― 人が増えるほど、あなたの地図は賢くなる', '今後の展開');
+  // 上：ここまで（タイムライン）
+  card(s, 0.6, 1.6, 12.13, 1.75, { fill: 'FBF8F3', noShadow: true });
+  s.addText('ここまで ― 295回のループの記録', { x: 0.85, y: 1.7, w: 8, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  s.addShape(pres.shapes.LINE, { x: 1.3, y: 2.55, w: 10.7, h: 0, line: { color: 'D9CFC2', width: 3 } });
+  const tl = [['v1', '2026/6\n最初の記録機能'], ['v100', '地図・アルバム\nクラウド同期'], ['v200', '味覚一致率\nSNS機能'], ['v289', '8/31 予選提出\nポスター・動画'], ['v295', '決勝\n実利用での改良5点']];
   tl.forEach((t, i) => {
     const cx = 1.3 + i * 2.675;
     const last = i === tl.length - 1;
-    s.addShape(pres.shapes.OVAL, { x: cx - 0.17, y: 5.88, w: 0.34, h: 0.34, fill: { color: last ? C.terra : C.white }, line: { color: C.terra, width: 2 } });
-    s.addText(t[0], { x: cx - 0.8, y: 5.5, w: 1.6, h: 0.32, fontFace: F, fontSize: 11.5, bold: true, color: C.dark, align: 'center', isTextBox: true, margin: 0 });
-    s.addText(t[1], { x: cx - 1.1, y: 6.28, w: 2.2, h: 0.55, fontFace: F, fontSize: 9.5, color: C.muted, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
+    s.addShape(pres.shapes.OVAL, { x: cx - 0.17, y: 2.38, w: 0.34, h: 0.34, fill: { color: last ? C.terra : C.white }, line: { color: C.terra, width: 2 } });
+    s.addText(t[0], { x: cx - 0.8, y: 2.02, w: 1.6, h: 0.32, fontFace: F, fontSize: 11.5, bold: true, color: C.dark, align: 'center', isTextBox: true, margin: 0 });
+    s.addText(t[1], { x: cx - 1.1, y: 2.78, w: 2.2, h: 0.55, fontFace: F, fontSize: 9.5, color: C.muted, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
   });
-  foot(s, 9);
-  s.addNotes('【0:30】オリジナリティは、平均ではなく個人の味覚をデータ化する切り口と、記録のハードルをAIで極限まで下げた設計。今後はフォロー外へのおすすめ拡大と、次に行く店のAI提案。課題は正直に：Google Places API やクラウドは使うほど課金されるため、多人数への一般公開はコストの壁がある。今は利用者自身のキーと無料のOpenStreetMap検索で運用。加えて共通店数の確保とAI判定の根拠可視化。');
+  // 下：これから（ネットワークの成長）
+  s.addText('これから ― 「味覚が近い人」のネットワークを育てる', { x: 0.6, y: 3.55, w: 8, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: '2F5D8A', isTextBox: true, margin: 0 });
+  const grow = [['100人', 0.85, '味覚が近い人が数人見つかる', '共通店5件以上のペアが生まれ、一致率が表示され始める'], ['1,000人', 1.1, 'フォロー外にも「近い人」が現れる', 'おすすめをフォロー外へ拡大。ジャンルごとに近い人が違うことも見えてくる'], ['10,000人', 1.35, '「あなたと似た人が、まだ行っていない店」', '地域ごとに次に行く店をAIが提案（一致率 × 未訪問 × 現在地）']];
+  grow.forEach((g, i) => {
+    const x = 0.6 + i * 4.12, d = g[1];
+    card(s, x, 4.0, 3.9, 2.9);
+    s.addShape(pres.shapes.OVAL, { x: x + (3.9 - d) / 2, y: 5.45 - d, w: d, h: d, fill: { color: i === 2 ? C.terra : (i === 1 ? 'E9A98F' : 'F3D3C6') }, line: { color: C.terra, width: 0 } });
+    s.addText(g[0], { x: x + (3.9 - d) / 2, y: 5.45 - d, w: d, h: d, fontFace: F, fontSize: i === 0 ? 13 : 16, bold: true, color: i === 2 ? C.white : C.dark, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
+    s.addText(g[2], { x: x + 0.2, y: 5.55, w: 3.5, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, align: 'center', isTextBox: true, margin: 0, valign: 'middle' });
+    s.addText(g[3], { x: x + 0.25, y: 5.98, w: 3.4, h: 0.85, fontFace: F, fontSize: 10.5, color: C.muted, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
+    if (i < 2) arrow(s, x + 3.95, 5.1, 0.14);
+  });
+  foot(s, 10);
+  s.addNotes('【0:30】ここまでは295回のループ。これからは人のネットワークです。100人で、味覚が近い人が数人見つかる。1,000人で、フォロー外にも近い人が現れ、おすすめが機能する。10,000人で、「あなたと似た人がまだ行っていない店」を地域ごとに提案できる。人が増えるほど、一人ひとりの地図が賢くなる設計です。');
 }
 // ================= 12. まとめ =================
 {
@@ -351,7 +419,7 @@ function appendixAI3() {
   s.background = { path: SHOT + 'grad.png' };
   s.addText('BITEMAP', { x: 0.7, y: 0.9, w: 8, h: 1.2, fontFace: FS, fontSize: 64, bold: true, color: C.white, isTextBox: true, margin: 0, charSpacing: 4 });
   s.addText('あなたの味覚で、店を選ぶ。', { x: 0.7, y: 2.1, w: 8, h: 0.8, fontFace: F, fontSize: 32, bold: true, color: C.white, isTextBox: true, margin: 0 });
-  const pts = [['1', '自分の食の記録を、AIの手を借りて無理なく続けられる'], ['2', '平均点ではなく、個人の味覚をデータ化して評価を並び替える'], ['3', 'AIは実装と判定、判断は人。295回のループで完成'] ];
+  const pts = [['1', '自分の食の記録を、AIの手を借りて無理なく続けられる'], ['2', '平均点ではなく、個人の味覚をデータ化して評価を並び替える'], ['3', 'AIは実装と判定、判断は人。毎日使えるアプリになった'] ];
   pts.forEach((p, i) => {
     const y = 3.35 + i * 0.85;
     s.addShape(pres.shapes.OVAL, { x: 0.7, y, w: 0.55, h: 0.55, fill: { color: C.white }, line: { color: C.white, width: 0 } });
@@ -360,27 +428,29 @@ function appendixAI3() {
   });
   s.addText('ご清聴ありがとうございました。質疑応答をお願いします。', { x: 0.7, y: 6.3, w: 8, h: 0.5, fontFace: F, fontSize: 14, color: 'FFE9DF', isTextBox: true, margin: 0 });
   shot(s, 'profile.png', 9.75, 0.55, 6.4, true);
-  s.addNotes('【0:20】まとめ3点。平均ではなく個人の味覚。AIは実装と判定、判断は人。295回のループで毎日使えるアプリに。ご清聴ありがとうございました。');
+  s.addNotes('【0:20】まとめ3点。平均ではなく個人の味覚。AIは実装と判定、判断は人。毎日使えるアプリになりました。ご清聴ありがとうございました。');
 }
 // ================= 13. 補足 Q&A =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
   header(s, '補足：想定される質問と回答（質疑応答用）', 'APPENDIX');
   const qa = [
-    ['一致率は何人分のデータで検証した？', '評価傾向を変えたテストデータ（近い／真逆／無関係）で検証し 79%・27% を確認。実ユーザー間の検証は共通店5件以上が集まった段階で行う予定。'],
+    ['ユーザーが少ないと一致率は機能しないのでは？（コールドスタート）', '共通店5件未満では一致率を表示しない。初期は自分の評価を一致率100%として使い、一致率が出せない人の評価は弱く（重み0.15）反映する。だから1人でも「自分の食日記」として成立し、人が増えるほど精度が上がる。'],
+    ['一致率は何人分のデータで検証した？', '評価傾向を変えたテストデータ（近い／真逆／無関係）で検証し 79%・27% を確認。本人の実データでは一致率83%のフォロー相手が1人。実ユーザー間の検証は共通店5件以上が集まった段階で行う。'],
     ['AIの判定が間違ったらどうなる？', '利用者が登録時に必ず確認・修正できる。手動で選んだ後はAIが上書きしない「所有権」ルール。自信のない判定はそもそも空欄。'],
     ['一般公開の予定は？費用は？', 'Google Places・Claude・Firebase は利用量課金のため、多人数に無料公開すると運営費が発生し、現状は難しい。利用者自身のキーで動かし、キー未設定でも無料の OpenStreetMap 検索で使える構成。公開には無料枠内の設計か費用モデルが必要。'],
-    ['なぜ全量AI実装？品質は？', '人は判断に専念し、判断の回数を最大化するため。品質は自動テスト（Playwright）＋毎回の実機検証＋差し戻しで担保。CLAUDE.mdで規約を固定。'],
+    ['なぜ全量AI実装？品質は？', '人は判断に専念し、判断の回数を最大化するため。品質は自動テスト（Playwright）＋毎回の実機検証＋差し戻しで担保。AIの「直りました」も実機で確認してから採用。CLAUDE.mdで規約を固定。'],
     ['既存のグルメサービスとの違いは？', '「平均点」ではなく「自分と味覚が近い人」の評価で並び替える点。評価の主語が「みんな」から「あなた」に変わる。'],
-    ['プライバシーは？', '記録・写真は本人のアカウント領域のみ（Firebaseルール）。公開は本人が公開した投稿のみ。他人の投稿には日付を出さない（v293で全画面統一）。'],
+    ['プライバシーは？', '記録・写真は本人のアカウント領域のみ（Firebaseルール）。公開は本人が公開した投稿のみ。他人の投稿には日付を出さない（全画面で統一）。'],
+    ['一致率の計算はどこで？重くない？', '端末側で計算。共通店の★を突き合わせるだけ（相関0.7＋評価差0.3）なので追加のサーバー費用はなく、フォロー相手が増えても軽い。'],
   ];
   qa.forEach((q, i) => {
-    const x = 0.6 + (i % 2) * 6.15, y = 1.6 + Math.floor(i / 2) * 1.78;
-    card(s, x, y, 5.98, 1.62, { fill: 'FBF8F3', noShadow: true });
-    s.addText('Q. ' + q[0], { x: x + 0.22, y: y + 0.14, w: 5.55, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
-    s.addText(q[1], { x: x + 0.22, y: y + 0.55, w: 5.55, h: 1.0, fontFace: F, fontSize: 10.5, color: C.ink, isTextBox: true, margin: 0, valign: 'top' });
+    const x = 0.6 + (i % 2) * 6.15, y = 1.5 + Math.floor(i / 2) * 1.38;
+    card(s, x, y, 5.98, 1.28, { fill: 'FBF8F3', noShadow: true });
+    s.addText('Q. ' + q[0], { x: x + 0.2, y: y + 0.1, w: 5.6, h: 0.34, fontFace: F, fontSize: 11.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+    s.addText(q[1], { x: x + 0.2, y: y + 0.44, w: 5.6, h: 0.82, fontFace: F, fontSize: 9.5, color: C.ink, isTextBox: true, margin: 0, valign: 'top' });
   });
-  foot(s, 11);
+  foot(s, 12);
   s.addNotes('質疑応答の予備。発表では飛ばす（発表者ツールで参照）。');
 }
 
@@ -388,9 +458,10 @@ function appendixAI3() {
 appendixAI1(); appendixAI2(); appendixAI3();
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '参考：一般向け紹介動画（アニメ＋実演・約1分）', '補足');
-  s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
-  foot(s, 15);
+  header(s, '参考：一般向け紹介動画（アニメ＋実演・約70秒）', '補足');
+  if (!process.env.NOVIDEO) s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
+  else { s.addImage({ path: SP_FINAL + 'intro_poster.jpg', x: 1.87, y: 1.55, w: 9.6, h: 5.4 }); s.addText('▶ 紹介動画（71秒）― PDF版では静止画', { x: 1.87, y: 6.35, w: 9.6, h: 0.3, fontFace: F, fontSize: 10, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } }); }
+  foot(s, 16);
   s.addNotes('質疑で「一般の人にどう伝えるか」と聞かれたときの参考。発表では使わない。');
 }
 pres.writeFile({ fileName: '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/final/BITEMAP_決勝発表.pptx' }).then(f => console.log('written', f));
