@@ -137,27 +137,19 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
   foot(s, 4);
   s.addNotes('【1:00】核心の味覚一致率。共通で行った店の★を突き合わせ、相関と評価差から0〜100%を出します。この79%で他の人の評価を重み付けすると、同じ店が全体では★3.6、あなた向けには★4.5になる。3つの工夫：偶然の一致を防ぐ信頼度ルールは人が定義。検証では近い人79%・真逆27%。地図・ホーム・店舗詳細すべてでこの値を使っています。');
 }
-// ================= 5. 実機デモ =================
+// ================= 5. 実機デモ（動画をスライド全面に） =================
 {
-  const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '実機デモ ― 実際に使っている画面と実データ（74秒）', 'DEMO');
+  const s = pres.addSlide(); s.background = { color: '000000' };
   const fs = require('fs');
   const REAL = process.env.DEMO_EMBED || '/home/user/gourmet-app/tools/final/real_demo.mp4';
   if (fs.existsSync(REAL) && !process.env.NOVIDEO) {
-    s.addMedia({ type: 'video', path: REAL, x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
-  } else if (process.env.NOVIDEO) {
-    s.addImage({ path: SP_FINAL + 'demo_poster.jpg', x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
-    s.addText('▶ 実機デモ動画（74秒）― PDF版では静止画。動画は .pptx で再生', { x: 1.87, y: 6.35, w: 9.6, h: 0.3, fontFace: F, fontSize: 10, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } });
+    // 16:9 の動画をスライド全面（13.33×7.5）に。見出し・注記は発表ノートへ
+    s.addMedia({ type: 'video', path: REAL, x: 0, y: 0, w: 13.333, h: 7.5 });
   } else {
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 1.87, y: 1.55, w: 9.6, h: 5.0, fill: { color: 'FBF8F3' }, line: { color: C.terra, width: 1.5, dashType: 'dash' }, rectRadius: 0.15 });
-    s.addText('▶', { x: 1.87, y: 2.4, w: 9.6, h: 1.0, fontFace: F, fontSize: 54, color: C.terra, align: 'center', isTextBox: true, margin: 0 });
-    s.addText('ここに「実際に使っている画面の録画」を挿入', { x: 1.87, y: 3.45, w: 9.6, h: 0.5, fontFace: F, fontSize: 20, bold: true, color: C.ink, align: 'center', isTextBox: true, margin: 0 });
-    s.addText('PowerPoint: 挿入 → ビデオ → このデバイス… でこの枠の位置に配置（枠は削除）\nおすすめ構成: ①ホーム（味覚一致バッジ・あなた向け評価） ②地図（208店舗のピン→タップで記録） ③お店の記録 の順・合計60秒以内', { x: 2.5, y: 4.1, w: 8.3, h: 1.2, fontFace: F, fontSize: 12.5, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
-    s.addText('録画データを送っていただければ、こちらで埋め込んだ版を作成します（ステータスバー切り抜き・末尾のトリミング込み）', { x: 2.5, y: 5.5, w: 8.3, h: 0.5, fontFace: F, fontSize: 11, color: C.gray, align: 'center', isTextBox: true, margin: 0 });
+    s.addImage({ path: SP_FINAL + 'demo_poster.jpg', x: 0, y: 0, w: 13.333, h: 7.5 });
+    s.addText('▶ 実機デモ動画（74秒・本人アカウントの実データ・★3以上のみ）― PDF版では静止画。動画は .pptx で再生', { x: 0, y: 7.1, w: 13.333, h: 0.4, fontFace: F, fontSize: 11, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } });
   }
-  s.addText('動画は本人アカウントの実データ（表示は★3以上の記録のみ）。予備: https://takusangoukaku-hash.github.io/gourmet-app/', { x: 1.87, y: 6.65, w: 9.6, h: 0.3, fontFace: F, fontSize: 9.5, color: C.gray, isTextBox: true, margin: 0, align: 'center' });
-  foot(s, 5);
-  s.addNotes('【1:15】実機・実データの録画（74秒・表示は★3以上の記録のみ・BGM小音量入り）。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：自分の食日記としての写真グリッド→お店の記録 ③地図：訪問順にピンが1本ずつ増えていく → 渋谷へズーム → ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URLをブラウザで開いて実演。');
+  s.addNotes('【1:15】実機デモ（74秒・スライド全面・クリックで再生開始・BGM小音量入り）。「ここからは実機、実データの動画です。表示は★3以上の記録のみ」と言ってからクリック。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：食日記としての写真グリッド→お店の記録 ③地図：訪問順にピンが1本ずつ増える→渋谷へズーム→ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URL https://takusangoukaku-hash.github.io/gourmet-app/ をブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {
@@ -457,11 +449,9 @@ function appendixAI3() {
 // ================= 補足: 詳細（質疑用） =================
 appendixAI1(); appendixAI2(); appendixAI3();
 {
-  const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, '参考：一般向け紹介動画（アニメ＋実演・約70秒）', '補足');
-  if (!process.env.NOVIDEO) s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 1.87, y: 1.55, w: 9.6, h: 5.4 });
-  else { s.addImage({ path: SP_FINAL + 'intro_poster.jpg', x: 1.87, y: 1.55, w: 9.6, h: 5.4 }); s.addText('▶ 紹介動画（71秒）― PDF版では静止画', { x: 1.87, y: 6.35, w: 9.6, h: 0.3, fontFace: F, fontSize: 10, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } }); }
-  foot(s, 16);
-  s.addNotes('質疑で「一般の人にどう伝えるか」と聞かれたときの参考。発表では使わない。');
+  const s = pres.addSlide(); s.background = { color: '000000' };
+  if (!process.env.NOVIDEO) s.addMedia({ type: 'video', path: process.env.INTRO_EMBED || (REPO + 'promo/bitemap_intro.mp4'), x: 0, y: 0, w: 13.333, h: 7.5 });
+  else { s.addImage({ path: SP_FINAL + 'intro_poster.jpg', x: 0, y: 0, w: 13.333, h: 7.5 }); s.addText('▶ 参考：一般向け紹介動画（71秒）― PDF版では静止画', { x: 0, y: 7.1, w: 13.333, h: 0.4, fontFace: F, fontSize: 11, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } }); }
+  s.addNotes('補足：一般向け紹介動画（71秒・スライド全面・クリックで再生）。質疑で「一般の人にどう伝えるか」と聞かれたときの参考。発表では使わない。');
 }
 pres.writeFile({ fileName: '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755b7f07f/scratchpad/final/BITEMAP_決勝発表.pptx' }).then(f => console.log('written', f));
