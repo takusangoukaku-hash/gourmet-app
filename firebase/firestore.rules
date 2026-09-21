@@ -1,0 +1,110 @@
+// =====================================================
+// Firestore セキュリティルール（推奨版・v296 のコードに対応）
+//  Firebase コンソール → Firestore Database → ルール に貼り付けて公開する。
+//  クライアント（js/cloud.js）が書く値のうち、なりすましや改ざんが可能な項目を
+//  サーバー側で縛る。コードだけでは防げない項目:
+//   - 投稿・コメント・通知の uid / username が本人のものであること
+//   - @ユーザー名の予約が本人しか変更できないこと
+//   - いいねは1人1回・コメントの削除は本人か投稿主のみ
+//   - 公開プロフィールの shopCount が数値であること（文字列が入ると表示側で扱えない）
+// =====================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    // @ユーザー名が本人の予約と一致しているか（usernames/{name}.uid == 自分）
+    function ownsHandle(name) {
+      return name is string && name.matches('^[a-z0-9_]{3,20}$')
+        && exists(/databases/$(db)/documents/usernames/$(name))
+        && get(/databases/$(db)/documents/usernames/$(name)).data.uid == request.auth.uid;
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function avatarOk(a) { return a == '' || (a is string && a.size() < 60000 && a.matches('^data:image/[a-z]+;base64,.*')); }
+
+    // 本人の記録（店・訪問・行きたい・写真メタ・プロフィール・APIキーの控え）
+    match /users/{uid}/{doc=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // 公開投稿（フォロワーのフィード・地図・プロフィールの写真グリッド）
+    match /publicPosts/{postId} {
+      // 共有リンク(?u=)を未ログインでも見せたい場合は `if true` に緩める
+      allow read: if signedIn();
+      allow create, update: if isOwner(request.resource.data.uid)
+        && request.resource.data.id == postId
+        && ownsHandle(request.resource.data.username)
+        && str(request.resource.data.comment, 2000)
+        && str(request.resource.data.shopName, 200)
+        && request.resource.data.rating is number
+        && avatarOk(request.resource.data.avatar);
+      allow delete: if isOwner(resource.data.uid);
+
+      match /likes/{likeUid} {
+        allow read: if signedIn();
+        allow create: if isOwner(likeUid) && request.resource.data.uid == likeUid;
+        allow delete: if isOwner(likeUid);
+      }
+      match /comments/{cid} {
+        allow read: if signedIn();
+        allow create: if isOwner(request.resource.data.uid)
+          && (request.resource.data.username == '' || ownsHandle(request.resource.data.username))
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 300
+          && avatarOk(request.resource.data.avatar);
+        allow update: if false;
+        // 削除できるのはコメントした本人か、投稿主
+        allow delete: if isOwner(resource.data.uid)
+          || isOwner(get(/databases/$(db)/documents/publicPosts/$(postId)).data.uid);
+      }
+    }
+
+    // 公開プロフィール（誰でも読める・本人だけ書ける）
+    match /publicProfiles/{uid} {
+      allow read: if true;
+      allow write: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && ownsHandle(request.resource.data.username)
+        && request.resource.data.shopCount is int
+        && str(request.resource.data.displayName, 50)
+        && str(request.resource.data.bio, 500)
+        && avatarOk(request.resource.data.avatar)
+        && request.resource.data.wishes.size() <= 200;
+    }
+
+    // @ユーザー名の予約（作成は本人、変更・削除は現在の持ち主だけ）
+    match /usernames/{name} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && name.matches('^[a-z0-9_]{3,20}$');
+      allow update: if isOwner(resource.data.uid) && request.resource.data.uid == request.auth.uid;
+      allow delete: if isOwner(resource.data.uid);
+    }
+
+    // フォロー関係（自分の following と、相手側の followers）
+    match /follows/{me}/following/{target} {
+      allow read: if signedIn();
+      allow create: if isOwner(me) && me != target && request.resource.data.uid == target;
+      allow delete: if isOwner(me);
+    }
+    match /followers/{target}/followers/{me} {
+      allow read: if signedIn();
+      allow create: if isOwner(me) && me != target && request.resource.data.uid == me;
+      allow delete: if isOwner(me);
+    }
+
+    // 通知（フォローされたお知らせ）。作成はフォローした本人・1回だけ。既読にできるのは受け取った本人
+    match /notifications/{target}/items/{fromUid} {
+      allow read: if isOwner(target);
+      allow create: if isOwner(fromUid) && fromUid != target
+        && request.resource.data.type == 'follow'
+        && request.resource.data.fromUid == fromUid
+        && request.resource.data.read == false
+        && (request.resource.data.fromUsername == '' || ownsHandle(request.resource.data.fromUsername))
+        && avatarOk(request.resource.data.fromAvatar);
+      allow update: if isOwner(target)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(target) || isOwner(fromUid);
+    }
+  }
+}

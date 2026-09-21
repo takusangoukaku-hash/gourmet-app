@@ -202,7 +202,8 @@ const Register = (() => {
         <div class="dr-body"></div>
       </div>`;
     const body = ov.querySelector('.dr-body');
-    const close = () => ov.remove();
+    const urls = [];
+    const close = () => { ov.remove(); urls.forEach(u => URL.revokeObjectURL(u)); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.dr-close').addEventListener('click', close);
     if (!drafts.length) {
@@ -210,6 +211,7 @@ const Register = (() => {
     } else {
       body.innerHTML = drafts.map(d => {
         const url = d.photos && d.photos[0] ? URL.createObjectURL(d.photos[0].blob) : '';
+        if (url) urls.push(url);
         const when = d.datetime ? new Date(d.datetime).toLocaleDateString('ja-JP') : '';
         return `<div class="draft-row" data-id="${d.id}">
             <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : '🍽️'}</div>
@@ -236,7 +238,7 @@ const Register = (() => {
   async function loadDraft(id) {
     const d = await Store.getDraft(id);
     if (!d) { App.toast('下書きが見つかりません'); return; }
-    resetForm();
+    if (!resetFormConfirmed()) return;
     activeDraftId = id;
     for (const ph of (d.photos || [])) {
       const file = new File([ph.blob], 'draft.jpg', { type: 'image/jpeg' });
@@ -266,7 +268,10 @@ const Register = (() => {
   function mountTasteStars() {
     const val = $('#f-rating-val');
     const show = (v) => { if (val) val.textContent = v ? v.toFixed(1) : ''; };
-    Views.mountRatingStars($('#f-rating'), 0, v => { currentRating = v; show(v); updateSaveState(); });
+    const old = $('#f-rating');
+    const el = old.cloneNode(false); // リスナーを持たない空の要素に差し替える
+    old.replaceWith(el);
+    Views.mountRatingStars(el, 0, v => { currentRating = v; show(v); updateSaveState(); });
     show(0);
   }
 
@@ -380,6 +385,9 @@ const Register = (() => {
       if (!nameIn.value.trim()) setTimeout(() => nameIn.focus(), 350);
     }
     updateSaveState();
+    // 読み取り済みのファイル選択を空に戻す（同じ写真を選び直したとき change が発火するように）
+    $('#photo-input').value = '';
+    $('#camera-input').value = '';
     await analyzeExif();
   }
 
@@ -494,6 +502,8 @@ const Register = (() => {
 
       const results = await Api.nearbyShops(lat, lon, 200);
       renderCandidates(box, existing, results, '周辺に店舗候補が見つかりませんでした。「🔍 名前で検索」をお試しください。');
+      // 利用者が自分で店を選んだあと（2枚目の写真の追加など）は、自動選択で上書きしない
+      if (selected && !autoPicked) return;
       autoSelectBest(box, existing, results);
     } catch (e) {
       box.innerHTML = '<p class="hint">⚠️ 店舗検索に失敗しました（通信エラー）。「🔍 名前で検索」または「🗺️ 地図で指定」をご利用ください。</p>';
@@ -735,6 +745,7 @@ const Register = (() => {
 
   async function applyLocation(c) {
     selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '', station: '', country: '日本' };
+    const mine = selected; // 通信中に別の候補が選ばれたら、この結果は捨てる
     $('#f-shop-name').value = c.name || '';
     if (c.address) $('#f-address').value = c.address;
 
@@ -747,6 +758,7 @@ const Register = (() => {
           Api.reverseGeocode(c.lat, c.lon),
           Api.nearestStation(c.lat, c.lon),
         ]);
+        if (selected !== mine) return;
         if (geo.address && !c.address) { $('#f-address').value = geo.address; selected.address = geo.address; }
         if (geo.pref) { $('#f-pref').value = geo.pref; selected.pref = geo.pref; }
         if (geo.city) { $('#f-city').value = geo.city; selected.city = geo.city; }
@@ -788,6 +800,7 @@ const Register = (() => {
 
     const btn = $('#save-btn');
     btn.disabled = true; btn.textContent = '保存中…';
+    let createdShopId = null, createdVisitId = null; // 途中で失敗したときに取り消すため
     try {
       // --- 店舗の確定（既存 → 照合 → 新規） ---
       let shop = selected && selected.existingShopId ? Store.getShop(selected.existingShopId) : null;
@@ -820,6 +833,7 @@ const Register = (() => {
           osmId: selected ? selected.osmId : '',
           country: selected && selected.country ? selected.country : '日本',
         }));
+        createdShopId = shop.id;
       }
 
       // --- 訪問記録 ---
@@ -833,12 +847,14 @@ const Register = (() => {
         comment: $('#f-comment').value.trim(),
         visitType: '店内飲食', // 入力欄は廃止（データ互換のため既定値を保存）
       });
+      createdVisitId = visit.id;
 
       // --- 写真（圧縮して保存 — §9.1） ---
       for (const p of pendingPhotos) {
         const blob = await Api.compressImage(p.file);
         await Store.addPhoto(shop.id, visit.id, p.type, blob, p.hash);
       }
+      createdVisitId = null; createdShopId = null; // ここまで来れば取り消し不要
 
       // 下書きから完成させた場合は、その下書きを削除
       if (activeDraftId) { await Store.deleteDraft(activeDraftId).catch(() => {}); activeDraftId = null; refreshDraftsBanner(); }
@@ -851,8 +867,12 @@ const Register = (() => {
       App.toast(`✅ 「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
       resetForm();
       App.switchTab('list');
+      document.dispatchEvent(new CustomEvent('bitemap:saved'));
     } catch (e) {
       console.error(e);
+      // 写真の保存で失敗したときは、先に作った訪問（と新規の店）を取り消して、再送で二重にならないようにする
+      if (createdVisitId) { try { await Store.deleteVisit(createdVisitId); } catch { /* noop */ } }
+      if (createdShopId && !Store.visitsOf(createdShopId).length) { try { await Store.deleteShop(createdShopId); } catch { /* noop */ } }
       App.toast('⚠️ 保存に失敗しました: ' + e.message);
     } finally {
       btn.disabled = false; btn.textContent = 'この内容で記録する';
@@ -896,9 +916,18 @@ const Register = (() => {
     updateSaveState();
   }
 
+  // 入力途中か（写真・店名・評価のどれかがある）
+  const isDirty = () => pendingPhotos.length > 0 || !!$('#f-shop-name').value.trim() || currentRating > 0;
+  // 入力途中の記録を捨ててよいか確認してから初期化する
+  function resetFormConfirmed() {
+    if (isDirty() && !confirm('入力途中の記録があります。破棄して続けますか？')) return false;
+    resetForm();
+    return true;
+  }
+
   // 店舗詳細から「訪問を追加」（§4.4 再訪の登録）
   function preselectShop(shopId) {
-    resetForm();
+    if (!resetFormConfirmed()) return;
     const shop = Store.getShop(shopId);
     if (shop) chooseExisting(shop);
   }
@@ -906,7 +935,7 @@ const Register = (() => {
   // 行きたい店の「記録する」: 店の情報をフォームへ流し込む
   // （保存すると Store.addVisit が同じ店の「行きたい」を自動で外す）
   function prefillWish(w) {
-    resetForm();
+    if (!resetFormConfirmed()) return;
     const m = Store.matchShop({ name: w.name, lat: w.lat, lon: w.lon });
     if (m) { chooseExisting(m); return; } // すでに登録済みの店なら訪問の追加になる
     selected = { name: w.name, lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null };
@@ -917,5 +946,5 @@ const Register = (() => {
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-  return { init, preselectShop, prefillWish, openCamera };
+  return { init, preselectShop, prefillWish, openCamera, isDirty };
 })();

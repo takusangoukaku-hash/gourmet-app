@@ -89,8 +89,10 @@ try {
       $path = Join-Path $Root $rel
 
       # ディレクトリトラバーサル対策: 公開フォルダの外は拒否
+      # （末尾に区切りを付けて比較する。C:\app と C:\app2 のような前方一致の取り違えを防ぐ）
       $full = [System.IO.Path]::GetFullPath($path)
-      if (-not $full.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $rootDir = $Root.TrimEnd('\') + '\'
+      if ($full -ne $Root -and -not $full.StartsWith($rootDir, [System.StringComparison]::OrdinalIgnoreCase)) {
         $res.StatusCode = 403
         $res.Close()
         continue

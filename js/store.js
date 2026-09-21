@@ -10,11 +10,15 @@ const Store = (() => {
   const HASHES_KEY = 'gourmet.photoHashes.v1'; // 写真の指紋 → {shopId, visitId}（二重登録防止）
   const PROFILE_KEY = 'gourmet.profile.v1';    // プロフィール（将来の共有機能の土台）
   const WISHES_KEY = 'gourmet.wishes.v1';      // 行きたい店リスト
+  const DELETED_KEY = 'gourmet.deleted.v1';    // 削除の記録（墓標）。同期で消したはずの記録が復活しないように
+  const SOCIAL_KEYS = ['gourmet.feedCache', 'gourmet.netCache']; // 他人の投稿の控え（再取得できる一時データ）
 
   let shops = load(SHOPS_KEY);
   let visits = load(VISITS_KEY);
   let photoHashes = loadObj(HASHES_KEY);
   let wishes = load(WISHES_KEY);
+  let deleted = load(DELETED_KEY);
+  let rev = 0; // 保存のたびに増える版番号（画面側のキャッシュ判定用）
 
   // ---------- クラウド同期のための変更通知 ----------
   let syncHook = null;      // Cloud が購読する変更通知の関数
@@ -26,19 +30,65 @@ const Store = (() => {
   }
 
   function loadObj(k) {
-    try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; }
+    try { const v = JSON.parse(localStorage.getItem(k)); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; } catch { return {}; }
   }
   function persistHashes() {
-    localStorage.setItem(HASHES_KEY, JSON.stringify(photoHashes));
+    setItemSafe(HASHES_KEY, JSON.stringify(photoHashes));
   }
 
   function load(k) {
-    try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; }
+    try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) ? v : []; } catch { return []; }
+  }
+  // localStorage への保存。容量超過のときは、再取得できる控え（他人の投稿）を捨てて空きを作り、
+  // それでも入らなければ利用者に知らせて例外を投げる（黙って記録が消えないように）
+  function setItemSafe(k, v) {
+    try { localStorage.setItem(k, v); return; }
+    catch (e) {
+      for (const c of SOCIAL_KEYS) { try { localStorage.removeItem(c); } catch { /* noop */ } }
+      try { localStorage.setItem(k, v); return; }
+      catch (e2) {
+        try { App.toast('⚠️ 端末の保存領域がいっぱいで記録を保存できません。空き容量を確保してください'); } catch { /* noop */ }
+        throw e2;
+      }
+    }
   }
   function persist() {
-    localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
-    localStorage.setItem(VISITS_KEY, JSON.stringify(visits));
+    rev++;
+    setItemSafe(SHOPS_KEY, JSON.stringify(shops));
+    setItemSafe(VISITS_KEY, JSON.stringify(visits));
   }
+  // ---------- 削除の記録（墓標） ----------
+  // 削除がクラウドへ届く前に通信が切れても、次回の同期で「クラウドにだけ残っている記録」として
+  // 復活しないように、削除した id を30日間覚えておく
+  function persistDeleted() { try { setItemSafe(DELETED_KEY, JSON.stringify(deleted)); } catch { /* noop */ } }
+  function markDeleted(kind, id) {
+    if (!id) return;
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    deleted = deleted.filter(d => d && d.at > cutoff && !(d.kind === kind && d.id === id));
+    deleted.push({ kind, id, at: Date.now() });
+    persistDeleted();
+  }
+  const deletedIds = (kind) => new Set(deleted.filter(d => d && d.kind === kind).map(d => d.id));
+  function clearDeleted(kind, id) {
+    const n = deleted.length;
+    deleted = deleted.filter(d => !(d && d.kind === kind && d.id === id));
+    if (deleted.length !== n) persistDeleted();
+  }
+  // ---------- 別タブ（ブラウザとインストール済みアプリ）との整合 ----------
+  // 他方のタブが保存したら、こちらのメモリ上のデータも読み直す（古い内容で上書きしないため）
+  let storageTimer = null;
+  window.addEventListener('storage', (e) => {
+    if (!e || !e.key) return;
+    if (e.key === SHOPS_KEY) shops = load(SHOPS_KEY);
+    else if (e.key === VISITS_KEY) visits = load(VISITS_KEY);
+    else if (e.key === WISHES_KEY) wishes = load(WISHES_KEY);
+    else if (e.key === HASHES_KEY) photoHashes = loadObj(HASHES_KEY);
+    else if (e.key === DELETED_KEY) deleted = load(DELETED_KEY);
+    else return;
+    rev++;
+    clearTimeout(storageTimer);
+    storageTimer = setTimeout(() => { try { App.refreshCurrent(); } catch { /* noop */ } }, 300);
+  });
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2));
 
   // ---------- IndexedDB（写真） ----------
@@ -60,7 +110,10 @@ const Store = (() => {
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
+        req.onblocked = () => reject(new Error('写真データベースが他のタブで使用中です'));
       });
+      // 失敗したときは次回の呼び出しで開き直せるようにする（失敗が固定化しないように）
+      dbPromise.catch(() => { dbPromise = null; });
     }
     return dbPromise;
   }
@@ -201,16 +254,17 @@ const Store = (() => {
     const tx = d.transaction('photos', 'readwrite');
     const removed = [];
     for (const p of all) {
-      if (pred(p)) {
-        tx.objectStore('photos').delete(p.id);
-        if (p.hash) delete photoHashes[p.hash]; // 削除した写真は再登録できるように指紋も消す
-        removed.push(p);
-      }
+      if (pred(p)) { tx.objectStore('photos').delete(p.id); removed.push(p); }
     }
-    persistHashes();
     return new Promise((resolve) => {
-      tx.oncomplete = () => { for (const p of removed) emit('photo', 'del', { id: p.id, hash: p.hash }); resolve(); };
-      tx.onerror = resolve;
+      tx.oncomplete = () => {
+        // 削除が確定してから指紋を消す（失敗時に「写真は残っているのに再登録できる」状態を防ぐ）
+        for (const p of removed) { if (p.hash) delete photoHashes[p.hash]; }
+        if (removed.length) { try { persistHashes(); } catch { /* noop */ } }
+        for (const p of removed) { markDeleted('photo', p.id); emit('photo', 'del', { id: p.id, hash: p.hash }); }
+        resolve();
+      };
+      tx.onerror = () => resolve();
     });
   }
   // 代表写真: 最新の訪問の写真（料理写真を優先）
@@ -235,7 +289,8 @@ const Store = (() => {
       speed: 0,       // 提供の早さ
       createdAt: Date.now(), updatedAt: Date.now(),
     }, data);
-    shops.push(shop); persist();
+    shops.push(shop);
+    try { persist(); } catch (e) { shops.pop(); throw e; }
     emit('shop', 'put', shop);
     return shop;
   }
@@ -249,6 +304,8 @@ const Store = (() => {
     shops = shops.filter(s => s.id !== id);
     visits = visits.filter(v => v.shopId !== id);
     persist();
+    markDeleted('shop', id);
+    for (const v of removedVisits) markDeleted('visit', v.id);
     emit('shop', 'del', { id });
     for (const v of removedVisits) emit('visit', 'del', { id: v.id });
     await deletePhotosWhere(p => p.shopId === id);
@@ -279,7 +336,7 @@ const Store = (() => {
   }
   function setProfile(patch) {
     const p = Object.assign(getProfile(), patch, { updatedAt: Date.now() });
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    setItemSafe(PROFILE_KEY, JSON.stringify(p));
     emit('profile', 'put', p);
     return p;
   }
@@ -287,12 +344,13 @@ const Store = (() => {
   // ---------- 行きたい店（Wish） ----------
   // wish = { id, name, lat, lon, genre, fromUsername, postId, createdAt, updatedAt }
   // フォロー中の人の投稿から保存する「行きたい」。訪問を記録したら自動で外れる
-  function persistWishes() { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); }
+  function persistWishes() { rev++; setItemSafe(WISHES_KEY, JSON.stringify(wishes)); }
+  // 同じ店の判定: 店名が同じ、または「100m以内 かつ 店名の一方が他方を含む」。
+  // 位置だけで同一視すると、同じビルの別の店の「行きたい」を消してしまうため
   function findWish({ name, lat, lon }) {
-    return wishes.find(w =>
-      (name && w.name === name) ||
-      (lat != null && lon != null && w.lat != null && w.lon != null &&
-        distMeters(lat, lon, w.lat, w.lon) < 100)) || null;
+    const near = (w) => lat != null && lon != null && w.lat != null && w.lon != null && distMeters(lat, lon, w.lat, w.lon) < 100;
+    const similar = (a, b) => !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+    return wishes.find(w => (name && w.name === name) || (near(w) && (!name || !w.name || similar(name, w.name)))) || null;
   }
   function addWish(data) {
     const dup = findWish(data);
@@ -306,6 +364,7 @@ const Store = (() => {
     const w = wishes.find(x => x.id === id);
     if (!w) return;
     wishes = wishes.filter(x => x.id !== id); persistWishes();
+    markDeleted('wish', id);
     emit('wish', 'del', { id });
   }
 
@@ -317,7 +376,8 @@ const Store = (() => {
       dishGenres: [], rating: 3, comment: '', visitType: '店内飲食',
       createdAt: Date.now(), updatedAt: Date.now(),
     }, data);
-    visits.push(visit); persist();
+    visits.push(visit);
+    try { persist(); } catch (e) { visits.pop(); throw e; }
     emit('visit', 'put', visit);
     // 行きたい店に入っていた店を訪問したら、リストから自動で外す（達成）
     const s = getShop(visit.shopId);
@@ -332,6 +392,7 @@ const Store = (() => {
   async function deleteVisit(id) {
     visits = visits.filter(v => v.id !== id);
     persist();
+    markDeleted('visit', id);
     emit('visit', 'del', { id });
     await deletePhotosWhere(p => p.visitId === id);
   }
@@ -352,13 +413,32 @@ const Store = (() => {
         if (i >= 0) visits[i] = obj; else visits.push(obj);
         persist();
       } else if (kind === 'profile') {
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(obj));
+        setItemSafe(PROFILE_KEY, JSON.stringify(obj));
       } else if (kind === 'wish') {
         const i = wishes.findIndex(w => w.id === obj.id);
         if (i >= 0) wishes[i] = obj; else wishes.push(obj);
         persistWishes();
       }
     } finally { remoteApply = false; }
+  }
+
+  // ---------- この端末のデータをすべて消す（別アカウントでのログイン時など） ----------
+  // 記録・写真・指紋・プロフィール・行きたい・他人の投稿の控えを消す。APIキーの扱いは呼び出し側で
+  async function wipeLocal() {
+    for (const k of [SHOPS_KEY, VISITS_KEY, HASHES_KEY, PROFILE_KEY, WISHES_KEY, DELETED_KEY, ...SOCIAL_KEYS]) {
+      try { localStorage.removeItem(k); } catch { /* noop */ }
+    }
+    shops = []; visits = []; wishes = []; photoHashes = {}; deleted = []; rev++;
+    try {
+      const d = await db();
+      await new Promise((resolve) => {
+        const tx = d.transaction(['photos', 'drafts'], 'readwrite');
+        tx.objectStore('photos').clear();
+        tx.objectStore('drafts').clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+    } catch { /* IndexedDB が使えない環境では localStorage だけ消す */ }
   }
 
   // ---------- 集計（保存せず算出 — 仕様書v2 §2.3） ----------
@@ -385,5 +465,6 @@ const Store = (() => {
     // クラウド同期用
     setSyncHook, applyRemote, putPhotoRaw, photoIds,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
+    deletedIds, clearDeleted, wipeLocal, rev: () => rev,
   };
 })();

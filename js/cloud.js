@@ -56,6 +56,21 @@ const Cloud = (() => {
       authM.onAuthStateChanged(auth, async (u) => {
         user = u;
         if (u) {
+          // 同じ端末で別のアカウントにログインした場合は、前のアカウントの記録・写真・APIキー・
+          // 他人の投稿の控えを消してから同期する（前の人のデータが新しいアカウントへ流れ込まないように）
+          const LAST_UID = 'gourmet.lastUid';
+          let last = null;
+          try { last = localStorage.getItem(LAST_UID); } catch { /* noop */ }
+          if (last && last !== u.uid) {
+            try {
+              await Store.wipeLocal();
+              Api.setApiKey(''); Api.setGoogleKey('');
+              if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
+              App.toast('別のアカウントでログインしたため、前のアカウントの端末内データを消去しました');
+              App.refreshCurrent();
+            } catch (e) { console.warn('端末データの消去に失敗:', e); }
+          }
+          try { localStorage.setItem(LAST_UID, u.uid); } catch { /* noop */ }
           Store.setSyncHook(onLocalChange);
           setStatus('syncing');
           try {
@@ -111,6 +126,8 @@ const Cloud = (() => {
   async function logout() {
     await ensureLoaded();
     await fb.auth.signOut(auth);
+    // フォロー中の人の投稿の控えはこの端末の次の利用者に見せない（自分の記録は端末に残す）
+    if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
   }
 
   // ---------- Firestore ヘルパー ----------
@@ -169,8 +186,10 @@ const Cloud = (() => {
     try {
       const snap = await fb.fs.getDocs(cref('wishes'));
       const localMap = new Map(Store.rawWishes().map(w => [w.id, w]));
+      const gone = Store.deletedIds('wish');
       snap.forEach(docSnap => {
         const remote = docSnap.data();
+        if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
         const local = localMap.get(remote.id);
         if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote('wish', remote);
       });
@@ -181,8 +200,10 @@ const Cloud = (() => {
   async function pullCollection(name, kind) {
     const snap = await fb.fs.getDocs(cref(name));
     const localMap = new Map((kind === 'shop' ? Store.rawShops() : Store.rawVisits()).map(x => [x.id, x]));
+    const gone = Store.deletedIds(kind);
     snap.forEach(docSnap => {
       const remote = docSnap.data();
+      if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
       const local = localMap.get(remote.id);
       if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote(kind, remote);
     });
@@ -250,7 +271,8 @@ const Cloud = (() => {
 
     // ダウンロード対象: ①クラウドにあってローカルに無い写真（新規取り込み）
     //                  ②URL参照だけで実体が無い写真（実体の取り直し）
-    const newTargets = cloudMetas.filter(m => !localIds.has(m.id));
+    const gonePhotos = Store.deletedIds('photo');
+    const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
     const hydrTargets = localPhotos.filter(p => !p.blob && cloudIds.has(p.id));
     const targets = [...newTargets.map(m => ({ kind: 'new', m })),
       ...hydrTargets.map(p => ({ kind: 'hydrate', p }))].slice(0, MAX_PULL);
@@ -557,6 +579,7 @@ const Cloud = (() => {
     if (!force && Date.now() - lastSweepAt < 5 * 60 * 1000) return;
     sweepRunning = true;
     try {
+      await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
       await pushAllRecords();  // 店・訪問・行きたい・プロフィール（差分ではなく全件上書き＝確実）
       const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
       lastSweepAt = Date.now();
@@ -564,6 +587,21 @@ const Cloud = (() => {
       if (got) App.refreshCurrent(); // 別端末から届いた写真をすぐ画面に反映
     } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
     finally { sweepRunning = false; }
+  }
+  // 端末で削除済み（墓標あり）の記録がクラウドに残っていれば削除する。成功したら墓標を消す
+  async function retryDeletes() {
+    if (!user) return;
+    const jobs = [];
+    for (const id of Store.deletedIds('visit')) jobs.push(['visit', id]);
+    for (const id of Store.deletedIds('shop')) jobs.push(['shop', id]);
+    for (const id of Store.deletedIds('wish')) jobs.push(['wish', id]);
+    for (const id of Store.deletedIds('photo')) jobs.push(['photo', id]);
+    await runPool(jobs, 4, async ([kind, id]) => {
+      try {
+        await applyOneToCloud({ kind, action: 'del', obj: { id } });
+        Store.clearDeleted(kind, id);
+      } catch (e) { console.warn('削除の再送に失敗:', kind, id, e); }
+    });
   }
   async function applyOneToCloud({ kind, action, obj }) {
     if (kind === 'shop') return action === 'del' ? fb.fs.deleteDoc(dref('shops', obj.id)) : fb.fs.setDoc(dref('shops', obj.id), clean(obj));
@@ -641,7 +679,7 @@ const Cloud = (() => {
       displayName: p.name || 'BITEMAP', bio: p.bio || '',
       // アバターはデータURL（小さければ同梱。大きすぎる場合は省略）
       avatar: (p.avatar && p.avatar.length < 60000) ? p.avatar : '',
-      shopCount: shops.length, topShops: top, wishes: wishPub, updatedAt: Date.now(),
+      shopCount: Number(shops.length) || 0, topShops: top, wishes: wishPub, updatedAt: Date.now(),
     });
     await fb.fs.setDoc(fb.fs.doc(db, 'publicProfiles', user.uid), data);
   }
@@ -674,11 +712,18 @@ const Cloud = (() => {
     if (!user) throw new Error('ログインが必要です');
     if (targetUid === user.uid) throw new Error('自分はフォローできません');
     const now = Date.now();
-    await fb.fs.setDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid), { uid: targetUid, createdAt: now });
-    await fb.fs.setDoc(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid), { uid: user.uid, createdAt: now });
-    // 相手に「フォローされました」通知を作成（doc id = 自分のuid なので重複しない）
+    // 「フォロー中」と「フォロワー」の2つの書き込みは1つのバッチで（片方だけ残らないように）
+    const batch = fb.fs.writeBatch(db);
+    batch.set(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid), { uid: targetUid, createdAt: now });
+    batch.set(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid), { uid: user.uid, createdAt: now });
+    await batch.commit();
+    // 相手に「フォローされました」通知を作成（doc id = 自分のuid なので重複しない）。
+    // すでにあれば作り直さない（外して再フォローするたびに未読へ戻さない）
+    const notifRef = fb.fs.doc(db, 'notifications', targetUid, 'items', user.uid);
+    const existing = await fb.fs.getDoc(notifRef).catch(() => null);
+    if (existing && existing.exists()) return;
     const prof = Store.getProfile();
-    await fb.fs.setDoc(fb.fs.doc(db, 'notifications', targetUid, 'items', user.uid), clean({
+    await fb.fs.setDoc(notifRef, clean({
       type: 'follow', fromUid: user.uid, fromUsername: prof.username || '',
       fromDisplayName: prof.name || 'BITEMAP',
       fromAvatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
@@ -688,8 +733,10 @@ const Cloud = (() => {
   async function unfollow(targetUid) {
     await ensureLoaded();
     if (!user) throw new Error('ログインが必要です');
-    await fb.fs.deleteDoc(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid));
-    await fb.fs.deleteDoc(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid));
+    const batch = fb.fs.writeBatch(db);
+    batch.delete(fb.fs.doc(db, 'follows', user.uid, 'following', targetUid));
+    batch.delete(fb.fs.doc(db, 'followers', targetUid, 'followers', user.uid));
+    await batch.commit();
   }
   // フォロー数・フォロワー数
   async function followCounts(uid) {

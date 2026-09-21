@@ -263,7 +263,7 @@ const Views = (() => {
   let tasteKey = '';
   let tasteRates = new Map(); // username → { rate, common }
   function tasteData() {
-    const key = networkPosts.length + ':' + ((networkPosts[0] || {}).id || '') + ':' + Store.visits().length;
+    const key = networkPosts.length + ':' + ((networkPosts[0] || {}).id || '') + ':' + Store.visits().length + ':' + (Store.rev ? Store.rev() : 0);
     if (key === tasteKey) return tasteRates;
     tasteKey = key;
     tasteRates = new Map();
@@ -1584,6 +1584,8 @@ const Views = (() => {
           }
           continue;
         }
+        // 座標のない投稿（店名だけで登録された店）はピンにできない
+        if (p.lat == null || p.lon == null) continue;
         // 他人だけの店: 店名が同一視でき＋300m以内なら1つにまとめる（登録経路の名前差も吸収）
         let g = netGroups.find(x => shopNamesMatch(x.name, p.shopName) &&
           Store.distMeters(x.lat, x.lon, p.lat, p.lon) < 300);
@@ -3364,6 +3366,7 @@ const Views = (() => {
     }, { passive: true });
   }
 
+  let shopModalToken = 0;
   async function showShop(shopId, editMode = false, editVid = null, nav = null) {
     const s = Store.getShop(shopId);
     if (!s) return;
@@ -3373,10 +3376,13 @@ const Views = (() => {
     // 編集中は誤って切り替わらないよう無効にする
     shopNavState = (nav && !editMode && !editVid) ? nav : null;
     bindShopNavOnce();
+    const myToken = ++shopModalToken; // 別の店を開いたり編集に入ったりしたら、この描画は古いものとして扱う
 
     // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
-    if (!editMode && !networkLoaded) {
+    if (!editMode && !editVid && !networkLoaded) {
       ensureNetworkLoaded(() => {
+        // 読み込み中に編集画面へ移った・別の店へ移った・閉じた場合は描き直さない（入力中の内容を消さないため）
+        if (shopModalToken !== myToken) return;
         if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid, nav);
       });
     }
@@ -4311,13 +4317,20 @@ const Views = (() => {
     const navBtn = card.querySelector('.fcard-nav');
     if (navBtn) navBtn.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
-    // いいね・コメント数・行きたい保存
-    Cloud.getLikeInfo(p.id).then(info => {
+    // いいね・コメント数・行きたい保存（取得結果は feedStats に控え、描き直しでは再取得しない）
+    const applyStats = (st) => {
       const lb = card.querySelector('.pd-like');
-      lb.querySelector('.fa-like-n').textContent = info.count;
-      lb.classList.toggle('liked', info.liked);
-    }).catch(() => {});
-    Cloud.commentCount(p.id).then(n => { card.querySelector('.fcard-cmt-n').textContent = n || ''; }).catch(() => {});
+      lb.querySelector('.fa-like-n').textContent = st.likes;
+      lb.classList.toggle('liked', st.liked);
+      card.querySelector('.fcard-cmt-n').textContent = st.comments || '';
+    };
+    const cached = feedStats.get(p.id);
+    if (cached) applyStats(cached);
+    else {
+      Promise.all([Cloud.getLikeInfo(p.id), Cloud.commentCount(p.id).catch(() => 0)])
+        .then(([info, n]) => { const st = { likes: info.count, liked: info.liked, comments: n || 0 }; feedStats.set(p.id, st); applyStats(st); })
+        .catch(() => {});
+    }
     card.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(card.querySelector('.pd-like')));
     card.querySelector('.fcard-cmt').addEventListener('click', openDetail);
     card.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, card.querySelector('.pd-save')));
@@ -4738,7 +4751,7 @@ const Views = (() => {
           <div class="pp-stats">
             <button type="button" class="pp-stat" data-social="following"><b class="pp-following">–</b> フォロー</button>
             <button type="button" class="pp-stat" data-social="followers"><b class="pp-followers">–</b> フォロワー</button>
-            <span class="pp-stat"><b>${prof.shopCount || 0}</b> 店舗</span>
+            <span class="pp-stat"><b>${Number(prof.shopCount) || 0}</b> 店舗</span>
           </div>
           <div class="pp-match hidden"></div>
         </div>
@@ -4918,7 +4931,7 @@ const Views = (() => {
         <div class="ur-avatar">${av}</div>
         <div class="ur-main">
           <div class="ur-name">${esc(p.displayName || 'BITEMAP')}</div>
-          <div class="ur-username">@${esc(p.username)}　${p.shopCount || 0}店舗</div>
+          <div class="ur-username">@${esc(p.username)}　${Number(p.shopCount) || 0}店舗</div>
         </div>
       </div>`;
   }
@@ -4928,5 +4941,11 @@ const Views = (() => {
     shopNavState = null; // 店舗送りの状態も解除（次に地図などから開いたとき誤作動しない）
   }
 
-  return { refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle };
+  // 他人の投稿の控え（フィード・地図）をメモリからも消す（ログアウト／別アカウントでのログイン時）
+  function clearSocialCaches() {
+    feedCache = null; feedStats.clear(); feedPosts.clear();
+    networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
+    for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
+  }
+  return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle };
 })();

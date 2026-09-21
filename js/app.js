@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v295'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v296'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -75,7 +75,9 @@ const App = (() => {
       $('#set-name').textContent = p.name || 'BITEMAP';
       $('#set-sub').textContent = p.username ? '@' + p.username : 'プロフィールを編集';
       const av = $('#set-avatar');
-      if (p.avatar) av.innerHTML = '<img src="' + p.avatar + '" alt="">';
+      av.textContent = '';
+      // 画像はDOM経由で設定する（文字列連結でHTMLに埋め込まない）
+      if (p.avatar && /^data:image\//.test(p.avatar)) { const img = document.createElement('img'); img.src = p.avatar; img.alt = ''; av.appendChild(img); }
       else av.textContent = '🍜';
     };
     $('#settings-btn').addEventListener('click', () => {
@@ -175,12 +177,19 @@ const App = (() => {
         // 起動のたびに新バージョンを確認（PWAはこれをしないと古いSWが残り続ける）
         reg.update().catch(() => {});
         // 新しいSWに切り替わったら一度だけ自動リロードして、全ファイルを最新に揃える
-        let reloaded = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
+        let reloaded = false, reloadPending = false;
+        const tryReload = () => {
           if (reloaded) return;
+          // 記録の入力中（写真・店名・評価あり）は保存が終わるまでリロードを待つ
+          if (typeof Register !== 'undefined' && Register.isDirty && Register.isDirty()) {
+            if (!reloadPending) { reloadPending = true; toast('新しいバージョンがあります。記録を保存すると切り替わります'); }
+            return;
+          }
           reloaded = true;
           location.reload();
-        });
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', tryReload);
+        document.addEventListener('bitemap:saved', () => { if (reloadPending) tryReload(); });
       }).catch(() => { /* 非対応環境では何もしない */ });
     }
 
@@ -331,14 +340,54 @@ const App = (() => {
     }
     return data;
   }
+  // ---- バックアップの検証（外部から渡されるファイルなので、形式と型を確かめてから取り込む） ----
+  const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+  const DATA_IMG_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  const MAX_RECORD_CHARS = 200000;     // 1レコードのJSON上限（Firestoreの1MB制限より十分小さく）
+  const MAX_PHOTO_CHARS = 6 * 1024 * 1024; // 写真1枚のデータURL上限（約4.5MB）
+  const isPlain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+  const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const num = (v, lo, hi, dflt) => (typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : dflt);
+  const numOrNull = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+  // 既知の項目だけを型を確かめて写し取る（__proto__ 等の余計なキーは捨てる）
+  function sanitizeRecord(kind, r) {
+    if (!isPlain(r) || typeof r.id !== 'string' || !ID_RE.test(r.id)) return null;
+    if (JSON.stringify(r).length > MAX_RECORD_CHARS) return null;
+    const base = { id: r.id, createdAt: num(r.createdAt, 0, 1e13, Date.now()), updatedAt: num(r.updatedAt, 0, 1e13, 0) };
+    if (kind === 'shop') {
+      return Object.assign(base, {
+        name: str(r.name, 200), address: str(r.address, 500), lat: numOrNull(r.lat), lon: numOrNull(r.lon),
+        country: str(r.country, 50) || '日本', pref: str(r.pref, 50), city: str(r.city, 100), station: str(r.station, 100),
+        shopGenre: str(r.shopGenre, 50) || 'その他', favorite: !!r.favorite, status: str(r.status, 20) || 'open', osmId: str(r.osmId, 80),
+        casual: num(r.casual, 0, 5, 0), atmosphere: num(r.atmosphere, 0, 5, 0), speed: num(r.speed, 0, 5, 0),
+      });
+    }
+    if (kind === 'visit') {
+      if (typeof r.shopId !== 'string' || !ID_RE.test(r.shopId)) return null;
+      const dt = new Date(r.datetime); if (isNaN(dt)) return null;
+      return Object.assign(base, {
+        shopId: r.shopId, datetime: dt.toISOString(),
+        dishGenres: Array.isArray(r.dishGenres) ? r.dishGenres.filter(g => typeof g === 'string').map(g => g.slice(0, 50)).slice(0, 20) : [],
+        rating: num(r.rating, 0, 5, 0), comment: str(r.comment, 2000), visitType: str(r.visitType, 30) || '店内飲食',
+      });
+    }
+    if (kind === 'wish') {
+      return Object.assign(base, {
+        name: str(r.name, 200), lat: numOrNull(r.lat), lon: numOrNull(r.lon), genre: str(r.genre, 100),
+        fromUsername: str(r.fromUsername, 30), postId: str(r.postId, 80),
+      });
+    }
+    return null;
+  }
   async function restoreBackup(data) {
-    if (!data || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
+    if (!isPlain(data) || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
     // 新しい方を採用して取り込む（既存の記録は消さない）
     let added = 0;
     const merge = (kind, locals, list) => {
       const map = new Map(locals.map(x => [x.id, x]));
-      for (const r of (list || [])) {
-        if (!r || !r.id) continue;
+      for (const raw of (Array.isArray(list) ? list : [])) {
+        const r = sanitizeRecord(kind, raw);
+        if (!r) continue;
         const l = map.get(r.id);
         if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
       }
@@ -346,34 +395,48 @@ const App = (() => {
     merge('shop', Store.rawShops(), data.shops);
     merge('visit', Store.rawVisits(), data.visits);
     merge('wish', Store.rawWishes(), data.wishes);
-    if (data.profile && !Store.getProfile().username) Store.setProfile(data.profile);
+    // プロフィールは名前・自己紹介・アイコンだけ取り込む。@ユーザー名はクラウド側の予約と結びついているため
+    // ファイルからは復元せず、ログイン時にクラウドから戻す
+    if (isPlain(data.profile) && !Store.getProfile().username) {
+      const pf = { name: str(data.profile.name, 50) || 'BITEMAP', bio: str(data.profile.bio, 500) };
+      if (typeof data.profile.avatar === 'string' && DATA_IMG_RE.test(data.profile.avatar) && data.profile.avatar.length < 300000) pf.avatar = data.profile.avatar;
+      Store.setProfile(pf);
+    }
     // 写真: 同じ訪問に同じ指紋（または同じ撮影登録時刻）の写真があれば二重に入れない
     let photos = 0;
-    for (const p of (data.photos || [])) {
-      if (!p || !p.visitId || !p.shopId) continue;
+    const PHOTO_TYPES = ['dish', 'exterior', 'interior', 'menu'];
+    for (const p of (Array.isArray(data.photos) ? data.photos : [])) {
+      if (!isPlain(p) || typeof p.visitId !== 'string' || typeof p.shopId !== 'string' || !ID_RE.test(p.visitId) || !ID_RE.test(p.shopId)) continue;
       if (!Store.visits().some(v => v.id === p.visitId)) continue;
+      // 写真データは画像のデータURLだけを受け付ける（外部URLへ通信させない・巨大データを入れない）
+      if (typeof p.data !== 'string' || p.data.length > MAX_PHOTO_CHARS || !DATA_IMG_RE.test(p.data)) continue;
       const have = await Store.photosOfVisit(p.visitId);
       if (have.some(x => (p.hash && x.hash === p.hash) || (p.createdAt && x.createdAt === p.createdAt))) continue;
       let blob = null;
-      if (p.data) { try { blob = await (await fetch(p.data)).blob(); } catch { blob = null; } }
-      if (!blob) continue;
-      const newId = await Store.addPhoto(p.shopId, p.visitId, p.type || 'dish', blob, p.hash || '');
+      try { blob = await (await fetch(p.data)).blob(); } catch { blob = null; }
+      if (!blob || !blob.type.startsWith('image/')) continue;
+      const ptype = PHOTO_TYPES.includes(p.type) ? p.type : 'dish';
+      const phash = (typeof p.hash === 'string' && /^[0-9a-f]{0,64}$/.test(p.hash)) ? p.hash : '';
+      const newId = await Store.addPhoto(p.shopId, p.visitId, ptype, blob, phash);
       // 取り込んだ写真の登録時刻を元の値に揃える（並び順を保つ）
       if (p.createdAt && newId) { try { await Store.setPhotoCreatedAt(newId, p.createdAt); } catch { /* 任意 */ } }
       photos++;
     }
-    if (data.social) {
-      for (const k of Object.keys(data.social)) {
-        if (localStorage.getItem(k)) continue;
-        let v = data.social[k];
-        if (data.socialPhotos) {
-          try {
-            const obj = JSON.parse(v);
-            for (const p of (obj.posts || [])) if (p.photoUrl && data.socialPhotos[p.photoUrl]) p.photoUrl = data.socialPhotos[p.photoUrl];
-            v = JSON.stringify(obj);
-          } catch { /* そのまま */ }
+    // 他人の投稿の控え: 決まった2つのキーだけ、投稿配列の形をしているものだけ取り込む
+    if (isPlain(data.social)) {
+      for (const k of ['gourmet.netCache', 'gourmet.feedCache']) {
+        if (typeof data.social[k] !== 'string' || localStorage.getItem(k)) continue;
+        let obj;
+        try { obj = JSON.parse(data.social[k]); } catch { continue; }
+        if (!isPlain(obj) || !Array.isArray(obj.posts)) continue;
+        obj.posts = obj.posts.filter(isPlain).slice(0, 300);
+        if (isPlain(data.socialPhotos)) {
+          for (const p of obj.posts) {
+            const d = p.photoUrl && data.socialPhotos[p.photoUrl];
+            if (typeof d === 'string' && d.length < MAX_PHOTO_CHARS && DATA_IMG_RE.test(d)) p.photoUrl = d;
+          }
         }
-        localStorage.setItem(k, v);
+        try { localStorage.setItem(k, JSON.stringify({ posts: obj.posts, time: 0 })); } catch { /* 容量超過なら控えは諦める */ }
       }
     }
     return { added, photos };
@@ -420,18 +483,23 @@ const App = (() => {
       },
     ];
 
-    for (const s of samples) {
-      const shop = Store.addShop(s.shop);
-      for (const v of s.visits) {
-        const visit = Store.addVisit({
-          shopId: shop.id, datetime: v.datetime, dishGenres: v.dishGenres,
-          rating: v.rating, comment: v.comment, visitType: '店内飲食',
-        });
-        const blob = await placeholderPhoto(v.label, v.color);
-        await Store.addPhoto(shop.id, visit.id, 'dish', blob);
+    try {
+      for (const s of samples) {
+        const shop = Store.addShop(s.shop);
+        for (const v of s.visits) {
+          const visit = Store.addVisit({
+            shopId: shop.id, datetime: v.datetime, dishGenres: v.dishGenres,
+            rating: v.rating, comment: v.comment, visitType: '店内飲食',
+          });
+          const blob = await placeholderPhoto(v.label, v.color);
+          await Store.addPhoto(shop.id, visit.id, 'dish', blob);
+        }
       }
+      toast('✅ サンプルデータを登録しました');
+    } catch (e) {
+      console.error(e);
+      toast('⚠️ サンプルデータの作成に失敗しました: ' + (e && e.message || e));
     }
-    toast('✅ サンプルデータを登録しました');
     refreshCurrent();
   }
 

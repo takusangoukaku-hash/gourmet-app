@@ -169,7 +169,10 @@ const Api = (() => {
   }
 
   // ---------- Overpass: 周辺の飲食店 ----------
+  const numOK = (v) => typeof v === 'number' && isFinite(v);
   async function nearbyShops(lat, lon, radius = 200) {
+    if (!numOK(lat) || !numOK(lon)) return [];
+    radius = numOK(radius) ? Math.min(5000, Math.max(10, radius)) : 200;
     const q = `[out:json][timeout:15];
 (
   nwr(around:${radius},${lat},${lon})[amenity~"^(restaurant|cafe|fast_food|bar|pub|food_court|ice_cream)$"];
@@ -195,6 +198,7 @@ out center 40;`;
 
   // ---------- Overpass: 最寄駅 ----------
   async function nearestStation(lat, lon) {
+    if (!numOK(lat) || !numOK(lon)) return '';
     const q = `[out:json][timeout:15];node(around:2000,${lat},${lon})[railway=station];out 30;`;
     try {
       const json = await overpass(q);
@@ -224,10 +228,17 @@ out center 40;`;
     'JP-46': '鹿児島県', 'JP-47': '沖縄県',
   };
 
+  // 外部APIの fetch にタイムアウトを付ける（応答が来ないときに画面が固まらないように）
+  function fetchT(url, opts, ms = 12000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal })).finally(() => clearTimeout(timer));
+  }
+
   // ---------- Nominatim: 逆ジオコーディング ----------
   async function reverseGeocode(lat, lon) {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ja&zoom=18`);
+      const res = await fetchT(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ja&zoom=18`);
       if (!res.ok) return {};
       const j = await res.json();
       const a = j.address || {};
@@ -248,7 +259,7 @@ out center 40;`;
   }
   async function overpassNameSearch(name, lat, lon, radius = 4000) {
     const n = escapeOverpassRegex(name.trim());
-    if (!n) return [];
+    if (!n || !numOK(lat) || !numOK(lon)) return [];
     // 重要: amenityは等価フィルタで（正規表現だとクエリプランが崩れ
     // サーバー側タイムアウト→空配列が返る）。node限定・半径4kmで20〜30秒
     // 後追い表示専用なので長めに待つ。ミラーはこのクエリに弱いため本家のみ
@@ -280,7 +291,7 @@ out center 25;`;
   async function photonSearch(query, lat, lon) {
     let url = 'https://photon.komoot.io/api/?limit=12&q=' + encodeURIComponent(query);
     if (lat != null && lon != null) url += `&lat=${lat}&lon=${lon}`;
-    const res = await fetch(url);
+    const res = await fetchT(url);
     if (!res.ok) return [];
     const j = await res.json();
     // 飲食関連のみ（地名・駅・病院・マッサージ店などを除外）
@@ -312,7 +323,7 @@ out center 25;`;
   async function suggestPlaces(query, lat, lon) {
     let url = 'https://photon.komoot.io/api/?limit=12&q=' + encodeURIComponent(query);
     if (lat != null && lon != null) url += `&lat=${lat}&lon=${lon}`;
-    const res = await fetch(url);
+    const res = await fetchT(url);
     if (!res.ok) return [];
     const j = await res.json();
     const rows = (j.features || []).filter(f => f.properties && f.properties.name && f.geometry);
@@ -400,7 +411,7 @@ out center 25;`;
 
   // ---------- Nominatim: 名前検索 ----------
   async function searchPlaces(query) {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&accept-language=ja&limit=10`);
+    const res = await fetchT(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&accept-language=ja&limit=10`);
     if (!res.ok) throw new Error('Nominatim error ' + res.status);
     const j = await res.json();
     return j.map(e => ({
@@ -451,7 +462,7 @@ out center 25;`;
         circle: { center: { latitude: ref.lat, longitude: ref.lon }, radius: 30000 },
       };
     }
-    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    const res = await fetchT('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -486,16 +497,19 @@ out center 25;`;
     })).filter(c => c.name && c.lat != null);
   }
 
-  // 公式SDK（@anthropic-ai/sdk）を遅延ロードしてクライアントを生成
+  // 公式SDK（@anthropic-ai/sdk 0.72.1）を遅延ロードしてクライアントを生成。
+  // 外部CDN（esm.sh）から実行時に読み込むと配信元の改ざんに無防備なため、
+  // ビルド済みの同梱ファイル（js/vendor/anthropic-sdk.js）から読み込む
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('https://esm.sh/@anthropic-ai/sdk@0.72.1')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=296')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
         }));
     }
+    anthropicClientPromise.catch(() => { anthropicClientPromise = null; });
     return anthropicClientPromise;
   }
   function resetAnthropicClient() { anthropicClientPromise = null; }
@@ -560,15 +574,16 @@ out center 25;`;
     });
 
     const text = response.content.find(b => b.type === 'text');
-    if (!text) return { dishGenres: [], shopGenre: '' };
-    const result = JSON.parse(text.text);
+    if (!text || response.stop_reason === 'refusal') return { dishGenres: [], shopGenre: '' };
+    let result;
+    try { result = JSON.parse(text.text); } catch { return { dishGenres: [], shopGenre: '' }; }
 
     // 確信度が低い場合は空欄にして利用者に選択を促す（§5）
-    if (!result.confident) return { dishGenres: [], shopGenre: '' };
-    return {
-      dishGenres: result.dishGenres || [],
-      shopGenre: (result.shopGenre && result.shopGenre !== '不明') ? result.shopGenre : '',
-    };
+    if (!result || !result.confident) return { dishGenres: [], shopGenre: '' };
+    // 念のため一覧にあるジャンル名だけを通す（スキーマ外の値が来ても画面に入れない）
+    const dish = (Array.isArray(result.dishGenres) ? result.dishGenres : []).filter(g => DISH_GENRES.includes(g)).slice(0, 5);
+    const shop = SHOP_GENRES.includes(result.shopGenre) ? result.shopGenre : '';
+    return { dishGenres: dish, shopGenre: shop };
   }
 
   // ---------- ジャンル推定（OSMタグからのフォールバック） ----------
@@ -586,23 +601,34 @@ out center 25;`;
 
   // ---------- 画像圧縮（仕様書v2 §9.1: 長辺リサイズ＋JPEG圧縮） ----------
   async function compressImage(file, maxDim = 1600, quality = 0.82) {
-    try {
-      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
-      const w = Math.max(1, Math.round(bmp.width * scale));
-      const h = Math.max(1, Math.round(bmp.height * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
-      return await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-    } catch {
-      return file; // 圧縮に失敗した場合は元ファイルをそのまま保存
+    let src = null;
+    try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch {
+      // createImageBitmap が対応しない形式は <img> でのデコードを試す
+      src = await new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const im = new Image();
+        im.onload = () => { URL.revokeObjectURL(url); resolve(im); };
+        im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('この画像形式は扱えません（HEICなどはJPEGに変換してください）')); };
+        im.src = url;
+      });
     }
+    const sw = src.width || src.naturalWidth, sh = src.height || src.naturalHeight;
+    if (!sw || !sh) throw new Error('画像を読み込めませんでした');
+    const scale = Math.min(1, maxDim / Math.max(sw, sh));
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(src, 0, 0, w, h);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    if (!blob) throw new Error('画像の圧縮に失敗しました');
+    return blob;
   }
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v295',
+    FILE_VERSION: 'v296',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

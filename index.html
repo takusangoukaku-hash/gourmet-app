@@ -21,9 +21,9 @@
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=295">
+<link rel="stylesheet" href="css/style.css?v=296">
 </head>
 <body>
 
@@ -537,7 +537,7 @@
             キーは <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a> で取得できます。
           </p>
           <label class="full">Anthropic APIキー
-            <input type="password" id="settings-api-key" placeholder="sk-ant-api03-...">
+            <input type="password" id="settings-api-key" placeholder="sk-ant-api03-..." autocomplete="off">
           </label>
           <h3>店舗検索の強化（Googleマップ）</h3>
           <p class="hint">
@@ -545,7 +545,7 @@
             <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> で「Places API (New)」を有効にして取得します（無料枠あり）。
           </p>
           <label class="full">Google Maps APIキー
-            <input type="password" id="settings-google-key" placeholder="AIza...">
+            <input type="password" id="settings-google-key" placeholder="AIza..." autocomplete="off">
           </label>
           <div class="detail-actions">
             <button id="settings-save" class="btn primary">保存</button>
@@ -588,14 +588,15 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="js/store.js?v=295"></script>
-<script src="js/api.js?v=295"></script>
-<script src="js/cloud.js?v=295"></script>
-<script src="js/register.js?v=295"></script>
-<script src="js/views.js?v=295"></script>
-<script src="js/app.js?v=295"></script>
+<!-- 外部ライブラリはバージョンを固定し、integrity（内容のハッシュ）で改ざん・差し替えを防ぐ -->
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js" integrity="sha384-KrOocIA+lZcNUz2MDavnT/FuX+CbTREJihUi0bp8QUSwhE2AkGTNpv2b7yMbBkx5" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.js" integrity="sha384-4W8gMhOYqk0FPg9sAMkb3g/P2fXtzbUyDUUgMlA1EEig8z/U/13EYUjErc1H382b" crossorigin="anonymous"></script>
+<script src="js/store.js?v=296"></script>
+<script src="js/api.js?v=296"></script>
+<script src="js/cloud.js?v=296"></script>
+<script src="js/register.js?v=296"></script>
+<script src="js/views.js?v=296"></script>
+<script src="js/app.js?v=296"></script>
 </body>
 </html>

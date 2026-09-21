@@ -1,0 +1,18 @@
+// =====================================================
+// Cloud Storage セキュリティルール（推奨版）
+//  Firebase コンソール → Storage → ルール に貼り付けて公開する。
+//  写真は users/{uid}/photos/{photoId}.jpg に本人だけが読み書きできる。
+//  サイズと形式をサーバー側でも縛る（改造したクライアントからの巨大ファイル投入を防ぐ）
+// =====================================================
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/photos/{file} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg'
+        && file.matches('^[A-Za-z0-9._-]{1,80}\\.jpg$');
+    }
+  }
+}

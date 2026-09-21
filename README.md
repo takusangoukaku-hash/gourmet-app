@@ -57,6 +57,11 @@ service firebase.storage {
 }
 ```
 
+**推奨ルール（v296〜）**: 上記は最小限の設定。写真のサイズ・形式の制限や、投稿・コメント・
+フォロー・通知の「なりすまし防止」まで含めた推奨ルールを `firebase/firestore.rules` と
+`firebase/storage.rules` に置いている。Firestore Database → ルール、Storage → ルール に
+それぞれ貼り付けて公開する（アプリのコードはこのルールで動くように書かれている）。
+
 反映後、アプリのプロフィール → 詳細設定 → 「写真を再同期」を押すと、
 端末内の写真のアップロードとクラウドからの復元がまとめて実行される。
 （フォロワーに見せる投稿写真は、ルールとは別のトークン付きURLで配信されるため
@@ -68,6 +73,8 @@ service firebase.storage {
 |---|---|
 | `index.html` | 画面レイアウト（登録・地図・一覧・写真・統計の5タブ） |
 | `css/style.css` | スタイル（モバイル対応レスポンシブ） |
+| `js/vendor/anthropic-sdk.js` | Anthropic 公式SDK（0.72.1）を esbuild でブラウザ用に束ねたもの。外部CDNから実行時に読み込まない |
+| `firebase/*.rules` | Firestore / Storage の推奨セキュリティルール（コンソールに貼り付ける） |
 | `js/store.js` | データ層。店舗(Shop)/訪問記録(Visit)の2層モデル（仕様書§2）。localStorage＋写真はIndexedDB |
 | `js/api.js` | 外部API連携（Overpass/Nominatim）・EXIF解析・画像圧縮・ジャンル推定 |
 | `js/register.js` | 登録フロー（仕様書§4）。フローA(GPSあり)/フローB(名前検索・地図指定) |
