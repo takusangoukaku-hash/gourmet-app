@@ -62,3 +62,9 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または
   一覧タブの「サンプルデータで試す」でデモデータを投入できる。
+
+## サブアプリ: PFCログ（`diet/`）
+- `diet/` 以下はダイエット記録用の別 PWA（食事PFC・体重グラフ・自転車/筋トレ・写真AI推定）。詳細は `diet/README.md`。
+- BITEMAP 本体とはコード・Service Worker・localStorage キー（`diet.*`）を分けている。本体側の変更で `diet/` を触る必要はない。
+- **バージョン管理は本体と別**: `diet/js/app.js` の `APP_VERSION`、`diet/sw.js` の `VERSION` と `SHELL` の `?v=`、`diet/index.html` の `?v=`（5箇所）を揃える。本体の `APP_VERSION` は変更しない。
+- 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/diet/
