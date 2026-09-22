@@ -370,40 +370,55 @@ function appendixAI3() {
   card(s, 9.25, 1.65, 3.48, 5.25);
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 9.5, y: 1.9, w: 2.0, h: 0.42, fill: { color: C.gray }, line: { color: C.gray, width: 0 }, rectRadius: 0.21 });
   s.addText('課題（正直に）', { x: 9.5, y: 1.9, w: 2.0, h: 0.42, fontFace: F, fontSize: 13, bold: true, color: C.white, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
-  bullets(s, ['費用：店舗検索の Google Places API とクラウドは利用量課金。多人数への一般公開はコストの壁があり、当面は利用者自身のキー＋無料の OpenStreetMap 検索で運用', '初期の一致率：共通店が少ないうちは出せない。共通5件未満は非表示、自分の評価は一致率100%、一致率が出せない人の評価は弱く（0.15）反映し、1人でも食日記として成立する設計', 'AI判定の誤りの継続観測と、判定根拠の可視化'], 9.5, 2.5, 3.0, 4.3, 11);
+  bullets(s, ['費用：Google の店舗検索とクラウドは利用量課金。無料の検索源（OSM・Yahoo!・ホットペッパー）を先に使い、Google は最後の手段にする設計へ変更（v297）。1万人規模では課金モデルが要る（次ページ）', '初期の一致率：共通店が少ないうちは出せない。共通5件未満は非表示、自分の評価は一致率100%、一致率が出せない人の評価は弱く（0.15）反映し、1人でも食日記として成立する設計', 'AI判定の誤りの継続観測と、判定根拠の可視化'], 9.5, 2.5, 3.0, 4.3, 11);
   foot(s, 9);
-  s.addNotes('［審査観点 ④オリジナリティ に対応］【0:30】オリジナリティは情報の流れです。一般のサイトは、店の評価の平均があなたに届く。BITEMAPは逆で、あなたの評価から味覚が近い人を見つけ、その人の評価で、まだ行っていない店を選ぶ。評価の主語が「みんな」から「あなた」に変わる。課題は正直に。Google Places やクラウドは使うほど課金され、一般公開にはコストの壁。初期の一致率は共通店が少ないと出せないので、5件未満は非表示、自分の評価を100%として使う設計で、1人でも食日記として成立します。');
+  s.addNotes('［審査観点 ④オリジナリティ に対応］【0:30】オリジナリティは情報の流れです。一般のサイトは、店の評価の平均があなたに届く。BITEMAPは逆で、あなたの評価から味覚が近い人を見つけ、その人の評価で、まだ行っていない店を選ぶ。評価の主語が「みんな」から「あなた」に変わる。課題は正直に。Google の検索やクラウドは使うほど課金されます。そこで無料の検索源を先に使い、Google を最後の手段にする設計に変えました。それでも1万人規模では課金モデルが要る、これは次のページで。初期の一致率は共通店が少ないと出せないので、5件未満は非表示、自分の評価を100%として使う設計で、1人でも食日記として成立します。');
 }
-// ================= 10. これから =================
+// ================= 10. これから（費用をかけずに増える設計） =================
 {
   const s = pres.addSlide(); s.background = { color: C.white };
-  header(s, 'これから ― 人が増えるほど、あなたの地図は賢くなる', '今後の展開');
-  // 上：ここまで（タイムライン）
-  card(s, 0.6, 1.6, 12.13, 1.75, { fill: 'FBF8F3', noShadow: true });
-  s.addText('ここまで ― 295回のループの記録', { x: 0.85, y: 1.7, w: 8, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: C.terra, isTextBox: true, margin: 0 });
-  s.addShape(pres.shapes.LINE, { x: 1.3, y: 2.55, w: 10.7, h: 0, line: { color: 'D9CFC2', width: 3 } });
-  const tl = [['v1', '2026/6\n最初の記録機能'], ['v100', '地図・アルバム\nクラウド同期'], ['v200', '味覚一致率\nSNS機能'], ['v289', '8/31 予選提出\nポスター・動画'], ['v295', '決勝\n実利用での改良5点']];
+  header(s, 'これから ― 費用をかけずに、増える設計', '今後の展開');
+  // 上段：ここまで（タイムライン・コンパクト）
+  card(s, 0.6, 1.55, 12.13, 1.25, { fill: 'FBF8F3', noShadow: true });
+  s.addText('ここまで ― 295回のループ', { x: 0.85, y: 1.62, w: 4, h: 0.3, fontFace: F, fontSize: 11.5, bold: true, color: C.terra, isTextBox: true, margin: 0 });
+  s.addShape(pres.shapes.LINE, { x: 1.3, y: 2.3, w: 10.7, h: 0, line: { color: 'D9CFC2', width: 3 } });
+  const tl = [['v1', '2026/6 最初の記録機能'], ['v100', '地図・アルバム・同期'], ['v200', '味覚一致率・SNS'], ['v289', '8/31 予選'], ['v297', '決勝・改良と検索の設計']];
   tl.forEach((t, i) => {
-    const cx = 1.3 + i * 2.675;
-    const last = i === tl.length - 1;
-    s.addShape(pres.shapes.OVAL, { x: cx - 0.17, y: 2.38, w: 0.34, h: 0.34, fill: { color: last ? C.terra : C.white }, line: { color: C.terra, width: 2 } });
-    s.addText(t[0], { x: cx - 0.8, y: 2.02, w: 1.6, h: 0.32, fontFace: F, fontSize: 11.5, bold: true, color: C.dark, align: 'center', isTextBox: true, margin: 0 });
-    s.addText(t[1], { x: cx - 1.1, y: 2.78, w: 2.2, h: 0.55, fontFace: F, fontSize: 9.5, color: C.muted, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
+    const cx = 1.3 + i * 2.675, last = i === tl.length - 1;
+    s.addShape(pres.shapes.OVAL, { x: cx - 0.14, y: 2.16, w: 0.28, h: 0.28, fill: { color: last ? C.terra : C.white }, line: { color: C.terra, width: 2 } });
+    s.addText(t[0], { x: cx - 0.8, y: 1.88, w: 1.6, h: 0.26, fontFace: F, fontSize: 10.5, bold: true, color: C.dark, align: 'center', isTextBox: true, margin: 0 });
+    s.addText(t[1], { x: cx - 1.2, y: 2.48, w: 2.4, h: 0.28, fontFace: F, fontSize: 9, color: C.muted, align: 'center', isTextBox: true, margin: 0 });
   });
-  // 下：これから（ネットワークの成長）
-  s.addText('これから ― 「味覚が近い人」のネットワークを育てる', { x: 0.6, y: 3.55, w: 8, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: '2F5D8A', isTextBox: true, margin: 0 });
-  const grow = [['100人', 0.85, '味覚が近い人が数人見つかる', '共通店5件以上のペアが生まれ、一致率が表示され始める'], ['1,000人', 1.1, 'フォロー外にも「近い人」が現れる', 'おすすめをフォロー外へ拡大。ジャンルごとに近い人が違うことも見えてくる'], ['10,000人', 1.35, '「あなたと似た人が、まだ行っていない店」', '地域ごとに次に行く店をAIが提案（一致率 × 未訪問 × 現在地）']];
-  grow.forEach((g, i) => {
-    const x = 0.6 + i * 4.12, d = g[1];
-    card(s, x, 4.0, 3.9, 2.9);
-    s.addShape(pres.shapes.OVAL, { x: x + (3.9 - d) / 2, y: 5.45 - d, w: d, h: d, fill: { color: i === 2 ? C.terra : (i === 1 ? 'E9A98F' : 'F3D3C6') }, line: { color: C.terra, width: 0 } });
-    s.addText(g[0], { x: x + (3.9 - d) / 2, y: 5.45 - d, w: d, h: d, fontFace: F, fontSize: i === 0 ? 13 : 16, bold: true, color: i === 2 ? C.white : C.dark, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
-    s.addText(g[2], { x: x + 0.2, y: 5.55, w: 3.5, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, align: 'center', isTextBox: true, margin: 0, valign: 'middle' });
-    s.addText(g[3], { x: x + 0.25, y: 5.98, w: 3.4, h: 0.85, fontFace: F, fontSize: 10.5, color: C.muted, align: 'center', isTextBox: true, margin: 0, valign: 'top' });
-    if (i < 2) arrow(s, x + 3.95, 5.1, 0.14);
+  // 中段：運営コストの設計（4つの手順）
+  s.addText('人が増えても、運営コストが増えない順序で店舗検索を組む', { x: 0.6, y: 2.98, w: 12, h: 0.35, fontFace: F, fontSize: 13, bold: true, color: '2F5D8A', isTextBox: true, margin: 0 });
+  const steps = [
+    ['1', '無料の地図データを一次候補に', '写真の位置情報 → OpenStreetMap。名前検索は Yahoo!ローカルサーチ／ホットペッパー（無料）', '実装済み'],
+    ['2', '登録された店を全員の台帳に', '誰かが一度登録した店は、次の人の検索で外部に聞かない。人が増えるほど外部呼び出しが減る', '設計'],
+    ['3', 'Google は最後の手段', '無料の検索源で見つからなかったときだけ。1人1日5回までの上限と、日次の予算上限', '呼び出し順は実装済み'],
+    ['4', '残りは本人のキーかプレミアム', '自分のキーを設定した人は無制限。運営のキーで無制限にしたい人は月300円のプレミアム', '設計'],
+  ];
+  steps.forEach((st, i) => {
+    const x = 0.6 + i * 3.06;
+    card(s, x, 3.38, 2.9, 1.66);
+    numCircle(s, x + 0.18, 3.52, st[0], 0.36, '2F5D8A');
+    s.addText(st[1], { x: x + 0.62, y: 3.49, w: 2.2, h: 0.42, fontFace: F, fontSize: 11, bold: true, color: C.ink, isTextBox: true, margin: 0, valign: 'middle' });
+    s.addText(st[2], { x: x + 0.18, y: 3.94, w: 2.55, h: 0.76, fontFace: F, fontSize: 9.5, color: C.muted, isTextBox: true, margin: 0, valign: 'top' });
+    const done = st[3].includes('実装');
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: x + 0.18, y: 4.72, w: 1.5, h: 0.26, fill: { color: done ? 'E3F1E8' : 'F3F1EC' }, line: { color: done ? 'E3F1E8' : 'F3F1EC', width: 0 }, rectRadius: 0.13 });
+    s.addText(st[3], { x: x + 0.18, y: 4.72, w: 1.5, h: 0.26, fontFace: F, fontSize: 8.5, bold: true, color: done ? C.green : C.gray, align: 'center', valign: 'middle', isTextBox: true, margin: 0 });
   });
+  // 下段：規模ごとの運営コストと、価値
+  s.addText('規模ごとの見通し（Google の無料枠と Firebase の無料枠を前提。料金改定があれば再計算）', { x: 0.6, y: 5.16, w: 12, h: 0.3, fontFace: F, fontSize: 10.5, bold: true, color: C.ink, isTextBox: true, margin: 0 });
+  const rows = [
+    ['', '起きること', '外部検索（Google）', '運営コストの目安', 'まかない方'],
+    ['100人', '味覚が近い人が数人見つかる', '月100回程度 → 無料枠内', '0円', '不要'],
+    ['1,000人', 'フォロー外にも近い人が現れる', '月1,000回程度 → 無料枠内', '月数百〜数千円（写真の転送）', '開発者が負担して育てる'],
+    ['10,000人', '「似た人がまだ行っていない店」を提案', '月1万回 → 一部が有料', '月数万円', 'プレミアム3%加入＋予約アフィリエイトで回る'],
+  ];
+  s.addTable(rows.map((r, ri) => r.map((c, ci) => ({ text: c, options: { bold: ri === 0 || ci === 0, color: ri === 0 ? C.white : (ci === 3 ? C.dark : C.ink), fill: { color: ri === 0 ? '2F5D8A' : (ci === 3 ? C.soft : C.white) }, fontFace: F, fontSize: ri === 0 ? 9.5 : 10, valign: 'middle', align: ci === 0 ? 'center' : 'left' } }))),
+    { x: 0.6, y: 5.47, w: 12.13, colW: [1.1, 3.1, 2.6, 2.3, 3.03], rowH: [0.3, 0.32, 0.32, 0.32], border: { type: 'solid', color: C.line, pt: 0.75 } });
   foot(s, 10);
-  s.addNotes('［審査観点 ⑥プレゼン構成（展望） に対応］【0:30】ここまでは295回のループ。これからは人のネットワークです。100人で、味覚が近い人が数人見つかる。1,000人で、フォロー外にも近い人が現れ、おすすめが機能する。10,000人で、「あなたと似た人がまだ行っていない店」を地域ごとに提案できる。人が増えるほど、一人ひとりの地図が賢くなる設計です。');
+  s.addNotes('［審査観点 ⑥プレゼン構成（展望）に対応］【0:30】ここまでは295回のループ。これからは、費用をかけずに増える設計です。店舗検索は、写真の位置情報と無料の地図データを一次候補にし、Yahoo!とホットペッパーを加えました。ここは実装済み。登録された店は全員の台帳にして、人が増えるほど外部への問い合わせを減らす。Googleは見つからなかったときだけ、1人1日5回まで。それ以上は自分のキーか、月300円のプレミアム。この順序なら1,000人まで運営コストは実質ゼロ、1万人でも月数万円で、プレミアム3%と予約アフィリエイトで回る計算です。人が増えるほど一人ひとりの地図が賢くなる、を費用の面でも成り立たせます。');
 }
 // ================= 12. まとめ =================
 {
@@ -430,7 +445,7 @@ function appendixAI3() {
     ['ユーザーが少ないと一致率は機能しないのでは？（コールドスタート）', '共通店5件未満では一致率を表示しない。初期は自分の評価を一致率100%として使い、一致率が出せない人の評価は弱く（重み0.15）反映する。だから1人でも「自分の食日記」として成立し、人が増えるほど精度が上がる。'],
     ['一致率は何人分のデータで検証した？', '評価傾向を変えたテストデータ（近い／真逆／無関係）で検証し 79%・27% を確認。本人の実データでは一致率83%のフォロー相手が1人。実ユーザー間の検証は共通店5件以上が集まった段階で行う。'],
     ['AIの判定が間違ったらどうなる？', '利用者が登録時に必ず確認・修正できる。手動で選んだ後はAIが上書きしない「所有権」ルール。自信のない判定はそもそも空欄。'],
-    ['一般公開の予定は？費用は？', 'Google Places・Claude・Firebase は利用量課金のため、多人数に無料公開すると運営費が発生し、現状は難しい。利用者自身のキーで動かし、キー未設定でも無料の OpenStreetMap 検索で使える構成。公開には無料枠内の設計か費用モデルが必要。'],
+    ['一般公開の予定は？費用は？', '店舗検索は無料の検索源（OSM・Yahoo!・ホットペッパー）を先に使い、Google は見つからないときだけ・1人1日5回まで。写真はサムネイル配信に。この順序なら1,000人まで実質無料枠、1万人規模で月数万円。そこはプレミアム（月300円・3%加入）と予約アフィリエイトで回す計画。Claude のAI判定は利用者自身のキーで動く任意機能。'],
     ['なぜ全量AI実装？品質は？', '人は判断に専念し、判断の回数を最大化するため。品質は自動テスト（Playwright）＋毎回の実機検証＋差し戻しで担保。AIの「直りました」も実機で確認してから採用。CLAUDE.mdで規約を固定。'],
     ['既存のグルメサービスとの違いは？', '「平均点」ではなく「自分と味覚が近い人」の評価で並び替える点。評価の主語が「みんな」から「あなた」に変わる。'],
     ['プライバシーは？', '記録・写真は本人のアカウント領域のみ（Firebaseルール）。公開は本人が公開した投稿のみ。他人の投稿には日付を出さない（全画面で統一）。'],
