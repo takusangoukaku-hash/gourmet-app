@@ -36,7 +36,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 | `index.html` | 画面レイアウト（ホーム/検索/登録/地図/プロフィールの5タブ） |
 | `css/style.css` | スタイル |
 | `js/store.js` | データ層（店舗Shop/訪問Visit）。localStorage + 写真はIndexedDB |
-| `js/api.js` | 外部API（Overpass/Nominatim）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義 |
+| `js/api.js` | 外部API（Overpass/Nominatim/Photon/Yahoo!/ホットペッパー/Google）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は無料の検索源→Google は最後の手段（課金を避ける） |
 | `js/register.js` | 登録フロー |
 | `js/views.js` | 地図・一覧・写真・統計・プロフィール・投稿詳細の描画（最大のファイル） |
 | `js/cloud.js` | Firebase 同期・SNS（フィード/いいね/コメント/フォロー/公開プロフィール） |

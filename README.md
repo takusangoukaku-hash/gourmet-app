@@ -76,7 +76,7 @@ service firebase.storage {
 | `js/vendor/anthropic-sdk.js` | Anthropic 公式SDK（0.72.1）を esbuild でブラウザ用に束ねたもの。外部CDNから実行時に読み込まない |
 | `firebase/*.rules` | Firestore / Storage の推奨セキュリティルール（コンソールに貼り付ける） |
 | `js/store.js` | データ層。店舗(Shop)/訪問記録(Visit)の2層モデル（仕様書§2）。localStorage＋写真はIndexedDB |
-| `js/api.js` | 外部API連携（Overpass/Nominatim）・EXIF解析・画像圧縮・ジャンル推定 |
+| `js/api.js` | 外部API（Overpass/Nominatim/Photon/Yahoo!ローカルサーチ/ホットペッパー/Google Places）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は無料の検索源を先に使い、Google は見つからなかったときだけ呼ぶ |
 | `js/register.js` | 登録フロー（仕様書§4）。フローA(GPSあり)/フローB(名前検索・地図指定) |
 | `js/views.js` | 地図・一覧・写真・統計・ランキング・店舗詳細の描画 |
 | `js/app.js` | タブ制御・共通イベント・サンプルデータ |

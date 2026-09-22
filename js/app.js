@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v296'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v297'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   function init() {
@@ -49,6 +49,8 @@ const App = (() => {
     const settingsStatus = () => {
       const parts = [];
       parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
+      parts.push(Api.hasYahooKey() ? '✅ Yahoo!: 設定済み' : 'Yahoo!: 未設定');
+      parts.push(Api.hasHotpepperKey() ? '✅ ホットペッパー: 設定済み' : 'ホットペッパー: 未設定');
       parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
       // 部品(api.js)のバージョンも表示: アプリと違えば古いキャッシュ混在のサイン
       const partVer = Api.FILE_VERSION || '旧';
@@ -83,6 +85,8 @@ const App = (() => {
     $('#settings-btn').addEventListener('click', () => {
       $('#settings-api-key').value = Api.getApiKey();
       $('#settings-google-key').value = Api.getGoogleKey();
+      $('#settings-yahoo-key').value = Api.getYahooKey();
+      $('#settings-hotpepper-key').value = Api.getHotpepperKey();
       $('#settings-status').textContent = settingsStatus();
       renderSettingsAccount();
       renderSettingsProfile();
@@ -94,6 +98,9 @@ const App = (() => {
       // 空欄のまま保存しても、設定済みのキーは消さない（消すのは「キーを削除」ボタンだけ）
       if (ak) { Api.setApiKey(ak); Api.resetAnthropicClient(); }
       if (gk) Api.setGoogleKey(gk);
+      const yk = $('#settings-yahoo-key').value.trim(), hk = $('#settings-hotpepper-key').value.trim();
+      if (yk) Api.setYahooKey(yk);
+      if (hk) Api.setHotpepperKey(hk);
       // ログイン中はアカウントにも控えを保存（ブラウザ都合で消えても自動復元される）
       if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.syncApiKeys().catch(() => {});
       $('#settings-modal').classList.add('hidden');
@@ -103,8 +110,10 @@ const App = (() => {
       Api.setApiKey('');
       Api.resetAnthropicClient();
       Api.setGoogleKey('');
+      Api.setYahooKey(''); Api.setHotpepperKey('');
       $('#settings-api-key').value = '';
       $('#settings-google-key').value = '';
+      $('#settings-yahoo-key').value = ''; $('#settings-hotpepper-key').value = '';
       // クラウドの控えも消す（残すと次回ログインで復活してしまう）
       if (typeof Cloud !== 'undefined') Cloud.clearApiKeys().catch(() => {});
       $('#settings-status').textContent = settingsStatus();

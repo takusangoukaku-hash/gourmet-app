@@ -64,7 +64,7 @@ const Cloud = (() => {
           if (last && last !== u.uid) {
             try {
               await Store.wipeLocal();
-              Api.setApiKey(''); Api.setGoogleKey('');
+              Api.setApiKey(''); Api.setGoogleKey(''); Api.setYahooKey(''); Api.setHotpepperKey('');
               if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
               App.toast('別のアカウントでログインしたため、前のアカウントの端末内データを消去しました');
               App.refreshCurrent();
@@ -166,10 +166,14 @@ const Cloud = (() => {
       // ローカルに無ければクラウドから復元
       if (!Api.getApiKey() && remote.anthropic) Api.setApiKey(remote.anthropic);
       if (!Api.getGoogleKey() && remote.google) Api.setGoogleKey(remote.google);
+      if (!localStorage.getItem('gourmet.yahooKey') && remote.yahoo) Api.setYahooKey(remote.yahoo);
+      if (!localStorage.getItem('gourmet.hotpepperKey') && remote.hotpepper) Api.setHotpepperKey(remote.hotpepper);
       // ローカルにあるキーはクラウドへ保存（機種変更・消失対策）
       const data = {};
       if (Api.getApiKey()) data.anthropic = Api.getApiKey();
       if (Api.getGoogleKey()) data.google = Api.getGoogleKey();
+      if (localStorage.getItem('gourmet.yahooKey')) data.yahoo = localStorage.getItem('gourmet.yahooKey');
+      if (localStorage.getItem('gourmet.hotpepperKey')) data.hotpepper = localStorage.getItem('gourmet.hotpepperKey');
       if (Object.keys(data).length) await fb.fs.setDoc(ref, data, { merge: true });
     } catch (e) { console.warn('APIキーの同期に失敗:', e); }
   }

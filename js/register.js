@@ -644,18 +644,19 @@ const Register = (() => {
     if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
     renderCandidates(box, existing, results, emptyMsg);
 
-    // Google検索の状態を表示（エラー原因の切り分け用）
+    // 各検索源の状態を表示（エラー原因の切り分け用）
     const gs = Api.googleSearchStatus();
+    const src = Api.searchSourcesStatus();
+    const hint = (t) => { const p = document.createElement('p'); p.className = 'hint'; p.textContent = t; box.appendChild(p); };
+    for (const [k, label] of [['yahoo', 'Yahoo!ローカルサーチ'], ['hotpepper', 'ホットペッパー']]) {
+      if (src[k] && src[k].state === 'error') hint(`⚠️ ${label}でエラー: ${src[k].message}｜⚙️のキーが正しいか確認してください。`);
+    }
     if (gs.state === 'error') {
-      const p = document.createElement('p');
-      p.className = 'hint';
-      p.textContent = `⚠️ Googleマップ検索でエラー: ${gs.message}｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。`;
-      box.appendChild(p);
-    } else if (gs.state === 'disabled' && !results.length && !existing.length) {
-      const p = document.createElement('p');
-      p.className = 'hint';
-      p.textContent = '💡 ⚙️からGoogle Maps APIキーを設定すると、Googleマップのデータからも検索できるようになります（個人店に強い）。';
-      box.appendChild(p);
+      hint(`⚠️ Googleマップ検索でエラー: ${gs.message}｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。`);
+    } else if (!results.length && !existing.length) {
+      const noFree = !Api.hasYahooKey() && !Api.hasHotpepperKey();
+      if (noFree) hint('💡 ⚙️からYahoo!／ホットペッパーのキー（無料）を設定すると、日本の個人店も見つかりやすくなります。');
+      else if (gs.state === 'disabled') hint('💡 ⚙️からGoogle Maps APIキーを設定すると、見つからなかったときだけGoogleマップのデータでも検索します。');
     }
 
     // 周辺の詳細検索（個人店に強いが遅い）を裏で実行し、結果が来たら追加表示
@@ -748,6 +749,8 @@ const Register = (() => {
     const mine = selected; // 通信中に別の候補が選ばれたら、この結果は捨てる
     $('#f-shop-name').value = c.name || '';
     if (c.address) $('#f-address').value = c.address;
+    // 検索源（Yahoo!／ホットペッパー）が最寄駅を持っていれば先に入れておく（通信待ちなしで確定）
+    if (c.station) { const st = c.station.endsWith('駅') ? c.station : c.station + '駅'; $('#f-station').value = st; selected.station = st; }
 
     if (c.lat != null && c.lon != null) {
       // 逆ジオコーディング＋最寄駅（店舗確定時に1回のみ — §15.1）
@@ -763,7 +766,7 @@ const Register = (() => {
         if (geo.pref) { $('#f-pref').value = geo.pref; selected.pref = geo.pref; }
         if (geo.city) { $('#f-city').value = geo.city; selected.city = geo.city; }
         if (geo.country) selected.country = geo.country;
-        if (station) { stationInput.value = station; selected.station = station; }
+        if (station && !selected.station) { stationInput.value = station; selected.station = station; }
       } finally {
         stationInput.placeholder = '自動入力されます';
       }

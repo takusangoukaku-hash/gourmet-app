@@ -344,14 +344,19 @@ out center 25;`;
       .replace('relation', 'r').replace('node', 'n').replace('way', 'w');
     const seen = new Set();
     const out = [];
-    // 情報源をまたぐ同一店舗の判定（座標が微妙に違うため、近接＋名前の包含で判定）
-    const isDup = (c) => out.some(o =>
-      o.lat != null && c.lat != null &&
-      Store.distMeters(o.lat, o.lon, c.lat, c.lon) < 150 &&
-      (o.name === c.name || o.name.includes(c.name) || c.name.includes(o.name)));
+    // 情報源をまたぐ同一店舗の判定（座標が微妙に違うため、近接＋名前の包含で判定）。
+    // 名前は空白・記号を除いて比べる（「麺屋 こがね」と「麺屋こがね 渋谷店」を同じ店とみなす）
+    const nn = (t) => String(t || '').toLowerCase().replace(/[\s　・･\-－—‐()（）「」【】]/g, '');
+    const isDup = (c) => out.some(o => {
+      if (o.lat == null || c.lat == null || Store.distMeters(o.lat, o.lon, c.lat, c.lon) >= 150) return false;
+      const a = nn(o.name), b = nn(c.name);
+      return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+    });
     for (const list of lists) {
       for (const c of list) {
         const key = c.googleId ? 'g/' + c.googleId
+          : c.yahooId ? 'y/' + c.yahooId
+          : c.hotpepperId ? 'h/' + c.hotpepperId
           : c.osmId ? norm(c.osmId)
           : c.name + '@' + (c.lat || 0).toFixed(3) + ',' + (c.lon || 0).toFixed(3);
         if (seen.has(key) || isDup(c)) continue;
@@ -366,41 +371,60 @@ out center 25;`;
     return out.slice(0, 15);
   }
 
-  // ---------- 高速検索: Google Places + Photon + Nominatim（即時表示用） ----------
-  // Google検索の直近の状態（画面での原因表示用）
-  let lastGoogleStatus = { state: 'disabled' }; // disabled | ok | error
+  // ---------- 高速検索: 無料の検索源（Yahoo!／ホットペッパー／Photon／Nominatim）→ 足りなければ Google ----------
+  // Google Places は1回ごとに課金されるため「最後の手段」にする:
+  //   無料の検索源で入力した店名に合う候補が見つかれば Google は呼ばない
+  let lastGoogleStatus = { state: 'disabled' }; // disabled | ok | error | skipped
   const googleSearchStatus = () => lastGoogleStatus;
+  // 各検索源の直近の状態（画面での案内用）
+  let lastSources = {};
+  const searchSourcesStatus = () => lastSources;
+
+  const normName = (t) => String(t || '').toLowerCase().replace(/[\s　・･\-－—‐()（）]/g, '');
+  // 無料の検索源で「入力した名前に合う店」が見つかったか（店名の一方が他方を含む）
+  function goodEnough(results, nameQuery) {
+    const q = normName(nameQuery);
+    if (q.length < 2) return results.length > 0;
+    return results.some(c => { const n = normName(c.name); return n && (n.includes(q) || q.includes(n)); });
+  }
+  async function runSource(key, promise) {
+    try { const r = await promise; lastSources[key] = { state: 'ok', count: r.length }; return r; }
+    catch (e) { lastSources[key] = { state: 'error', message: String(e && e.message || e) }; return []; }
+  }
 
   async function searchShopsFast(fullQuery, nameQuery, ref) {
-    const googleJob = hasGoogleKey()
-      ? googlePlacesSearch(fullQuery, ref)
-          .then(r => { lastGoogleStatus = { state: 'ok', count: r.length }; return r; })
-          .catch(e => {
-            console.warn('Google Places:', e);
-            lastGoogleStatus = { state: 'error', message: String(e && e.message || e) };
-            return [];
-          })
-      : (lastGoogleStatus = { state: 'disabled' }, Promise.resolve([]));
-    const [google, photon, nomi] = await Promise.all([
-      googleJob,
-      photonSearch(nameQuery, ref && ref.lat, ref && ref.lon).catch(() => []),
-      searchPlaces(fullQuery).catch(() => []),
+    lastSources = {};
+    const lat = ref && ref.lat, lon = ref && ref.lon;
+    const [yahoo, hp, photon, nomi] = await Promise.all([
+      hasYahooKey() ? runSource('yahoo', yahooLocalSearch(nameQuery, lat, lon)) : (lastSources.yahoo = { state: 'disabled' }, Promise.resolve([])),
+      hasHotpepperKey() ? runSource('hotpepper', hotpepperSearch(nameQuery, lat, lon)) : (lastSources.hotpepper = { state: 'disabled' }, Promise.resolve([])),
+      runSource('photon', photonSearch(nameQuery, lat, lon)),
+      runSource('nominatim', searchPlaces(fullQuery)),
     ]);
-    // Googleが最も網羅的なので優先
-    return mergeCandidates([google, photon, nomi], ref);
+    const free = mergeCandidates([yahoo, hp, photon, nomi], ref);
+    // Google は「キーがあり、無料の検索源で見つからなかったとき」だけ
+    if (!hasGoogleKey()) { lastGoogleStatus = { state: 'disabled' }; return free; }
+    if (goodEnough(free, nameQuery)) { lastGoogleStatus = { state: 'skipped' }; return free; }
+    let google = [];
+    try { google = await googlePlacesSearch(fullQuery, ref); lastGoogleStatus = { state: 'ok', count: google.length }; }
+    catch (e) { console.warn('Google Places:', e); lastGoogleStatus = { state: 'error', message: String(e && e.message || e) }; }
+    return mergeCandidates([google, yahoo, hp, photon, nomi], ref);
   }
 
   // ---------- 予測検索: 入力中のリアルタイム候補（検索ボタンを押す前に表示） ----------
-  // Google + Photon のみ使用（Nominatimは利用規約で自動補完への使用が禁止されているため使わない）
+  // 無料の検索源のみ（Yahoo!／ホットペッパー／Photon）。Google は無料の検索源が1件も返さず、
+  // 3文字以上入力されたときだけ（1文字ごとの課金を避ける）。Nominatim は利用規約で自動補完に使えない
   async function suggestShops(query, ref) {
-    const googleJob = hasGoogleKey()
-      ? googlePlacesSearch(query, ref).catch(() => [])
-      : Promise.resolve([]);
-    const [google, photon] = await Promise.all([
-      googleJob,
-      photonSearch(query, ref && ref.lat, ref && ref.lon).catch(() => []),
+    const lat = ref && ref.lat, lon = ref && ref.lon;
+    const [yahoo, hp, photon] = await Promise.all([
+      hasYahooKey() ? yahooLocalSearch(query, lat, lon).catch(() => []) : Promise.resolve([]),
+      hasHotpepperKey() ? hotpepperSearch(query, lat, lon).catch(() => []) : Promise.resolve([]),
+      photonSearch(query, lat, lon).catch(() => []),
     ]);
-    return mergeCandidates([google, photon], ref).slice(0, 6);
+    const free = mergeCandidates([yahoo, hp, photon], ref);
+    if (free.length || !hasGoogleKey() || query.length < 3) return free.slice(0, 6);
+    const google = await googlePlacesSearch(query, ref).catch(() => []);
+    return mergeCandidates([google], ref).slice(0, 6);
   }
 
   // ---------- 周辺の詳細検索: Overpass部分一致（個人店に強い・遅いので後追い用） ----------
@@ -442,6 +466,81 @@ out center 25;`;
     else localStorage.removeItem(GOOGLE_KEY_STORAGE);
   }
   const hasGoogleKey = () => !!getGoogleKey();
+
+  // ---------- Yahoo!ローカルサーチ・ホットペッパーグルメ（日本に強い無料の検索源） ----------
+  // どちらも無料で利用でき（要アプリID／APIキーの登録）、日本の飲食店の網羅性が高い。
+  // 開発者が用意する既定のキーは DEFAULT_KEYS に置ける（利用者が⚙️で設定したキーが優先）。
+  // ブラウザからは JSONP（callback パラメータ）で呼ぶ: 両APIとも CORS ヘッダを返さないため
+  const DEFAULT_KEYS = { yahoo: '', hotpepper: '' };
+  const YAHOO_KEY_STORAGE = 'gourmet.yahooKey';
+  const HOTPEPPER_KEY_STORAGE = 'gourmet.hotpepperKey';
+  const getYahooKey = () => localStorage.getItem(YAHOO_KEY_STORAGE) || DEFAULT_KEYS.yahoo || '';
+  const getHotpepperKey = () => localStorage.getItem(HOTPEPPER_KEY_STORAGE) || DEFAULT_KEYS.hotpepper || '';
+  function setYahooKey(key) { if (key) localStorage.setItem(YAHOO_KEY_STORAGE, key.trim()); else localStorage.removeItem(YAHOO_KEY_STORAGE); }
+  function setHotpepperKey(key) { if (key) localStorage.setItem(HOTPEPPER_KEY_STORAGE, key.trim()); else localStorage.removeItem(HOTPEPPER_KEY_STORAGE); }
+  const hasYahooKey = () => !!getYahooKey();
+  const hasHotpepperKey = () => !!getHotpepperKey();
+
+  // JSONP: <script> でAPIを呼び、callback で結果を受け取る（タイムアウト付き・後片付けあり）
+  let jsonpSeq = 0;
+  function jsonp(url, ms = 10000) {
+    return new Promise((resolve, reject) => {
+      const cb = '__bitemapJsonp' + (++jsonpSeq) + '_' + Math.random().toString(36).slice(2, 8);
+      const el = document.createElement('script');
+      let done = false;
+      const cleanup = () => { done = true; clearTimeout(timer); try { delete window[cb]; } catch { window[cb] = undefined; } el.remove(); };
+      const timer = setTimeout(() => { if (!done) { cleanup(); reject(new Error('タイムアウト')); } }, ms);
+      window[cb] = (data) => { if (!done) { cleanup(); resolve(data); } };
+      el.onerror = () => { if (!done) { cleanup(); reject(new Error('読み込みに失敗')); } };
+      el.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+      document.head.appendChild(el);
+    });
+  }
+  const stripJpAddress = (a) => String(a || '').replace(/^日本[、,]?\s*/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '');
+
+  // Yahoo!ローカルサーチAPI（gc=01: グルメ）。位置があれば周辺20km・近い順
+  async function yahooLocalSearch(query, lat, lon) {
+    const key = getYahooKey();
+    const q = String(query || '').trim();
+    if (!key || !q) return [];
+    let url = 'https://map.yahooapis.jp/search/local/V1/localSearch?appid=' + encodeURIComponent(key)
+      + '&query=' + encodeURIComponent(q) + '&gc=01&results=15&detail=simple&output=json';
+    if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lon=${lon}&dist=20&sort=dist`;
+    const j = await jsonp(url);
+    if (j && j.Error) throw new Error(j.Error.Message || 'Yahoo! API エラー');
+    return (j && j.Feature || []).map(f => {
+      const pr = f.Property || {};
+      const co = String((f.Geometry || {}).Coordinates || '').split(',');
+      const la = parseFloat(co[1]), lo = parseFloat(co[0]);
+      const genres = (pr.Genre || []).map(g => g.Name).filter(Boolean);
+      const st = (pr.Station || [])[0];
+      return {
+        osmId: '', yahooId: String(f.Gid || f.Id || ''), name: f.Name || '',
+        address: stripJpAddress(pr.Address), lat: isFinite(la) ? la : null, lon: isFinite(lo) ? lo : null,
+        cuisine: '', jaGenre: genres.join('・'), amenity: 'restaurant',
+        station: st && st.Name ? st.Name : '', distance: null, source: 'yahoo',
+      };
+    }).filter(c => c.name && c.lat != null);
+  }
+
+  // ホットペッパーグルメAPI（リクルートWebサービス）。位置があれば周辺3km
+  async function hotpepperSearch(query, lat, lon) {
+    const key = getHotpepperKey();
+    const q = String(query || '').trim();
+    if (!key || !q) return [];
+    let url = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=' + encodeURIComponent(key)
+      + '&keyword=' + encodeURIComponent(q) + '&count=15&format=jsonp';
+    if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lng=${lon}&range=5`;
+    const j = await jsonp(url);
+    const r = (j && j.results) || {};
+    if (r.error) throw new Error((r.error[0] && r.error[0].message) || 'ホットペッパー API エラー');
+    return (r.shop || []).map(sh => ({
+      osmId: '', hotpepperId: String(sh.id || ''), name: sh.name || '',
+      address: stripJpAddress(sh.address), lat: numOK(sh.lat) ? sh.lat : parseFloat(sh.lat), lon: numOK(sh.lng) ? sh.lng : parseFloat(sh.lng),
+      cuisine: '', jaGenre: (sh.genre && sh.genre.name) || '', amenity: 'restaurant',
+      station: sh.station_name || '', distance: null, source: 'hotpepper',
+    })).filter(c => c.name && isFinite(c.lat) && isFinite(c.lon));
+  }
 
   // ---------- Google Places (New) テキスト検索 ----------
   // Googleマップのデータからほぼすべての飲食店を検索できる（キー設定時のみ）
@@ -503,7 +602,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=296')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=297')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -587,6 +686,10 @@ out center 25;`;
   }
 
   // ---------- ジャンル推定（OSMタグからのフォールバック） ----------
+  // 日本語のジャンル名（例:「ラーメン」「居酒屋」「イタリアン」）→ 店舗ジャンル
+  const JA_SHOP_KEYWORDS = [['ラーメン', 'ラーメン店'], ['焼肉', '焼肉店'], ['寿司', '寿司店'], ['すし', '寿司店'], ['中華', '中華料理店'],
+    ['イタリア', 'イタリアン'], ['パスタ', 'イタリアン'], ['ピザ', 'イタリアン'], ['カフェ', 'カフェ'], ['喫茶', 'カフェ'], ['スイーツ', 'カフェ'],
+    ['居酒屋', '居酒屋'], ['ダイニングバー', 'バー'], ['バー', 'バー'], ['ファミレス', 'ファミリーレストラン'], ['ファミリー', 'ファミリーレストラン']];
   function guessGenres(candidate) {
     const out = { dish: '', shop: '' };
     if (!candidate) return out;
@@ -594,6 +697,12 @@ out center 25;`;
     for (const c of cuisines) {
       const m = CUISINE_MAP[c.trim()];
       if (m) { out.dish = m.dish; out.shop = m.shop; break; }
+    }
+    // 日本語のジャンル名: 料理ジャンル一覧に含まれる語を探し、店舗ジャンルはキーワードで決める
+    const ja = String(candidate.jaGenre || '');
+    if (ja) {
+      if (!out.dish) { const g = DISH_GENRES.find(g => ja.includes(g)); if (g) out.dish = g; }
+      if (!out.shop) { const k = JA_SHOP_KEYWORDS.find(([kw]) => ja.includes(kw)); if (k) out.shop = k[1]; }
     }
     if (!out.shop && candidate.amenity) out.shop = AMENITY_SHOP[candidate.amenity] || '';
     return out;
@@ -628,11 +737,12 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v296',
+    FILE_VERSION: 'v297',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
-    getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus,
+    getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus, searchSourcesStatus,
+    getYahooKey, setYahooKey, hasYahooKey, getHotpepperKey, setHotpepperKey, hasHotpepperKey, yahooLocalSearch, hotpepperSearch,
   };
 })();
