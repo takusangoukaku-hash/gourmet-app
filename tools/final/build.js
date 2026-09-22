@@ -147,9 +147,9 @@ function rich(s, runs, x, y, w, h, size = 14, opt = {}) {
     s.addMedia({ type: 'video', path: REAL, x: 0, y: 0, w: 13.333, h: 7.5 });
   } else {
     s.addImage({ path: SP_FINAL + 'demo_poster.jpg', x: 0, y: 0, w: 13.333, h: 7.5 });
-    s.addText('▶ 実機デモ動画（74秒・本人アカウントの実データ・★3以上のみ）― PDF版では静止画。動画は .pptx で再生', { x: 0, y: 7.1, w: 13.333, h: 0.4, fontFace: F, fontSize: 11, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } });
+    s.addText('▶ 実機デモ動画（86秒・本人アカウントの実データ・★3以上のみ）― PDF版では静止画。動画は .pptx で再生', { x: 0, y: 7.1, w: 13.333, h: 0.4, fontFace: F, fontSize: 11, bold: true, color: C.white, isTextBox: true, margin: 0, align: 'center', fill: { color: '2B2825' } });
   }
-  s.addNotes('【1:15】実機デモ（74秒・スライド全面・クリックで再生開始・BGM小音量入り）。「ここからは実機、実データの動画です。表示は★3以上の記録のみ」と言ってからクリック。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：食日記としての写真グリッド→お店の記録 ③地図：訪問順にピンが1本ずつ増える→渋谷へズーム→ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URL https://takusangoukaku-hash.github.io/gourmet-app/ をブラウザで開いて実演。');
+  s.addNotes('【1:30】実機デモ（86秒・スライド全面・クリックで再生開始・BGM小音量入り）。冒頭に BITEMAP の導入カード（5秒）、末尾に締めのカード（4秒）。「ここからは実機、実データの動画です」と言ってからクリック。締めのカードが出たら次のスライドへ進んでよい。①ホーム：味覚一致83%のバッジと「あなた向け／全体」評価 ②アルバム：食日記としての写真グリッド→お店の記録 ③地図：訪問順にピンが1本ずつ増える→渋谷へズーム→ピンをタップして店舗シート ④検索：ジャンル別の写真一覧 ⑤ふりかえり：統計。再生できない場合は本番URL https://takusangoukaku-hash.github.io/gourmet-app/ をブラウザで開いて実演。');
 }
 // ================= 6. AIの使い方（①②③を1枚に） =================
 {

@@ -91,6 +91,13 @@
   @keyframes drop { from { opacity:0; transform:translateY(-60px) scale(.7); } to { opacity:1; transform:none; } }
 </style></head><body>
 
+<!-- 導入: ブランド → 何のデモか → 前提（実データ・★3以上） -->
+<div class="scene grad" id="d-intro"><div class="center">
+  <div class="brand up" style="--d:.1s">BITEMAP</div>
+  <div class="chip up" style="--d:.7s; margin-top:34px">実機デモ</div>
+  <div class="catch up" style="--d:1.2s; margin-top:44px">撮るだけで、<span class="em">あなたの味覚地図</span>が育つ。</div>
+  <div class="tagline up" style="--d:1.8s; font-size:34px; font-weight:700; color:rgba(255,255,255,.85)">本人アカウントの実データ（★3以上の記録のみ）・5つの画面で</div>
+</div></div>
 <div class="scene active" id="d-home"><div class="appscene"><div class="cap">
   <div class="tag"><span class="no">1</span>ホーム</div>
   <h2>味覚が近い人ほど、<br>上に来る。</h2>
@@ -117,6 +124,12 @@
   <h2>食べた記録が、<br>数字と思い出になる。</h2>
   <p>訪問回数・味の平均・<b>「1年前の今ごろ」</b>の通知。自分の記録を続けるほど、自分の味覚が見えてくる。</p>
 </div></div></div>
+<!-- 締め -->
+<div class="scene grad" id="d-outro"><div class="center">
+  <div class="brand up" style="--d:.1s">BITEMAP</div>
+  <div class="catch up" style="--d:.7s; margin-top:40px">あなたの<span class="em">味覚</span>で、店を選ぶ。</div>
+  <div class="tagline up" style="--d:1.3s; font-size:30px; font-weight:700; color:rgba(255,255,255,.8)">takusangoukaku-hash.github.io/gourmet-app</div>
+</div></div>
 <div id="phoneLayer"><div class="phone"><div class="island"></div><iframe id="appframe" src="index.html"></iframe></div></div>
 <script>
   window.Stage = {

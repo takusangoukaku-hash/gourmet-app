@@ -46,6 +46,7 @@ const OUT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755
   const cap = (t) => marks.marks.push({ t: (Date.now() - t0) / 1000, text: t });
   const wait = (ms) => p.waitForTimeout(ms);
 
+  cap('D0 intro'); await p.evaluate(() => Stage.show('d-intro', false)); await wait(5200);
   cap('D1 home'); await p.evaluate(() => Stage.show('d-home', true));
   await wait(1800); await scroller(12, 110, 50); await wait(1200);
 
@@ -88,6 +89,8 @@ const OUT = '/tmp/claude-0/-home-user-gourmet-app/8edbdaa3-b81a-5c49-b452-bda755
   await f.evaluate(() => window.scrollTo(0, 0));
   await f.evaluate(() => document.querySelector('[data-ptab="stats"]').click()); await wait(2500);
   await scroller(10, 80, 45); await wait(2000);
+
+  cap('D6 outro'); await p.evaluate(() => Stage.show('d-outro', false)); await wait(4500);
 
   marks.total = (Date.now() - t0) / 1000;
   fs.writeFileSync(OUT + '/marks.json', JSON.stringify(marks, null, 2));
