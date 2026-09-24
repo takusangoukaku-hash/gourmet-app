@@ -15,12 +15,14 @@ window.Store = (() => {
       fatRatio: 0.25,         // 脂質のカロリー比
       targets: null,          // {kcal,p,f,c} 手動指定（null なら自動計算）
       addExerciseToBudget: false,
+      useMeasuredTdee: false, // 目標計算に実測TDEEを使う
       commute: { distanceKm: null, minutes: null },
       targetWeight: null,
     },
     meals: [],      // {id,date,slot,name,kcal,p,f,c,photoId,ai,ts}
     weights: [],    // {date,kg}
     exercises: [],  // {id,date,type:'bike'|'strength',...}
+    incompleteDays: [], // 食事の記録漏れがある日（収支分析から除外）
   });
 
   let data = load();
@@ -35,6 +37,7 @@ window.Store = (() => {
         d.meals = Array.isArray(j.meals) ? j.meals : [];
         d.weights = Array.isArray(j.weights) ? j.weights : [];
         d.exercises = Array.isArray(j.exercises) ? j.exercises : [];
+        d.incompleteDays = Array.isArray(j.incompleteDays) ? j.incompleteDays : [];
         return d;
       }
     } catch { /* 壊れていれば初期化 */ }
@@ -70,6 +73,24 @@ window.Store = (() => {
     if (m.photoId && !data.meals.some(x => x.photoId === m.photoId)) deletePhoto(m.photoId);
   }
   const round1 = v => Math.round((+v || 0) * 10) / 10;
+
+  // ---------- 日ごとの摂取（収支分析用） ----------
+  const isIncomplete = date => data.incompleteDays.includes(date);
+  function setIncomplete(date, on) {
+    data.incompleteDays = data.incompleteDays.filter(d => d !== date);
+    if (on) data.incompleteDays.push(date);
+    save();
+  }
+  // from〜to の各日: { date, kcal, logged(食事1件以上), incomplete }
+  function dailyIntake(from, to) {
+    const map = new Map();
+    data.meals.forEach(m => { if (m.date >= from && m.date <= to) map.set(m.date, (map.get(m.date) || 0) + (+m.kcal || 0)); });
+    const out = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      out.push({ date: d, kcal: Math.round(map.get(d) || 0), logged: map.has(d), incomplete: isIncomplete(d) });
+    }
+    return out;
+  }
 
   // ---------- 体重 ----------
   const weights = () => data.weights.slice().sort((a, b) => a.date < b.date ? -1 : 1);
@@ -111,7 +132,7 @@ window.Store = (() => {
   function importJson(text) {
     const j = JSON.parse(text);
     if (!j || !Array.isArray(j.meals) || !Array.isArray(j.weights)) throw new Error('形式が違います');
-    localStorage.setItem(KEY, JSON.stringify({ profile: j.profile, meals: j.meals, weights: j.weights, exercises: j.exercises || [] }));
+    localStorage.setItem(KEY, JSON.stringify({ profile: j.profile, meals: j.meals, weights: j.weights, exercises: j.exercises || [], incompleteDays: j.incompleteDays || [] }));
     data = load();
   }
   function clearAll() { localStorage.removeItem(KEY); data = defaults(); }
@@ -161,7 +182,7 @@ window.Store = (() => {
 
   return {
     today, addDays, fmtDate,
-    mealsOn, addMeal, updateMeal, deleteMeal,
+    mealsOn, addMeal, updateMeal, deleteMeal, isIncomplete, setIncomplete, dailyIntake,
     weights, setWeight, deleteWeight, latestWeight,
     exercisesOn, addExercise, deleteExercise, lastStrength, strengthNames, exercisesBetween,
     profile, setProfile,

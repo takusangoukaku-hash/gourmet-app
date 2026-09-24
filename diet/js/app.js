@@ -1,7 +1,7 @@
 // =====================================================
 // 画面制御: 今日（食事PFC）/ 体重 / 運動 / 設定
 // =====================================================
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -53,6 +53,31 @@ const APP_VERSION = 'v1';
     const w = Store.latestWeight(state.date) || Store.latestWeight();
     return w ? w.kg : 0;
   }
+  // 直近 days 日（昨日まで。今日は記録途中なので除く）の収支分析
+  function balanceFor(days) {
+    const to = Store.addDays(Store.today(), -1);
+    const from = Store.addDays(to, -days + 1);
+    const daily = Store.dailyIntake(from, to);
+    const intakeDays = daily.filter(d => d.logged && !d.incomplete);
+    // 体重は今日の分まで使う
+    const weights = Store.weights().filter(w => w.date >= from && w.date <= Store.today());
+    const p = Store.profile();
+    const wNow = currentWeight();
+    const exerciseAvg = Store.exercisesBetween(from, to).reduce((s, e) => s + (+e.kcal || 0), 0) / days;
+    const r = Calc.energyBalance({ weights, intakeDays, days, formulaTdee: Calc.tdee(p, wNow), exerciseAvg });
+    return Object.assign(r, { from, to, daily });
+  }
+  // 設定で「実測TDEEを使う」がオンで、実測値が妥当な時だけ返す
+  function measuredTdeeForTargets() {
+    const p = Store.profile();
+    if (!p.useMeasuredTdee) return null;
+    const r = [28, 14].map(balanceFor).find(x => x.ready);
+    if (!r || !isPlausible(r)) return null;
+    return r.measuredTdee;
+  }
+  // 式の推定から±35%を超える実測値は、記録漏れか測定ノイズとみなして採用しない
+  const isPlausible = r => !r.expectedTdee || Math.abs(r.measuredTdee - r.expectedTdee) <= r.expectedTdee * 0.35;
+
   function exerciseKcalOn(date) {
     return Store.exercisesOn(date).reduce((s, e) => s + (+e.kcal || 0), 0);
   }
@@ -80,7 +105,7 @@ const APP_VERSION = 'v1';
     const root = $('#tab-today');
     const p = Store.profile();
     const weight = currentWeight();
-    const tg = Calc.targets(p, weight);
+    const tg = Calc.targets(p, weight, measuredTdeeForTargets());
     const meals = Store.mealsOn(state.date);
     const eaten = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, f: a.f + m.f, c: a.c + m.c }), { kcal: 0, p: 0, f: 0, c: 0 });
     const exKcal = exerciseKcalOn(state.date);
@@ -108,7 +133,7 @@ const APP_VERSION = 'v1';
         </div>
         <div class="row between" style="margin-top:10px">
           <small>運動消費 ${exKcal} kcal ${p.addExerciseToBudget ? '（予算に加算）' : '（予算には加算しない）'}</small>
-          <small>${tg.mode === 'manual' ? '目標: 手動' : `TDEE ${tg.tdee} kcal`}</small>
+          <small>${tg.mode === 'manual' ? '目標: 手動' : `${tg.mode === 'measured' ? '実測' : ''}TDEE ${tg.tdee} kcal`}</small>
         </div>
         ${tg.belowBmr ? `<div class="notice">この減量ペースだと目標が基礎代謝(${tg.bmr}kcal)を下回ります。ペースを落とすか、手動で目標を設定してください。</div>` : ''}
       </div>`;
@@ -129,11 +154,16 @@ const APP_VERSION = 'v1';
       </div>`;
     }).join('');
 
-    root.innerHTML = `${dateNav()}${summary}${slots}
+    const incomplete = Store.isIncomplete(state.date);
+    const incompleteToggle = `<div class="card toggle" style="padding:10px 16px">
+        <span><b style="font-size:14px">この日は記録漏れあり</b><br><small class="muted">オンにすると体重との答え合わせから除外します</small></span>
+        <input type="checkbox" id="incomplete" ${incomplete ? 'checked' : ''}></div>`;
+    root.innerHTML = `${dateNav()}${summary}${slots}${incompleteToggle}
       <div style="height:70px"></div>
       <button class="fab" id="fab-meal"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>食事を記録</button>`;
 
     bindDateNav(root, renderToday);
+    $('#incomplete', root).onchange = (e) => { Store.setIncomplete(state.date, e.target.checked); toast(e.target.checked ? '分析から除外しました' : '分析に含めます'); };
     $$('[data-go]', root).forEach(b => b.onclick = () => switchTab(b.dataset.go));
     $$('[data-add]', root).forEach(b => b.onclick = () => openMealSheet({ slot: b.dataset.add }));
     $('#fab-meal').onclick = () => openMealSheet({ slot: guessSlot() });
@@ -311,6 +341,7 @@ const APP_VERSION = 'v1';
         <div class="chart-wrap" id="chart"></div>
         <div class="legend"><span><i></i>体重</span><span><i class="ma"></i>7日平均</span>${p.targetWeight ? `<span><i style="border-top:1px dotted var(--muted)"></i>目標 ${p.targetWeight} kg</span>` : ''}</div>
       </div>
+      <div class="card" id="balance-card"></div>
       <div class="card">
         <h2>履歴</h2>
         ${all.length ? `<table class="simple">${all.slice().reverse().slice(0, 30).map(w => `<tr><td>${w.date}</td><td>${w.kg.toFixed(1)} kg</td><td><button class="btn small danger" data-wdel="${w.date}">削除</button></td></tr>`).join('')}</table>` : '<div class="empty">まだ記録がありません</div>'}
@@ -324,6 +355,103 @@ const APP_VERSION = 'v1';
     $$('[data-range]', root).forEach(b => b.onclick = () => { state.range = +b.dataset.range; renderWeight(); });
     $$('[data-wdel]', root).forEach(b => b.onclick = () => { if (confirm(`${b.dataset.wdel} の記録を削除しますか？`)) { Store.deleteWeight(b.dataset.wdel); renderWeight(); } });
     drawWeightChart($('#chart', root), all, p.targetWeight);
+    renderBalance($('#balance-card', root));
+  }
+
+  // ---------- カロリー収支の答え合わせ ----------
+  function renderBalance(card) {
+    if (!state.balDays) state.balDays = balanceFor(28).ready ? 28 : 14;
+    const r = balanceFor(state.balDays);
+    const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toLocaleString();
+    const seg = `<div class="seg range" style="margin:0">${[14, 28].map(d => `<button data-bal="${d}" class="${state.balDays === d ? 'on' : ''}">${d}日</button>`).join('')}</div>`;
+    const period = `${r.from.slice(5).replace('-', '/')}〜${r.to.slice(5).replace('-', '/')}`;
+
+    let body;
+    if (!r.ready) {
+      const lacks = [];
+      if (r.need.weighins) lacks.push(`体重 あと${r.need.weighins}回`);
+      if (r.need.span) lacks.push(`体重の記録期間 あと${r.need.span}日`);
+      if (r.need.intakeDays) lacks.push(`食事の記録 あと${r.need.intakeDays}日`);
+      body = `<div class="notice info">答え合わせにはデータが足りません（${lacks.join('・')}）。</div>
+        <small class="muted">体重は毎日ぶれるので（水分で±1kg ≒ 7,000kcal 相当）、最低でも2週間分の体重と食事の記録から傾向を出します。</small>`;
+    } else {
+      const ok = isPlausible(r);
+      const verdict = r.gap == null ? '' :
+        Math.abs(r.gap) <= Math.max(150, r.margin) ? '計算式の推定とほぼ一致しています。'
+        : r.gap > 0 ? `計算式より <b>${r.gap} kcal/日 多く</b>消費している計算です（記録より食べていないか、活動量が多い）。`
+        : `計算式より <b>${-r.gap} kcal/日 少なく</b>しか消費していない計算です（記録漏れ・量の過小評価、または活動量が少ない）。`;
+      body = `
+        <div class="kv"><span>平均摂取（記録 ${r.intakeDayCount}/${r.days}日）</span><b>${r.avgIntake.toLocaleString()} kcal/日</b></div>
+        <div class="kv"><span>体重の傾向（体重 ${r.weighins}回）</span><b>${r.kgPerWeek > 0 ? '+' : ''}${r.kgPerWeek.toFixed(2)} kg/週</b></div>
+        <div class="kv"><span>体重から逆算した実際の収支</span><b>${signed(r.actualBalance)} <small>±${r.margin.toLocaleString()}</small> kcal/日</b></div>
+        ${r.plannedBalance != null ? `<div class="kv"><span>計算式どおりなら期待される収支</span><b>${signed(r.plannedBalance)} kcal/日</b></div>` : ''}
+        <div class="kv"><span><b>実測TDEE</b>（摂取 − 収支）</span><b>${r.measuredTdee.toLocaleString()} kcal/日</b></div>
+        ${r.expectedTdee ? `<div class="kv"><span>計算式のTDEE＋記録した運動</span><b>${r.expectedTdee.toLocaleString()} kcal/日</b></div>` : ''}
+        ${verdict ? `<div class="notice ${ok ? 'info' : ''}" style="margin-top:10px">${verdict}${ok ? '' : '<br>差が大きすぎるので、記録漏れの日を除外するか期間を延ばしてください。目標計算には使いません。'}</div>` : ''}
+        ${r.margin > 300 ? `<small class="muted">誤差幅が大きい（±${r.margin} kcal）ので、体重を毎日同じ条件で測るか、28日で見てください。</small>` : ''}`;
+    }
+
+    card.innerHTML = `<div class="row between"><h2 style="margin:0">カロリー収支の答え合わせ</h2>${seg}</div>
+      <small class="muted">${period}・今日は記録途中のため除外</small>
+      <div class="chart-wrap" id="intake-chart"></div>
+      <div class="legend"><span><i style="border-top:8px solid var(--p);width:10px;border-radius:2px"></i>摂取 kcal</span>${r.ready ? `<span><i style="border-top-color:var(--ink2)"></i>実測TDEE</span>` : ''}${r.expectedTdee || (!r.ready && Calc.tdee(Store.profile(), currentWeight())) ? `<span><i style="border-top:1.5px dashed var(--muted)"></i>計算式TDEE</span>` : ''}<span><i style="border-top:8px solid var(--line);width:10px;border-radius:2px"></i>除外日</span></div>
+      <div style="margin-top:8px">${body}</div>`;
+
+    $$('[data-bal]', card).forEach(b => b.onclick = () => { state.balDays = +b.dataset.bal; renderBalance(card); });
+    drawIntakeChart($('#intake-chart', card), r);
+  }
+
+  // 日ごとの摂取を棒で、実測TDEE・計算式TDEE を水平線で重ねる（単位は同じ kcal なので1軸）
+  function drawIntakeChart(container, r) {
+    const daily = r.daily;
+    if (!daily.some(d => d.logged)) { container.innerHTML = '<div class="empty">この期間の食事記録がありません</div>'; return; }
+    const formula = r.expectedTdee || Calc.tdee(Store.profile(), currentWeight()) || 0;
+    const measured = r.ready ? r.measuredTdee : 0;
+    const W = Math.max(280, container.clientWidth || 320), H = 180;
+    const pad = { l: 38, r: 12, t: 10, b: 22 };
+    const yMax = Math.ceil(Math.max(...daily.map(d => d.kcal), formula, measured, 1000) * 1.1 / 500) * 500;
+    const step = niceStep(yMax / 4);
+    const iw = W - pad.l - pad.r, bw = iw / daily.length;
+    const X = i => pad.l + i * bw, Y = v => pad.t + (1 - v / yMax) * (H - pad.t - pad.b);
+    const base = Y(0);
+    const yTicks = []; for (let v = 0; v <= yMax; v += step) yTicks.push(v);
+    const labelEvery = Math.ceil(daily.length / 5);
+    const bar = (d, i) => {
+      if (!d.logged) return '';
+      const x = X(i) + 1, w = Math.max(2, bw - 2), y = Y(d.kcal), h = Math.max(0, base - y);
+      const rr = Math.min(4, w / 2, h);
+      // 上端だけ角丸、底は基線に接地
+      const path = `M${x},${base} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${base} Z`;
+      return `<path d="${path}" fill="${d.incomplete ? 'var(--line)' : 'var(--p)'}"/>`;
+    };
+    const hline = (v, cls, label) => v ? `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" class="${cls}"/>` : '';
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">
+      <g class="grid">${yTicks.map(v => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('')}</g>
+      <g class="axis">${yTicks.map(v => `<text x="${pad.l - 6}" y="${Y(v) + 3.5}" text-anchor="end">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`).join('')}
+        ${daily.map((d, i) => ((daily.length - 1 - i) % labelEvery === 0) ? `<text x="${X(i) + bw / 2}" y="${H - 6}" text-anchor="middle">${d.date.slice(5).replace('-', '/')}</text>` : '').join('')}</g>
+      <g>${daily.map(bar).join('')}</g>
+      ${hline(formula, 'formula-line')}
+      ${hline(measured, 'measured-line')}
+      <g id="ihover"></g>
+      ${daily.map((d, i) => `<rect class="hit" data-i="${i}" x="${X(i)}" y="0" width="${bw}" height="${H}"/>`).join('')}
+    </svg><div class="tip hidden" id="itip"></div>`;
+
+    const svg = $('svg', container), tip = $('#itip', container), hov = $('#ihover', container);
+    const show = (i) => {
+      const d = daily[i]; const rect = svg.getBoundingClientRect();
+      hov.innerHTML = `<rect x="${X(i)}" y="${pad.t}" width="${bw}" height="${base - pad.t}" fill="var(--ink)" opacity=".06"/>`;
+      const diff = measured && d.logged ? d.kcal - measured : null;
+      tip.innerHTML = `${d.date.slice(5).replace('-', '/')}　${d.logged ? `<b>${d.kcal.toLocaleString()}</b> kcal${diff != null ? `　<span style="opacity:.7">実測TDEE比 ${diff > 0 ? '+' : ''}${diff}</span>` : ''}${d.incomplete ? '（除外）' : ''}` : '記録なし'}`;
+      tip.classList.remove('hidden');
+      tip.style.left = `${Math.min(Math.max((X(i) + bw / 2) / W * rect.width, 80), rect.width - 80)}px`;
+      tip.style.top = `${(d.logged ? Y(d.kcal) : base) / H * rect.height - 6}px`;
+    };
+    const hide = () => { hov.innerHTML = ''; tip.classList.add('hidden'); };
+    const idxAt = (clientX) => { const rect = svg.getBoundingClientRect(); return Math.min(daily.length - 1, Math.max(0, Math.floor(((clientX - rect.left) / rect.width * W - pad.l) / bw))); };
+    svg.onmousemove = e => show(idxAt(e.clientX));
+    svg.onmouseleave = hide;
+    svg.ontouchstart = svg.ontouchmove = e => show(idxAt(e.touches[0].clientX));
+    svg.ontouchend = () => setTimeout(hide, 1500);
   }
 
   function drawWeightChart(container, all, targetWeight) {
@@ -528,7 +656,7 @@ const APP_VERSION = 'v1';
     const root = $('#tab-settings');
     const p = Store.profile();
     const weight = currentWeight();
-    const auto = Calc.targets({ ...p, targets: null }, weight);
+    const auto = Calc.targets({ ...p, targets: null }, weight, measuredTdeeForTargets());
     const manual = p.targets && p.targets.kcal;
     const opt = (list, v) => list.map(([k, l]) => `<option value="${k}" ${String(k) === String(v) ? 'selected' : ''}>${l}</option>`).join('');
 
@@ -556,7 +684,7 @@ const APP_VERSION = 'v1';
         <h2>目標（自動計算）</h2>
         ${auto ? `
           <div class="kv"><span>基礎代謝 (BMR)</span><b>${auto.bmr} kcal</b></div>
-          <div class="kv"><span>総消費 (TDEE)</span><b>${auto.tdee} kcal</b></div>
+          <div class="kv"><span>総消費 (TDEE)${auto.mode === 'measured' ? '・実測' : '・計算式'}</span><b>${auto.tdee} kcal</b></div>
           <div class="kv"><span>目標エネルギー</span><b>${auto.kcal} kcal</b></div>
           <div class="kv"><span>P / F / C</span><b>${auto.p} / ${auto.f} / ${auto.c} g</b></div>
           ${auto.belowBmr ? '<div class="notice">目標が基礎代謝を下回っています。ペースを緩めることを勧めます。</div>' : ''}
@@ -571,6 +699,8 @@ const APP_VERSION = 'v1';
           </div>
           <button class="btn primary block" id="t-save">手動目標を保存</button>
         </div>
+        <div class="toggle"><span>目標を実測TDEEで計算する<br><small class="muted">体重と食事の記録が2週間以上揃うと、計算式の代わりに実測値を使います</small></span><input type="checkbox" id="t-measured" ${p.useMeasuredTdee ? 'checked' : ''}></div>
+        ${p.useMeasuredTdee ? `<small class="muted">現在: ${measuredTdeeForTargets() ? `実測TDEE ${measuredTdeeForTargets()} kcal を使用中` : 'データ不足または差が大きすぎるため、計算式を使用中'}</small>` : ''}
         <div class="toggle"><span>運動の消費カロリーを食事予算に加算する</span><input type="checkbox" id="t-addex" ${p.addExerciseToBudget ? 'checked' : ''}></div>
         <small class="muted">推定消費は過大になりがちなので、加算しない方が減量は安定します。</small>
       </div>
@@ -617,6 +747,7 @@ const APP_VERSION = 'v1';
       Store.setProfile({ targets: t }); renderSettings(); toast('手動目標を保存しました');
     };
     $('#t-addex').onchange = (e) => { Store.setProfile({ addExerciseToBudget: e.target.checked }); };
+    $('#t-measured').onchange = (e) => { Store.setProfile({ useMeasuredTdee: e.target.checked }); renderSettings(); };
     $('#c-save').onclick = () => {
       Store.setProfile({ commute: { distanceKm: +$('#c-km').value || null, minutes: +$('#c-min').value || null } });
       toast('保存しました');

@@ -4,13 +4,13 @@
 //  - CDN（Anthropic SDK）: キャッシュ優先
 //  - Anthropic API: キャッシュしない
 // =====================================================
-const VERSION = 'v1'; // 初版: 食事PFC・体重グラフ・自転車/筋トレ記録・写真AI推定
+const VERSION = 'v2'; // 体重と摂取からの実測TDEE・収支の答え合わせ・記録漏れ日の除外・日別摂取グラフ
 const CACHE = 'diet-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=1',
-  './js/calc.js?v=1', './js/store.js?v=1', './js/ai.js?v=1', './js/app.js?v=1',
+  './', './index.html', './css/style.css?v=2',
+  './js/calc.js?v=2', './js/store.js?v=2', './js/ai.js?v=2', './js/app.js?v=2',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];

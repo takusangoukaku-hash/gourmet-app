@@ -21,12 +21,13 @@ window.Calc = (() => {
   }
 
   // 目標 kcal / PFC。手動設定があればそれを優先
-  function targets(p, weight) {
+  // tdeeOverride: 体重と摂取記録から逆算した実測TDEE（使える時だけ渡される）
+  function targets(p, weight, tdeeOverride) {
     if (p.targets && Number(p.targets.kcal) > 0) {
       const t = p.targets;
       return { kcal: +t.kcal, p: +t.p || 0, f: +t.f || 0, c: +t.c || 0, mode: 'manual' };
     }
-    const t = tdee(p, weight);
+    const t = tdeeOverride || tdee(p, weight);
     if (!t) return null;
     const b = bmr(p, weight);
     let kcal = Math.round(t - (Number(p.goalKgPerWeek) || 0) * KCAL_PER_KG_FAT / 7);
@@ -35,7 +36,7 @@ window.Calc = (() => {
     const prot = Math.round((Number(p.proteinPerKg) || 2.0) * weight);
     const fat = Math.round(kcal * (Number(p.fatRatio) || 0.25) / 9);
     const carb = Math.max(0, Math.round((kcal - prot * 4 - fat * 9) / 4));
-    return { kcal, p: prot, f: fat, c: carb, mode: 'auto', tdee: t, bmr: b, belowBmr };
+    return { kcal, p: prot, f: fat, c: carb, mode: tdeeOverride ? 'measured' : 'auto', tdee: t, bmr: b, belowBmr };
   }
 
   function bikeMet(kmh) {
@@ -94,5 +95,52 @@ window.Calc = (() => {
     return Math.round(weight / (h * h) * 10) / 10;
   }
 
-  return { bmr, tdee, targets, bike, bikeMet, strengthKcal, volume, movingAvg, dayNum, bmi, KCAL_PER_KG_FAT };
+  // ---------- カロリー収支の答え合わせ ----------
+  // 最小二乗の回帰直線。傾きの標準誤差も返す（誤差幅の表示用）
+  function linreg(xs, ys) {
+    const n = xs.length;
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sxx += (xs[i] - mx) ** 2; sxy += (xs[i] - mx) * (ys[i] - my); }
+    const slope = sxx ? sxy / sxx : 0;
+    const icpt = my - slope * mx;
+    let ssr = 0;
+    for (let i = 0; i < n; i++) ssr += (ys[i] - (icpt + slope * xs[i])) ** 2;
+    const se = (n > 2 && sxx) ? Math.sqrt(ssr / (n - 2) / sxx) : Infinity;
+    return { slope, icpt, se };
+  }
+
+  // 条件: 期間内の体重 8回以上・10日以上の幅、食事記録 10日以上かつ期間の60%以上
+  const BAL_MIN_WEIGHINS = 8, BAL_MIN_SPAN = 10, BAL_MIN_INTAKE_DAYS = 10, BAL_MIN_COVERAGE = 0.6;
+
+  // weights: 期間内の [{date,kg}] / intakeDays: 記録が揃った日の [{date,kcal}]
+  // days: 期間の日数 / formulaTdee: 式による TDEE / exerciseAvg: 記録された運動の1日平均kcal
+  function energyBalance({ weights, intakeDays, days, formulaTdee, exerciseAvg }) {
+    const span = weights.length ? dayNum(weights[weights.length - 1].date) - dayNum(weights[0].date) : 0;
+    const need = {
+      weighins: Math.max(0, BAL_MIN_WEIGHINS - weights.length),
+      span: Math.max(0, BAL_MIN_SPAN - span),
+      intakeDays: Math.max(0, Math.max(BAL_MIN_INTAKE_DAYS, Math.ceil(days * BAL_MIN_COVERAGE)) - intakeDays.length),
+    };
+    const ready = !need.weighins && !need.span && !need.intakeDays;
+    const avgIntake = intakeDays.length ? Math.round(intakeDays.reduce((s, d) => s + d.kcal, 0) / intakeDays.length) : 0;
+    const out = { ready, need, days, weighins: weights.length, span, intakeDayCount: intakeDays.length, avgIntake };
+    if (!ready) return out;
+
+    const x0 = dayNum(weights[0].date);
+    const r = linreg(weights.map(w => dayNum(w.date) - x0), weights.map(w => w.kg));
+    const actualBalance = Math.round(r.slope * KCAL_PER_KG_FAT);           // kcal/日（マイナス=赤字）
+    const margin = Math.round(1.96 * r.se * KCAL_PER_KG_FAT);                // 95%の誤差幅
+    const measuredTdee = avgIntake - actualBalance;
+    const expectedTdee = formulaTdee ? Math.round(formulaTdee + (exerciseAvg || 0)) : 0;
+    return Object.assign(out, {
+      kgPerWeek: Math.round(r.slope * 7 * 100) / 100,
+      actualBalance, margin, measuredTdee,
+      expectedTdee,
+      plannedBalance: expectedTdee ? avgIntake - expectedTdee : null,       // 式どおりなら期待される収支
+      gap: expectedTdee ? measuredTdee - expectedTdee : null,               // 実測 − 式
+    });
+  }
+
+  return { linreg, energyBalance, bmr, tdee, targets, bike, bikeMet, strengthKcal, volume, movingAvg, dayNum, bmi, KCAL_PER_KG_FAT };
 })();
