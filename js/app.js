@@ -3,10 +3,47 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v297'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v298'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
+  // ---------- 外部ライブラリの遅延読み込み ----------
+  // 起動時に全部読むと 1MB 超になるため、必要になった画面で初めて読み込む。
+  // バージョン固定＋integrity（内容のハッシュ）で改ざん・差し替えを防ぐ
+  const LIBS = {
+    maplibre: {
+      css: { href: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css', integrity: 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V' },
+      js: { src: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js', integrity: 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj' },
+      ready: () => typeof maplibregl !== 'undefined',
+    },
+    exifr: { js: { src: 'https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js', integrity: 'sha384-KrOocIA+lZcNUz2MDavnT/FuX+CbTREJihUi0bp8QUSwhE2AkGTNpv2b7yMbBkx5' }, ready: () => typeof exifr !== 'undefined' },
+    chart: { js: { src: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.js', integrity: 'sha384-4W8gMhOYqk0FPg9sAMkb3g/P2fXtzbUyDUUgMlA1EEig8z/U/13EYUjErc1H382b' }, ready: () => typeof Chart !== 'undefined' },
+  };
+  const libLoads = {};
+  function loadLib(name) {
+    const lib = LIBS[name];
+    if (!lib) return Promise.reject(new Error('unknown lib ' + name));
+    if (lib.ready()) return Promise.resolve();
+    if (libLoads[name]) return libLoads[name];
+    // ハーネス等で同梱版を使うときは window.__libOverride[name] = { js, css } で差し替えられる
+    const ov = (window.__libOverride || {})[name] || {};
+    const add = (tag, attrs) => new Promise((resolve, reject) => {
+      const el = document.createElement(tag);
+      Object.assign(el, attrs);
+      if (attrs.integrity) el.crossOrigin = 'anonymous';
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error((attrs.src || attrs.href) + ' の読み込みに失敗'));
+      document.head.appendChild(el);
+    });
+    const jobs = [];
+    if (lib.css) jobs.push(add('link', { rel: 'stylesheet', href: ov.css || lib.css.href, integrity: ov.css ? '' : lib.css.integrity }));
+    jobs.push(add('script', { src: ov.js || lib.js.src, integrity: ov.js ? '' : lib.js.integrity }));
+    libLoads[name] = Promise.all(jobs).then(() => { if (!lib.ready()) throw new Error(name + ' が初期化されませんでした'); })
+      .catch(e => { libLoads[name] = null; throw e; });
+    return libLoads[name];
+  }
+
   function init() {
+    const params = new URLSearchParams(location.search);
     Register.init();
     Views.initList();
     Views.initPhotos();
@@ -168,9 +205,19 @@ const App = (() => {
       }
     });
 
-    // クラウド同期の初期化（既存ログインがあればセッションを復元して同期）
+    // クラウド同期の初期化（既存ログインがあればセッションを復元して同期）。
+    // Firebase SDK は大きいので、最初の画面を描いたあと・端末が手すきのときに読み込む。
+    // この端末でログインしたことがない場合は、ログインを押すまで読み込まない
     if (typeof Cloud !== 'undefined') {
-      Cloud.init();
+      let pendingRedirect = false;
+      try { pendingRedirect = Object.keys(sessionStorage).some(k => k.startsWith('firebase:pendingRedirect')); } catch { /* noop */ }
+      let hadSession = false;
+      try { hadSession = !!localStorage.getItem('gourmet.lastUid') || !!Store.getProfile().username; } catch { /* noop */ }
+      const startCloud = () => Cloud.init();
+      if (hadSession || pendingRedirect || params.get('u')) {
+        if ('requestIdleCallback' in window) requestIdleCallback(startCloud, { timeout: 1500 });
+        else setTimeout(startCloud, 600);
+      }
       // 同期が済んだら、ホーム・地図のフォロー中の投稿と写真を裏で先読みしておく
       // （タブを開いたときの読み込み待ちを短くする。1セッション1回だけ）
       let warmed = false;
@@ -203,7 +250,6 @@ const App = (() => {
     }
 
     // 起動時: URLの?tab=指定 → データがあれば一覧 → なければ登録タブ
-    const params = new URLSearchParams(location.search);
     const urlTab = params.get('tab');
     switchTab(urlTab && document.querySelector('#view-' + urlTab)
       ? urlTab : (Store.shops().length ? 'list' : 'register'));
@@ -279,10 +325,13 @@ const App = (() => {
   // 写真は長辺640pxのJPEG（データURL）にして同梱する。元画像は大きいため、
   // 別端末で「見返す・共有する」用途に十分な大きさに抑える
   async function photoToDataUrl(rec) {
-    let blob = (rec.thumbV === 2 && rec.thumb) ? rec.thumb : null;
+    // サムネイル（640px）があればそれを使う。無ければ本体を1枚だけ読んで縮小する
+    let blob = null;
+    if (rec.thumbV === 2) { try { const t = await Store.getThumb(rec.id); if (t && t.v === 2) blob = t.blob; } catch { blob = null; } }
     // クラウド同期で入った写真は端末に本体が無い（URLだけ）ことがある。
     // その場合はこの端末で取得してから縮小する（書き出す本人の操作の中で完結させる）
     let src = rec.blob || null;
+    if (!blob && !src && rec.hasBlob) { try { src = await Store.getPhotoBlob(rec.id); } catch { src = null; } }
     if (!blob && !src && rec.remoteUrl) {
       try {
         const ctrl = new AbortController();
@@ -514,5 +563,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup };
+  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup, loadLib };
 })();

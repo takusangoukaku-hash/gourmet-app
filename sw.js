@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v297'; // 店舗検索: Yahoo!ローカルサーチ／ホットペッパー（無料）を先に、Google は最後の手段に
+const VERSION = 'v298'; // 高速化: 写真メタ情報の分離・ライブラリ遅延読み込み・Firebase遅延・版付きファイルはキャッシュ優先
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -59,7 +59,18 @@ self.addEventListener('fetch', (e) => {
   if (NETWORK_ONLY.some(h => url.hostname.endsWith(h))) return;
 
   if (url.origin === location.origin) {
-    // ネットワーク優先: 常に最新を取り、オフライン時のみキャッシュを使う
+    // ?v= 付きのファイル（CSS/JS）は内容が版ごとに固定なので、キャッシュ優先で即返す。
+    // 新版は index.html の ?v= が変わることで新しいURLとして取りに行く（更新の即時反映は保たれる）
+    if (url.searchParams.has('v')) {
+      e.respondWith(
+        caches.match(e.request).then(m => m || fetch(e.request).then(res => {
+          if (cacheable(res)) { const copy = res.clone(); putCached(e.request, copy).catch(() => {}); }
+          return res;
+        }))
+      );
+      return;
+    }
+    // それ以外（index.html・アイコン等）はネットワーク優先: 常に最新を取り、オフライン時のみキャッシュを使う
     e.respondWith(
       fetch(e.request).then(res => {
         if (cacheable(res)) { const copy = res.clone(); putCached(e.request, copy).catch(() => {}); }

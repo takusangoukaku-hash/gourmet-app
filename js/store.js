@@ -96,9 +96,13 @@ const Store = (() => {
   function db() {
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open('gourmet-photos', 2); // v2: 下書き(drafts)ストアを追加
-        req.onupgradeneeded = () => {
+        // v2: 下書き(drafts)ストアを追加
+        // v3: 写真のメタ情報(meta)とサムネイル(thumbs)を本体(photos)から分離。
+        //     一覧の描画で全写真の本体（数十MB）を読まずに済むようにする（速度と省メモリ）
+        const req = indexedDB.open('gourmet-photos', 3);
+        req.onupgradeneeded = (ev) => {
           const d = req.result;
+          const tx = req.transaction;
           if (!d.objectStoreNames.contains('photos')) {
             const os = d.createObjectStore('photos', { keyPath: 'id' });
             os.createIndex('visitId', 'visitId');
@@ -106,6 +110,24 @@ const Store = (() => {
           }
           if (!d.objectStoreNames.contains('drafts')) {
             d.createObjectStore('drafts', { keyPath: 'id' }); // 「あとで記録」の下書き（端末内のみ）
+          }
+          if (!d.objectStoreNames.contains('meta')) {
+            const ms = d.createObjectStore('meta', { keyPath: 'id' });
+            ms.createIndex('visitId', 'visitId');
+            ms.createIndex('shopId', 'shopId');
+          }
+          if (!d.objectStoreNames.contains('thumbs')) d.createObjectStore('thumbs', { keyPath: 'id' });
+          if (ev.oldVersion > 0 && ev.oldVersion < 3) {
+            // 既存の写真からメタ情報とサムネイルを1回だけ分離する（本体はそのまま）
+            const ps = tx.objectStore('photos'), ms = tx.objectStore('meta'), ts = tx.objectStore('thumbs');
+            ps.openCursor().onsuccess = (e) => {
+              const cur = e.target.result;
+              if (!cur) return;
+              const r = cur.value;
+              ms.put(metaOf(r));
+              if (r.thumb) ts.put({ id: r.id, blob: r.thumb, v: r.thumbV || 1 });
+              cur.continue();
+            };
           }
         };
         req.onsuccess = () => resolve(req.result);
@@ -118,61 +140,87 @@ const Store = (() => {
     return dbPromise;
   }
 
-  // photo = { id, shopId, visitId, type('dish'|'exterior'|'interior'|'menu'), blob, hash, createdAt }
+  // photo（本体 photos ストア） = { id, shopId, visitId, type('dish'|'exterior'|'interior'|'menu'), blob, hash, createdAt, remoteUrl? }
+  // meta（一覧用 meta ストア）   = { id, shopId, visitId, type, hash, createdAt, remoteUrl?, hasBlob, thumbV }
+  // thumbs ストア                = { id, blob(サムネイル), v(規格バージョン) }
   // hash は圧縮前の元ファイルのSHA-256（同じ写真の二重登録を検出するための指紋）
-  async function addPhoto(shopId, visitId, type, blob, hash) {
-    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, hash: hash || '', createdAt: Date.now() };
-    const d = await db();
-    return new Promise((resolve, reject) => {
-      const tx = d.transaction('photos', 'readwrite');
-      tx.objectStore('photos').put(rec);
+  // 一覧・グリッドは meta だけを読み、本体は getPhotoBlob(id)、サムネイルは getThumb(id) で1枚ずつ取る
+  function metaOf(r) {
+    return { id: r.id, shopId: r.shopId, visitId: r.visitId, type: r.type || 'dish', hash: r.hash || '',
+      createdAt: r.createdAt || 0, remoteUrl: r.remoteUrl || '', hasBlob: !!r.blob, thumbV: r.thumb ? (r.thumbV || 1) : (r.thumbV || 0) };
+  }
+  // 本体＋メタ情報を書く共通処理（既存のサムネイル情報は保つ）
+  function writePhoto(rec, notify) {
+    return db().then(d => new Promise((resolve, reject) => {
+      const tx = d.transaction(['photos', 'meta'], 'readwrite');
+      const ms = tx.objectStore('meta');
+      const { thumb, thumbV, hasBlob, ...body } = rec; // 本体には一覧用の項目を持ち込まない
+      tx.objectStore('photos').put(body);
+      const req = ms.get(rec.id);
+      req.onsuccess = () => {
+        const prev = req.result;
+        const m = metaOf(body);
+        if (prev && prev.thumbV) m.thumbV = prev.thumbV;
+        ms.put(m);
+      };
       tx.oncomplete = () => {
-        if (rec.hash) { photoHashes[rec.hash] = { shopId, visitId }; persistHashes(); }
-        emit('photo', 'put', rec); // クラウドへ（Cloud側でblobをStorageへアップロード）
+        if (rec.hash) { photoHashes[rec.hash] = { shopId: rec.shopId, visitId: rec.visitId }; try { persistHashes(); } catch { /* noop */ } }
+        if (notify) emit('photo', 'put', body); // クラウドへ（Cloud側でblobをStorageへアップロード）
         resolve(rec.id);
       };
       tx.onerror = () => reject(tx.error);
-    });
+    }));
   }
+  async function addPhoto(shopId, visitId, type, blob, hash) {
+    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, hash: hash || '', createdAt: Date.now() };
+    return writePhoto(rec, true);
+  }
+  // クラウドから取り込んだ写真をそのまま保存（通知しない）
+  async function putPhotoRaw(rec) { await writePhoto(rec, false); }
   // バックアップから復元した写真の登録時刻を元の値に戻す（並び順を保つため）
   async function setPhotoCreatedAt(id, createdAt) {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const tx = d.transaction('photos', 'readwrite');
-      const os = tx.objectStore('photos');
-      const req = os.get(id);
-      req.onsuccess = () => { const rec = req.result; if (rec) { rec.createdAt = createdAt; os.put(rec); } };
+      const tx = d.transaction(['photos', 'meta'], 'readwrite');
+      for (const name of ['photos', 'meta']) {
+        const os = tx.objectStore(name);
+        const req = os.get(id);
+        req.onsuccess = () => { const rec = req.result; if (rec) { rec.createdAt = createdAt; os.put(rec); } };
+      }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   }
-  // グリッド表示用のサムネイルを写真レコードに保存（次回から縮小画像を即表示できる）
-  // thumbV はサムネの規格バージョン。表示側が規格を上げたとき古いサムネを作り直すための印
+  // グリッド表示用のサムネイルを保存（次回から縮小画像を即表示できる）
+  // thumbV はサムネの規格バージョン。表示側が規格を上げたとき古いサムネは作り直される
   async function putPhotoThumb(id, thumbBlob, thumbV) {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const tx = d.transaction('photos', 'readwrite');
-      const os = tx.objectStore('photos');
-      const req = os.get(id);
-      req.onsuccess = () => {
-        const rec = req.result;
-        if (rec) { rec.thumb = thumbBlob; rec.thumbV = thumbV || 1; os.put(rec); }
-      };
+      const tx = d.transaction(['thumbs', 'meta'], 'readwrite');
+      tx.objectStore('thumbs').put({ id, blob: thumbBlob, v: thumbV || 1 });
+      const ms = tx.objectStore('meta');
+      const req = ms.get(id);
+      req.onsuccess = () => { const m = req.result; if (m) { m.thumbV = thumbV || 1; ms.put(m); } };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   }
-  // クラウドから取り込んだ写真をそのまま保存（通知しない）
-  async function putPhotoRaw(rec) {
+  // サムネイル1枚（{ blob, v } か null）
+  async function getThumb(id) {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const tx = d.transaction('photos', 'readwrite');
-      tx.objectStore('photos').put(rec);
-      tx.oncomplete = () => {
-        if (rec.hash) { photoHashes[rec.hash] = { shopId: rec.shopId, visitId: rec.visitId }; persistHashes(); }
-        resolve();
-      };
-      tx.onerror = () => reject(tx.error);
+      const req = d.transaction('thumbs').objectStore('thumbs').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  // 写真の本体1枚（Blob か null）。拡大表示・アップロード・書き出しのときだけ読む
+  async function getPhotoBlob(id) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('photos').objectStore('photos').get(id);
+      req.onsuccess = () => resolve((req.result && req.result.blob) || null);
+      req.onerror = () => reject(req.error);
     });
   }
   // ---------- 下書き（「あとで記録」: 端末内のみ・クラウド非同期） ----------
@@ -217,17 +265,18 @@ const Store = (() => {
   async function photoIds() {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const req = d.transaction('photos').objectStore('photos').getAllKeys();
+      const req = d.transaction('meta').objectStore('meta').getAllKeys();
       req.onsuccess = () => resolve(new Set(req.result || []));
       req.onerror = () => reject(req.error);
     });
   }
   // 指紋が一致する登録済み写真を探す（なければ null）
   const findPhotoByHash = (hash) => (hash && photoHashes[hash]) || null;
+  // 全写真のメタ情報（本体は含まない。表示は getThumb / getPhotoBlob で1枚ずつ）
   async function allPhotos() {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const req = d.transaction('photos').objectStore('photos').getAll();
+      const req = d.transaction('meta').objectStore('meta').getAll();
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
@@ -235,7 +284,7 @@ const Store = (() => {
   async function photosOfVisit(visitId) {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const req = d.transaction('photos').objectStore('photos').index('visitId').getAll(visitId);
+      const req = d.transaction('meta').objectStore('meta').index('visitId').getAll(visitId);
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
@@ -243,7 +292,7 @@ const Store = (() => {
   async function photosOfShop(shopId) {
     const d = await db();
     return new Promise((resolve, reject) => {
-      const req = d.transaction('photos').objectStore('photos').index('shopId').getAll(shopId);
+      const req = d.transaction('meta').objectStore('meta').index('shopId').getAll(shopId);
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
@@ -251,10 +300,10 @@ const Store = (() => {
   async function deletePhotosWhere(pred) {
     const all = await allPhotos();
     const d = await db();
-    const tx = d.transaction('photos', 'readwrite');
+    const tx = d.transaction(['photos', 'meta', 'thumbs'], 'readwrite');
     const removed = [];
     for (const p of all) {
-      if (pred(p)) { tx.objectStore('photos').delete(p.id); removed.push(p); }
+      if (pred(p)) { for (const n of ['photos', 'meta', 'thumbs']) tx.objectStore(n).delete(p.id); removed.push(p); }
     }
     return new Promise((resolve) => {
       tx.oncomplete = () => {
@@ -432,9 +481,8 @@ const Store = (() => {
     try {
       const d = await db();
       await new Promise((resolve) => {
-        const tx = d.transaction(['photos', 'drafts'], 'readwrite');
-        tx.objectStore('photos').clear();
-        tx.objectStore('drafts').clear();
+        const tx = d.transaction(['photos', 'drafts', 'meta', 'thumbs'], 'readwrite');
+        for (const n of ['photos', 'drafts', 'meta', 'thumbs']) tx.objectStore(n).clear();
         tx.oncomplete = () => resolve();
         tx.onerror = () => resolve();
       });
@@ -458,7 +506,7 @@ const Store = (() => {
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoCreatedAt,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoCreatedAt, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     wishes: () => wishes.slice(), addWish, removeWish, findWish,

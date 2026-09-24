@@ -277,7 +277,7 @@ const Cloud = (() => {
     //                  ②URL参照だけで実体が無い写真（実体の取り直し）
     const gonePhotos = Store.deletedIds('photo');
     const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
-    const hydrTargets = localPhotos.filter(p => !p.blob && cloudIds.has(p.id));
+    const hydrTargets = localPhotos.filter(p => !p.hasBlob && cloudIds.has(p.id));
     const targets = [...newTargets.map(m => ({ kind: 'new', m })),
       ...hydrTargets.map(p => ({ kind: 'hydrate', p }))].slice(0, MAX_PULL);
     await runPool(targets, 5, async (t) => {
@@ -310,7 +310,7 @@ const Cloud = (() => {
 
     // ローカルにあってクラウドに無い写真 → 並列アップロード。
     // 投稿の公開は1枚ごとに行わず、アップロード後に訪問単位でまとめて行う（重複した通信を削減）
-    const ups = localPhotos.filter(p => !cloudIds.has(p.id) && p.blob);
+    const ups = localPhotos.filter(p => !cloudIds.has(p.id) && p.hasBlob);
     const okVisits = new Set();
     await runPool(ups, 3, async (p) => {
       try {
@@ -325,8 +325,11 @@ const Cloud = (() => {
   // skipPublish: 一括同期では1枚ごとの投稿公開を省き、呼び出し側で訪問単位にまとめて公開する
   async function uploadPhoto(p, skipPublish) {
     const path = `users/${user.uid}/photos/${p.id}.jpg`;
-    await fb.st.uploadBytes(fb.st.ref(storage, path), p.blob, { contentType: 'image/jpeg' });
-    const { blob, thumb, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
+    // 一覧用のメタ情報しか持っていないことが多いので、本体はここで1枚だけ読む
+    const body = p.blob || await Store.getPhotoBlob(p.id);
+    if (!body) throw new Error('写真の本体が端末にありません: ' + p.id);
+    await fb.st.uploadBytes(fb.st.ref(storage, path), body, { contentType: 'image/jpeg' });
+    const { blob, thumb, hasBlob, thumbV, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
     await fb.fs.setDoc(dref('photos', p.id), clean({ ...meta, path }));
     // フィード用の公開投稿も更新（@ユーザー名を設定している人のみ）
     if (!skipPublish) {
@@ -464,7 +467,7 @@ const Cloud = (() => {
         let url = '';
         try { url = await photoDownloadUrl(path); } catch { /* まだStorageに無い */ }
         if (url) await publishPostForVisit(v.id, null, url);
-        else if (p.blob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
+        else if (p.hasBlob) await uploadPhoto(p); // アップロード成功時にURL付きで投稿される
         else await publishPostForVisit(v.id); // 写真が取れなくても記録自体は公開
       } catch (e) { console.warn('投稿公開に失敗:', v.id, e); }
     });
@@ -490,7 +493,7 @@ const Cloud = (() => {
       if (!ph) continue; // その記録に写真が無いなら埋めようがない（そのまま）
       try {
         if (ph.remoteUrl) await publishPostForVisit(vid, null, ph.remoteUrl);
-        else if (ph.blob) await uploadPhoto(ph); // アップロード完了時に写真URL付きで再公開される
+        else if (ph.hasBlob) await uploadPhoto(ph); // アップロード完了時に写真URL付きで再公開される
         else {
           const path = `users/${user.uid}/photos/${ph.id}.jpg`;
           const url = await photoDownloadUrl(path).catch(() => '');
@@ -776,7 +779,7 @@ const Cloud = (() => {
     try {
       // ローカルの全写真を強制アップロード（画像本体の欠損を埋める）。数件ずつ並列で実行し、
       // 投稿の公開は1枚ごとではなく訪問単位でまとめて行う（時間短縮）
-      const localPhotos = (await Store.allPhotos()).filter(p => p.blob); // URL参照のみの写真は上げ直し不要
+      const localPhotos = (await Store.allPhotos()).filter(p => p.hasBlob); // URL参照のみの写真は上げ直し不要
       let doneUp = 0;
       const upVisits = new Set();
       await runPool(localPhotos, 3, async (p) => {
@@ -789,7 +792,7 @@ const Cloud = (() => {
       const metaSnap = await fb.fs.getDocs(cref('photos'));
       const metas = []; metaSnap.forEach(d => metas.push(d.data()));
       const localIds = await Store.photoIds();
-      const urlOnly = new Set((await Store.allPhotos()).filter(p => !p.blob).map(p => p.id));
+      const urlOnly = new Set((await Store.allPhotos()).filter(p => !p.hasBlob).map(p => p.id));
       const need = metas.filter(m => !localIds.has(m.id) || urlOnly.has(m.id));
       let doneDown = 0;
       await runPool(need, 5, async (m) => {

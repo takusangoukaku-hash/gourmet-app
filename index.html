@@ -21,9 +21,8 @@
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=297">
+<link rel="stylesheet" href="css/style.css?v=298">
 </head>
 <body>
 
@@ -600,15 +599,12 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<!-- 外部ライブラリはバージョンを固定し、integrity（内容のハッシュ）で改ざん・差し替えを防ぐ -->
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js" integrity="sha384-KrOocIA+lZcNUz2MDavnT/FuX+CbTREJihUi0bp8QUSwhE2AkGTNpv2b7yMbBkx5" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.js" integrity="sha384-4W8gMhOYqk0FPg9sAMkb3g/P2fXtzbUyDUUgMlA1EEig8z/U/13EYUjErc1H382b" crossorigin="anonymous"></script>
-<script src="js/store.js?v=297"></script>
-<script src="js/api.js?v=297"></script>
-<script src="js/cloud.js?v=297"></script>
-<script src="js/register.js?v=297"></script>
-<script src="js/views.js?v=297"></script>
-<script src="js/app.js?v=297"></script>
+<!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
+<script src="js/store.js?v=298"></script>
+<script src="js/api.js?v=298"></script>
+<script src="js/cloud.js?v=298"></script>
+<script src="js/register.js?v=298"></script>
+<script src="js/views.js?v=298"></script>
+<script src="js/app.js?v=298"></script>
 </body>
 </html>

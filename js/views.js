@@ -159,13 +159,24 @@ const Views = (() => {
 
   // object URL のキャッシュ（photoId → url）
   const urlCache = new Map();
+  // 同期版: 本体を持つレコード、または既に作ったURLがあるときだけ返す（一覧用のメタ情報では非同期版を使う）
   function photoUrl(rec) {
     if (!rec) return null;
+    if (urlCache.has(rec.id)) return urlCache.get(rec.id);
+    if (rec.blob) { urlCache.set(rec.id, URL.createObjectURL(rec.blob)); return urlCache.get(rec.id); }
     // 別端末から取り込んだ写真はローカルにblobが無く、クラウドの公開URLで表示する
-    if (!rec.blob && rec.remoteUrl) return rec.remoteUrl;
-    if (!rec.blob) return null;
-    if (!urlCache.has(rec.id)) urlCache.set(rec.id, URL.createObjectURL(rec.blob));
-    return urlCache.get(rec.id);
+    return rec.remoteUrl || null;
+  }
+  // 非同期版: 本体（元画像）のURL。必要なときだけ IndexedDB から1枚読む（拡大表示・大きい表示用）
+  async function fullPhotoUrl(rec) {
+    if (!rec) return null;
+    if (urlCache.has(rec.id)) return urlCache.get(rec.id);
+    if (rec.blob) return photoUrl(rec);
+    if (rec.hasBlob) {
+      const blob = await Store.getPhotoBlob(rec.id).catch(() => null);
+      if (blob) { if (!urlCache.has(rec.id)) urlCache.set(rec.id, URL.createObjectURL(blob)); return urlCache.get(rec.id); }
+    }
+    return rec.remoteUrl || null;
   }
 
   // ---------- サムネイル（グリッド・一覧用の縮小画像） ----------
@@ -176,14 +187,21 @@ const Views = (() => {
   const thumbCache = new Map(); // photoId → Promise<url>
   function thumbUrl(rec) {
     if (!rec) return Promise.resolve(null);
-    if (!rec.blob) return Promise.resolve(rec.remoteUrl || null); // 別端末の写真は公開URLのまま
+    if (!rec.blob && !rec.hasBlob && !rec.thumbV) return Promise.resolve(rec.remoteUrl || null); // 別端末の写真は公開URLのまま
     if (thumbCache.has(rec.id)) return thumbCache.get(rec.id);
     const p = (async () => {
-      // 保存済みでも古い規格（小さい320px）のものは作り直す
-      let blob = (rec.thumbV === THUMB_V) ? rec.thumb : null;
+      // 保存済みのサムネイル（今の規格のもの）を1枚だけ読む。古い規格（小さい320px）のものは作り直す
+      let blob = null;
+      if (rec.thumbV === THUMB_V) {
+        const t = await Store.getThumb(rec.id).catch(() => null);
+        if (t && t.v === THUMB_V && t.blob) blob = t.blob;
+      }
+      let full = null;
       if (!blob) {
+        full = rec.blob || (rec.hasBlob ? await Store.getPhotoBlob(rec.id).catch(() => null) : null);
+        if (!full) return rec.remoteUrl || null;
         try {
-          const bmp = await createImageBitmap(rec.blob);
+          const bmp = await createImageBitmap(full);
           const scale = Math.min(1, THUMB_DIM / Math.max(bmp.width, bmp.height));
           const w = Math.max(1, Math.round(bmp.width * scale));
           const h = Math.max(1, Math.round(bmp.height * scale));
@@ -192,10 +210,10 @@ const Views = (() => {
           c.getContext('2d').drawImage(bmp, 0, 0, w, h);
           bmp.close();
           blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
-          if (blob) Store.putPhotoThumb(rec.id, blob, THUMB_V).catch(() => {});
+          if (blob) { rec.thumbV = THUMB_V; Store.putPhotoThumb(rec.id, blob, THUMB_V).catch(() => {}); }
         } catch (e) { blob = null; } // 生成に失敗したら元画像で表示
       }
-      return URL.createObjectURL(blob || rec.blob);
+      return URL.createObjectURL(blob || full);
     })();
     thumbCache.set(rec.id, p);
     return p;
@@ -217,11 +235,19 @@ const Views = (() => {
   // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
   function setFullPhoto(img, rec) {
     setThumb(img, rec);
-    const full = photoUrl(rec);
-    if (!full) return;
-    const pre = new Image();
-    pre.onload = () => { if (img.isConnected !== false) img.src = full; };
-    pre.src = full;
+    fullPhotoUrl(rec).then(full => {
+      if (!full) return;
+      const pre = new Image();
+      pre.onload = () => { if (img.isConnected !== false) img.src = full; };
+      pre.src = full;
+    });
+  }
+  // <img> を1つ作って、サムネイル→元画像の順に表示する（大きく見せる枠用）
+  function fullImg(rec, extraClass) {
+    const img = document.createElement('img');
+    img.alt = ''; img.decoding = 'async'; if (extraClass) img.className = extraClass;
+    setFullPhoto(img, rec);
+    return img;
   }
 
   // ========== 地図（MapLibre GLネイティブ: 2本指で回転可能） ==========
@@ -1324,7 +1350,7 @@ const Views = (() => {
         ${v.rating ? `<span class="pd-photo-star">★${(+v.rating).toFixed(1)}</span>` : ''}
         ${v.datetime ? `<span class="msh-mydate">${fmtDate(v.datetime)}</span>` : ''}`;
       setFullPhoto(c.querySelector('img'), ph);
-      c.addEventListener('click', () => openLightbox(photoUrl(ph), `${s.name}　${fmtDate(v.datetime)}`));
+      c.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
       myrow.appendChild(c);
     });
     ov.querySelector('.msh-all').addEventListener('click', () => showVisitList(shopId));
@@ -1700,6 +1726,14 @@ const Views = (() => {
   }
 
   function refreshMap() {
+    // 地図ライブラリ（約800KB）は初めて地図を開いたときに読み込む（起動を軽くする）
+    if (typeof maplibregl === 'undefined') {
+      if (!refreshMap._loading) {
+        refreshMap._loading = App.loadLib('maplibre').then(() => { refreshMap._loading = null; refreshMap(); })
+          .catch(e => { refreshMap._loading = null; App.toast('⚠️ 地図の読み込みに失敗しました: ' + (e && e.message || e)); });
+      }
+      return;
+    }
     initMap();
     map.resize(); // タブ切り替えで表示された直後はキャンバスサイズが0のため
     if (!mapLoaded) { pendingRefresh = true; return; } // load後に反映される
@@ -2478,12 +2512,18 @@ const Views = (() => {
   }
 
   async function loadThumbs(root) {
-    for (const el of root.querySelectorAll('[data-thumb]')) {
-      const rep = await Store.repPhoto(el.dataset.thumb);
-      if (rep) {
-        el.innerHTML = `<img alt="" loading="lazy" decoding="async">`;
-        setThumb(el.querySelector('img'), rep);
-      }
+    // 店ごとの代表写真を並列に引く（逐次 await だと店の数だけ往復が積み重なる）
+    // 画面に近い先頭から 24 件ずつまとめて引く（全件同時だと最初の1枚が遅くなる）
+    const els = [...root.querySelectorAll('[data-thumb]')];
+    for (let i = 0; i < els.length; i += 24) {
+      if (!root.isConnected) return;
+      await Promise.all(els.slice(i, i + 24).map(async (el) => {
+        const rep = await Store.repPhoto(el.dataset.thumb).catch(() => null);
+        if (rep && el.isConnected) {
+          el.innerHTML = `<img alt="" loading="lazy" decoding="async">`;
+          setThumb(el.querySelector('img'), rep);
+        }
+      }));
     }
   }
 
@@ -2535,7 +2575,7 @@ const Views = (() => {
       div.className = 'photo-cell';
       div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       setThumb(div.querySelector('img'), p);
-      div.addEventListener('click', () => openLightbox(photoUrl(p), cap)); // 拡大表示は元画像
+      div.addEventListener('click', () => fullPhotoUrl(p).then(u => openLightbox(u || '', cap))); // 拡大表示は元画像
       box.appendChild(div);
     }
   }
@@ -3129,6 +3169,9 @@ const Views = (() => {
   }
 
   async function renderStats() {
+    if (typeof Chart === 'undefined') {
+      try { await App.loadLib('chart'); } catch (e) { App.toast('⚠️ グラフの読み込みに失敗しました'); return; }
+    }
     renderTasteSections();
     const shops = Store.shops();
     const visits = Store.visits();
@@ -3592,12 +3635,16 @@ const Views = (() => {
             .sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
           if (!photos.length) return;
           const post = buildOwnShopPost({ shopId, photos });
-          // 各写真にその訪問の星の数バッジ（投稿詳細と同じ黒背景・金文字）
-          const items = post.photoItems.map(it => ({ url: photoUrl(it.ph), rating: it.rating }))
-            .filter(it => it.url);
-          box.innerHTML = items.map(it =>
-            `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" loading="lazy" decoding="async">${
-              it.rating ? `<span class="pd-photo-star">★${fmtR(it.rating)}</span>` : ''}</div>`).join('');
+          // 各写真にその訪問の星の数バッジ（投稿詳細と同じ黒背景・金文字）。
+          // サムネイルを先に出し、元画像が読めたら差し替える（本体を一度に全部読まない）
+          const items = post.photoItems;
+          box.innerHTML = '';
+          for (const it of items) {
+            const slide = document.createElement('div'); slide.className = 'pd-slide';
+            slide.appendChild(fullImg(it.ph, 'pd-photo'));
+            if (it.rating) slide.insertAdjacentHTML('beforeend', `<span class="pd-photo-star">★${fmtR(it.rating)}</span>`);
+            box.appendChild(slide);
+          }
           if (items.length > 1) {
             // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
             box.classList.add('pd-carousel');
@@ -3667,9 +3714,8 @@ const Views = (() => {
             const row = block.querySelector('.ve-photos');
             if (!ps.length) { row.remove(); return; }
             ps.forEach(ph => {
-              const img = document.createElement('img');
-              img.src = photoUrl(ph);
-              img.addEventListener('click', () => openLightbox(photoUrl(ph), `${s.name}　${fmtDate(v.datetime)}`));
+              const img = fullImg(ph);
+              img.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
               row.appendChild(img);
             });
           });
@@ -3721,11 +3767,7 @@ const Views = (() => {
           // 地図や店舗詳細から、その場で記録を編集できる（インライン編集を開く）
           block.querySelector('.v-edit-link').addEventListener('click', () => showShop(shopId, false, v.id));
           Store.photosOfVisit(v.id).then(ps => {
-            if (ps.length) {
-              const cimg = document.createElement('img');
-              cimg.src = photoUrl(ps[0]);
-              cover.querySelector('.v-cover-ph').replaceWith(cimg);
-            }
+            if (ps.length) cover.querySelector('.v-cover-ph').replaceWith(fullImg(ps[0]));
           });
           vbox.appendChild(block);
         }
@@ -3861,10 +3903,10 @@ const Views = (() => {
         </div>`;
       Store.photosOfVisit(v.id).then(ps => {
         const box = card.querySelector('.vl-photos');
-        const urls = ps.map(p => photoUrl(p)).filter(Boolean);
+        const urls = ps;
         if (!urls.length) { box.innerHTML = '<div class="vlc-noph">🍽️</div>'; return; }
-        box.innerHTML = urls.map(u =>
-          `<div class="pd-slide"><img class="pd-photo" src="${esc(u)}" alt="" loading="lazy" decoding="async"></div>`).join('');
+        box.innerHTML = '';
+        for (const ph of ps) { const sl = document.createElement('div'); sl.className = 'pd-slide'; sl.appendChild(fullImg(ph, 'pd-photo')); box.appendChild(sl); }
         if (urls.length > 1) {
           box.classList.add('pd-carousel');
           const dots = document.createElement('div');
@@ -3905,11 +3947,11 @@ const Views = (() => {
               aria-label="この記録を編集">${IC_EDIT}</button>
           </div>`;
         Store.photosOfVisit(v.id).then(ps => {
-          const u = ps.length ? photoUrl(ps[0]) : '';
-          if (!u) return;
-          it.querySelector('.vl-tlph').innerHTML = `<img src="${esc(u)}" alt="" loading="lazy" decoding="async">`;
-          it.querySelector('.vl-tlph').addEventListener('click', () =>
-            openLightbox(u, `${s.name}　${fmtDate(v.datetime)}`));
+          if (!ps.length) return;
+          const ph = ps[0];
+          const holder = it.querySelector('.vl-tlph');
+          holder.innerHTML = ''; holder.appendChild(fullImg(ph));
+          holder.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
         });
         it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
         tl.appendChild(it);
@@ -4282,7 +4324,7 @@ const Views = (() => {
     const ownLocalPhoto = async () => {
       if (!Store.visits().some(v => v.id === p.id)) return '';
       const ps = await Store.photosOfVisit(p.id).catch(() => []);
-      return ps.length ? photoUrl(ps[0]) : '';
+      return ps.length ? ((await fullPhotoUrl(ps[0])) || '') : '';
     };
     if (!p.photoUrl) {
       // 端末内にも写真が無ければ、空の大きな四角を出さずコンパクト表示に切り替える
@@ -4468,21 +4510,28 @@ const Views = (() => {
       const isGroup = Array.isArray(p.photoItems) && p.photoItems.length > 0;
       let items = [];
       if (isGroup) {
-        items = p.photoItems.map(it => ({ url: photoUrl(it.ph), rating: it.rating })).filter(it => it.url);
+        items = p.photoItems.map(it => ({ ph: it.ph, rating: it.rating }));
       } else if (Store.visits().some(v => v.id === p.id)) {
         // 単独の訪問の投稿: 全写真にその訪問の評価を付ける（グループ投稿と同じ見た目に）
         const ps = await Store.photosOfVisit(p.id).catch(() => []);
-        items = ps.map(x => ({ url: photoUrl(x), rating: p.rating || 0 })).filter(it => it.url);
+        items = ps.map(x => ({ ph: x, rating: p.rating || 0 }));
       }
       if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: p.rating || 0 }];
       const box = sect.querySelector('.pd-photos');
       // 各写真の右上に、その訪問の星の数（★4のように）。ホーム・投稿詳細どの写真にも出す
       const badge = (r) => r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : '';
-      const slide = (it) => `<div class="pd-slide"><img class="pd-photo" src="${esc(it.url)}" alt="" decoding="async">${badge(it.rating)}</div>`;
+      const slide = (it) => {
+        const d = document.createElement('div'); d.className = 'pd-slide';
+        if (it.ph) d.appendChild(fullImg(it.ph, 'pd-photo'));
+        else { const im = document.createElement('img'); im.className = 'pd-photo'; im.alt = ''; im.decoding = 'async'; im.src = it.url; d.appendChild(im); }
+        if (it.rating) d.insertAdjacentHTML('beforeend', badge(it.rating));
+        return d;
+      };
+      box.innerHTML = '';
       if (items.length > 1) {
         // 複数枚は左右スワイプで切り替え（Instagram風）。下の点で何枚目かを示す
         box.classList.add('pd-carousel');
-        box.innerHTML = items.map(slide).join('');
+        items.forEach(it => box.appendChild(slide(it)));
         const dots = document.createElement('div');
         dots.className = 'pd-dots';
         dots.innerHTML = items.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
@@ -4493,10 +4542,10 @@ const Views = (() => {
         }, { passive: true });
       } else {
         // 1枚でもバッジを出すためスライド枠で包む
-        box.innerHTML = items.map(slide).join('');
+        items.forEach(it => box.appendChild(slide(it)));
       }
       box.querySelectorAll('.pd-photo').forEach((img, i) =>
-        img.addEventListener('click', () => openLightbox(items[i].url, cap)));
+        img.addEventListener('click', () => (items[i].ph ? fullPhotoUrl(items[i].ph) : Promise.resolve(items[i].url)).then(u => openLightbox(u || '', cap))));
       // 写真の読み込み完了＝セクションの高さ確定を伝える（上への継ぎ足しが待つ）
       await Promise.all([...box.querySelectorAll('img.pd-photo')].map(im => im.complete
         ? Promise.resolve()
