@@ -226,3 +226,18 @@ input[type="range"] { width: 100%; min-height: 0; padding: 0; border: 0; backgro
 .strip .l { font-size: 10.5px; color: var(--muted); line-height: 1.3; margin-top: 2px; }
 .strip .tag { display: inline-block; font-size: 10px; background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 0 5px; margin-bottom: 2px; }
 .strip .tag.gray { background: var(--line); color: var(--ink2); }
+
+details.more { margin: 4px 0 12px; }
+details.more summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 600; padding: 6px 0; }
+.segbars { display: grid; gap: 8px; margin-top: 10px; }
+.segrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.segrow .n { font-weight: 700; }
+.segrow .track { position: relative; height: 8px; background: var(--line); border-radius: 4px; }
+.segrow .fill { height: 100%; background: var(--p); border-radius: 4px; }
+.segrow .ref { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink2); border-radius: 1px; }
+.segrow .v { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink2); min-width: 92px; text-align: right; }
+.segrow .v b { color: var(--ink); }
+.segrow .v .up, .segrow .v .dn { display: inline-block; min-width: 38px; }
+
+.unit-btn { flex: none; min-width: 44px; height: 36px; padding: 0 6px; border-radius: 8px; background: var(--line); color: var(--ink); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.unit-btn small { font-size: 10px; color: var(--muted); font-weight: 400; }

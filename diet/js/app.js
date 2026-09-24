@@ -1,7 +1,7 @@
 // =====================================================
 // 画面制御: 今日（食事PFC）/ 体重 / 運動 / 設定
 // =====================================================
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
 
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -340,13 +340,54 @@ const APP_VERSION = 'v4';
     $('#m-save', sheet).textContent = '推定結果を保存';
   }
 
-  // 骨格筋率・体脂肪率の入力を検証して { sm, bf } を返す（空欄は削除扱い）。不正なら null
-  function readComposition(smEl, bfEl) {
-    const sm = smEl.value === '' ? 0 : parseFloat(smEl.value);
-    const bf = bfEl.value === '' ? 0 : parseFloat(bfEl.value);
-    if (sm && !(sm >= 10 && sm <= 60)) { toast('骨格筋率は 10〜60% で入力してください'); smEl.focus(); return null; }
-    if (bf && !(bf >= 3 && bf <= 60)) { toast('体脂肪率は 3〜60% で入力してください'); bfEl.focus(); return null; }
-    return { sm: sm || null, bf: bf || null };
+  // ---------- 骨格筋・体脂肪は % でも kg でも入力できる（保存は % に統一） ----------
+  // 単位の選択は端末に覚えておく
+  const compUnit = k => { try { return localStorage.getItem('diet.unit.' + k) === 'kg' ? 'kg' : '%'; } catch { return '%'; } };
+  const setCompUnit = (k, u) => { try { localStorage.setItem('diet.unit.' + k, u); } catch {} };
+  const COMP_LABEL = { sm: ['骨格筋率', '骨格筋量'], bf: ['体脂肪率', '体脂肪量'] };
+  // k: 'sm' | 'bf'、pct: 保存済みの % 値、weight: 表示用の換算に使う体重、suffix: ラベル末尾（「（任意）」など）
+  function compField(id, k, pct, weight, suffix = '', style = '') {
+    const u = compUnit(k);
+    const val = pct ? (u === 'kg' && weight ? Math.round(weight * pct / 10) / 10 : pct) : '';
+    const ph = k === 'sm' ? (u === 'kg' ? '例: 23.5' : '例: 34.5') : (u === 'kg' ? '例: 12.2' : '例: 18.0');
+    return `<div class="field" style="${style}"><label data-lbl="${id}">${COMP_LABEL[k][u === 'kg' ? 1 : 0]}${suffix}</label><div class="unit">
+      <input type="number" inputmode="decimal" step="0.1" id="${id}" data-comp="${k}" data-suffix="${suffix}" value="${val}" placeholder="${ph}">
+      <button type="button" class="unit-btn" data-unit-for="${id}" aria-label="単位を切り替え">${u}<small>⇄</small></button></div></div>`;
+  }
+  // 単位ボタン: 押すと % ⇄ kg を切り替え、入力済みの値は weightEl の体重で換算する
+  function bindCompUnits(root, weightEl) {
+    $$('[data-unit-for]', root).forEach(btn => btn.onclick = () => {
+      const input = $('#' + btn.dataset.unitFor, root), k = input.dataset.comp;
+      const from = compUnit(k), to = from === '%' ? 'kg' : '%';
+      const w = parseFloat(weightEl.value);
+      if (input.value !== '') {
+        if (!(w > 0)) { toast('先に体重を入力すると換算できます'); return; }
+        const v = parseFloat(input.value);
+        input.value = to === 'kg' ? Math.round(w * v / 10) / 10 : Math.round(v / w * 1000) / 10;
+      }
+      setCompUnit(k, to);
+      btn.innerHTML = `${to}<small>⇄</small>`;
+      $(`[data-lbl="${input.id}"]`, root).textContent = COMP_LABEL[k][to === 'kg' ? 1 : 0] + input.dataset.suffix;
+      input.placeholder = k === 'sm' ? (to === 'kg' ? '例: 23.5' : '例: 34.5') : (to === 'kg' ? '例: 12.2' : '例: 18.0');
+    });
+  }
+  // 骨格筋・体脂肪の入力を検証して { sm, bf }（%）を返す。kg で入力されていれば体重で割って % にする。空欄は削除扱い。不正なら null
+  function readComposition(smEl, bfEl, weight) {
+    const toPct = (el) => {
+      if (el.value === '') return 0;
+      const v = parseFloat(el.value);
+      return compUnit(el.dataset.comp) === 'kg' ? (weight > 0 ? v / weight * 100 : NaN) : v;
+    };
+    const sm = toPct(smEl), bf = toPct(bfEl);
+    // 範囲外のときは、選んでいる単位で範囲を示す（kg なら体重から換算）
+    const rangeMsg = (el, lo, hi) => {
+      const k = el.dataset.comp;
+      if (compUnit(k) === 'kg' && weight > 0) return `${COMP_LABEL[k][1]}は ${(weight * lo / 100).toFixed(1)}〜${(weight * hi / 100).toFixed(1)}kg で入力してください`;
+      return `${COMP_LABEL[k][0]}は ${lo}〜${hi}% で入力してください`;
+    };
+    if (sm && !(sm >= 10 && sm <= 60)) { toast(rangeMsg(smEl, 10, 60)); smEl.focus(); return null; }
+    if (bf && !(bf >= 3 && bf <= 60)) { toast(rangeMsg(bfEl, 3, 60)); bfEl.focus(); return null; }
+    return { sm: sm ? Math.round(sm * 10) / 10 : null, bf: bf ? Math.round(bf * 10) / 10 : null };
   }
 
   // =====================================================
@@ -372,8 +413,8 @@ const APP_VERSION = 'v4';
         <div class="row"><div class="unit row" style="flex:1"><input type="number" inputmode="decimal" step="0.1" id="w-input" value="${todayRec ? todayRec.kg : (latest ? latest.kg : '')}" placeholder="例: 65.2"><span>kg</span></div>
           <button class="btn primary" id="w-save">保存</button></div>
         <div class="grid2" style="margin-top:8px">
-          <div class="field" style="margin:0"><label>骨格筋率（任意）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="w-sm" value="${todayRec && todayRec.sm ? todayRec.sm : ''}" placeholder="例: 34.5"><span>%</span></div></div>
-          <div class="field" style="margin:0"><label>体脂肪率（任意）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="w-bf" value="${todayRec && todayRec.bf ? todayRec.bf : ''}" placeholder="例: 18.0"><span>%</span></div></div>
+          ${compField('w-sm', 'sm', todayRec && todayRec.sm, todayRec ? todayRec.kg : (latest && latest.kg), '（任意）', 'margin:0')}
+          ${compField('w-bf', 'bf', todayRec && todayRec.bf, todayRec ? todayRec.kg : (latest && latest.kg), '（任意）', 'margin:0')}
         </div>
         <div class="stats">
           <div><div class="v">${latest ? latest.kg.toFixed(1) : '–'}</div><div class="k">最新 (kg)</div></div>
@@ -391,16 +432,17 @@ const APP_VERSION = 'v4';
       <div class="card" id="balance-card"></div>
       <div class="card">
         <h2>履歴</h2>
-        ${all.length ? `<table class="simple">${all.slice().reverse().slice(0, 30).map(w => `<tr><td>${w.date}</td><td>${w.kg.toFixed(1)} kg${w.sm || w.bf ? `<br><small class="muted">${w.sm ? `筋 ${w.sm}%` : ''}${w.sm && w.bf ? '・' : ''}${w.bf ? `脂 ${w.bf}%` : ''}</small>` : ''}</td><td><button class="btn small danger" data-wdel="${w.date}">削除</button></td></tr>`).join('')}</table>` : '<div class="empty">まだ記録がありません</div>'}
+        ${all.length ? `<table class="simple">${all.slice().reverse().slice(0, 30).map(w => `<tr><td>${w.date}</td><td>${w.kg.toFixed(1)} kg${w.sm || w.bf ? `<br><small class="muted">${w.sm ? `筋 ${compUnit('sm') === 'kg' ? (w.kg * w.sm / 100).toFixed(1) + 'kg' : w.sm + '%'}` : ''}${w.sm && w.bf ? '・' : ''}${w.bf ? `脂 ${compUnit('bf') === 'kg' ? (w.kg * w.bf / 100).toFixed(1) + 'kg' : w.bf + '%'}` : ''}</small>` : ''}</td><td><button class="btn small danger" data-wdel="${w.date}">削除</button></td></tr>`).join('')}</table>` : '<div class="empty">まだ記録がありません</div>'}
       </div>`;
 
     $('#w-save').onclick = () => {
       const v = parseFloat($('#w-input').value);
       if (!(v > 20 && v < 300)) { toast('体重を正しく入力してください'); return; }
-      const comp = readComposition($('#w-sm'), $('#w-bf'));
+      const comp = readComposition($('#w-sm'), $('#w-bf'), v);
       if (!comp) return;
       Store.setWeight(today, Math.round(v * 10) / 10, comp); renderWeight(); toast('体重を記録しました');
     };
+    bindCompUnits(root, $('#w-input'));
     $$('[data-range]', root).forEach(b => b.onclick = () => { state.range = +b.dataset.range; renderWeight(); });
     $$('[data-wdel]', root).forEach(b => b.onclick = () => { if (confirm(`${b.dataset.wdel} の記録を削除しますか？`)) { Store.deleteWeight(b.dataset.wdel); renderWeight(); } });
     drawWeightChart($('#chart', root), all, p.targetWeight);
@@ -582,13 +624,22 @@ const APP_VERSION = 'v4';
     if (!w || !p.height) return null;
     // 骨格筋率・体脂肪率は、最新の体重の日に無ければ直近の測定値を使う
     const comp = (w.sm || w.bf) ? w : Store.latestComposition();
-    return Body.estimate({ sex: p.sex, age: p.age, height: p.height, weight: w.kg, sm: comp && comp.sm, bf: comp && comp.bf });
+    // 除脂肪量・筋肉量は体重とセットの値なので、同じ日の測定のときだけ使う（別の日の体重と組み合わせると矛盾する）
+    const sameDay = comp && comp.date === w.date;
+    return Body.estimate({
+      sex: p.sex, age: p.age, height: p.height, weight: w.kg, inseam: p.inseam,
+      sm: comp && comp.sm, bf: comp && comp.bf,
+      ffm: sameDay ? comp.ffm : null, mm: sameDay ? comp.mm : null, seg: comp && comp.seg,
+    });
   }
   const METHOD_TEXT = {
     bf: '体組成計の体脂肪率をそのまま使っています。',
+    ffm: '体重 − 除脂肪量 から体脂肪率を計算しています。',
+    mm: '筋肉量に骨量（除脂肪量の約5%）を足して除脂肪量を推定し、体脂肪率を計算しています。',
     sm: '骨格筋率から体脂肪率を換算しています（体組成計の標準範囲からの近似。±5%程度ずれます）。体脂肪率も表示される機種なら、その値を入れると正確になります。',
     bmi: 'BMIと年齢からの推定です。筋肉が多い人は体脂肪率が高めに出ます。骨格筋率か体脂肪率を入れてください。',
   };
+  const numField = (id, label, unit, val, ph) => `<div class="field"><label>${label}</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="${id}" value="${val}" placeholder="${ph}"><span>${unit}</span></div></div>`;
   function fmtSigned(v, unit) { return (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) + unit; }
 
   function renderBody() {
@@ -598,16 +649,36 @@ const APP_VERSION = 'v4';
     const today = Store.today();
     const todayRec = Store.weights().find(x => x.date === today);
     const lastComp = Store.latestComposition();
+    // 今日の記録があればそれ、無ければ直近の測定値を初期表示にする
+    const src = todayRec && (todayRec.ffm || todayRec.mm || todayRec.seg) ? todayRec : lastComp;
+    const detailVal = k => src && src[k] ? src[k] : '';
+    const segVal = k => src && src.seg && src.seg[k] ? src.seg[k] : '';
 
     const inputCard = `<div class="card">
       <h2>あなたの数値</h2>
       <div class="seg" id="b-sex" style="margin-bottom:10px">${[['male', '男性'], ['female', '女性']].map(([k, l]) => `<button data-sex="${k}" class="${p.sex === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="grid2">
         <div class="field"><label>身長</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-height" value="${p.height ?? ''}" placeholder="例: 172"><span>cm</span></div></div>
+        <div class="field"><label>股下（脚の長さ）</label><div class="unit"><input type="number" inputmode="decimal" step="0.5" id="b-inseam" value="${p.inseam ?? ''}" placeholder="例: 78"><span>cm</span></div></div>
         <div class="field"><label>体重（今日）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-weight" value="${todayRec ? todayRec.kg : (w ? w.kg : '')}" placeholder="例: 68.0"><span>kg</span></div></div>
-        <div class="field"><label>骨格筋率</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-sm" value="${todayRec && todayRec.sm ? todayRec.sm : (lastComp && lastComp.sm ? lastComp.sm : '')}" placeholder="例: 34.5"><span>%</span></div></div>
-        <div class="field"><label>体脂肪率（あれば）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-bf" value="${todayRec && todayRec.bf ? todayRec.bf : (lastComp && lastComp.bf ? lastComp.bf : '')}" placeholder="例: 18.0"><span>%</span></div></div>
+        ${compField('b-sm', 'sm', todayRec && todayRec.sm ? todayRec.sm : (lastComp && lastComp.sm), todayRec ? todayRec.kg : (w && w.kg))}
+        ${compField('b-bf', 'bf', todayRec && todayRec.bf ? todayRec.bf : (lastComp && lastComp.bf), todayRec ? todayRec.kg : (w && w.kg), '（あれば）')}
       </div>
+      <details class="more" ${lastComp && (lastComp.ffm || lastComp.mm || lastComp.seg) ? 'open' : ''}>
+        <summary>体組成計の詳しい値（除脂肪量・筋肉量・部位別）</summary>
+        <div class="grid2" style="margin-top:8px">
+          ${numField('b-ffm', '除脂肪量', 'kg', detailVal('ffm'), '例: 55.6')}
+          ${numField('b-mm', '筋肉量', 'kg', detailVal('mm'), '例: 52.8')}
+        </div>
+        <small class="muted">部位別筋肉量（右・左は本人から見た向き）</small>
+        ${numField('b-trunk', '体幹部', 'kg', segVal('trunk'), '例: 27.5')}
+        <div class="grid2">
+          ${numField('b-ra', '右腕', 'kg', segVal('ra'), '例: 3.2')}
+          ${numField('b-la', '左腕', 'kg', segVal('la'), '例: 3.1')}
+          ${numField('b-rl', '右足', 'kg', segVal('rl'), '例: 10.1')}
+          ${numField('b-ll', '左足', 'kg', segVal('ll'), '例: 10.0')}
+        </div>
+      </details>
       <button class="btn primary block" id="b-save">保存して見た目を更新</button>
       ${lastComp && lastComp.date !== today ? `<small class="muted">骨格筋率・体脂肪率は ${lastComp.date.slice(5).replace('-', '/')} の測定値を表示しています。</small>` : ''}
     </div>`;
@@ -629,15 +700,17 @@ const APP_VERSION = 'v4';
       <div class="card">
         <h2>今の体</h2>
         ${Body.svg(cur, { width: 150, label: '今の体' })}
+        ${cur.segRatio || cur.inseam ? `<div class="muted" style="text-align:center;font-size:11px">正面から見た図（あなたの右側は画面の左）${cur.inseam ? `・股下 ${cur.inseam}cm` : ''}</div>` : ''}
         <div style="text-align:center"><div class="tier">${dCur.label}</div><div class="tier-text">${dCur.text}</div></div>
         <div class="bstats">
-          <div><div class="v">${cur.bf}%</div><div class="k">体脂肪率${cur.method === 'bf' ? '' : '（推定）'}</div></div>
+          <div><div class="v">${cur.bf}%</div><div class="k">体脂肪率${cur.method === 'sm' || cur.method === 'bmi' ? '（推定）' : ''}</div></div>
           <div><div class="v">${cur.ffm}</div><div class="k">除脂肪 kg</div></div>
           <div><div class="v">${cur.fatKg}</div><div class="k">脂肪 kg</div></div>
           <div><div class="v">${cur.ffmiNorm}</div><div class="k">FFMI</div></div>
         </div>
         <small class="muted" style="display:block;margin-top:8px">${METHOD_TEXT[cur.method]} FFMIは身長あたりの筋肉量で、一般男性18〜20・筋トレ継続者21〜23・天然の上限が約25（女性はおよそ−3）。</small>
       </div>
+      ${segCard(cur)}
       <div class="card" id="sim-card"></div>
       <div class="card">
         <h2>体重ごとの見た目</h2>
@@ -647,6 +720,46 @@ const APP_VERSION = 'v4';
     bindBodyInputs(root);
     renderSim(cur);
     renderStrip(cur);
+  }
+
+  // 部位別の筋肉: 身長に対する標準を100%として比べる
+  function segCard(cur) {
+    if (!cur.segRatio) return '';
+    const r = cur.segRatio, kg = cur.segKg;
+    const rows = [['trunk', '体幹部'], ['ra', '右腕'], ['la', '左腕'], ['rl', '右足'], ['ll', '左足']].filter(([k]) => r[k]);
+    const max = Math.max(1.4, ...rows.map(([k]) => r[k]));
+    const bar = ([k, label]) => {
+      const pct = Math.round(r[k] * 100);
+      return `<div class="segrow"><span class="n">${label}</span>
+        <div class="track"><div class="fill" style="width:${r[k] / max * 100}%"></div><div class="ref" style="left:${1 / max * 100}%"></div></div>
+        <span class="v"><b>${kg[k].toFixed(1)}</b>kg <span class="${pct >= 100 ? 'up' : 'dn'}">${pct}%</span></span></div>`;
+    };
+    const notes = [];
+    const diff = (a, b, name) => {
+      if (!kg[a] || !kg[b]) return;
+      const d = (kg[a] - kg[b]) / ((kg[a] + kg[b]) / 2) * 100;
+      if (Math.abs(d) < 4) return;
+      const big = d > 0 ? '右' : '左', small = d > 0 ? '左' : '右';
+      notes.push(`${big}${name}が${small}${name}より <b>${Math.abs(d).toFixed(0)}%</b> 多い。${Math.abs(d) >= 10 ? `差が大きいので、${small}側から先に始めて回数をそろえる片側種目（${name === '腕' ? 'ダンベルカール・ワンハンドロー等' : 'ブルガリアンスクワット・ランジ等'}）で埋めるのがおすすめ。` : name === '腕' ? '利き腕側が多いのは普通の範囲。' : '日常の癖で出る程度の差。'}`);
+    };
+    diff('ra', 'la', '腕'); diff('rl', 'll', '足');
+    const up = ['trunk', 'ra', 'la'].filter(k => r[k]).map(k => r[k]);
+    const lo = ['rl', 'll'].filter(k => r[k]).map(k => r[k]);
+    if (up.length && lo.length) {
+      const u = up.reduce((a, b) => a + b) / up.length, l = lo.reduce((a, b) => a + b) / lo.length;
+      if (l - u > 0.1) notes.push('上半身より下半身の筋肉が多め。自転車通学の効果が出やすい部位なので、上半身（胸・背中・肩）の種目を増やすと見た目のバランスが整う。');
+      else if (u - l > 0.1) notes.push('下半身が上半身に比べて少なめ。スクワットやランジを入れると体全体の筋肉量が増え、消費カロリーも上がる。');
+    }
+    const sum = Object.values(kg).reduce((a, b) => a + b, 0);
+    const mm = (Store.latestComposition() || {}).mm;
+    const allSeg = rows.length === 5;
+    return `<div class="card">
+      <h2>部位別の筋肉</h2>
+      <small class="muted">身長 ${cur.height}cm に対する標準（縦線）を100%として比べています。</small>
+      <div class="segbars">${rows.map(bar).join('')}</div>
+      ${notes.map(n => `<div class="notice info" style="margin:8px 0 0">${n}</div>`).join('')}
+      ${allSeg && mm && Math.abs(sum - mm) / mm > 0.08 ? `<small class="muted" style="display:block;margin-top:8px">部位別の合計（${sum.toFixed(1)}kg）が筋肉量（${mm}kg）と8%以上ずれています。入力ミスがないか確認してください。</small>` : ''}
+    </div>`;
   }
 
   function renderSim(cur) {
@@ -704,7 +817,24 @@ const APP_VERSION = 'v4';
   }
   function markStrip() { $$('#strip button').forEach(b => b.classList.toggle('sel', +b.dataset.w === state.simW)); }
 
+  // 除脂肪量・筋肉量・部位別の検証。空欄はその項目を消す。不正なら null
+  function readDetails(root, weight) {
+    const v = id => { const el = $('#' + id, root); return el.value === '' ? 0 : parseFloat(el.value); };
+    const checks = [
+      ['b-ffm', '除脂肪量', 15, weight], ['b-mm', '筋肉量', 15, weight],
+      ['b-trunk', '体幹部', 5, 60], ['b-ra', '右腕', 0.5, 10], ['b-la', '左腕', 0.5, 10], ['b-rl', '右足', 2, 25], ['b-ll', '左足', 2, 25],
+    ];
+    for (const [id, name, lo, hi] of checks) {
+      const x = v(id);
+      if (x && !(x >= lo && x <= hi)) { toast(`${name}は ${lo}〜${Math.round(hi * 10) / 10}kg の範囲で入力してください`); $('#' + id, root).focus(); return null; }
+    }
+    const ffm = v('b-ffm'), mm = v('b-mm');
+    if (ffm && mm && mm > ffm) { toast('筋肉量が除脂肪量より多くなっています。入れ替わっていませんか'); return null; }
+    return { ffm: ffm || null, mm: mm || null, seg: { trunk: v('b-trunk'), ra: v('b-ra'), la: v('b-la'), rl: v('b-rl'), ll: v('b-ll') } };
+  }
+
   function bindBodyInputs(root) {
+    bindCompUnits(root, $('#b-weight', root));
     let sex = Store.profile().sex;
     $$('#b-sex button', root).forEach(b => b.onclick = () => { sex = b.dataset.sex; $$('#b-sex button', root).forEach(x => x.classList.toggle('on', x === b)); });
     $('#b-save', root).onclick = () => {
@@ -712,10 +842,14 @@ const APP_VERSION = 'v4';
       const kg = parseFloat($('#b-weight', root).value);
       if (!(h > 100 && h < 230)) { toast('身長を正しく入力してください'); return; }
       if (!(kg > 20 && kg < 300)) { toast('体重を正しく入力してください'); return; }
-      const comp = readComposition($('#b-sm', root), $('#b-bf', root));
+      const comp = readComposition($('#b-sm', root), $('#b-bf', root), kg);
       if (!comp) return;
-      Store.setProfile({ height: h, sex });
-      Store.setWeight(Store.today(), Math.round(kg * 10) / 10, comp);
+      const inseam = $('#b-inseam', root).value === '' ? null : parseFloat($('#b-inseam', root).value);
+      if (inseam != null && !(inseam > h * 0.35 && inseam < h * 0.6)) { toast('股下は身長の35〜60%の範囲で入力してください'); $('#b-inseam', root).focus(); return; }
+      const det = readDetails(root, kg);
+      if (!det) return;
+      Store.setProfile({ height: h, sex, inseam });
+      Store.setWeight(Store.today(), Math.round(kg * 10) / 10, { ...comp, ...det });
       state.simW = null;
       renderBody(); toast('保存しました');
     };

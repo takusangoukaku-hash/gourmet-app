@@ -3,13 +3,13 @@
 //  - 自ドメイン: ネットワーク優先（更新を即反映、オフライン時はキャッシュ）
 //  - Anthropic API: キャッシュしない
 // =====================================================
-const VERSION = 'v4'; // 体型タブ: 骨格筋率・体脂肪率の入力、今の体と体重ごとの見た目のイラスト
+const VERSION = 'v5'; // 体型: 除脂肪量・筋肉量・部位別筋肉量・股下を反映。部位別の筋肉カード
 const CACHE = 'diet-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=4',
-  './js/calc.js?v=4', './js/store.js?v=4', './js/ai.js?v=4', './js/body.js?v=4', './js/app.js?v=4',
+  './', './index.html', './css/style.css?v=5',
+  './js/calc.js?v=5', './js/store.js?v=5', './js/ai.js?v=5', './js/body.js?v=5', './js/app.js?v=5',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png', './icons/icon-maskable-512.png',
 ];

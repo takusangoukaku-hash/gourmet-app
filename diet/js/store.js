@@ -18,6 +18,7 @@ window.Store = (() => {
       useMeasuredTdee: false, // 目標計算に実測TDEEを使う
       commute: { distanceKm: null, minutes: null },
       targetWeight: null,
+      inseam: null,          // 股下 cm（体型イラストの脚の長さ）
     },
     meals: [],      // {id,date,slot,name,kcal,p,f,c,photoId,ai,ts}
     weights: [],    // {date,kg}
@@ -94,19 +95,30 @@ window.Store = (() => {
 
   // ---------- 体重 ----------
   const weights = () => data.weights.slice().sort((a, b) => a.date < b.date ? -1 : 1);
-  // extra: { sm: 骨格筋率%, bf: 体脂肪率% }。null を渡すとその項目を消す、省略すると触らない
+  // extra: { sm: 骨格筋率%, bf: 体脂肪率%, ffm: 除脂肪量kg, mm: 筋肉量kg, seg: { trunk, ra, la, rl, ll } 部位別筋肉量kg }
+  // null を渡すとその項目を消す、省略すると触らない
+  const COMP_KEYS = ['sm', 'bf', 'ffm', 'mm'];
+  const SEG_KEYS = ['trunk', 'ra', 'la', 'rl', 'll'];
   function setWeight(date, kg, extra) {
     let w = data.weights.find(x => x.date === date);
     if (!w) { w = { date, kg: +kg }; data.weights.push(w); } else w.kg = +kg;
-    if (extra) ['sm', 'bf'].forEach(k => {
-      if (!(k in extra)) return;
-      if (extra[k] > 0) w[k] = Math.round(extra[k] * 10) / 10; else delete w[k];
-    });
+    if (extra) {
+      COMP_KEYS.forEach(k => {
+        if (!(k in extra)) return;
+        if (extra[k] > 0) w[k] = Math.round(extra[k] * 10) / 10; else delete w[k];
+      });
+      if ('seg' in extra) {
+        const seg = {};
+        SEG_KEYS.forEach(k => { if (extra.seg && extra.seg[k] > 0) seg[k] = Math.round(extra.seg[k] * 100) / 100; });
+        if (Object.keys(seg).length) w.seg = seg; else delete w.seg;
+      }
+    }
     save();
   }
-  // 骨格筋率・体脂肪率が入っている最新の記録
+  const hasComposition = w => COMP_KEYS.some(k => w[k]) || !!w.seg;
+  // 体組成（骨格筋率・体脂肪率・除脂肪量・筋肉量・部位別）が入っている最新の記録
   function latestComposition(onOrBefore) {
-    const list = weights().filter(w => (w.sm || w.bf) && (!onOrBefore || w.date <= onOrBefore));
+    const list = weights().filter(w => hasComposition(w) && (!onOrBefore || w.date <= onOrBefore));
     return list.length ? list[list.length - 1] : null;
   }
   function deleteWeight(date) { data.weights = data.weights.filter(x => x.date !== date); save(); }
@@ -154,6 +166,7 @@ window.Store = (() => {
       targets: p.targets && num(p.targets.kcal) > 0 ? { kcal: num(p.targets.kcal), p: num(p.targets.p), f: num(p.targets.f), c: num(p.targets.c) } : null,
       commute: { distanceKm: num(p.commute && p.commute.distanceKm) || null, minutes: num(p.commute && p.commute.minutes) || null },
       targetWeight: num(p.targetWeight) || null,
+      inseam: num(p.inseam) || null,
     };
     d.meals = (j.meals || []).filter(m => m && isDate(m.date)).map(m => ({
       id: str(m.id, 40) || uid(), ts: num(m.ts), date: m.date, slot: SLOT_KEYS.includes(m.slot) ? m.slot : 'snack',
@@ -162,8 +175,12 @@ window.Store = (() => {
     }));
     d.weights = (j.weights || []).filter(w => w && isDate(w.date) && num(w.kg) > 0).map(w => {
       const r = { date: w.date, kg: num(w.kg) };
-      if (num(w.sm) > 0) r.sm = num(w.sm);
-      if (num(w.bf) > 0) r.bf = num(w.bf);
+      COMP_KEYS.forEach(k => { if (num(w[k]) > 0) r[k] = num(w[k]); });
+      if (w.seg && typeof w.seg === 'object') {
+        const seg = {};
+        SEG_KEYS.forEach(k => { if (num(w.seg[k]) > 0) seg[k] = num(w.seg[k]); });
+        if (Object.keys(seg).length) r.seg = seg;
+      }
       return r;
     });
     d.exercises = (j.exercises || []).filter(e => e && isDate(e.date) && (e.type === 'bike' || e.type === 'strength')).map(e => e.type === 'bike'

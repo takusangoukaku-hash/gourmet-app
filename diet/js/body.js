@@ -10,7 +10,10 @@ window.Body = (() => {
   const r1 = v => Math.round(v * 10) / 10;
 
   // ---------- 推定 ----------
-  function estimate({ sex, age, height, weight, sm, bf }) {
+  // 優先順: 体脂肪率 > 除脂肪量 > 筋肉量 > 骨格筋率 > BMI式
+  //  ffm: 除脂肪量kg / mm: 筋肉量kg（体組成計の「筋肉量」= 除脂肪量 − 推定骨量）
+  //  seg: 部位別筋肉量kg { trunk, ra, la, rl, ll } / inseam: 股下cm
+  function estimate({ sex, age, height, weight, sm, bf, ffm, mm, seg, inseam }) {
     if (!height || !weight) return null;
     const h = height / 100;
     const bmi = weight / (h * h);
@@ -18,6 +21,11 @@ window.Body = (() => {
     let method, fat;
     if (bf > 2 && bf < 70) {
       method = 'bf'; fat = bf;
+    } else if (ffm > 15 && ffm < weight) {
+      method = 'ffm'; fat = (1 - ffm / weight) * 100;
+    } else if (mm > 15 && mm < weight) {
+      // 骨量は除脂肪量のおよそ5%（体組成計の推定骨量と同程度）
+      method = 'mm'; fat = (1 - mm / 0.95 / weight) * 100;
     } else if (sm > 10 && sm < 60) {
       method = 'sm';
       // 男性: 骨格筋率 33.3〜39.3% ↔ 体脂肪率 21〜11%、女性: 24.3〜30.3% ↔ 35〜21%
@@ -28,10 +36,33 @@ window.Body = (() => {
       fat = 1.2 * bmi + 0.23 * (age || 25) - 10.8 * (male ? 1 : 0) - 5.4;
     }
     fat = clamp(fat, male ? 4 : 10, 60);
-    return derive({ sex, height, weight, bf: fat, method, sm });
+    const segKg = cleanSeg(seg);
+    return derive({ sex, height, weight, bf: fat, method, sm, segKg, inseam });
   }
 
-  function derive({ sex, height, weight, bf, method, sm }) {
+  const SEG_KEYS = ['trunk', 'ra', 'la', 'rl', 'll'];
+  function cleanSeg(seg) {
+    if (!seg) return null;
+    const out = {};
+    SEG_KEYS.forEach(k => { if (seg[k] > 0) out[k] = +seg[k]; });
+    return Object.keys(out).length ? out : null;
+  }
+
+  // 部位別筋肉量の標準（kg/身長m²）。FFMI 男性20・女性16 の体型に相当する値
+  const SEG_REF = {
+    male: { trunk: 9.35, ra: 1.08, la: 1.08, rl: 3.45, ll: 3.45 },
+    female: { trunk: 7.8, ra: 0.76, la: 0.76, rl: 2.9, ll: 2.9 },
+  };
+  // 標準に対する割合（1.0 = 標準）
+  function segRatio(sex, height, segKg) {
+    if (!segKg) return null;
+    const h2 = (height / 100) ** 2, ref = SEG_REF[sex === 'female' ? 'female' : 'male'];
+    const out = {};
+    Object.keys(segKg).forEach(k => { out[k] = segKg[k] / h2 / ref[k]; });
+    return out;
+  }
+
+  function derive({ sex, height, weight, bf, method, sm, segKg, inseam }) {
     const h = height / 100;
     const fatKg = weight * bf / 100;
     const ffm = weight - fatKg;
@@ -39,6 +70,7 @@ window.Body = (() => {
     return {
       sex, height, weight: r1(weight), bf: r1(bf), fatKg: r1(fatKg), ffm: r1(ffm),
       ffmi: r1(ffmi), ffmiNorm: r1(ffmi + 6.1 * (1.8 - h)), bmi: r1(weight / (h * h)), method, sm,
+      segKg: segKg || null, segRatio: segRatio(sex, height, segKg), inseam: inseam || null,
     };
   }
 
@@ -52,7 +84,9 @@ window.Body = (() => {
     const minFat = newWeight * (cur.sex === 'female' ? 0.12 : 0.05);
     const want = cur.fatKg + dw * share;
     const fatKg = Math.max(minFat, want);
-    const e = derive({ sex: cur.sex, height: cur.height, weight: newWeight, bf: fatKg / newWeight * 100, method: cur.method, sm: null });
+    const ffmScale = (newWeight - fatKg) / cur.ffm;
+    const segKg = cur.segKg ? Object.fromEntries(Object.entries(cur.segKg).map(([k, v]) => [k, v * ffmScale])) : null;
+    const e = derive({ sex: cur.sex, height: cur.height, weight: newWeight, bf: fatKg / newWeight * 100, method: cur.method, sm: null, segKg, inseam: cur.inseam });
     e.depleted = want < minFat;
     return e;
   }
@@ -96,26 +130,35 @@ window.Body = (() => {
     const fa = (bf - (male ? 15 : 25)) / 10;
     const mu = clamp((fm - (male ? 20 : 16)) / (male ? 3 : 2.5), -1.5, 2);
     const fpos = Math.max(0, fa), fneg = Math.min(0, fa);
+    // 部位別の筋肉量があれば部位ごとに太さを決める（標準比 +15% ≒ FFMI +3 と同じ変化）。無い部位は全身の値
+    const sr = e.segRatio || {};
+    const segMu = k => sr[k] ? clamp((sr[k] - 1) / (male ? 0.15 : 0.156), -1.8, 2.5) : mu;
+    const muT = segMu('trunk');
+    // 正面から見た図なので、本人の右腕・右足は画面の左側（s = -1）
+    const muArm = s => segMu(s < 0 ? 'ra' : 'la');
+    const muLeg = s => segMu(s < 0 ? 'rl' : 'll');
+    const muLegAvg = (muLeg(1) + muLeg(-1)) / 2;
 
     const B = male
       ? { sh: 54, ch: 40, wa: 33, hi: 38, arm: 11.5, fore: 9, th: 21, calf: 13.5, neck: 12 }
       : { sh: 46, ch: 36, wa: 29, hi: 42, arm: 10, fore: 8, th: 22, calf: 13, neck: 10 };
-    const sh = B.sh + 5 * mu + 3 * fpos + 1.5 * fneg;
-    const ch = B.ch + 3.5 * mu + 5 * fpos + 2 * fneg;
-    const wa = Math.max(B.wa - 4, B.wa + 0.8 * mu + (male ? 9 : 6) * fpos + 3 * fneg);
+    const sh = B.sh + 5 * muT + 3 * fpos + 1.5 * fneg;
+    const ch = B.ch + 3.5 * muT + 5 * fpos + 2 * fneg;
+    const wa = Math.max(B.wa - 4, B.wa + 0.8 * muT + (male ? 9 : 6) * fpos + 3 * fneg);
     const belly = male ? Math.max(0, (bf - 20) * 0.9) : Math.max(0, (bf - 30) * 0.6);
     // お腹が出たら腰もそれ以上に張る（お腹の横だけ膨らんで腰がくびれる不自然な形を避ける）
-    const hi = Math.max(B.hi + 1.5 * mu + (male ? 6 : 8) * fpos + 3 * fneg, wa + belly * 0.85);
-    const arm = B.arm + 2.2 * mu + 1.6 * fpos + 0.8 * fneg;
-    const fore = B.fore + 1.3 * mu + 1.2 * fpos + 0.5 * fneg;
-    const th = B.th + 2.5 * mu + (male ? 4 : 5.5) * fpos + 1.5 * fneg;
-    const calf = B.calf + 1.2 * mu + 1.5 * fpos + 0.5 * fneg;
-    const neck = B.neck + 1.8 * mu + 1.5 * fpos;
+    const hi = Math.max(B.hi + 1.5 * muLegAvg + (male ? 6 : 8) * fpos + 3 * fneg, wa + belly * 0.85);
+    const armW = s => B.arm + 2.2 * muArm(s) + 1.6 * fpos + 0.8 * fneg;
+    const foreW = s => B.fore + 1.3 * muArm(s) + 1.2 * fpos + 0.5 * fneg;
+    const thW = s => B.th + 2.5 * muLeg(s) + (male ? 4 : 5.5) * fpos + 1.5 * fneg;
+    const calfW = s => B.calf + 1.2 * muLeg(s) + 1.5 * fpos + 0.5 * fneg;
+    const arm = Math.max(armW(1), armW(-1)), th = (thW(1) + thW(-1)) / 2;
+    const neck = B.neck + 1.8 * muT + 1.5 * fpos;
 
     // 見え方（0〜1）
     const absV = clamp(((male ? 17 : 24) - bf) / 6, 0, 1);
     const obV = clamp(((male ? 13 : 20) - bf) / 5, 0, 1);
-    const pecV = male ? clamp((22 - bf) / 10, 0, 1) * clamp(0.5 + mu * 0.4, 0.3, 1) : 0;
+    const pecV = male ? clamp((22 - bf) / 10, 0, 1) * clamp(0.5 + muT * 0.4, 0.3, 1) : 0;
     const veinV = clamp(((male ? 11 : 17) - bf) / 4, 0, 1);
     const quadV = clamp(((male ? 14 : 21) - bf) / 5, 0, 1);
     const foldV = male ? clamp((bf - 23) / 8, 0, 1) : clamp((bf - 32) / 8, 0, 1);
@@ -153,8 +196,9 @@ window.Body = (() => {
     const legC = hi * 0.5 + 1;
     const leg = s => {
       const o = x => cx + s * x;
+      const th = thW(s), calf = calfW(s);
       const inner = Math.max(1.5, legC - th);
-      const kneeC = legC * 0.82, kn = 8.5 + 0.8 * mu + 1.2 * fpos;
+      const kneeC = legC * 0.82, kn = 8.5 + 0.8 * muLeg(s) + 1.2 * fpos;
       const ankC = legC * 0.72, an = 5.5;
       return `M${f(o(hi - 1))},206 C${f(o(hi))},230 ${f(o(legC + th * 0.95))},250 ${f(o(legC + th * 0.8))},262
         C${f(o(legC + th * 0.6))},276 ${f(o(kneeC + kn + 2))},284 ${f(o(kneeC + kn))},292
@@ -168,6 +212,7 @@ window.Body = (() => {
     const side = Math.max(ch, wa + belly * 0.9, hi * 0.92);
     const arm_ = s => {
       const o = x => cx + s * x;
+      const arm = armW(s), fore = foreW(s);
       const shX = sh - 6, elX = side + arm * 0.9 + 3, wrX = elX + 3;
       return `M${f(o(shX - arm))},82 C${f(o(shX - arm))},72 ${f(o(shX + arm * 0.7))},70 ${f(o(shX + arm))},84
         C${f(o(elX + arm + 1))},112 ${f(o(elX + arm * 0.8))},130 ${f(o(elX + fore))},150
@@ -209,7 +254,7 @@ window.Body = (() => {
     // 腕の血管・大腿四頭筋
     [1, -1].forEach(s => {
       const o = x => cx + s * x;
-      const elX = side + arm * 0.9 + 3;
+      const elX = side + armW(s) * 0.9 + 3;
       detail += line(`M${f(o(elX + 1))},160 C${f(o(elX + 3))},176 ${f(o(elX + 1))},188 ${f(o(elX + 4))},200`, veinV * 0.5, 0.9);
       detail += line(`M${f(o(sh - 4))},104 C${f(o(elX + 2))},118 ${f(o(elX + 3))},132 ${f(o(elX + 1))},146`, pecV * 0.35 * (male ? 1 : 0), 0.9);
       detail += line(`M${f(o(legC + 2))},238 C${f(o(legC + 4))},256 ${f(o(legC + 2))},272 ${f(o(legC * 0.9))},284`, quadV * 0.6);
@@ -233,7 +278,13 @@ window.Body = (() => {
 
     const skin = `fill="var(--body-skin)" stroke="var(--body-stroke)" stroke-width="1.2" stroke-linejoin="round"`;
     const w = opts.width || 120;
-    return `<svg class="body-fig" viewBox="0 0 200 400" width="${w}" height="${w * 2}" role="img" aria-label="${opts.label || ''}">
+    // 股下: 基準の図は股の位置が y=212（股下/身長 ≒ 0.455）。股下比に合わせて肩(72)〜足(396)の間を伸縮する
+    const legRatio = e.inseam && e.height ? clamp(e.inseam / e.height, 0.40, 0.52) : 0.455;
+    const crotchY = 396 - 388 * (legRatio + 0.019);
+    const mapY = y => y <= 72 ? y : y <= 212 ? 72 + (y - 72) * (crotchY - 72) / 140 : crotchY + (y - 212) * (396 - crotchY) / 184;
+    const warp = str => str.replace(/ d="([^"]*)"/g, (m, d) => ' d="' + d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (mm, x, y) => `${x},${mapY(+y).toFixed(1)}`) + '"')
+      .replace(/ cy="(\d+(?:\.\d+)?)"(?= rx="1\.6")/g, (m, y) => ` cy="${mapY(+y).toFixed(1)}"`);
+    return warp(`<svg class="body-fig" viewBox="0 0 200 400" width="${w}" height="${w * 2}" role="img" aria-label="${opts.label || ''}">
       <path d="${arm_(1)}" ${skin}/><path d="${arm_(-1)}" ${skin}/>
       <path d="${leg(1)}" ${skin}/><path d="${leg(-1)}" ${skin}/>
       <path d="${torso}" ${skin}/>
@@ -241,8 +292,8 @@ window.Body = (() => {
       ${head}
       ${shorts}${bra}
       <g>${detail}</g>
-    </svg>`;
+    </svg>`);
   }
 
-  return { estimate, derive, project, describe, tooLean, svg };
+  return { estimate, derive, project, describe, tooLean, svg, segRatio, SEG_KEYS };
 })();
