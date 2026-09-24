@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="PFCログ">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 <header class="topbar">
@@ -25,6 +25,7 @@
 <main id="main">
   <section id="tab-today" class="tab active"></section>
   <section id="tab-weight" class="tab"></section>
+  <section id="tab-body" class="tab"></section>
   <section id="tab-exercise" class="tab"></section>
   <section id="tab-settings" class="tab"></section>
 </main>
@@ -37,6 +38,10 @@
   <button class="tabbtn" data-tab="weight" aria-label="体重">
     <svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 4-7 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>体重</span>
+  </button>
+  <button class="tabbtn" data-tab="body" aria-label="体型">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 9.5c1.5-1 8.5-1 10 0l-1 5.5h-2l-.5 6.5h-3L10 15H8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span>体型</span>
   </button>
   <button class="tabbtn" data-tab="exercise" aria-label="運動">
     <svg viewBox="0 0 24 24"><path d="M6 8v8M4 10v4M18 8v8M20 10v4M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -51,9 +56,10 @@
 <div id="sheet-root" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/calc.js?v=3"></script>
-<script src="js/store.js?v=3"></script>
-<script src="js/ai.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/calc.js?v=4"></script>
+<script src="js/store.js?v=4"></script>
+<script src="js/ai.js?v=4"></script>
+<script src="js/body.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>

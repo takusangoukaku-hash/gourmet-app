@@ -94,10 +94,20 @@ window.Store = (() => {
 
   // ---------- 体重 ----------
   const weights = () => data.weights.slice().sort((a, b) => a.date < b.date ? -1 : 1);
-  function setWeight(date, kg) {
-    const w = data.weights.find(x => x.date === date);
-    if (w) w.kg = +kg; else data.weights.push({ date, kg: +kg });
+  // extra: { sm: 骨格筋率%, bf: 体脂肪率% }。null を渡すとその項目を消す、省略すると触らない
+  function setWeight(date, kg, extra) {
+    let w = data.weights.find(x => x.date === date);
+    if (!w) { w = { date, kg: +kg }; data.weights.push(w); } else w.kg = +kg;
+    if (extra) ['sm', 'bf'].forEach(k => {
+      if (!(k in extra)) return;
+      if (extra[k] > 0) w[k] = Math.round(extra[k] * 10) / 10; else delete w[k];
+    });
     save();
+  }
+  // 骨格筋率・体脂肪率が入っている最新の記録
+  function latestComposition(onOrBefore) {
+    const list = weights().filter(w => (w.sm || w.bf) && (!onOrBefore || w.date <= onOrBefore));
+    return list.length ? list[list.length - 1] : null;
   }
   function deleteWeight(date) { data.weights = data.weights.filter(x => x.date !== date); save(); }
   function latestWeight(onOrBefore) {
@@ -150,7 +160,12 @@ window.Store = (() => {
       name: str(m.name), kcal: Math.round(num(m.kcal)), p: round1(m.p), f: round1(m.f), c: round1(m.c),
       photoId: null, ai: m.ai === true, // 写真は端末の IndexedDB にあり JSON には含まれないので外す
     }));
-    d.weights = (j.weights || []).filter(w => w && isDate(w.date) && num(w.kg) > 0).map(w => ({ date: w.date, kg: num(w.kg) }));
+    d.weights = (j.weights || []).filter(w => w && isDate(w.date) && num(w.kg) > 0).map(w => {
+      const r = { date: w.date, kg: num(w.kg) };
+      if (num(w.sm) > 0) r.sm = num(w.sm);
+      if (num(w.bf) > 0) r.bf = num(w.bf);
+      return r;
+    });
     d.exercises = (j.exercises || []).filter(e => e && isDate(e.date) && (e.type === 'bike' || e.type === 'strength')).map(e => e.type === 'bike'
       ? { id: str(e.id, 40) || uid(), ts: num(e.ts), date: e.date, type: 'bike', km: num(e.km), minutes: num(e.minutes), kmh: num(e.kmh), met: num(e.met), kcal: num(e.kcal), note: str(e.note, 20) }
       : { id: str(e.id, 40) || uid(), ts: num(e.ts), date: e.date, type: 'strength', name: str(e.name, 40), minutes: num(e.minutes), kcal: num(e.kcal), volume: num(e.volume),
@@ -212,7 +227,7 @@ window.Store = (() => {
   return {
     today, addDays, fmtDate,
     mealsOn, addMeal, updateMeal, deleteMeal, isIncomplete, setIncomplete, dailyIntake,
-    weights, setWeight, deleteWeight, latestWeight,
+    weights, setWeight, deleteWeight, latestWeight, latestComposition,
     exercisesOn, addExercise, deleteExercise, lastStrength, strengthNames, exercisesBetween,
     profile, setProfile,
     exportJson, importJson, clearAll,

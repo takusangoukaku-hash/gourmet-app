@@ -1,7 +1,7 @@
 // =====================================================
 // 画面制御: 今日（食事PFC）/ 体重 / 運動 / 設定
 // =====================================================
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -116,7 +116,7 @@ const APP_VERSION = 'v3';
   }
 
   // ---------- タブ切替 ----------
-  const TITLES = { today: '今日', weight: '体重', exercise: '運動', settings: '設定' };
+  const TITLES = { today: '今日', weight: '体重', body: '体型', exercise: '運動', settings: '設定' };
   function switchTab(tab) {
     state.tab = tab;
     $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + tab));
@@ -128,7 +128,7 @@ const APP_VERSION = 'v3';
   $$('.tabbtn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
   function render() {
-    ({ today: renderToday, weight: renderWeight, exercise: renderExercise, settings: renderSettings })[state.tab]();
+    ({ today: renderToday, weight: renderWeight, body: renderBody, exercise: renderExercise, settings: renderSettings })[state.tab]();
   }
 
   // =====================================================
@@ -340,6 +340,15 @@ const APP_VERSION = 'v3';
     $('#m-save', sheet).textContent = '推定結果を保存';
   }
 
+  // 骨格筋率・体脂肪率の入力を検証して { sm, bf } を返す（空欄は削除扱い）。不正なら null
+  function readComposition(smEl, bfEl) {
+    const sm = smEl.value === '' ? 0 : parseFloat(smEl.value);
+    const bf = bfEl.value === '' ? 0 : parseFloat(bfEl.value);
+    if (sm && !(sm >= 10 && sm <= 60)) { toast('骨格筋率は 10〜60% で入力してください'); smEl.focus(); return null; }
+    if (bf && !(bf >= 3 && bf <= 60)) { toast('体脂肪率は 3〜60% で入力してください'); bfEl.focus(); return null; }
+    return { sm: sm || null, bf: bf || null };
+  }
+
   // =====================================================
   // 体重タブ
   // =====================================================
@@ -362,6 +371,10 @@ const APP_VERSION = 'v3';
         <h2>${todayRec ? '今日の体重（記録済み・上書き可）' : '今日の体重を記録'}</h2>
         <div class="row"><div class="unit row" style="flex:1"><input type="number" inputmode="decimal" step="0.1" id="w-input" value="${todayRec ? todayRec.kg : (latest ? latest.kg : '')}" placeholder="例: 65.2"><span>kg</span></div>
           <button class="btn primary" id="w-save">保存</button></div>
+        <div class="grid2" style="margin-top:8px">
+          <div class="field" style="margin:0"><label>骨格筋率（任意）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="w-sm" value="${todayRec && todayRec.sm ? todayRec.sm : ''}" placeholder="例: 34.5"><span>%</span></div></div>
+          <div class="field" style="margin:0"><label>体脂肪率（任意）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="w-bf" value="${todayRec && todayRec.bf ? todayRec.bf : ''}" placeholder="例: 18.0"><span>%</span></div></div>
+        </div>
         <div class="stats">
           <div><div class="v">${latest ? latest.kg.toFixed(1) : '–'}</div><div class="k">最新 (kg)</div></div>
           <div><div class="v ${cls(d7)}">${fmtDelta(d7)}</div><div class="k">7日前比</div></div>
@@ -378,13 +391,15 @@ const APP_VERSION = 'v3';
       <div class="card" id="balance-card"></div>
       <div class="card">
         <h2>履歴</h2>
-        ${all.length ? `<table class="simple">${all.slice().reverse().slice(0, 30).map(w => `<tr><td>${w.date}</td><td>${w.kg.toFixed(1)} kg</td><td><button class="btn small danger" data-wdel="${w.date}">削除</button></td></tr>`).join('')}</table>` : '<div class="empty">まだ記録がありません</div>'}
+        ${all.length ? `<table class="simple">${all.slice().reverse().slice(0, 30).map(w => `<tr><td>${w.date}</td><td>${w.kg.toFixed(1)} kg${w.sm || w.bf ? `<br><small class="muted">${w.sm ? `筋 ${w.sm}%` : ''}${w.sm && w.bf ? '・' : ''}${w.bf ? `脂 ${w.bf}%` : ''}</small>` : ''}</td><td><button class="btn small danger" data-wdel="${w.date}">削除</button></td></tr>`).join('')}</table>` : '<div class="empty">まだ記録がありません</div>'}
       </div>`;
 
     $('#w-save').onclick = () => {
       const v = parseFloat($('#w-input').value);
       if (!(v > 20 && v < 300)) { toast('体重を正しく入力してください'); return; }
-      Store.setWeight(today, Math.round(v * 10) / 10); renderWeight(); toast('体重を記録しました');
+      const comp = readComposition($('#w-sm'), $('#w-bf'));
+      if (!comp) return;
+      Store.setWeight(today, Math.round(v * 10) / 10, comp); renderWeight(); toast('体重を記録しました');
     };
     $$('[data-range]', root).forEach(b => b.onclick = () => { state.range = +b.dataset.range; renderWeight(); });
     $$('[data-wdel]', root).forEach(b => b.onclick = () => { if (confirm(`${b.dataset.wdel} の記録を削除しますか？`)) { Store.deleteWeight(b.dataset.wdel); renderWeight(); } });
@@ -556,6 +571,154 @@ const APP_VERSION = 'v3';
     const p = Math.pow(10, Math.floor(Math.log10(raw)));
     const f = raw / p;
     return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+  }
+
+  // =====================================================
+  // 体型タブ: 今の見た目と、体重ごとの見た目
+  // =====================================================
+  function currentBody() {
+    const p = Store.profile();
+    const w = Store.latestWeight();
+    if (!w || !p.height) return null;
+    // 骨格筋率・体脂肪率は、最新の体重の日に無ければ直近の測定値を使う
+    const comp = (w.sm || w.bf) ? w : Store.latestComposition();
+    return Body.estimate({ sex: p.sex, age: p.age, height: p.height, weight: w.kg, sm: comp && comp.sm, bf: comp && comp.bf });
+  }
+  const METHOD_TEXT = {
+    bf: '体組成計の体脂肪率をそのまま使っています。',
+    sm: '骨格筋率から体脂肪率を換算しています（体組成計の標準範囲からの近似。±5%程度ずれます）。体脂肪率も表示される機種なら、その値を入れると正確になります。',
+    bmi: 'BMIと年齢からの推定です。筋肉が多い人は体脂肪率が高めに出ます。骨格筋率か体脂肪率を入れてください。',
+  };
+  function fmtSigned(v, unit) { return (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) + unit; }
+
+  function renderBody() {
+    const root = $('#tab-body');
+    const p = Store.profile();
+    const w = Store.latestWeight();
+    const today = Store.today();
+    const todayRec = Store.weights().find(x => x.date === today);
+    const lastComp = Store.latestComposition();
+
+    const inputCard = `<div class="card">
+      <h2>あなたの数値</h2>
+      <div class="seg" id="b-sex" style="margin-bottom:10px">${[['male', '男性'], ['female', '女性']].map(([k, l]) => `<button data-sex="${k}" class="${p.sex === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="grid2">
+        <div class="field"><label>身長</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-height" value="${p.height ?? ''}" placeholder="例: 172"><span>cm</span></div></div>
+        <div class="field"><label>体重（今日）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-weight" value="${todayRec ? todayRec.kg : (w ? w.kg : '')}" placeholder="例: 68.0"><span>kg</span></div></div>
+        <div class="field"><label>骨格筋率</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-sm" value="${todayRec && todayRec.sm ? todayRec.sm : (lastComp && lastComp.sm ? lastComp.sm : '')}" placeholder="例: 34.5"><span>%</span></div></div>
+        <div class="field"><label>体脂肪率（あれば）</label><div class="unit"><input type="number" inputmode="decimal" step="0.1" id="b-bf" value="${todayRec && todayRec.bf ? todayRec.bf : (lastComp && lastComp.bf ? lastComp.bf : '')}" placeholder="例: 18.0"><span>%</span></div></div>
+      </div>
+      <button class="btn primary block" id="b-save">保存して見た目を更新</button>
+      ${lastComp && lastComp.date !== today ? `<small class="muted">骨格筋率・体脂肪率は ${lastComp.date.slice(5).replace('-', '/')} の測定値を表示しています。</small>` : ''}
+    </div>`;
+
+    const cur = currentBody();
+    if (!cur) {
+      root.innerHTML = inputCard + `<div class="card"><div class="notice info">身長と体重を入れると、今の体のイラストと、体重ごとの見た目の予測を表示します。</div></div>`;
+      bindBodyInputs(root);
+      return;
+    }
+
+    const dCur = Body.describe(cur.sex, cur.bf);
+    if (state.simW == null) state.simW = p.targetWeight || Math.round((cur.weight - 5) * 2) / 2;
+    const minW = Math.max(35, Math.floor(cur.weight - 25)), maxW = Math.ceil(cur.weight + 10);
+    state.simW = Math.min(maxW, Math.max(minW, state.simW));
+    if (state.trained == null) state.trained = true;
+
+    root.innerHTML = `${inputCard}
+      <div class="card">
+        <h2>今の体</h2>
+        ${Body.svg(cur, { width: 150, label: '今の体' })}
+        <div style="text-align:center"><div class="tier">${dCur.label}</div><div class="tier-text">${dCur.text}</div></div>
+        <div class="bstats">
+          <div><div class="v">${cur.bf}%</div><div class="k">体脂肪率${cur.method === 'bf' ? '' : '（推定）'}</div></div>
+          <div><div class="v">${cur.ffm}</div><div class="k">除脂肪 kg</div></div>
+          <div><div class="v">${cur.fatKg}</div><div class="k">脂肪 kg</div></div>
+          <div><div class="v">${cur.ffmiNorm}</div><div class="k">FFMI</div></div>
+        </div>
+        <small class="muted" style="display:block;margin-top:8px">${METHOD_TEXT[cur.method]} FFMIは身長あたりの筋肉量で、一般男性18〜20・筋トレ継続者21〜23・天然の上限が約25（女性はおよそ−3）。</small>
+      </div>
+      <div class="card" id="sim-card"></div>
+      <div class="card">
+        <h2>体重ごとの見た目</h2>
+        <small class="muted">タップすると上の比較に反映します。</small>
+        <div class="strip" id="strip"></div>
+      </div>`;
+    bindBodyInputs(root);
+    renderSim(cur);
+    renderStrip(cur);
+  }
+
+  function renderSim(cur) {
+    const card = $('#sim-card');
+    const minW = Math.max(35, Math.floor(cur.weight - 25)), maxW = Math.ceil(cur.weight + 10);
+    // スライダーは作り直さない（ドラッグ中に作り直すと指が離れた扱いになる）ので、中身だけ別に更新する
+    card.innerHTML = `<div class="row between"><h2 style="margin:0">体重を変えたら</h2>
+        <div class="seg range" style="margin:0"><button data-tr="1" class="${state.trained ? 'on' : ''}">筋トレあり</button><button data-tr="0" class="${state.trained ? '' : 'on'}">なし</button></div></div>
+      <input type="range" id="sim-range" min="${minW}" max="${maxW}" step="0.5" value="${state.simW}" aria-label="体重">
+      <div class="row between" style="margin:-4px 2px 6px"><small class="muted">${minW} kg</small><small class="muted">${maxW} kg</small></div>
+      <div id="sim-body"></div>`;
+    $('#sim-range', card).oninput = (e) => { state.simW = +e.target.value; updateSim(cur); markStrip(); };
+    $$('[data-tr]', card).forEach(b => b.onclick = () => { state.trained = b.dataset.tr === '1'; renderSim(cur); renderStrip(cur); });
+    updateSim(cur);
+  }
+  function updateSim(cur) {
+    const range = $('#sim-range'); if (range && +range.value !== state.simW) range.value = state.simW;
+    const sim = Body.project(cur, state.simW, state.trained);
+    const d = Body.describe(sim.sex, sim.bf, sim.depleted);
+    const dw = Math.round((sim.weight - cur.weight) * 10) / 10, dFat = sim.fatKg - cur.fatKg, dFfm = sim.ffm - cur.ffm;
+    const cls = v => v < 0 ? 'good' : v > 0 ? 'bad' : '';
+    $('#sim-body').innerHTML = `
+      <div class="fig-pair">
+        <div>${Body.svg(cur, { width: 130, label: '今' })}<div class="cap">今<b>${cur.weight.toFixed(1)} kg</b>体脂肪 ${cur.bf}%</div></div>
+        <div>${Body.svg(sim, { width: 130, label: sim.weight + 'kg' })}<div class="cap">${dw === 0 ? '同じ体重' : fmtSigned(dw, ' kg')}<b>${sim.weight.toFixed(1)} kg</b>体脂肪 ${sim.bf}%</div></div>
+      </div>
+      <div style="text-align:center;margin-top:6px"><div class="tier">${d.label}</div><div class="tier-text">${d.text}</div></div>
+      ${dw !== 0 ? `<div class="row" style="justify-content:center;gap:14px;margin-top:6px">
+        <span class="delta ${cls(dFat)}">脂肪 ${fmtSigned(dFat, 'kg')}</span><span class="delta ${dFfm < 0 ? 'bad' : dFfm > 0 ? 'good' : ''}">除脂肪 ${fmtSigned(dFfm, 'kg')}</span></div>` : ''}
+      ${sim.depleted || Body.tooLean(sim.sex, sim.bf) ? `<div class="notice">この体脂肪率は健康を損なうリスクが高い水準です。目標にしないでください。</div>` : ''}
+      <small class="muted" style="display:block;margin-top:8px">${state.trained ? '筋トレとタンパク質を続けた場合、減った体重の約85%が脂肪という前提です。' : '筋トレなしで食事だけで落とした場合、減った体重の約30%が筋肉などになる前提です。'}増量は増えた分の約60%が脂肪と仮定しています。</small>`;
+  }
+
+  function renderStrip(cur) {
+    const p = Store.profile();
+    const weights = new Set();
+    for (let d = 5; d >= -20; d -= 2.5) { const x = Math.round((cur.weight + d) * 2) / 2; if (x >= 35) weights.add(x); }
+    weights.add(cur.weight);
+    if (p.targetWeight) weights.add(p.targetWeight);
+    // 「痩せすぎ」は最初の1つだけ並べ、それより軽い体重は出さない
+    const list = [];
+    for (const x of [...weights].sort((a, b) => b - a)) {
+      const e = x === cur.weight ? cur : Body.project(cur, x, state.trained);
+      list.push([x, e]);
+      if (e.depleted) break;
+    }
+    $('#strip').innerHTML = list.map(([x, e]) => {
+      const d = Body.describe(e.sex, e.bf, e.depleted);
+      const tag = x === cur.weight ? '<span class="tag gray">今</span>' : (p.targetWeight === x ? '<span class="tag">目標</span>' : '<span class="tag" style="visibility:hidden">-</span>');
+      return `<button data-w="${x}" class="${x === cur.weight ? 'now' : ''}">${tag}${Body.svg(e, { width: 70, label: x + 'kg' })}
+        <div class="w">${x.toFixed(1)}</div><div class="b">${e.bf}%</div><div class="l">${d.label}</div></button>`;
+    }).join('');
+    $$('#strip button').forEach(b => b.onclick = () => { state.simW = +b.dataset.w; updateSim(cur); markStrip(); $('#sim-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    markStrip();
+  }
+  function markStrip() { $$('#strip button').forEach(b => b.classList.toggle('sel', +b.dataset.w === state.simW)); }
+
+  function bindBodyInputs(root) {
+    let sex = Store.profile().sex;
+    $$('#b-sex button', root).forEach(b => b.onclick = () => { sex = b.dataset.sex; $$('#b-sex button', root).forEach(x => x.classList.toggle('on', x === b)); });
+    $('#b-save', root).onclick = () => {
+      const h = parseFloat($('#b-height', root).value);
+      const kg = parseFloat($('#b-weight', root).value);
+      if (!(h > 100 && h < 230)) { toast('身長を正しく入力してください'); return; }
+      if (!(kg > 20 && kg < 300)) { toast('体重を正しく入力してください'); return; }
+      const comp = readComposition($('#b-sm', root), $('#b-bf', root));
+      if (!comp) return;
+      Store.setProfile({ height: h, sex });
+      Store.setWeight(Store.today(), Math.round(kg * 10) / 10, comp);
+      state.simW = null;
+      renderBody(); toast('保存しました');
+    };
   }
 
   // =====================================================
