@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v298'; // 高速化: 写真メタ情報の分離・ライブラリ遅延読み込み・Firebase遅延・版付きファイルはキャッシュ優先
+const VERSION = 'v299'; // 高速化: 写真メタ情報の分離・ライブラリ遅延読み込み・Firebase遅延・版付きファイルはキャッシュ優先
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -35,7 +35,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('gourmet-') && k !== CACHE).map(k => caches.delete(k)))) // 同じサイトの diet/ のキャッシュは巻き込まない
       .then(() => self.clients.claim())
   );
 });

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>PFCログ</title>
+<meta name="description" content="食事のPFC残量・体重グラフ・自転車通学と筋トレを記録するダイエット用PWA">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PFCログ">
+<link rel="stylesheet" href="css/style.css?v=5">
+</head>
+<body>
+<header class="topbar">
+  <h1 id="page-title">今日</h1>
+  <div id="topbar-actions"></div>
+</header>
+
+<main id="main">
+  <section id="tab-today" class="tab active"></section>
+  <section id="tab-weight" class="tab"></section>
+  <section id="tab-body" class="tab"></section>
+  <section id="tab-exercise" class="tab"></section>
+  <section id="tab-settings" class="tab"></section>
+</main>
+
+<nav class="tabbar" aria-label="メイン">
+  <button class="tabbtn active" data-tab="today" aria-label="今日">
+    <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M4 9h16 M9 9v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span>今日</span>
+  </button>
+  <button class="tabbtn" data-tab="weight" aria-label="体重">
+    <svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 4-7 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>体重</span>
+  </button>
+  <button class="tabbtn" data-tab="body" aria-label="体型">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 9.5c1.5-1 8.5-1 10 0l-1 5.5h-2l-.5 6.5h-3L10 15H8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span>体型</span>
+  </button>
+  <button class="tabbtn" data-tab="exercise" aria-label="運動">
+    <svg viewBox="0 0 24 24"><path d="M6 8v8M4 10v4M18 8v8M20 10v4M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>運動</span>
+  </button>
+  <button class="tabbtn" data-tab="settings" aria-label="設定">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>設定</span>
+  </button>
+</nav>
+
+<div id="sheet-root" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/calc.js?v=5"></script>
+<script src="js/store.js?v=5"></script>
+<script src="js/ai.js?v=5"></script>
+<script src="js/body.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
+</body>
+</html>
