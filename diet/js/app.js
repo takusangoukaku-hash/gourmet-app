@@ -1,7 +1,7 @@
 // =====================================================
 // 画面制御: 今日（食事PFC）/ 体重 / 運動 / 設定
 // =====================================================
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -20,14 +20,24 @@ const APP_VERSION = 'v2';
     const t = $('#toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
   }
+  let sheetOpen = false;
   function openSheet(html) {
     const root = $('#sheet-root');
     root.innerHTML = `<div class="backdrop"></div><div class="sheet" role="dialog"><div class="handle"></div>${html}</div>`;
     root.hidden = false;
-    $('.backdrop', root).onclick = closeSheet;
+    $('.backdrop', root).onclick = () => closeSheet();
+    if (!sheetOpen) history.pushState({ sheet: true }, '');
+    sheetOpen = true;
     return $('.sheet', root);
   }
-  function closeSheet() { const root = $('#sheet-root'); root.hidden = true; root.innerHTML = ''; }
+  function closeSheet(fromPopstate) {
+    const root = $('#sheet-root'); root.hidden = true; root.innerHTML = '';
+    const wasOpen = sheetOpen; sheetOpen = false;
+    // ボタンで閉じた時は、積んだ履歴を1つ戻して「戻る」の二重押しを防ぐ
+    // onclick = closeSheet のようにイベントが渡ってくることがあるので、true の時だけ戻る操作由来とみなす
+    if (wasOpen && fromPopstate !== true && history.state && history.state.sheet) history.back();
+  }
+  window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
   function fmtJa(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -80,6 +90,29 @@ const APP_VERSION = 'v2';
 
   function exerciseKcalOn(date) {
     return Store.exercisesOn(date).reduce((s, e) => s + (+e.kcal || 0), 0);
+  }
+
+  // ---------- ホーム画面への追加（インストール） ----------
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if (state.tab === 'today') renderToday(); });
+  window.addEventListener('appinstalled', () => { installPrompt = null; toast('ホーム画面に追加しました'); if (state.tab === 'today') renderToday(); });
+  function installDismissed() { try { return localStorage.getItem('diet.installDismissed') === '1'; } catch { return false; } }
+  function installCard() {
+    if (isStandalone() || installDismissed()) return '';
+    let how;
+    if (installPrompt) how = `<button class="btn primary small" id="install-btn">インストール</button>`;
+    else if (isIOS()) how = `<small>Safari で下の <b>共有ボタン</b>（□に↑）→ <b>「ホーム画面に追加」</b>。Safari 以外のブラウザでは追加できません。</small>`;
+    else how = `<small>ブラウザのメニュー（︙）→ <b>「ホーム画面に追加」</b>または<b>「アプリをインストール」</b>。</small>`;
+    return `<div class="card install"><div class="row between"><b>ホーム画面に追加するとアプリとして使えます</b><button class="btn small" id="install-close" aria-label="閉じる">×</button></div>
+      <div style="margin-top:6px">${how}</div><small class="muted">全画面で開き、オフラインでも記録できます。</small></div>`;
+  }
+  function bindInstallCard(root) {
+    const btn = $('#install-btn', root);
+    if (btn) btn.onclick = async () => { installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; renderToday(); };
+    const close = $('#install-close', root);
+    if (close) close.onclick = () => { try { localStorage.setItem('diet.installDismissed', '1'); } catch {} renderToday(); };
   }
 
   // ---------- タブ切替 ----------
@@ -158,11 +191,12 @@ const APP_VERSION = 'v2';
     const incompleteToggle = `<div class="card toggle" style="padding:10px 16px">
         <span><b style="font-size:14px">この日は記録漏れあり</b><br><small class="muted">オンにすると体重との答え合わせから除外します</small></span>
         <input type="checkbox" id="incomplete" ${incomplete ? 'checked' : ''}></div>`;
-    root.innerHTML = `${dateNav()}${summary}${slots}${incompleteToggle}
+    root.innerHTML = `${installCard()}${dateNav()}${summary}${slots}${incompleteToggle}
       <div style="height:70px"></div>
       <button class="fab" id="fab-meal"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>食事を記録</button>`;
 
     bindDateNav(root, renderToday);
+    bindInstallCard(root);
     $('#incomplete', root).onchange = (e) => { Store.setIncomplete(state.date, e.target.checked); toast(e.target.checked ? '分析から除外しました' : '分析に含めます'); };
     $$('[data-go]', root).forEach(b => b.onclick = () => switchTab(b.dataset.go));
     $$('[data-add]', root).forEach(b => b.onclick = () => openMealSheet({ slot: b.dataset.add }));
@@ -770,7 +804,22 @@ const APP_VERSION = 'v2';
   }
 
   // ---------- 起動 ----------
-  render();
+  // ホーム画面アイコン長押しのショートカット（?tab=weight / ?action=meal）
+  const params = new URLSearchParams(location.search);
+  if (TITLES[params.get('tab')]) switchTab(params.get('tab')); else render();
+  if (params.get('action') === 'meal') openMealSheet({ slot: guessSlot() });
+  if (params.toString()) history.replaceState(null, '', location.pathname);
+
+  // 開いたまま日付をまたいだら「今日」を進める（前日を見ていた場合はそのまま）
+  let lastToday = Store.today();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const t = Store.today();
+    if (t !== lastToday) { if (state.date === lastToday) state.date = t; lastToday = t; if (!sheetOpen) render(); }
+  });
+
+  // ブラウザにデータを消されにくくする（ホーム画面追加時は通常許可される）
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   window.addEventListener('resize', () => { if (state.tab === 'weight') renderWeight(); });
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* ローカル file:// 等では無視 */ });

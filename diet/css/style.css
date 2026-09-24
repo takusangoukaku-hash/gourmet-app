@@ -194,3 +194,10 @@ table.simple td:last-child { text-align: right; }
 .kv small { font-weight: 400; color: var(--muted); }
 .kv span { padding-right: 8px; min-width: 0; }
 .kv b { white-space: nowrap; }
+
+/* iOS は 16px 未満の入力欄にフォーカスすると画面を拡大するので、入力は 16px にそろえる */
+input, select, textarea { font-size: 16px; }
+.card.install { border: 1px solid var(--accent); }
+.card.install b { font-size: 14px; }
+/* 長押しでの文字選択・コールアウトを抑え、ボタンをネイティブっぽく */
+.tabbar, .btn, .fab, .seg, .tabbtn, .item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

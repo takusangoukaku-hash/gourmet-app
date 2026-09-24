@@ -18,15 +18,17 @@ window.AI = (() => {
   const hasApiKey = () => !!getApiKey();
   const keySource = () => localStorage.getItem(KEY_STORAGE) ? 'diet' : (localStorage.getItem(LEGACY_KEY_STORAGE) ? 'bitemap' : '');
 
-  // 公式SDK（@anthropic-ai/sdk）を遅延ロード
+  // 公式SDK（@anthropic-ai/sdk 0.72.1）を遅延ロード。
+  // 外部CDNから実行時に読むと配信元の改ざんに無防備なので、同梱ファイルを使う（BITEMAP と同じ方針）
   let clientPromise = null;
   function client() {
     if (!clientPromise) {
-      clientPromise = import('https://esm.sh/@anthropic-ai/sdk@0.72.1')
+      clientPromise = import('./vendor/anthropic-sdk.js?v=0.72.1')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用: キーは利用者自身のブラウザにのみ保存
         }));
+      clientPromise.catch(() => { clientPromise = null; }); // 読み込み失敗時は次回やり直す
     }
     return clientPromise;
   }

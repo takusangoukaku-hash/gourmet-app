@@ -43,6 +43,14 @@ BITEMAP 本体とは別に管理する。4箇所を揃える:
 3. `diet/sw.js` の `SHELL` 内の `?v=N`
 4. `diet/index.html` の `?v=N`（CSS 1 + スクリプト 4 = 5箇所）
 
+## スマホで使う
+1. https://takusangoukaku-hash.github.io/gourmet-app/diet/ を開く。
+2. iPhone は **Safari** の共有ボタン →「ホーム画面に追加」。Android は Chrome の「インストール」または「ホーム画面に追加」。
+3. ホーム画面のアイコンから開くと全画面・オフラインで動く。アイコン長押しで「食事を記録」「体重を記録」に直接飛べる（Android）。
+- 更新は開き直すと反映される（Service Worker はネットワーク優先）。
+- Android の戻るボタンは入力シートを閉じる。
+- データは端末内のみ。機種変更やブラウザのデータ削除に備えて、設定タブの「書き出し」で時々バックアップを取る。
+
 ## ローカル確認
 ```
 python3 -m http.server 5959   # リポジトリ直下で

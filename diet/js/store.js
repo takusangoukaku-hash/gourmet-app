@@ -129,10 +129,39 @@ window.Store = (() => {
 
   // ---------- 書き出し / 読み込み ----------
   function exportJson() { return JSON.stringify({ app: 'pfc-log', version: 1, exportedAt: new Date().toISOString(), ...data }, null, 2); }
+  // 取り込みは型を固定してから保存する（文字列は String、数値は Number(x) || 0、日付は YYYY-MM-DD のみ）
+  const num = v => Number(v) || 0;
+  const str = (v, max = 100) => String(v ?? '').slice(0, max);
+  const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const SLOT_KEYS = ['breakfast', 'lunch', 'dinner', 'snack'];
+  function sanitize(j) {
+    const d = defaults();
+    const p = j.profile && typeof j.profile === 'object' ? j.profile : {};
+    d.profile = {
+      sex: p.sex === 'female' ? 'female' : 'male', age: num(p.age) || null, height: num(p.height) || null,
+      activity: num(p.activity) || 1.4, goalKgPerWeek: num(p.goalKgPerWeek), proteinPerKg: num(p.proteinPerKg) || 2.0,
+      fatRatio: num(p.fatRatio) || 0.25, addExerciseToBudget: p.addExerciseToBudget === true, useMeasuredTdee: p.useMeasuredTdee === true,
+      targets: p.targets && num(p.targets.kcal) > 0 ? { kcal: num(p.targets.kcal), p: num(p.targets.p), f: num(p.targets.f), c: num(p.targets.c) } : null,
+      commute: { distanceKm: num(p.commute && p.commute.distanceKm) || null, minutes: num(p.commute && p.commute.minutes) || null },
+      targetWeight: num(p.targetWeight) || null,
+    };
+    d.meals = (j.meals || []).filter(m => m && isDate(m.date)).map(m => ({
+      id: str(m.id, 40) || uid(), ts: num(m.ts), date: m.date, slot: SLOT_KEYS.includes(m.slot) ? m.slot : 'snack',
+      name: str(m.name), kcal: Math.round(num(m.kcal)), p: round1(m.p), f: round1(m.f), c: round1(m.c),
+      photoId: null, ai: m.ai === true, // 写真は端末の IndexedDB にあり JSON には含まれないので外す
+    }));
+    d.weights = (j.weights || []).filter(w => w && isDate(w.date) && num(w.kg) > 0).map(w => ({ date: w.date, kg: num(w.kg) }));
+    d.exercises = (j.exercises || []).filter(e => e && isDate(e.date) && (e.type === 'bike' || e.type === 'strength')).map(e => e.type === 'bike'
+      ? { id: str(e.id, 40) || uid(), ts: num(e.ts), date: e.date, type: 'bike', km: num(e.km), minutes: num(e.minutes), kmh: num(e.kmh), met: num(e.met), kcal: num(e.kcal), note: str(e.note, 20) }
+      : { id: str(e.id, 40) || uid(), ts: num(e.ts), date: e.date, type: 'strength', name: str(e.name, 40), minutes: num(e.minutes), kcal: num(e.kcal), volume: num(e.volume),
+          sets: (Array.isArray(e.sets) ? e.sets : []).map(x => ({ kg: num(x && x.kg), reps: num(x && x.reps) })) });
+    d.incompleteDays = (j.incompleteDays || []).filter(isDate);
+    return d;
+  }
   function importJson(text) {
     const j = JSON.parse(text);
     if (!j || !Array.isArray(j.meals) || !Array.isArray(j.weights)) throw new Error('形式が違います');
-    localStorage.setItem(KEY, JSON.stringify({ profile: j.profile, meals: j.meals, weights: j.weights, exercises: j.exercises || [], incompleteDays: j.incompleteDays || [] }));
+    localStorage.setItem(KEY, JSON.stringify(sanitize(j)));
     data = load();
   }
   function clearAll() { localStorage.removeItem(KEY); data = defaults(); }
