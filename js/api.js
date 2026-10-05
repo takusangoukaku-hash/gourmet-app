@@ -196,6 +196,7 @@ out center 40;`;
         cuisine: t.cuisine || '',
         amenity: t.amenity || t.shop || '',
         distance: (la != null) ? Store.distMeters(lat, lon, la, lo) : Infinity,
+        source: 'osm',
       };
     }).filter(s => s.lat != null && s.name !== '(名称不明)');
     if (json._err && !poi.length) throw json._err; // 両方だめなら従来どおりエラー
@@ -290,6 +291,7 @@ out center 25;`;
         amenity: t.amenity || t.shop || '',
         address: '',
         distance: (la != null) ? Store.distMeters(lat, lon, la, lo) : null,
+        source: 'osm',
       };
     }).filter(s => s.lat != null && s.name !== '(名称不明)');
   }
@@ -320,7 +322,7 @@ out center 25;`;
           .filter(Boolean).join(''),
         lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
         cuisine: '', amenity: f.properties.osm_value || '',
-        distance: null,
+        distance: null, source: 'photon',
       }));
   }
 
@@ -467,7 +469,7 @@ out center 25;`;
         .filter(p => p !== '日本' && !/^\d{3}-\d{4}$/.test(p)).join(''),
       lat: parseFloat(e.lat), lon: parseFloat(e.lon),
       cuisine: '', amenity: e.type || '',
-      distance: null,
+      distance: null, source: 'nominatim',
     }));
   }
 
@@ -678,7 +680,7 @@ out center 25;`;
         .slice(0, 3)
         .join(';'),
       amenity: 'restaurant',
-      distance: null,
+      distance: null, source: 'google',
     })).filter(c => c.name && c.lat != null);
   }
 
@@ -688,7 +690,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=300')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=301')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -823,7 +825,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v300',
+    FILE_VERSION: 'v301',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

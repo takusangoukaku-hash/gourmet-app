@@ -501,6 +501,9 @@ const Register = (() => {
         .sort((a, b) => a.distance - b.distance);
 
       const results = await Api.nearbyShops(lat, lon, 200);
+      results.forEach(c => { c.flow = 'nearby'; });
+      existing.forEach(e => { e.flow = 'nearby'; });
+      lastQuery = '';
       renderCandidates(box, existing, results, '周辺に店舗候補が見つかりませんでした。「🔍 名前で検索」をお試しください。');
       // 利用者が自分で店を選んだあと（2枚目の写真の追加など）は、自動選択で上書きしない
       if (selected && !autoPicked) return;
@@ -534,7 +537,7 @@ const Register = (() => {
           <div class="c-sub">訪問${Store.visitCount(shop.id)}回　味★${Store.avgRating(shop.id) ? (Math.round(Store.avgRating(shop.id) * 10) / 10).toFixed(1) : '－'}</div>
         </div>
         <div class="c-dist">${distance != null ? Math.round(distance) + 'm' : ''}</div>`;
-      div.addEventListener('click', () => { autoPicked = false; markSelected(div); chooseExisting(shop); });
+      div.addEventListener('click', () => { autoPicked = false; markSelected(div); recordHit(existing.find(e => e.shop === shop), [...box.querySelectorAll('.candidate')].indexOf(div), false); chooseExisting(shop); });
       box.appendChild(div);
     }
 
@@ -548,7 +551,7 @@ const Register = (() => {
           <div class="c-sub">${esc(c.amenity || '')}${c.cuisine ? '・' + esc(String(c.cuisine).split(/[;,]/).join('・')) : ''}${c.address ? '・' + esc(c.address) : ''}</div>
         </div>
         <div class="c-dist">${c.distance != null && isFinite(c.distance) ? Math.round(c.distance) + 'm' : ''}</div>`;
-      div.addEventListener('click', () => { autoPicked = false; markSelected(div); chooseCandidate(c); });
+      div.addEventListener('click', () => { autoPicked = false; markSelected(div); recordHit(c, [...box.querySelectorAll('.candidate')].indexOf(div), false); chooseCandidate(c); });
       box.appendChild(div);
     }
 
@@ -569,8 +572,8 @@ const Register = (() => {
     autoPicked = true;
     els.forEach(x => { if (x !== el) x.classList.add('hidden'); }); // 選んだ候補以外を隠す
     el.classList.add('selected');
-    if (idx < existing.length) chooseExisting(existing[idx].shop);
-    else chooseCandidate(results[idx - existing.length] || results[0]);
+    if (idx < existing.length) { recordHit(existing[idx], idx, true); chooseExisting(existing[idx].shop); }
+    else { const c = results[idx - existing.length] || results[0]; recordHit(c, idx, true); chooseCandidate(c); }
     // 残る操作は★評価だけなので、評価欄まで自動スクロール
     setTimeout(() => {
       const rating = document.querySelector('#f-rating');
@@ -599,6 +602,9 @@ const Register = (() => {
     if ($('#f-shop-name').value.trim() !== q) return;        // 入力値が変わっていたら破棄
 
     if (!existing.length && !results.length) return; // 何もなければ表示を変えない
+    results.forEach(c => { c.flow = 'suggest'; });
+    existing.forEach(e => { e.flow = 'suggest'; });
+    lastQuery = q;
     renderCandidates(box, existing, results, '');
     const p = document.createElement('p');
     p.className = 'hint';
@@ -642,6 +648,9 @@ const Register = (() => {
     let results = [];
     try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
     if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
+    results.forEach(c => { c.flow = 'search'; });
+    existing.forEach(e => { e.flow = 'search'; });
+    lastQuery = q;
     renderCandidates(box, existing, results, emptyMsg);
 
     // 各検索源の状態を表示（エラー原因の切り分け用）
@@ -668,10 +677,29 @@ const Register = (() => {
       if (mySeq !== searchSeq) return;      // 別の検索が始まった
       if (selected) return;                  // すでに店舗選択済みなら邪魔しない
       if (more.length) {
+        more.forEach(c => { c.flow = 'search-nearby'; });
         results = Api.mergeCandidates([more, results], ref);
         renderCandidates(box, existing, results, emptyMsg);
       }
     }
+  }
+
+  // ---------- 検索ヒットの記録 ----------
+  // タップ（または自動選択）した候補が、どの機能（flow）・どの情報源（source）で見つかったかを残す。
+  // 既存店舗の候補は {shop, flow}、外部の候補は {name, source, flow, …}
+  let lastQuery = '';
+  let lastHit = null;
+  function recordHit(cand, rank, auto) {
+    if (!cand) return;
+    const isExisting = !!cand.shop;
+    const entry = {
+      flow: cand.flow || 'unknown',
+      source: isExisting ? 'existing' : (cand.source || (cand.osmId ? 'osm' : 'unknown')),
+      name: isExisting ? cand.shop.name : (cand.name || ''),
+      query: lastQuery, rank: rank >= 0 ? rank : null, auto: !!auto,
+    };
+    if (isExisting) entry.shopId = cand.shop.id;
+    lastHit = Store.addHit(entry);
   }
 
   // ---------- 店舗の選択 ----------
@@ -841,8 +869,11 @@ const Register = (() => {
           dataSource: (selected && selected.dataSource) || '',
           dataLicenses: (selected && selected.dataLicenses) || [],
           dataAttributions: (selected && selected.dataAttributions) || [],
+          foundBy: (lastHit && lastHit.flow) || (selected && selected.lat != null ? 'map' : 'manual'),
+          foundQuery: (lastHit && lastHit.query) || '',
         }));
         createdShopId = shop.id;
+        if (lastHit) lastHit.shopId = shop.id;
       }
 
       // --- 訪問記録 ---
@@ -893,6 +924,7 @@ const Register = (() => {
     pendingPhotos = [];
     activeDraftId = null;
     selected = null;
+    lastHit = null; lastQuery = '';
     currentRating = 0;
     aiClassified = false;
     autoPicked = false;

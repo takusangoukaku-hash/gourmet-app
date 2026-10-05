@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v300'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v301'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -89,6 +89,9 @@ const App = (() => {
       parts.push(Api.hasYahooKey() ? '✅ Yahoo!: 設定済み' : 'Yahoo!: 未設定');
       parts.push(Api.hasHotpepperKey() ? '✅ ホットペッパー: 設定済み' : 'ホットペッパー: 未設定');
       parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
+      // 検索でタップした候補の情報源の内訳（どの検索源が役に立っているか）
+      const hs = Store.hitSummary(); const total = Object.values(hs).reduce((a, b) => a + b, 0);
+      if (total) parts.push('検索ヒット ' + total + '件（' + Object.entries(hs).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join('・') + '）');
       // 部品(api.js)のバージョンも表示: アプリと違えば古いキャッシュ混在のサイン
       const partVer = Api.FILE_VERSION || '旧';
       parts.push('アプリ ' + APP_VERSION + (partVer !== APP_VERSION ? '（⚠️部品 ' + partVer + '）' : ''));
@@ -365,6 +368,7 @@ const App = (() => {
     const data = {
       app: 'BITEMAP', version: APP_VERSION, exportedAt: new Date().toISOString(),
       shops: Store.shops(), visits: Store.visits(), wishes: Store.wishes(), profile: Store.getProfile(),
+      hitLog: Store.hitLog(), // 検索でタップした候補の記録（どの機能・情報源で見つかったか）
     };
     if (!withPhotos) return data;
     const all = await Store.allPhotos();
@@ -418,7 +422,7 @@ const App = (() => {
         country: str(r.country, 50) || '日本', pref: str(r.pref, 50), city: str(r.city, 100), station: str(r.station, 100),
         shopGenre: str(r.shopGenre, 50) || 'その他', favorite: !!r.favorite, status: str(r.status, 20) || 'open', osmId: str(r.osmId, 80),
         casual: num(r.casual, 0, 5, 0), atmosphere: num(r.atmosphere, 0, 5, 0), speed: num(r.speed, 0, 5, 0),
-        dataSource: str(r.dataSource, 20),
+        dataSource: str(r.dataSource, 20), foundBy: str(r.foundBy, 30), foundQuery: str(r.foundQuery, 100),
         dataLicenses: Array.isArray(r.dataLicenses) ? r.dataLicenses.filter(x => typeof x === 'string').map(x => x.slice(0, 80)).slice(0, 10) : [],
         dataAttributions: Array.isArray(r.dataAttributions) ? r.dataAttributions.filter(x => typeof x === 'string').map(x => x.slice(0, 200)).slice(0, 10) : [],
       });
@@ -456,6 +460,15 @@ const App = (() => {
     merge('shop', Store.rawShops(), data.shops);
     merge('visit', Store.rawVisits(), data.visits);
     merge('wish', Store.rawWishes(), data.wishes);
+    if (Array.isArray(data.hitLog)) {
+      const FLOWS = ['nearby', 'suggest', 'search', 'search-nearby', 'map', 'unknown'];
+      const clean = data.hitLog.filter(isPlain).map(h => ({
+        t: num(h.t, 0, 1e13, 0), flow: FLOWS.includes(h.flow) ? h.flow : 'unknown', source: str(h.source, 20) || 'unknown',
+        name: str(h.name, 200), query: str(h.query, 100), rank: (typeof h.rank === 'number' && h.rank >= 0 && h.rank < 1000) ? h.rank : null,
+        auto: !!h.auto, ...(typeof h.shopId === 'string' && ID_RE.test(h.shopId) ? { shopId: h.shopId } : {}),
+      })).filter(h => h.t > 0).slice(-1000);
+      Store.mergeHits(clean);
+    }
     // プロフィールは名前・自己紹介・アイコンだけ取り込む。@ユーザー名はクラウド側の予約と結びついているため
     // ファイルからは復元せず、ログイン時にクラウドから戻す
     if (isPlain(data.profile) && !Store.getProfile().username) {

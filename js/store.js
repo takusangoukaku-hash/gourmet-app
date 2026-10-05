@@ -11,6 +11,7 @@ const Store = (() => {
   const PROFILE_KEY = 'gourmet.profile.v1';    // プロフィール（将来の共有機能の土台）
   const WISHES_KEY = 'gourmet.wishes.v1';      // 行きたい店リスト
   const DELETED_KEY = 'gourmet.deleted.v1';    // 削除の記録（墓標）。同期で消したはずの記録が復活しないように
+  const HITS_KEY = 'gourmet.hitLog.v1';        // 検索でタップした候補が、どの機能・どの情報源で見つかったかの記録
   const SOCIAL_KEYS = ['gourmet.feedCache', 'gourmet.netCache']; // 他人の投稿の控え（再取得できる一時データ）
 
   let shops = load(SHOPS_KEY);
@@ -18,6 +19,7 @@ const Store = (() => {
   let photoHashes = loadObj(HASHES_KEY);
   let wishes = load(WISHES_KEY);
   let deleted = load(DELETED_KEY);
+  let hits = load(HITS_KEY);
   let rev = 0; // 保存のたびに増える版番号（画面側のキャッシュ判定用）
 
   // ---------- クラウド同期のための変更通知 ----------
@@ -471,13 +473,40 @@ const Store = (() => {
     } finally { remoteApply = false; }
   }
 
+  // ---------- 検索ヒットの記録 ----------
+  // entry = { t, flow('nearby'|'suggest'|'search'|'search-nearby'|'map'), source('openpoi'|'osm'|'yahoo'|…|'existing'),
+  //           name, query, rank, auto(自動選択か), shopId? }。最新1,000件を端末に残す（情報源の有用性を後から比べるため）
+  function addHit(entry) {
+    const e = Object.assign({ t: Date.now() }, entry);
+    hits.push(e);
+    if (hits.length > 1000) hits = hits.slice(-1000);
+    try { setItemSafe(HITS_KEY, JSON.stringify(hits)); } catch { /* 記録は任意 */ }
+    return e;
+  }
+  const hitLog = () => hits.slice();
+  // 情報源ごとの件数（設定画面の表示用）
+  function hitSummary() {
+    const by = {};
+    for (const h of hits) { const k = h.source || '?'; by[k] = (by[k] || 0) + 1; }
+    return by;
+  }
+  function mergeHits(list) {
+    const have = new Set(hits.map(h => h.t + '|' + (h.name || '')));
+    let n = 0;
+    for (const h of list) { const k = h.t + '|' + (h.name || ''); if (!have.has(k)) { hits.push(h); have.add(k); n++; } }
+    hits.sort((a, b) => (a.t || 0) - (b.t || 0));
+    if (hits.length > 1000) hits = hits.slice(-1000);
+    try { setItemSafe(HITS_KEY, JSON.stringify(hits)); } catch { /* noop */ }
+    return n;
+  }
+
   // ---------- この端末のデータをすべて消す（別アカウントでのログイン時など） ----------
   // 記録・写真・指紋・プロフィール・行きたい・他人の投稿の控えを消す。APIキーの扱いは呼び出し側で
   async function wipeLocal() {
-    for (const k of [SHOPS_KEY, VISITS_KEY, HASHES_KEY, PROFILE_KEY, WISHES_KEY, DELETED_KEY, ...SOCIAL_KEYS]) {
+    for (const k of [SHOPS_KEY, VISITS_KEY, HASHES_KEY, PROFILE_KEY, WISHES_KEY, DELETED_KEY, HITS_KEY, ...SOCIAL_KEYS]) {
       try { localStorage.removeItem(k); } catch { /* noop */ }
     }
-    shops = []; visits = []; wishes = []; photoHashes = {}; deleted = []; rev++;
+    shops = []; visits = []; wishes = []; photoHashes = {}; deleted = []; hits = []; rev++;
     try {
       const d = await db();
       await new Promise((resolve) => {
@@ -514,5 +543,6 @@ const Store = (() => {
     setSyncHook, applyRemote, putPhotoRaw, photoIds,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
     deletedIds, clearDeleted, wipeLocal, rev: () => rev,
+    addHit, hitLog, hitSummary, mergeHits,
   };
 })();
