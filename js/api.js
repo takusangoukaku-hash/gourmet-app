@@ -180,8 +180,12 @@ const Api = (() => {
   nwr(around:${radius},${lat},${lon})[shop~"^(bakery|confectionery|deli|pastry)$"];
 );
 out center 40;`;
-    const json = await overpass(q);
-    return (json.elements || []).map(e => {
+    // OSM（Overpass）と OpenPOI（営業許可データ）を並列に引いて統合する。片方が落ちても他方で続ける
+    const [json, poi] = await Promise.all([
+      overpass(q).catch(e => ({ elements: [], _err: e })),
+      openPoiNearby(lat, lon, radius).catch(() => []),
+    ]);
+    const osm = (json.elements || []).map(e => {
       const la = e.lat != null ? e.lat : (e.center && e.center.lat);
       const lo = e.lon != null ? e.lon : (e.center && e.center.lon);
       const t = e.tags || {};
@@ -193,8 +197,10 @@ out center 40;`;
         amenity: t.amenity || t.shop || '',
         distance: (la != null) ? Store.distMeters(lat, lon, la, lo) : Infinity,
       };
-    }).filter(s => s.lat != null && s.name !== '(名称不明)')
-      .sort((a, b) => a.distance - b.distance);
+    }).filter(s => s.lat != null && s.name !== '(名称不明)');
+    if (json._err && !poi.length) throw json._err; // 両方だめなら従来どおりエラー
+    // ジャンル情報のある OSM を先に（同じ店は統合される）。近い順
+    return mergeCandidates([osm, poi], { lat, lon }, 40).sort((a, b) => (a.distance || 0) - (b.distance || 0));
   }
 
   // ---------- Overpass: 最寄駅 ----------
@@ -340,7 +346,7 @@ out center 25;`;
   }
 
   // ---------- 検索結果の統合（重複除去・距離計算・近い順ソート） ----------
-  function mergeCandidates(lists, ref) {
+  function mergeCandidates(lists, ref, max = 15) {
     const norm = id => String(id || '').toLowerCase()
       .replace('relation', 'r').replace('node', 'n').replace('way', 'w');
     const seen = new Set();
@@ -348,19 +354,32 @@ out center 25;`;
     // 情報源をまたぐ同一店舗の判定（座標が微妙に違うため、近接＋名前の包含で判定）。
     // 名前は空白・記号を除いて比べる（「麺屋 こがね」と「麺屋こがね 渋谷店」を同じ店とみなす）
     const nn = (t) => String(t || '').toLowerCase().replace(/[\s　・･\-－—‐()（）「」【】]/g, '');
-    const isDup = (c) => out.some(o => {
+    const isDup = (c) => out.find(o => {
       if (o.lat == null || c.lat == null || Store.distMeters(o.lat, o.lon, c.lat, c.lon) >= 150) return false;
       const a = nn(o.name), b = nn(c.name);
       return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
-    });
+    }) || null;
     for (const list of lists) {
       for (const c of list) {
         const key = c.googleId ? 'g/' + c.googleId
+          : c.openpoiId ? 'p/' + c.openpoiId
           : c.yahooId ? 'y/' + c.yahooId
           : c.hotpepperId ? 'h/' + c.hotpepperId
           : c.osmId ? norm(c.osmId)
           : c.name + '@' + (c.lat || 0).toFixed(3) + ',' + (c.lon || 0).toFixed(3);
-        if (seen.has(key) || isDup(c)) continue;
+        if (seen.has(key)) continue;
+        const dup = isDup(c);
+        if (dup) {
+          // 同じ店が別の情報源からも来たら、空いている項目だけ補う
+          // （例: OSM 由来の候補に OpenPOI の住所・市区町村・出典を足す。先に来た候補の値が優先）
+          for (const k of ['address', 'pref', 'city', 'station', 'jaGenre', 'cuisine', 'source', 'osmId', 'openpoiId', 'yahooId', 'hotpepperId', 'googleId']) {
+            if ((dup[k] == null || dup[k] === '') && c[k] != null && c[k] !== '') dup[k] = c[k];
+          }
+          for (const k of ['licenses', 'attributions']) {
+            if ((!Array.isArray(dup[k]) || !dup[k].length) && Array.isArray(c[k]) && c[k].length) dup[k] = c[k];
+          }
+          continue;
+        }
         seen.add(key);
         if (ref && c.lat != null && c.distance == null) {
           c.distance = Store.distMeters(ref.lat, ref.lon, c.lat, c.lon);
@@ -369,7 +388,7 @@ out center 25;`;
       }
     }
     if (ref) out.sort((a, b) => (a.distance != null ? a.distance : 1e12) - (b.distance != null ? b.distance : 1e12));
-    return out.slice(0, 15);
+    return out.slice(0, max);
   }
 
   // ---------- 高速検索: 無料の検索源（Yahoo!／ホットペッパー／Photon／Nominatim）→ 足りなければ Google ----------
@@ -396,20 +415,21 @@ out center 25;`;
   async function searchShopsFast(fullQuery, nameQuery, ref) {
     lastSources = {};
     const lat = ref && ref.lat, lon = ref && ref.lon;
-    const [yahoo, hp, photon, nomi] = await Promise.all([
+    const [poi, yahoo, hp, photon, nomi] = await Promise.all([
+      runSource('openpoi', openPoiSearch(nameQuery, lat, lon)),
       hasYahooKey() ? runSource('yahoo', yahooLocalSearch(nameQuery, lat, lon)) : (lastSources.yahoo = { state: 'disabled' }, Promise.resolve([])),
       hasHotpepperKey() ? runSource('hotpepper', hotpepperSearch(nameQuery, lat, lon)) : (lastSources.hotpepper = { state: 'disabled' }, Promise.resolve([])),
       runSource('photon', photonSearch(nameQuery, lat, lon)),
       runSource('nominatim', searchPlaces(fullQuery)),
     ]);
-    const free = mergeCandidates([yahoo, hp, photon, nomi], ref);
+    const free = mergeCandidates([poi, yahoo, hp, photon, nomi], ref);
     // Google は「キーがあり、無料の検索源で見つからなかったとき」だけ
     if (!hasGoogleKey()) { lastGoogleStatus = { state: 'disabled' }; return free; }
     if (goodEnough(free, nameQuery)) { lastGoogleStatus = { state: 'skipped' }; return free; }
     let google = [];
     try { google = await googlePlacesSearch(fullQuery, ref); lastGoogleStatus = { state: 'ok', count: google.length }; }
     catch (e) { console.warn('Google Places:', e); lastGoogleStatus = { state: 'error', message: String(e && e.message || e) }; }
-    return mergeCandidates([google, yahoo, hp, photon, nomi], ref);
+    return mergeCandidates([google, poi, yahoo, hp, photon, nomi], ref);
   }
 
   // ---------- 予測検索: 入力中のリアルタイム候補（検索ボタンを押す前に表示） ----------
@@ -417,12 +437,13 @@ out center 25;`;
   // 3文字以上入力されたときだけ（1文字ごとの課金を避ける）。Nominatim は利用規約で自動補完に使えない
   async function suggestShops(query, ref) {
     const lat = ref && ref.lat, lon = ref && ref.lon;
-    const [yahoo, hp, photon] = await Promise.all([
+    const [poi, yahoo, hp, photon] = await Promise.all([
+      openPoiSuggest(query, lat, lon).catch(() => []),
       hasYahooKey() ? yahooLocalSearch(query, lat, lon).catch(() => []) : Promise.resolve([]),
       hasHotpepperKey() ? hotpepperSearch(query, lat, lon).catch(() => []) : Promise.resolve([]),
       photonSearch(query, lat, lon).catch(() => []),
     ]);
-    const free = mergeCandidates([yahoo, hp, photon], ref);
+    const free = mergeCandidates([poi, yahoo, hp, photon], ref);
     if (free.length || !hasGoogleKey() || query.length < 3) return free.slice(0, 6);
     const google = await googlePlacesSearch(query, ref).catch(() => []);
     return mergeCandidates([google], ref).slice(0, 6);
@@ -467,6 +488,70 @@ out center 25;`;
     else localStorage.removeItem(GOOGLE_KEY_STORAGE);
   }
   const hasGoogleKey = () => !!getGoogleKey();
+
+  // ---------- OpenPOI API（無料・キー不要・CORS対応・結果の保存可） ----------
+  // 全国の飲食店の営業許可・届出オープンデータ（約88万件）と Overture Maps（約249万件）を統合した検索。
+  // 個人店は営業許可データに載るため、OSM にもホットペッパーにも無い店が見つかる。最優先の検索源にする。
+  // 出典表示（設定画面の「店舗データの出典」）が利用条件。仕様: https://docs.openpoiapi.com/
+  const OPENPOI = 'https://api.openpoiapi.com';
+  // 飲食に関係するカテゴリ。source=jff（食品営業許可）は category が unknown でも食品関連なので通す
+  const OPENPOI_FOOD = new Set(['restaurant', 'cafe', 'bakery', 'bar_izakaya', 'fast_food', 'grocery', 'food_other', 'sweets', 'izakaya', 'bar']);
+  const OPENPOI_CAT_JA = { restaurant: '', cafe: 'カフェ', bakery: 'パン', bar_izakaya: '居酒屋', bar: 'バー', izakaya: '居酒屋', sweets: 'スイーツ', grocery: '' };
+  // strict=true（周辺検索）は飲食系と分かるものだけ。名前検索はカテゴリ未整備（unknown）の店も通す
+  function openPoiToCandidate(r, strict) {
+    if (!r || !r.name) return null;
+    const la = Number(r.lat), lo = Number(r.lng);
+    if (!isFinite(la) || !isFinite(lo) || r.lat === '' || r.lng === '') return null;
+    const cat = String(r.category || '');
+    const isFood = r.source === 'jff' || OPENPOI_FOOD.has(cat) || (r.attributions || []).some(a => /食品/.test(a));
+    if (!isFood && (strict || cat !== 'unknown')) return null;
+    // 住所は「町名だけ」のことがあるので、都道府県・市区町村を補って1本にする
+    let addr = stripJpAddress(r.address || '');
+    if (addr && r.prefecture && !addr.startsWith(r.prefecture)) addr = r.prefecture + (addr.startsWith(r.city || '\u0001') ? '' : (r.city || '')) + addr;
+    else if (!addr) addr = (r.prefecture || '') + (r.city || '');
+    return {
+      osmId: '', openpoiId: `${r.name}@${la.toFixed(5)},${lo.toFixed(5)}`, name: String(r.name).replace(/\s+/g, ' ').trim(),
+      address: addr, lat: la, lon: lo, cuisine: '', jaGenre: OPENPOI_CAT_JA[cat] || '', amenity: cat === 'cafe' ? 'cafe' : 'restaurant',
+      station: '', distance: null, source: 'openpoi', pref: r.prefecture || '', city: r.city || '',
+      // 保存時に一緒に持つ（OpenPOI の利用条件: licenses / attributions を配列のまま保存する）
+      licenses: Array.isArray(r.licenses) ? r.licenses.slice(0, 10) : [], attributions: Array.isArray(r.attributions) ? r.attributions.slice(0, 10) : [],
+    };
+  }
+  // 名前で検索。位置があれば周辺（radius m）を近い順、無ければ全国
+  async function openPoiSearch(query, lat, lon, radius = 20000, limit = 20) {
+    const q = String(query || '').trim();
+    if (!q) return [];
+    const u = new URL(OPENPOI + '/v1/search');
+    u.searchParams.set('q', q); u.searchParams.set('limit', String(limit));
+    if (numOK(lat) && numOK(lon)) { u.searchParams.set('center', `${lon},${lat}`); u.searchParams.set('radius', String(Math.round(radius))); }
+    const res = await fetchT(u.toString(), { headers: { Accept: 'application/json' } }, 10000);
+    if (!res.ok) throw new Error('OpenPOI HTTP ' + res.status);
+    const j = await res.json();
+    return (j.results || []).map(r => openPoiToCandidate(r, false)).filter(Boolean);
+  }
+  // 周辺の飲食店（キーワードなし）。写真の位置情報からの候補出しに使う
+  async function openPoiNearby(lat, lon, radius = 200, limit = 40) {
+    if (!numOK(lat) || !numOK(lon)) return [];
+    const u = new URL(OPENPOI + '/v1/search');
+    u.searchParams.set('center', `${lon},${lat}`); u.searchParams.set('radius', String(Math.round(radius))); u.searchParams.set('limit', String(limit));
+    const res = await fetchT(u.toString(), { headers: { Accept: 'application/json' } }, 10000);
+    if (!res.ok) throw new Error('OpenPOI HTTP ' + res.status);
+    const j = await res.json();
+    return (j.results || []).map(r => openPoiToCandidate(r, true)).filter(Boolean)
+      .map(c => Object.assign(c, { distance: Store.distMeters(lat, lon, c.lat, c.lon) }));
+  }
+  // 入力補完（表記ゆれ吸収・重複除去済み）。位置があれば周辺を優先し、無ければ全国
+  async function openPoiSuggest(query, lat, lon, radius = 20000, limit = 8) {
+    const q = String(query || '').trim();
+    if (!q) return [];
+    const u = new URL(OPENPOI + '/v1/suggest');
+    u.searchParams.set('q', q); u.searchParams.set('limit', String(limit));
+    if (numOK(lat) && numOK(lon)) { u.searchParams.set('center', `${lon},${lat}`); u.searchParams.set('radius', String(Math.round(radius))); }
+    const res = await fetchT(u.toString(), { headers: { Accept: 'application/json' } }, 8000);
+    if (!res.ok) throw new Error('OpenPOI HTTP ' + res.status);
+    const j = await res.json();
+    return (j.suggestions || []).map(r => openPoiToCandidate(r, false)).filter(Boolean);
+  }
 
   // ---------- Yahoo!ローカルサーチ・ホットペッパーグルメ（日本に強い無料の検索源） ----------
   // どちらも無料で利用でき（要アプリID／APIキーの登録）、日本の飲食店の網羅性が高い。
@@ -603,7 +688,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=299')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=300')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -738,12 +823,13 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v299',
+    FILE_VERSION: 'v300',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus, searchSourcesStatus,
     getYahooKey, setYahooKey, hasYahooKey, getHotpepperKey, setHotpepperKey, hasHotpepperKey, yahooLocalSearch, hotpepperSearch,
+    openPoiSearch, openPoiNearby, openPoiSuggest,
   };
 })();

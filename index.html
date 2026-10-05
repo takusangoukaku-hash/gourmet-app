@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=299">
+<link rel="stylesheet" href="css/style.css?v=300">
 </head>
 <body>
 
@@ -540,7 +540,8 @@
           </label>
           <h3>店舗検索の強化（日本の飲食店に強い無料の検索源）</h3>
           <p class="hint">
-            Yahoo!ローカルサーチとホットペッパーグルメの検索を加えると、地図データに載っていない個人店も見つかります。
+            店舗検索はまず <a href="https://openpoiapi.com/" target="_blank" rel="noopener">OpenPOI API</a>（無料・キー不要。全国の飲食店の営業許可・届出データと Overture Maps を統合）と地図データで探します。
+            Yahoo!ローカルサーチとホットペッパーグルメの検索を加えると、候補がさらに増えます。
             どちらも無料で、<a href="https://e.developer.yahoo.co.jp/" target="_blank" rel="noopener">Yahoo!デベロッパーネットワーク</a>（Client ID）と
             <a href="https://webservice.recruit.co.jp/" target="_blank" rel="noopener">リクルートWebサービス</a>（APIキー）で取得できます。
           </p>
@@ -567,6 +568,7 @@
     </div>
 
     <p class="set-version" id="settings-status"></p>
+    <p class="set-version">店舗データの出典: <a href="https://openpoiapi.com/attribution.html" target="_blank" rel="noopener">OpenPOI API</a>（Overture Maps Foundation ／ 各自治体・厚生労働省の食品営業許可・届出オープンデータ）、© OpenStreetMap contributors</p>
     </div>
   </div>
 </div>
@@ -600,11 +602,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=299"></script>
-<script src="js/api.js?v=299"></script>
-<script src="js/cloud.js?v=299"></script>
-<script src="js/register.js?v=299"></script>
-<script src="js/views.js?v=299"></script>
-<script src="js/app.js?v=299"></script>
+<script src="js/store.js?v=300"></script>
+<script src="js/api.js?v=300"></script>
+<script src="js/cloud.js?v=300"></script>
+<script src="js/register.js?v=300"></script>
+<script src="js/views.js?v=300"></script>
+<script src="js/app.js?v=300"></script>
 </body>
 </html>

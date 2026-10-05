@@ -67,6 +67,14 @@ service firebase.storage {
 （フォロワーに見せる投稿写真は、ルールとは別のトークン付きURLで配信されるため
 この設定で問題なく表示される）
 
+## 店舗データの出典（OpenPOI API）
+店名検索・周辺検索・入力補完は [OpenPOI API](https://openpoiapi.com/)（Overture Maps と各自治体・厚生労働省の
+食品営業許可・届出オープンデータを統合、無料・キー不要・CORS対応）を最優先で使う。利用条件に従い、
+OpenPOI 由来の店舗は `dataSource` / `dataLicenses` / `dataAttributions` を記録と一緒に保存し、設定画面に出典と
+[出典・ライセンスページ](https://openpoiapi.com/attribution.html)へのリンクを表示している。
+Overture 由来のレコードには Foursquare（Apache-2.0）のデータが含まれる。第三者へデータを再配布する場合は
+各ライセンスの再配布条件が加わる（アプリ内で表示するだけなら出典表示で足りる）。
+
 ## 構成
 
 | ファイル | 役割 |
@@ -76,7 +84,7 @@ service firebase.storage {
 | `js/vendor/anthropic-sdk.js` | Anthropic 公式SDK（0.72.1）を esbuild でブラウザ用に束ねたもの。外部CDNから実行時に読み込まない |
 | `firebase/*.rules` | Firestore / Storage の推奨セキュリティルール（コンソールに貼り付ける） |
 | `js/store.js` | データ層。店舗(Shop)/訪問記録(Visit)の2層モデル（仕様書§2）。localStorage＋写真はIndexedDB（本体・一覧用メタ情報・サムネイルの3ストア） |
-| `js/api.js` | 外部API（Overpass/Nominatim/Photon/Yahoo!ローカルサーチ/ホットペッパー/Google Places）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は無料の検索源を先に使い、Google は見つからなかったときだけ呼ぶ |
+| `js/api.js` | 外部API（OpenPOI API/Overpass/Nominatim/Photon/Yahoo!ローカルサーチ/ホットペッパー/Google Places）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は OpenPOI（無料・キー不要・食品営業許可データ）と地図データを先に使い、Google は見つからなかったときだけ呼ぶ |
 | `js/register.js` | 登録フロー（仕様書§4）。フローA(GPSあり)/フローB(名前検索・地図指定) |
 | `js/views.js` | 地図・一覧・写真・統計・ランキング・店舗詳細の描画 |
 | `js/app.js` | タブ制御・共通イベント・サンプルデータ |
