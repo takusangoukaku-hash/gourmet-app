@@ -75,6 +75,12 @@ OpenPOI 由来の店舗は `dataSource` / `dataLicenses` / `dataAttributions` �
 Overture 由来のレコードには Foursquare（Apache-2.0）のデータが含まれる。第三者へデータを再配布する場合は
 各ライセンスの再配布条件が加わる（アプリ内で表示するだけなら出典表示で足りる）。
 
+## Yahoo!・ホットペッパー・Google の提供方法（検索中継）
+これら3つはキーの登録（Google は課金）が必要なため、キーをアプリに埋め込まず、開発者が用意した
+Cloudflare Worker（`tools/proxy/`）に Secret として置き、アプリはその Worker を経由して検索する。
+Worker は本番サイトの Origin からの呼び出しだけを中継し、Google へ送る項目と回数も Worker 側で固定・制限する。
+設定手順は `tools/proxy/README.md`。利用者が⚙️で自分のキーを入れた場合はそちらが優先される。
+
 ## 構成
 
 | ファイル | 役割 |

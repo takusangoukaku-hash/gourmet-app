@@ -44,6 +44,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 | `js/vendor/anthropic-sdk.js` | Anthropic 公式SDK 0.72.1 のブラウザ用バンドル（esbuild）。外部CDNから実行時に読み込まない |
 | `firebase/*.rules` | Firestore / Storage の推奨セキュリティルール。コンソールに貼り付けて公開する |
 | `tools/server.ps1` | ローカル確認用の簡易サーバー（PowerShell。UTF-8 BOM必須） |
+| `tools/proxy/` | 検索中継の Cloudflare Worker（`worker.js`）と設定手順（`README.md`）。Yahoo!/ホットペッパー/Google のキーは Worker の Secret に置き、アプリには置かない。アプリ側は `js/api.js` の `SEARCH_PROXY` に Worker の URL を書くだけ（利用者が⚙️で入れた自分のキーが優先） |
 
 ## 速さの決めごと（v298〜）
 - 写真の一覧・グリッドは `Store.allPhotos()`（メタ情報のみ・本体を含まない）で描く。本体は `Store.getPhotoBlob(id)`、
@@ -59,6 +60,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   DOM API（textContent / img.src）で入れる。数値は `Number(x) || 0` で固定する。
 - バックアップの取り込みは `app.js` の `sanitizeRecord()` を通す。localStorage のキーは許可リストのみ。
 - 外部スクリプトはバージョン固定＋ `integrity` 属性。Anthropic SDK は `js/vendor/` に同梱。
+- 課金・登録制のキー（Google/Yahoo!/ホットペッパー）をリポジトリや `DEFAULT_KEYS` に書かない（公開リポジトリ＋静的サイトなので誰でも読める）。
+  全利用者に提供するときは `tools/proxy/` の Worker 経由にする（v302〜）。
 - 別アカウントでのログイン時は端末データを消してから同期する（`cloud.js` の `gourmet.lastUid`）。
 - 削除は `Store` の墓標（`gourmet.deleted.v1`）に残し、同期で復活させない。
 

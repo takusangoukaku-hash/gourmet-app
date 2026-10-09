@@ -658,10 +658,14 @@ const Register = (() => {
     const src = Api.searchSourcesStatus();
     const hint = (t) => { const p = document.createElement('p'); p.className = 'hint'; p.textContent = t; box.appendChild(p); };
     for (const [k, label] of [['openpoi', 'OpenPOI'], ['yahoo', 'Yahoo!ローカルサーチ'], ['hotpepper', 'ホットペッパー']]) {
-      if (src[k] && src[k].state === 'error') hint(`⚠️ ${label}でエラー: ${src[k].message}｜⚙️のキーが正しいか確認してください。`);
+      if (src[k] && src[k].state === 'error') {
+        hint(`⚠️ ${label}でエラー: ${src[k].message}` + (Api.keySource(k) === 'own' ? '｜⚙️のキーが正しいか確認してください。' : '｜しばらくしてからもう一度お試しください。'));
+      }
     }
     if (gs.state === 'error') {
-      hint(`⚠️ Googleマップ検索でエラー: ${gs.message}｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。`);
+      hint(`⚠️ Googleマップ検索でエラー: ${gs.message}` + (Api.keySource('google') === 'own'
+        ? '｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。'
+        : '｜しばらくしてからもう一度お試しください。'));
     } else if (!results.length && !existing.length) {
       hint('💡 見つからないときは「店名 地名」（例: ○○軒 渋谷）で探すか、🗺️ 地図で位置を指定してください。');
     }

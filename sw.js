@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v301'; // 検索でタップした候補が「どの機能・どの情報源」で見つかったかを記録（設定画面に内訳・バックアップに同梱）
+const VERSION = 'v302'; // Yahoo!/ホットペッパー/Google を開発者提供の中継（Cloudflare Worker・キーはアプリに置かない）経由で全利用者が使えるように
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -23,7 +23,7 @@ const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'tiles.openfreemap.org', 'ma
 const TILE_HOSTS = ['tiles.openfreemap.org', 'maps.gsi.go.jp'];
 const TILE_CACHE_MAX = 1500;
 // Firebase（認証・DB・写真保存）は常にネットワークへ（キャッシュしない）
-const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com', 'map.yahooapis.jp', 'webservice.recruit.co.jp', 'api.openpoiapi.com',
+const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com', 'map.yahooapis.jp', 'webservice.recruit.co.jp', 'api.openpoiapi.com', 'workers.dev',
   'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];
 
 self.addEventListener('install', (e) => {

@@ -415,6 +415,7 @@ out center 25;`;
   }
 
   async function searchShopsFast(fullQuery, nameQuery, ref) {
+    if (proxyOn() && proxyServices == null) await refreshProxyStatus(); // 初回のみ: 中継が提供するサービスを確認
     lastSources = {};
     const lat = ref && ref.lat, lon = ref && ref.lon;
     const [poi, yahoo, hp, photon, nomi] = await Promise.all([
@@ -438,6 +439,7 @@ out center 25;`;
   // 無料の検索源のみ（Yahoo!／ホットペッパー／Photon）。Google は無料の検索源が1件も返さず、
   // 3文字以上入力されたときだけ（1文字ごとの課金を避ける）。Nominatim は利用規約で自動補完に使えない
   async function suggestShops(query, ref) {
+    if (proxyOn() && proxyServices == null) refreshProxyStatus(); // 裏で確認（予測は待たない）
     const lat = ref && ref.lat, lon = ref && ref.lon;
     const [poi, yahoo, hp, photon] = await Promise.all([
       openPoiSuggest(query, lat, lon).catch(() => []),
@@ -489,7 +491,8 @@ out center 25;`;
     if (key) localStorage.setItem(GOOGLE_KEY_STORAGE, key.trim());
     else localStorage.removeItem(GOOGLE_KEY_STORAGE);
   }
-  const hasGoogleKey = () => !!getGoogleKey();
+  // 利用者のキー、または開発者提供の中継（SEARCH_PROXY）があれば true
+  const hasGoogleKey = () => !!getGoogleKey() || proxyHas('google');
 
   // ---------- OpenPOI API（無料・キー不要・CORS対応・結果の保存可） ----------
   // 全国の飲食店の営業許可・届出オープンデータ（約88万件）と Overture Maps（約249万件）を統合した検索。
@@ -566,8 +569,45 @@ out center 25;`;
   const getHotpepperKey = () => localStorage.getItem(HOTPEPPER_KEY_STORAGE) || DEFAULT_KEYS.hotpepper || '';
   function setYahooKey(key) { if (key) localStorage.setItem(YAHOO_KEY_STORAGE, key.trim()); else localStorage.removeItem(YAHOO_KEY_STORAGE); }
   function setHotpepperKey(key) { if (key) localStorage.setItem(HOTPEPPER_KEY_STORAGE, key.trim()); else localStorage.removeItem(HOTPEPPER_KEY_STORAGE); }
-  const hasYahooKey = () => !!getYahooKey();
-  const hasHotpepperKey = () => !!getHotpepperKey();
+
+  // ---------- 開発者提供の検索中継（Cloudflare Worker） ----------
+  // キーをアプリ（公開リポジトリ・ブラウザ）に置かずに Yahoo!／ホットペッパー／Google を全利用者が使えるようにする。
+  // キーは Worker 側の Secret に置き、アプリは Worker の URL だけを知る（tools/proxy/ を参照）。
+  // 利用者が ⚙️ で自分のキーを入れた場合はそちらを優先する（開発者の枠を使わない）。
+  // 未設定（''）なら従来どおり利用者のキーだけで動く。テスト用に window.__searchProxy で差し替え可。
+  const SEARCH_PROXY = ((typeof window !== 'undefined' && window.__searchProxy) || '').replace(/\/+$/, '');
+  const proxyOn = () => !!SEARCH_PROXY;
+  // Worker が提供しているサービス（/status の結果）。null = まだ確認していない（= あるものとして扱う）
+  let proxyServices = null;
+  let proxyStatusPromise = null;
+  function refreshProxyStatus() {
+    if (!proxyOn()) return Promise.resolve(null);
+    if (!proxyStatusPromise) {
+      proxyStatusPromise = fetchT(SEARCH_PROXY + '/status', {}, 6000)
+        .then(r => r.ok ? r.json() : null)
+        .then(j => { proxyServices = (j && j.services) || { yahoo: false, hotpepper: false, google: false }; return proxyServices; })
+        .catch(() => { proxyStatusPromise = null; return null; });
+    }
+    return proxyStatusPromise;
+  }
+  const proxyHas = (name) => proxyOn() && (proxyServices == null || !!proxyServices[name]);
+  // キーの出どころ: 'own'（⚙️で設定）／'proxy'（開発者提供）／''（なし）
+  function keySource(name) {
+    const own = name === 'google' ? getGoogleKey() : name === 'yahoo' ? getYahooKey() : name === 'hotpepper' ? getHotpepperKey() : '';
+    if (own) return 'own';
+    return proxyHas(name) ? 'proxy' : '';
+  }
+  async function proxyFetch(path, init) {
+    const res = await fetchT(SEARCH_PROXY + path, Object.assign({ mode: 'cors', credentials: 'omit' }, init || {}), 12000);
+    const j = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = (j && (j.error || (j.Error && j.Error.Message) || (j.results && j.results.error && j.results.error[0] && j.results.error[0].message))) || '';
+      throw new Error('中継サーバー HTTP ' + res.status + (msg ? ' — ' + msg : ''));
+    }
+    return j;
+  }
+  const hasYahooKey = () => !!keySource('yahoo');
+  const hasHotpepperKey = () => !!keySource('hotpepper');
 
   // JSONP: <script> でAPIを呼び、callback で結果を受け取る（タイムアウト付き・後片付けあり）
   let jsonpSeq = 0;
@@ -590,11 +630,18 @@ out center 25;`;
   async function yahooLocalSearch(query, lat, lon) {
     const key = getYahooKey();
     const q = String(query || '').trim();
-    if (!key || !q) return [];
-    let url = 'https://map.yahooapis.jp/search/local/V1/localSearch?appid=' + encodeURIComponent(key)
-      + '&query=' + encodeURIComponent(q) + '&gc=01&results=15&detail=simple&output=json';
-    if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lon=${lon}&dist=20&sort=dist`;
-    const j = await jsonp(url);
+    if (!q) return [];
+    let j;
+    if (key) {
+      let url = 'https://map.yahooapis.jp/search/local/V1/localSearch?appid=' + encodeURIComponent(key)
+        + '&query=' + encodeURIComponent(q) + '&gc=01&results=15&detail=simple&output=json';
+      if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lon=${lon}&dist=20&sort=dist`;
+      j = await jsonp(url);
+    } else if (proxyHas('yahoo')) {
+      let path = '/yahoo?query=' + encodeURIComponent(q);
+      if (numOK(lat) && numOK(lon)) path += `&lat=${lat}&lon=${lon}`;
+      j = await proxyFetch(path);
+    } else return [];
     if (j && j.Error) throw new Error(j.Error.Message || 'Yahoo! API エラー');
     return (j && j.Feature || []).map(f => {
       const pr = f.Property || {};
@@ -615,11 +662,18 @@ out center 25;`;
   async function hotpepperSearch(query, lat, lon) {
     const key = getHotpepperKey();
     const q = String(query || '').trim();
-    if (!key || !q) return [];
-    let url = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=' + encodeURIComponent(key)
-      + '&keyword=' + encodeURIComponent(q) + '&count=15&format=jsonp';
-    if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lng=${lon}&range=5`;
-    const j = await jsonp(url);
+    if (!q) return [];
+    let j;
+    if (key) {
+      let url = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=' + encodeURIComponent(key)
+        + '&keyword=' + encodeURIComponent(q) + '&count=15&format=jsonp';
+      if (numOK(lat) && numOK(lon)) url += `&lat=${lat}&lng=${lon}&range=5`;
+      j = await jsonp(url);
+    } else if (proxyHas('hotpepper')) {
+      let path = '/hotpepper?keyword=' + encodeURIComponent(q);
+      if (numOK(lat) && numOK(lon)) path += `&lat=${lat}&lng=${lon}`;
+      j = await proxyFetch(path);
+    } else return [];
     const r = (j && j.results) || {};
     if (r.error) throw new Error((r.error[0] && r.error[0].message) || 'ホットペッパー API エラー');
     return (r.shop || []).map(sh => ({
@@ -634,7 +688,7 @@ out center 25;`;
   // Googleマップのデータからほぼすべての飲食店を検索できる（キー設定時のみ）
   async function googlePlacesSearch(query, ref) {
     const key = getGoogleKey();
-    if (!key) return [];
+    if (!key && !proxyHas('google')) return [];
     const body = {
       textQuery: query,
       languageCode: 'ja',
@@ -649,21 +703,29 @@ out center 25;`;
         circle: { center: { latitude: ref.lat, longitude: ref.lon }, radius: 30000 },
       };
     }
-    const res = await fetchT('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': key,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.types',
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      const msg = (j && j.error && j.error.message) ? j.error.message : '';
-      throw new Error('HTTP ' + res.status + (msg ? ' — ' + msg : ''));
+    let j;
+    if (key) {
+      const res = await fetchT('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': key,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.types',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const ej = await res.json().catch(() => null);
+        const msg = (ej && ej.error && ej.error.message) ? ej.error.message : '';
+        throw new Error('HTTP ' + res.status + (msg ? ' — ' + msg : ''));
+      }
+      j = await res.json();
+    } else {
+      // 開発者提供の中継: キーと FieldMask は Worker 側で付ける（アプリにはキーを置かない）
+      j = await proxyFetch('/google', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
     }
-    const j = await res.json();
     return (j.places || []).map(p => ({
       osmId: '',
       googleId: p.id,
@@ -690,7 +752,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=301')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=302')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -825,13 +887,14 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v301',
+    FILE_VERSION: 'v302',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus, searchSourcesStatus,
     getYahooKey, setYahooKey, hasYahooKey, getHotpepperKey, setHotpepperKey, hasHotpepperKey, yahooLocalSearch, hotpepperSearch,
+    keySource, refreshProxyStatus, SEARCH_PROXY,
     openPoiSearch, openPoiNearby, openPoiSuggest,
   };
 })();

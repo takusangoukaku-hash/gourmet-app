@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v301'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v302'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -86,9 +86,11 @@ const App = (() => {
     const settingsStatus = () => {
       const parts = [];
       parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
-      parts.push(Api.hasYahooKey() ? '✅ Yahoo!: 設定済み' : 'Yahoo!: 未設定');
-      parts.push(Api.hasHotpepperKey() ? '✅ ホットペッパー: 設定済み' : 'ホットペッパー: 未設定');
-      parts.push(Api.hasGoogleKey() ? '✅ Googleキー: 設定済み' : 'Googleキー: 未設定');
+      // 'own' = ⚙️で設定したキー、'proxy' = 開発者提供（キーはアプリに置かず中継サーバーが持つ）
+      const keyLabel = (name, label) => { const k = Api.keySource(name); return k === 'own' ? `✅ ${label}: 設定済み` : k === 'proxy' ? `✅ ${label}: 開発者提供` : `${label}: 未設定`; };
+      parts.push(keyLabel('yahoo', 'Yahoo!'));
+      parts.push(keyLabel('hotpepper', 'ホットペッパー'));
+      parts.push(keyLabel('google', 'Googleキー'));
       // 検索でタップした候補の情報源の内訳（どの検索源が役に立っているか）
       const hs = Store.hitSummary(); const total = Object.values(hs).reduce((a, b) => a + b, 0);
       if (total) parts.push('検索ヒット ' + total + '件（' + Object.entries(hs).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join('・') + '）');
@@ -128,6 +130,7 @@ const App = (() => {
       $('#settings-yahoo-key').value = Api.getYahooKey();
       $('#settings-hotpepper-key').value = Api.getHotpepperKey();
       $('#settings-status').textContent = settingsStatus();
+      Api.refreshProxyStatus().then(() => { $('#settings-status').textContent = settingsStatus(); });
       renderSettingsAccount();
       renderSettingsProfile();
       $('#settings-modal').classList.remove('hidden');
