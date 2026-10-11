@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=302">
+<link rel="stylesheet" href="css/style.css?v=303">
 </head>
 <body>
 
@@ -365,6 +365,12 @@
   <div id="ptab-stats" class="ptab-panel hidden">
     <div id="stat-memory" class="stat-memory hidden"></div>
     <div id="stat-cards" class="stat-cards"></div>
+    <div class="stat-actions">
+      <button type="button" id="stat-share-card" class="btn primary small">記録カードを画像で共有</button>
+    </div>
+    <div id="stat-regulars" class="card"></div>
+    <div id="stat-conquest" class="card"></div>
+    <div id="stat-wish" class="card"></div>
     <div id="taste-rank" class="card hidden"></div>
     <div id="taste-traits" class="card hidden"></div>
     <div class="card"><h2>月別訪問件数</h2>
@@ -378,7 +384,6 @@
       <h2><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M10 14h4M9 20h6M12 14v6"/></svg> ランキング</h2>
       <div class="rank-grid">
         <div><h3>味ランキング</h3><ol id="rank-rating"></ol></div>
-        <div><h3>訪問回数ランキング</h3><ol id="rank-visits"></ol></div>
         <div><h3>よく行く駅</h3><ol id="rank-station"></ol></div>
         <div><h3>よく行く地区</h3><ol id="rank-city"></ol></div>
         <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
@@ -602,11 +607,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=302"></script>
-<script src="js/api.js?v=302"></script>
-<script src="js/cloud.js?v=302"></script>
-<script src="js/register.js?v=302"></script>
-<script src="js/views.js?v=302"></script>
-<script src="js/app.js?v=302"></script>
+<script src="js/store.js?v=303"></script>
+<script src="js/api.js?v=303"></script>
+<script src="js/cloud.js?v=303"></script>
+<script src="js/register.js?v=303"></script>
+<script src="js/views.js?v=303"></script>
+<script src="js/app.js?v=303"></script>
 </body>
 </html>

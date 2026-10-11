@@ -393,23 +393,53 @@ const Store = (() => {
   }
 
   // ---------- 行きたい店（Wish） ----------
-  // wish = { id, name, lat, lon, genre, fromUsername, postId, createdAt, updatedAt }
-  // フォロー中の人の投稿から保存する「行きたい」。訪問を記録したら自動で外れる
+  // wish = { id, name, lat, lon, genre, fromUsername, postId, createdAt, updatedAt,
+  //          doneAt?, doneShopId?, doneVisitId? }
+  // フォロー中の人の投稿から保存する「行きたい」。訪問を記録したら「達成」として残す（v303〜）。
+  // 以前は訪問で自動的に消していたが、達成度（行けた数/保存した数）を見られるよう記録として保持する。
+  // wishes() は未達成（まだ行っていない）だけを返す。達成済みも含めるときは allWishes()
   function persistWishes() { rev++; setItemSafe(WISHES_KEY, JSON.stringify(wishes)); }
+  const isDone = (w) => !!(w && w.doneAt);
   // 同じ店の判定: 店名が同じ、または「100m以内 かつ 店名の一方が他方を含む」。
-  // 位置だけで同一視すると、同じビルの別の店の「行きたい」を消してしまうため
+  // 位置だけで同一視すると、同じビルの別の店の「行きたい」を消してしまうため。未達成の中から探す
   function findWish({ name, lat, lon }) {
     const near = (w) => lat != null && lon != null && w.lat != null && w.lon != null && distMeters(lat, lon, w.lat, w.lon) < 100;
     const similar = (a, b) => !!a && !!b && (a === b || a.includes(b) || b.includes(a));
-    return wishes.find(w => (name && w.name === name) || (near(w) && (!name || !w.name || similar(name, w.name)))) || null;
+    return wishes.find(w => !isDone(w) && ((name && w.name === name) || (near(w) && (!name || !w.name || similar(name, w.name))))) || null;
   }
   function addWish(data) {
     const dup = findWish(data);
     if (dup) return dup; // 同じ店（同名 or 100m以内）は二重登録しない
     const w = Object.assign({ id: uid(), createdAt: Date.now(), updatedAt: Date.now() }, data);
+    delete w.doneAt; delete w.doneShopId; delete w.doneVisitId;
     wishes.push(w); persistWishes();
     emit('wish', 'put', w);
     return w;
+  }
+  // 行きたい店を達成にする（訪問の記録時に呼ぶ）。取り消しは undoWishForVisit
+  function markWishDone(w, shopId, visitId, at) {
+    Object.assign(w, { doneAt: at || Date.now(), doneShopId: shopId || '', doneVisitId: visitId || '', updatedAt: Date.now() });
+    persistWishes();
+    emit('wish', 'put', w);
+  }
+  // 達成のきっかけになった訪問を削除したら、その行きたい店を未達成に戻す
+  function undoWishForVisit(visitId) {
+    let n = 0;
+    for (const w of wishes) {
+      if (w.doneVisitId && w.doneVisitId === visitId) {
+        delete w.doneAt; delete w.doneShopId; delete w.doneVisitId;
+        w.updatedAt = Date.now(); n++;
+        emit('wish', 'put', w);
+      }
+    }
+    if (n) persistWishes();
+    return n;
+  }
+  // 達成度: { done, total, rate(0〜100) }。外した（削除した）行きたいは数えない
+  function wishProgress(filterFn) {
+    const list = filterFn ? wishes.filter(filterFn) : wishes;
+    const done = list.filter(isDone).length, total = list.length;
+    return { done, total, rate: total ? Math.round(done / total * 100) : 0 };
   }
   function removeWish(id) {
     const w = wishes.find(x => x.id === id);
@@ -430,9 +460,12 @@ const Store = (() => {
     visits.push(visit);
     try { persist(); } catch (e) { visits.pop(); throw e; }
     emit('visit', 'put', visit);
-    // 行きたい店に入っていた店を訪問したら、リストから自動で外す（達成）
+    // 行きたい店に入っていた店を訪問したら「達成」にする（リストからは消さず、達成度として残す）
     const s = getShop(visit.shopId);
-    if (s) { const w = findWish({ name: s.name, lat: s.lat, lon: s.lon }); if (w) removeWish(w.id); }
+    if (s) {
+      const w = findWish({ name: s.name, lat: s.lat, lon: s.lon });
+      if (w) { try { markWishDone(w, s.id, visit.id, new Date(visit.datetime).getTime() || Date.now()); } catch { /* 達成の記録は任意 */ } }
+    }
     return visit;
   }
   function updateVisit(id, patch) {
@@ -445,6 +478,7 @@ const Store = (() => {
     persist();
     markDeleted('visit', id);
     emit('visit', 'del', { id });
+    try { undoWishForVisit(id); } catch { /* noop */ }
     await deletePhotosWhere(p => p.visitId === id);
   }
   const visitsOf = (shopId) =>
@@ -520,10 +554,11 @@ const Store = (() => {
 
   // ---------- 集計（保存せず算出 — 仕様書v2 §2.3） ----------
   const visitCount = (shopId) => visitsOf(shopId).length;
+  // 星0（評価なし。写真なしの「また来た」記録など）は平均に入れない
   function avgRating(shopId) {
-    const vs = visitsOf(shopId);
-    if (!vs.length) return 0;
-    return Math.round(vs.reduce((s, v) => s + (v.rating || 0), 0) / vs.length * 10) / 10;
+    const rs = visitsOf(shopId).map(v => v.rating || 0).filter(r => r > 0);
+    if (!rs.length) return 0;
+    return Math.round(rs.reduce((s, r) => s + r, 0) / rs.length * 10) / 10;
   }
   function lastVisitDate(shopId) {
     const vs = visitsOf(shopId);
@@ -538,7 +573,8 @@ const Store = (() => {
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoCreatedAt, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
-    wishes: () => wishes.slice(), addWish, removeWish, findWish,
+    wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
+    addWish, removeWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
     setSyncHook, applyRemote, putPhotoRaw, photoIds,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,

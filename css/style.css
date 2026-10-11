@@ -20,6 +20,10 @@
   --serif: 'Shippori Mincho', 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
   /* 評価の色（色相を大きく離してくっきり）: ★1灰→★2青→★3緑→★4橙→★5赤 */
   --r1: #94A3B8; --r2: #3B82F6; --r3: #22C55E; --r4: #F59E0B; --r5: #EF4444;
+  /* 制覇マップの塗り（行った店の数: 0 / 1〜2 / 3〜9 / 10〜29 / 30〜）。県境は地の色で抜く */
+  --cq0: #ECE6DC; --cq1: #F3C9B0; --cq2: #E59A72; --cq3: #D06A43; --cq4: #9E4425; --cq-line: #FFFFFF;
+  /* よく行く店のメダル */
+  --gold: #D9A62E; --silver: #A9ADB4; --bronze: #C0814E;
 }
 
 * { box-sizing: border-box; }
@@ -1977,6 +1981,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
     --border: #4A463F;
     --border-lite: #2F2C27;
     --field: #2B2723;
+    --cq0: #2E2A26; --cq1: #5A3A2B; --cq2: #8E4F33; --cq3: #C4653F; --cq4: #EE936A; --cq-line: #171412;
   }
   .app-header { background: rgba(23, 20, 18, .95); }
   /* 白決め打ちだった部分を暗色へ */
@@ -1993,3 +1998,103 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
   /* ジャンルのイラスト（白地PNG）: multiplyだと暗色で消えるため、白の丸角チップとして見せる */
   .ex-cat-ic img.gi { mix-blend-mode: normal; background: #fff; border-radius: 12px; padding: 2px; }
 }
+
+
+/* =====================================================
+   v303: また来た・よく行く店・制覇マップ・行きたい達成度・記録カード
+   ===================================================== */
+/* 店舗詳細・地図のお店シートの「また来た」 */
+.d-revisit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 12px; }
+.d-revisit { border-radius: 999px; padding: 9px 18px; font-weight: 700; border-color: var(--accent); color: var(--accent); }
+.d-revisit-note { font-size: 12px; color: var(--muted); min-width: 0; }
+.msh-revisit { width: 100%; margin-top: 8px; justify-content: center; border-radius: 999px; font-size: 13px; font-weight: 700;
+  border-color: var(--accent); color: var(--accent); white-space: normal; }
+.msh-revisit small { font-weight: 500; color: var(--muted); margin-left: 2px; }
+
+/* 統計タブ上部 */
+.stat-actions { display: flex; justify-content: flex-end; margin: -4px 0 12px; }
+.stat-card .v small { font-size: .55em; color: var(--muted); font-weight: 600; margin-left: 1px; }
+
+/* よく行く店 */
+.rg-list { list-style: none; margin: 0; padding: 0; }
+.rg-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-lite); }
+.rg-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rg-row:last-child { border-bottom: none; }
+.rg-medal, .rg-rank { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rg-medal { color: #fff; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .15); }
+.rg-m1 { background: var(--gold); } .rg-m2 { background: var(--silver); } .rg-m3 { background: var(--bronze); }
+.rg-rank { color: var(--muted); background: var(--field); }
+.rg-main { all: unset; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rg-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.rg-name { font-weight: 700; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rg-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rg-count { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rg-count b { font-size: 20px; color: var(--accent); margin-right: 1px; }
+.rg-count b { line-height: 1; }
+.rg-again { white-space: nowrap; padding: 4px 9px; font-size: 11.5px; border-radius: 999px; }
+
+/* 行きたい店の達成度 */
+.wp-box { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 6px 0 10px; }
+.wp-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wp-num b { font-size: 26px; color: var(--accent); }
+.wp-num span { color: var(--muted); font-size: 13px; }
+.wp-bar { height: 10px; border-radius: 999px; background: var(--field); overflow: hidden; }
+.wp-bar span { display: block; height: 100%; border-radius: 999px; background: var(--grad); min-width: 0; }
+.wp-rate { font-weight: 800; font-variant-numeric: tabular-nums; }
+.wp-recent { display: grid; gap: 4px; margin-bottom: 10px; }
+.wp-ritem { font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
+.wp-ritem span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.wish-pg { margin: 4px 0 8px; }
+.wish-pg-l { font-size: 12px; color: var(--muted); }
+.wish-h3 { font-size: 14px; margin: 18px 0 2px; color: var(--muted); }
+.wish-done .wish-name { color: var(--muted); }
+
+/* 制覇マップ */
+.cq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.cq-big { font-variant-numeric: tabular-nums; }
+.cq-big b { font-size: 34px; color: var(--accent); line-height: 1; }
+.cq-big span { color: var(--muted); font-size: 13px; margin-left: 4px; }
+.cq-wish { font-size: 13px; color: var(--muted); }
+.cq-wish b { color: var(--text); }
+.cq-map { max-width: 520px; margin: 0 auto; }
+.cq-svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.cq-svg path { stroke: var(--cq-line); stroke-width: 1.2; stroke-linejoin: round; cursor: pointer; transition: opacity .15s; }
+.cq-svg path:hover { opacity: .8; }
+.cq-okibox { fill: none; stroke: var(--border); stroke-width: 1.5; }
+.cq-l0 { fill: var(--cq0); background: var(--cq0); }
+.cq-l1 { fill: var(--cq1); background: var(--cq1); }
+.cq-l2 { fill: var(--cq2); background: var(--cq2); }
+.cq-l3 { fill: var(--cq3); background: var(--cq3); }
+.cq-l4 { fill: var(--cq4); background: var(--cq4); }
+.cq-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 11.5px; color: var(--muted); margin: 8px 0 12px; }
+.cq-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cq-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+.cq-list { display: grid; }
+.cq-row { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto;
+  align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--border-lite); font-size: 14px; }
+.cq-row:last-child { border-bottom: none; }
+.cq-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.cq-name { font-weight: 700; min-width: 0; }
+.cq-n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cq-n small { color: var(--muted); margin-left: 2px; }
+.cq-w { font-size: 11.5px; color: var(--muted); white-space: nowrap; min-width: 0; }
+.cq-src { font-size: 11px; color: var(--muted); margin: 10px 0 0; }
+.cq-src a { color: inherit; }
+.cq-mhead { color: var(--muted); font-size: 13px; margin: -4px 0 8px; }
+.cq-mrow { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-lite); cursor: pointer; }
+.cq-mrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cq-mname { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cq-msub { grid-column: 1; font-size: 12px; color: var(--muted); }
+.cq-mn { grid-column: 2; grid-row: 1 / 3; align-self: center; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+.cq-mwish { cursor: default; }
+.cq-mwish.done .cq-mname { color: var(--muted); }
+.cq-mh3 { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 16px 0 0; }
+.cq-mh3 .ic { width: 16px; height: 16px; }
+
+/* 記録カード */
+.sh-card-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-lite); }
+.rc-box { max-width: 460px; }
+.rc-img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border-lite); margin: 6px 0 8px; }

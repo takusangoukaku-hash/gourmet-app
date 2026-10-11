@@ -150,6 +150,22 @@ const Views = (() => {
     if (s < 86400 * 365) return `${Math.floor(s / 86400 / 30)}ヶ月前`;
     return `${Math.floor(s / 86400 / 365)}年前`;
   };
+  // 点の集まりの凸包（地図のまとまりに乗せたときの範囲表示用）。[lon,lat] の配列 → GeoJSON
+  function hullGeo(pts) {
+    const uniq = [...new Map(pts.filter(p => p && isFinite(p[0]) && isFinite(p[1])).map(p => [p[0] + ',' + p[1], p])).values()]
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const empty = { type: 'FeatureCollection', features: [] };
+    if (uniq.length < 2) return empty;
+    if (uniq.length === 2) return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: uniq } }] };
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lower = [], upper = [];
+    for (const p of uniq) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
+    for (let i = uniq.length - 1; i >= 0; i--) { const p = uniq[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
+    const ring = lower.slice(0, -1).concat(upper.slice(0, -1));
+    if (ring.length < 3) return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ring } }] };
+    ring.push(ring[0]);
+    return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } }] };
+  }
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
     const d = new Date(iso);
@@ -678,27 +694,35 @@ const Views = (() => {
       });
       map.addImage('drop-wish', makeDrop(WISH_COLOR, false), { pixelRatio: 2 });
 
-      // 店舗ピン（クラスター付き）。近い店の点は1つにまとめる。ただしクラスタも
-      // 件数で大きくせず、個別ピンと同じ固定サイズで表示する（今の大きさを維持）
+      // 店舗ピン（クラスター付き）。近い店の点は1つにまとめ、件数を丸の中に出す
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
         cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
-        clusterProperties: { maxR: ['max', ['get', 'r']] }, // クラスタの色は中で一番評価の高い店の色
       });
-      // クラスターは中に件数の数字を出すため、個別ピンより一回り大きい丸にする
-      const CLUSTER_RADIUS = ['interpolate', ['linear'], ['zoom'],
-        0, 10, 5, 9.5, 7, 8.5, 10, 8.5, 12, 9.5];
+      // まとまり（クラスター）の見た目: 件数で色分けした半透明の丸＋外側の淡い輪（v303〜）
+      //   〜9件 緑 / 10〜99件 黄 / 100件〜 橙。中に件数を黒文字で出す
+      const byCount = (small, mid, large) => ['step', ['get', 'point_count'], small, 10, mid, 100, large];
+      // マウスを乗せたとき、そのまとまりに含まれる店の範囲（凸包）を青い線で囲む
+      map.addSource('cluster-hull', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'cluster-hull-fill', type: 'fill', source: 'cluster-hull',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': '#3388ff', 'fill-opacity': 0.2 } });
+      map.addLayer({ id: 'cluster-hull-line', type: 'line', source: 'cluster-hull',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#3388ff', 'line-width': 3, 'line-opacity': 0.9 } });
+      map.addLayer({ id: 'cluster-halo', type: 'circle', source: 'shops',
+        filter: ['has', 'point_count'],
+        paint: { 'circle-radius': 20,
+          'circle-color': byCount('rgba(181,226,140,0.6)', 'rgba(241,211,87,0.6)', 'rgba(253,156,115,0.6)') } });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-color': colorByR('maxR'), 'circle-radius': CLUSTER_RADIUS,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': PIN_STROKE } });
-      // 重なっている件数をピンの中に白文字で表示
+        paint: { 'circle-radius': 15,
+          'circle-color': byCount('rgba(110,204,57,0.6)', 'rgba(240,194,12,0.6)', 'rgba(241,128,23,0.6)') } });
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
-          'text-size': 10.5, 'text-allow-overlap': true },
-        paint: { 'text-color': '#ffffff' } });
+          'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true },
+        paint: { 'text-color': '#222222' } });
       // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
       // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
       // ピンが重なったとき、評価（平均）の高い店が上に来るよう ravg を指定する。
@@ -773,12 +797,44 @@ const Views = (() => {
       map.on('click', 'pin-drops', (e) => openPinPopup(e.features[0]));
       map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
       map.on('click', 'wish-drops', (e) => openWishPopup(e.features[0]));
-      map.on('click', 'clusters', (e) => {
+      const zoomCluster = (e) => {
         const f = e.features[0];
         map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
           .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
+      };
+      map.on('click', 'clusters', zoomCluster);
+      map.on('click', 'cluster-halo', (e) => {
+        // 内側の丸と同時に反応したときは二重に動かさない
+        if (map.queryRenderedFeatures(e.point, { layers: ['clusters'] }).length) return;
+        zoomCluster(e);
       });
-      ['pins', 'pin-drops', 'clusters', 'wish-pins', 'wish-drops'].forEach(id => {
+      // マウスのある端末だけ: まとまりに乗せると含まれる店の範囲を囲む（タップ端末はそのまま拡大）
+      if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+        let hoverId = null, hullSeq = 0;
+        const clearHull = () => {
+          hoverId = null; hullSeq++;
+          const src = map.getSource('cluster-hull');
+          if (src) src.setData({ type: 'FeatureCollection', features: [] });
+        };
+        const showHull = (e) => {
+          const f = e.features && e.features[0];
+          if (!f) return;
+          const id = f.properties.cluster_id;
+          if (id === hoverId) return;
+          hoverId = id;
+          const seq = ++hullSeq;
+          map.getSource('shops').getClusterLeaves(id, 5000, 0).then(leaves => {
+            if (seq !== hullSeq) return;
+            map.getSource('cluster-hull').setData(hullGeo((leaves || []).map(l => l.geometry.coordinates)));
+          }).catch(() => {});
+        };
+        ['clusters', 'cluster-halo'].forEach(id => {
+          map.on('mousemove', id, showHull);
+          map.on('mouseleave', id, clearHull);
+        });
+        map.on('movestart', clearHull);
+      }
+      ['pins', 'pin-drops', 'clusters', 'cluster-halo', 'wish-pins', 'wish-drops'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       });
@@ -1306,6 +1362,7 @@ const Views = (() => {
               <button type="button" class="btn msh-mapbtn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
               ${hasPos ? `<button type="button" class="btn primary msh-navbtn">${IC_NAV} ここへ行く</button>` : ''}
             </div>
+            <button type="button" class="btn msh-revisit">＋ また来た<small>（写真なしで今日の来店を記録）</small></button>
           </div>
         </div>
         <div class="msh-sec msh-mine ${photos.length ? '' : 'hidden'}">
@@ -1338,6 +1395,7 @@ const Views = (() => {
     ov.querySelector('.msh-mapbtn').addEventListener('click', close); // 地図はこの画面の後ろに出ている
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+    ov.querySelector('.msh-revisit').addEventListener('click', () => quickRevisit(shopId, () => { close(); showMapShopSheet(shopId); }));
 
     // あなたの写真: 横スワイプのカード。★はその訪問の評価、左下に日付
     const myrow = ov.querySelector('.msh-myrow');
@@ -1804,7 +1862,7 @@ const Views = (() => {
       paint: {
         'heatmap-radius': 32, 'heatmap-opacity': 0.6,
         'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 15, 2],
-      } }, 'clusters'); // ピンの下に描画
+      } }, 'cluster-hull-fill'); // ピンとまとまりの下に描画
   }
 
   // ========== 一覧 ==========
@@ -1877,11 +1935,15 @@ const Views = (() => {
     }, true);
   }
 
-  // 行きたい店の一覧（保存した順に新しい方から）
+  // 行きたい店の一覧（保存した順に新しい方から）。上に達成度、下に「行けた店」
   function openWishlist() {
-    const wishes = Store.wishes().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const all = Store.allWishes();
+    const wishes = all.filter(w => !w.doneAt).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const done = all.filter(w => w.doneAt).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    const pg = Store.wishProgress();
     const body = $('#modal-body');
     body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>`
+      + (pg.total ? `<div class="wish-pg"><div class="wish-pg-l">達成度</div>${wishProgressHtml(pg)}</div>` : '')
       + (wishes.length ? wishes.map(w => `
         <div class="wish-row">
           <div class="wish-main">
@@ -1891,7 +1953,16 @@ const Views = (() => {
           ${w.lat != null ? `<button class="btn small wish-map" data-id="${esc(w.id)}">地図</button>` : ''}
           <button class="btn small wish-del" data-id="${esc(w.id)}">外す</button>
         </div>`).join('')
-      : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。'));
+      : (done.length ? '<p class="hint">まだ行っていない店はありません。</p>' : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。')))
+      + (done.length ? `<h3 class="wish-h3">行けた店（${done.length}）</h3>` + done.map(w => `
+        <div class="wish-row wish-done">
+          <div class="wish-main">
+            <div class="wish-name">✓ ${esc(w.name || '')}</div>
+            <div class="wish-sub">${esc(fmtDate(new Date(w.doneAt).toISOString()))} に達成${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
+          </div>
+          ${w.doneShopId && Store.getShop(w.doneShopId) ? `<button class="btn small wish-shop" data-id="${esc(w.doneShopId)}">記録</button>` : ''}
+          <button class="btn small wish-del" data-id="${esc(w.id)}" title="達成の記録から外す">外す</button>
+        </div>`).join('') : '');
     $('#modal').classList.remove('modal-full'); // 行きたいリストはカード表示に戻す
     $('#modal').classList.remove('hidden');
     body.querySelectorAll('.wish-del').forEach(b => b.addEventListener('click', () => {
@@ -1899,6 +1970,7 @@ const Views = (() => {
       refreshWishData();
       openWishlist(); // 一覧を描き直す
     }));
+    body.querySelectorAll('.wish-shop').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
     body.querySelectorAll('.wish-map').forEach(b => b.addEventListener('click', () => {
       const w = Store.wishes().find(x => x.id === b.dataset.id);
       if (!w) return;
@@ -2686,6 +2758,8 @@ const Views = (() => {
     }
 
     $('#pf-share').addEventListener('click', () => openShareProfile());
+    const cardBtn = $('#stat-share-card');
+    if (cardBtn) cardBtn.addEventListener('click', () => shareRecordCard());
     // 設定内の行: プロフィール行→マイページへ、共有→共有シート
     const hideSettings = () => { const m = $('#settings-modal'); if (m) m.classList.add('hidden'); };
     const setProf = $('#set-profile');
@@ -3169,6 +3243,7 @@ const Views = (() => {
   }
 
   async function renderStats() {
+    renderRecordCards(); // よく行く店・制覇マップ・行きたい達成度（グラフ部品を待たずに出す）
     if (typeof Chart === 'undefined') {
       try { await App.loadLib('chart'); } catch (e) { App.toast('⚠️ グラフの読み込みに失敗しました'); return; }
     }
@@ -3183,8 +3258,10 @@ const Views = (() => {
       const d = new Date(v.datetime);
       return d.getFullYear() === year && d.getMonth() === now0.getMonth();
     }).length;
-    const prefCount = new Set(shops.map(s => s.pref).filter(Boolean)).size;
-    const allAvg = visits.length ? Math.round(visits.reduce((s, v) => s + v.rating, 0) / visits.length * 10) / 10 : 0;
+    // 訪れた都道府県（制覇マップと同じ判定: 表記ゆれをまとめ、位置だけの店も県を割り出す）
+    const prefCount = new Set(shops.filter(s => Store.visitCount(s.id)).map(s => shopPref(prefGeoCache, s)).filter(Boolean)).size;
+    const rated = visits.filter(v => (v.rating || 0) > 0); // 星0＝評価なし（「また来た」の記録）は平均に入れない
+    const allAvg = rated.length ? Math.round(rated.reduce((s, v) => s + v.rating, 0) / rated.length * 10) / 10 : 0;
 
     // 「1年前の今日ごろ」の振り返り（同じ月日±3日の過去の訪問）
     const memBox = $('#stat-memory');
@@ -3212,8 +3289,8 @@ const Views = (() => {
       [yearVisits, `${year}年の訪問`],
       [monthVisits, '今月の訪問'],
       [shops.filter(s => s.favorite).length, 'お気に入り'],
-      [Store.wishes().length, '行きたい店'],
-      [prefCount, '訪れた都道府県'],
+      [(() => { const pg = Store.wishProgress(); return pg.total ? `${pg.done}/${pg.total}` : '－'; })(), '行きたい店の達成'],
+      [`<span id="stat-pref-n">${prefCount}</span><small>/47</small>`, '訪れた都道府県'],
     ].map(([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
 
     // 月別訪問。最初の記録の月から今月までを全部並べ、横スクロールで見られるようにする
@@ -3338,9 +3415,6 @@ const Views = (() => {
     rank('#rank-rating',
       shops.filter(s => Store.avgRating(s.id) > 0).sort((a, b) => Store.avgRating(b.id) - Store.avgRating(a.id)),
       s => `${esc(s.name)} <span class="rv">★${fmtR(Store.avgRating(s.id))}</span>`);
-    rank('#rank-visits',
-      shops.slice().sort((a, b) => Store.visitCount(b.id) - Store.visitCount(a.id)),
-      s => `${esc(s.name)} <span class="rv">${Store.visitCount(s.id)}回</span>`);
     const visitTallyByShopField = (field) => {
       const m = new Map();
       visits.forEach(v => {
@@ -3353,6 +3427,358 @@ const Views = (() => {
     rank('#rank-station', visitTallyByShopField('station'), e => `${esc(e[0])} <span class="rv">${e[1]}回</span>`);
     rank('#rank-city', visitTallyByShopField('city'), e => `${esc(e[0])} <span class="rv">${e[1]}回</span>`);
     rank('#rank-dish', tally(visits.flatMap(v => v.dishGenres || [])), e => `${esc(e[0])} <span class="rv">${e[1]}回</span>`);
+  }
+
+  // ========== 記録を楽しむ機能（v303）: また来た・よく行く店・制覇マップ・行きたい達成度・記録カード ==========
+
+  // ---- 写真なしの「また来た」: 登録済みの店に、今日の来店をワンタップで足す ----
+  // 評価は付けない（星0＝評価なし。平均には入らない）。あとから訪問の編集で星や料理を足せる
+  function quickRevisit(shopId, after) {
+    const s = Store.getShop(shopId);
+    if (!s) return null;
+    const last = Store.visitsOf(shopId)[0];
+    const today = new Date();
+    if (last && new Date(last.datetime).toDateString() === today.toDateString()
+      && !confirm(`「${s.name}」は今日すでに記録があります。もう1回記録しますか？`)) return null;
+    let v;
+    try { v = Store.addVisit({ shopId, datetime: today.toISOString(), rating: 0, dishGenres: [], comment: '', quick: true }); }
+    catch { return null; } // 保存できないときは Store 側で案内済み
+    const n = Store.visitCount(shopId);
+    App.toast(`✅ 「${s.name}」${n}回目の来店を記録しました`);
+    if (after) { try { after(v); } catch { /* noop */ } }
+    // 後ろの画面も新しい回数に。プロフィールは描き直すと「写真」に戻ってしまうので、統計の部分だけ描き直す
+    try {
+      if (App.currentTab && App.currentTab() === 'profile') { if (!$('#ptab-stats').classList.contains('hidden')) renderRecordCards(); }
+      else App.refreshCurrent();
+    } catch { /* noop */ }
+    return v;
+  }
+
+  // ---- 都道府県 ----
+  const PREFS47 = ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県',
+    '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県',
+    '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県',
+    '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県',
+    '大分県', '宮崎県', '鹿児島県', '沖縄県'];
+  // 「東京」「東京都渋谷区…」などの表記ゆれ → 正式名（該当なしは ''）
+  function normPref(p) {
+    const t = String(p || '').replace(/^日本[、,]?\s*/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '').trim();
+    if (!t) return '';
+    if (PREFS47.includes(t)) return t;
+    return PREFS47.find(n => t.startsWith(n) || n.replace(/[都府県]$/, '') === t) || '';
+  }
+  // 都道府県の形（data/japan-prefs.json。国土数値情報を加工）。必要になったときに1回だけ読む
+  let prefGeoPromise = null, prefGeoCache = null;
+  function loadPrefGeo() {
+    if (!prefGeoPromise) {
+      prefGeoPromise = fetch('data/japan-prefs.json?v=' + String(Api.FILE_VERSION || '').replace(/^v/, ''))
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(g => {
+          if (!g || !Array.isArray(g.prefs)) throw new Error('形式が違います');
+          // 位置から県を判定するための Path2D（描画はしない）
+          if (typeof Path2D !== 'undefined') g.prefs.forEach(p => { try { p.path = new Path2D(p.d); } catch { p.path = null; } });
+          prefGeoCache = g;
+          return g;
+        });
+      prefGeoPromise.catch(() => { prefGeoPromise = null; });
+    }
+    return prefGeoPromise;
+  }
+  let hitCtx = null;
+  // 緯度経度 → 都道府県名（輪郭の中→だめなら一番近い県の代表点。日本の外は ''）
+  function prefAt(geo, lat, lon) {
+    if (!geo || !geo.proj || lat == null || lon == null || !isFinite(lat) || !isFinite(lon)) return '';
+    if (lat < 20 || lat > 46.5 || lon < 122 || lon > 154) return '';
+    const P = geo.proj;
+    let la = lat, lo = lon;
+    if (la < 28 && lo < 131) { lo += P.okinawa[0]; la += P.okinawa[1]; }
+    const x = (lo - P.lon0) * P.k * P.s + P.dx, y = (P.lat1 - la) * P.s + P.dy;
+    if (!hitCtx) { try { hitCtx = document.createElement('canvas').getContext('2d'); } catch { hitCtx = null; } }
+    if (hitCtx) for (const p of geo.prefs) { if (p.path && hitCtx.isPointInPath(p.path, x, y)) return p.name; }
+    let best = '', bd = Infinity;
+    for (const p of geo.prefs) {
+      const d = (p.c[0] - x) ** 2 + (p.c[1] - y) ** 2;
+      if (d < bd) { bd = d; best = p.name; }
+    }
+    return bd < 60 * 60 ? best : ''; // 代表点から遠すぎる（海外など）は不明
+  }
+  const shopPref = (geo, s) => (s.country && s.country !== '日本') ? '' : (normPref(s.pref) || normPref(s.address) || prefAt(geo, s.lat, s.lon));
+
+  // 県ごとの集計: Map(県名 → { shops, visits, wishTotal, wishDone })
+  function conquestData(geo) {
+    const m = new Map(PREFS47.map(n => [n, { shops: 0, visits: 0, wishTotal: 0, wishDone: 0 }]));
+    for (const s of Store.shops()) {
+      const p = shopPref(geo, s);
+      if (!p || !m.has(p)) continue;
+      const vc = Store.visitCount(s.id);
+      if (!vc) continue;
+      const e = m.get(p); e.shops++; e.visits += vc;
+    }
+    for (const w of Store.allWishes()) {
+      const ds = w.doneShopId ? Store.getShop(w.doneShopId) : null;
+      const p = (ds && shopPref(geo, ds)) || prefAt(geo, w.lat, w.lon);
+      if (!p || !m.has(p)) continue;
+      const e = m.get(p); e.wishTotal++; if (w.doneAt) e.wishDone++;
+    }
+    return m;
+  }
+  // 色の段階（行った店の数）: 0 / 1〜2 / 3〜9 / 10〜29 / 30〜
+  const CQ_STEPS = [[0, '未訪問'], [1, '1〜2店'], [3, '3〜9店'], [10, '10〜29店'], [30, '30店〜']];
+  const cqLevel = (n) => (n >= 30 ? 4 : n >= 10 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0);
+
+  // ---- よく行く店（来店回数の多い順。メダルは上位3店） ----
+  const MEDAL = (rank) => `<span class="rg-medal rg-m${rank}" aria-label="${rank}位">${rank}</span>`;
+  function renderRegulars() {
+    const box = $('#stat-regulars');
+    if (!box) return;
+    const rows = Store.shops().map(s => ({ s, n: Store.visitCount(s.id), last: Store.lastVisitDate(s.id) }))
+      .filter(x => x.n > 0)
+      .sort((a, b) => b.n - a.n || new Date(b.last || 0) - new Date(a.last || 0))
+      .slice(0, 10);
+    box.innerHTML = `<h2>よく行く店</h2>`
+      + (rows.length ? `<ol class="rg-list">${rows.map((x, i) => `
+          <li class="rg-row" data-id="${esc(x.s.id)}">
+            ${i < 3 ? MEDAL(i + 1) : `<span class="rg-rank">${i + 1}</span>`}
+            <button type="button" class="rg-main">
+              <span class="rg-name">${esc(x.s.name)}</span>
+              <span class="rg-sub">${esc([normPref(x.s.pref) || x.s.pref, x.s.city].filter(Boolean).join(' '))}${x.last ? `${x.s.pref || x.s.city ? '・' : ''}前回 ${esc(relTime(x.last))}` : ''}</span>
+            </button>
+            <span class="rg-side">
+              <span class="rg-count"><b>${x.n}</b>回</span>
+              <button type="button" class="btn small rg-again" aria-label="${esc(x.s.name)}にまた来た">＋また来た</button>
+            </span>
+          </li>`).join('')}</ol>`
+        : '<p class="hint">記録した店が、来店回数の多い順にここに並びます。</p>');
+    box.querySelectorAll('.rg-row').forEach(li => {
+      const id = li.dataset.id;
+      li.querySelector('.rg-main').addEventListener('click', () => showShop(id));
+      li.querySelector('.rg-again').addEventListener('click', () => quickRevisit(id));
+    });
+  }
+
+  // ---- 行きたい店の達成度 ----
+  function wishProgressHtml(pg) {
+    return `<div class="wp-box">
+        <div class="wp-num"><b>${pg.done}</b><span> / ${pg.total} 店</span></div>
+        <div class="wp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pg.rate}"><span style="width:${pg.rate}%"></span></div>
+        <div class="wp-rate">${pg.rate}%</div>
+      </div>`;
+  }
+  function renderWishCard() {
+    const box = $('#stat-wish');
+    if (!box) return;
+    const pg = Store.wishProgress();
+    const recent = Store.doneWishes().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 3);
+    box.innerHTML = `<h2>${IC_BOOKMARK} 行きたい店の達成度</h2>`
+      + (pg.total ? wishProgressHtml(pg)
+        + (recent.length ? `<div class="wp-recent">${recent.map(w => `<div class="wp-ritem">✓ ${esc(w.name || '')}<span>${esc(fmtDate(new Date(w.doneAt).toISOString()))}</span></div>`).join('')}</div>` : '')
+        + `<button type="button" class="btn small wp-open">行きたい店の一覧</button>`
+        : '<p class="hint">ホームの投稿のしおりマークで「行きたい店」に保存すると、行けた割合がここに出ます。</p>');
+    const b = box.querySelector('.wp-open');
+    if (b) b.addEventListener('click', openWishlist);
+  }
+
+  // ---- 制覇マップ（都道府県の塗り分け） ----
+  async function renderConquest() {
+    const box = $('#stat-conquest');
+    if (!box) return;
+    let geo = null;
+    try { geo = await loadPrefGeo(); } catch { geo = null; }
+    const data = conquestData(geo);
+    const visited = [...data.values()].filter(e => e.shops > 0).length;
+    const pn = $('#stat-pref-n'); if (pn) pn.textContent = visited; // 上の数字カードと揃える
+    const pg = Store.wishProgress();
+    const svg = geo ? `<svg class="cq-svg" viewBox="${geo.viewBox.join(' ')}" role="img" aria-label="都道府県の制覇マップ（${visited}/47）">
+        ${geo.prefs.map(p => { const e = data.get(p.name) || { shops: 0 }; return `<path class="cq-l${cqLevel(e.shops)}" data-pref="${esc(p.name)}" d="${p.d}"><title>${esc(p.name)} ${e.shops}店</title></path>`; }).join('')}
+        <rect class="cq-okibox" x="${geo.okinawaBox[0]}" y="${geo.okinawaBox[1]}" width="${geo.okinawaBox[2]}" height="${geo.okinawaBox[3]}" rx="6"/>
+      </svg>` : '<p class="hint">地図を読み込めませんでした。通信できる場所で開き直してください。</p>';
+    const rows = [...data.entries()].filter(([, e]) => e.shops || e.wishTotal)
+      .sort((a, b) => b[1].shops - a[1].shops || b[1].visits - a[1].visits || PREFS47.indexOf(a[0]) - PREFS47.indexOf(b[0]));
+    box.innerHTML = `<h2>制覇マップ</h2>
+      <div class="cq-head">
+        <div class="cq-big"><b>${visited}</b><span>/47 都道府県</span></div>
+        ${pg.total ? `<div class="cq-wish">行きたい店 <b>${pg.done}/${pg.total}</b> 達成</div>` : ''}
+      </div>
+      <div class="cq-map">${svg}</div>
+      <div class="cq-legend">${CQ_STEPS.map(([, l], i) => `<span><i class="cq-sw cq-l${i}"></i>${l}</span>`).join('')}</div>
+      ${rows.length ? `<div class="cq-list">${rows.map(([name, e]) => `
+        <button type="button" class="cq-row" data-pref="${esc(name)}">
+          <i class="cq-sw cq-l${cqLevel(e.shops)}"></i>
+          <span class="cq-name">${esc(name)}</span>
+          <span class="cq-n">${e.shops}店<small>・${e.visits}回</small></span>
+          <span class="cq-w">${e.wishTotal ? `行きたい ${e.wishDone}/${e.wishTotal}` : ''}</span>
+        </button>`).join('')}</div>` : '<p class="hint">店を記録すると、行った都道府県が塗られていきます。</p>'}
+      ${geo ? `<p class="cq-src">地図: <a href="${esc(geo.attributionUrl)}" target="_blank" rel="noopener">国土数値情報（行政区域データ）</a>を加工して作成（CC BY 4.0）</p>` : ''}`;
+    const open = (name) => openPrefShops(name, geo);
+    box.querySelectorAll('.cq-row').forEach(b => b.addEventListener('click', () => open(b.dataset.pref)));
+    box.querySelectorAll('.cq-svg path').forEach(p => p.addEventListener('click', () => {
+      const e = data.get(p.dataset.pref);
+      if (e && (e.shops || e.wishTotal)) open(p.dataset.pref);
+      else App.toast(`${p.dataset.pref}はまだ記録がありません`);
+    }));
+  }
+  // ある県で行った店と行きたい店の一覧
+  function openPrefShops(pref, geo) {
+    const shops = Store.shops().filter(s => Store.visitCount(s.id) && shopPref(geo, s) === pref)
+      .sort((a, b) => Store.visitCount(b.id) - Store.visitCount(a.id));
+    const wishes = Store.allWishes().filter(w => {
+      const ds = w.doneShopId ? Store.getShop(w.doneShopId) : null;
+      return ((ds && shopPref(geo, ds)) || prefAt(geo, w.lat, w.lon)) === pref;
+    });
+    const wd = wishes.filter(w => w.doneAt).length;
+    const body = $('#modal-body');
+    body.innerHTML = `<h2>${esc(pref)}</h2>
+      <div class="cq-mhead">${shops.length}店に行きました${wishes.length ? `・行きたい店 ${wd}/${wishes.length} 達成` : ''}</div>
+      ${shops.map(s => `<button type="button" class="cq-mrow" data-id="${esc(s.id)}">
+          <span class="cq-mname">${esc(s.name)}</span>
+          <span class="cq-msub">${esc(s.city || '')}${Store.lastVisitDate(s.id) ? '・前回 ' + esc(relTime(Store.lastVisitDate(s.id))) : ''}</span>
+          <span class="cq-mn">${Store.visitCount(s.id)}回</span></button>`).join('')}
+      ${wishes.length ? `<h3 class="cq-mh3">${IC_BOOKMARK} 行きたい店</h3>${wishes.map(w => `<div class="cq-mrow cq-mwish${w.doneAt ? ' done' : ''}">
+          <span class="cq-mname">${w.doneAt ? '✓ ' : ''}${esc(w.name || '')}</span>
+          <span class="cq-msub">${w.doneAt ? esc(fmtDate(new Date(w.doneAt).toISOString())) + ' に達成' : 'まだ'}</span></div>`).join('')}` : ''}`;
+    body.querySelectorAll('button.cq-mrow').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
+    $('#modal').classList.remove('modal-full');
+    $('#modal').classList.remove('hidden');
+  }
+
+  // ---- 記録カード（会員証）を画像にして共有 ----
+  // canvas で 1080×1350 の画像を作り、端末の共有シート（X・LINE・写真に保存など）へ渡す
+  const CARD_FONT = '-apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "Noto Sans CJK JP", sans-serif';
+  async function buildRecordCard() {
+    let geo = null;
+    try { geo = await loadPrefGeo(); } catch { geo = null; }
+    const p = Store.getProfile();
+    const shops = Store.shops();
+    const visits = Store.visits();
+    const data = conquestData(geo);
+    const visited = [...data.values()].filter(e => e.shops > 0).length;
+    const pg = Store.wishProgress();
+    const top = shops.map(s => ({ s, n: Store.visitCount(s.id) })).filter(x => x.n > 0)
+      .sort((a, b) => b.n - a.n).slice(0, 3);
+    const first = visits.map(v => new Date(v.datetime).getTime()).filter(t => t && !isNaN(t)).sort((a, b) => a - b)[0];
+
+    const W = 1080, H = 1350;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
+    const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
+    const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
+    // 地: 生成りの紙＋上部にテラコッタの帯
+    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
+    const grad = g.createLinearGradient(0, 0, W, 300);
+    grad.addColorStop(0, '#D97757'); grad.addColorStop(1, '#B4552F');
+    g.fillStyle = grad; g.fillRect(0, 0, W, 300);
+    g.fillStyle = '#FFFFFF';
+    g.font = F(800, 64); g.textBaseline = 'alphabetic'; g.fillText('BITEMAP', 72, 128);
+    g.font = F(600, 30); g.globalAlpha = 0.85; g.fillText('グルメ記録 会員証', 72, 180); g.globalAlpha = 1;
+    // アバター
+    const ax = W - 72 - 150, ay = 70;
+    g.save(); g.beginPath(); g.arc(ax + 75, ay + 75, 75, 0, Math.PI * 2); g.closePath();
+    g.fillStyle = '#F6EAE4'; g.fill(); g.clip();
+    if (p.avatar && /^data:image\//.test(p.avatar)) {
+      try {
+        const im = new Image(); im.src = p.avatar; await im.decode();
+        const sz = Math.min(im.width, im.height);
+        g.drawImage(im, (im.width - sz) / 2, (im.height - sz) / 2, sz, sz, ax, ay, 150, 150);
+      } catch { /* 画像が読めなければ無地 */ }
+    } else { g.fillStyle = '#C6613F'; g.font = F(800, 70); g.textAlign = 'center'; g.fillText((p.name || 'B').slice(0, 1), ax + 75, ay + 100); g.textAlign = 'left'; }
+    g.restore();
+    g.lineWidth = 6; g.strokeStyle = '#FFFFFF'; g.beginPath(); g.arc(ax + 75, ay + 75, 75, 0, Math.PI * 2); g.stroke();
+    // 名前
+    g.fillStyle = '#1F1E1D';
+    g.font = F(800, 58); g.fillText(fit(p.name || 'BITEMAP', 900, 800, 58), 72, 390);
+    g.fillStyle = '#87867F'; g.font = F(500, 30);
+    g.fillText([p.username ? '@' + p.username : '', first ? new Date(first).getFullYear() + '年から記録' : ''].filter(Boolean).join('　'), 72, 440);
+    // 数字（4つ）
+    const stats = [[String(shops.length), '店'], [String(visits.length), '回 来店'], [visited + '/47', '都道府県'], [pg.total ? `${pg.done}/${pg.total}` : '－', '行きたい達成']];
+    const cw = (W - 144) / 4;
+    stats.forEach(([v, l], i) => {
+      const x = 72 + cw * i;
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 490, cw - 12, 170, 26); g.fill();
+      g.strokeStyle = '#EAE3D8'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#C6613F'; g.textAlign = 'center';
+      g.font = F(800, v.length > 5 ? 46 : 60); g.fillText(v, x + cw / 2, 590);
+      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 636);
+      g.textAlign = 'left';
+    });
+    // 制覇マップ（左下）
+    if (geo && typeof Path2D !== 'undefined') {
+      const [, , vw, vh] = geo.viewBox;
+      const box = { x: 40, y: 700, w: 560, h: 560 };
+      const sc = Math.min(box.w / vw, box.h / vh);
+      g.save();
+      g.translate(box.x + (box.w - vw * sc) / 2, box.y + (box.h - vh * sc) / 2);
+      g.scale(sc, sc);
+      const FILL = ['#ECE6DC', '#F3C9B0', '#E59A72', '#D06A43', '#9E4425'];
+      for (const pr of geo.prefs) {
+        const e = data.get(pr.name) || { shops: 0 };
+        const path = pr.path || new Path2D(pr.d);
+        g.fillStyle = FILL[cqLevel(e.shops)]; g.fill(path);
+        g.strokeStyle = '#FBF7F2'; g.lineWidth = 1.6 / sc; g.stroke(path);
+      }
+      const ob = geo.okinawaBox; g.strokeStyle = '#CFC6B8'; g.lineWidth = 2 / sc; g.strokeRect(ob[0], ob[1], ob[2], ob[3]);
+      g.restore();
+    }
+    // よく行く店（右下）
+    const rx = 630;
+    g.fillStyle = '#1F1E1D'; g.font = F(800, 34); g.fillText('よく行く店', rx, 760);
+    const MC = ['#E2B33C', '#B9BCC2', '#C98A55'];
+    if (!top.length) { g.fillStyle = '#87867F'; g.font = F(500, 26); g.fillText('まだ記録がありません', rx, 820); }
+    top.forEach((x, i) => {
+      const y = 830 + i * 120;
+      g.fillStyle = MC[i]; g.beginPath(); g.arc(rx + 26, y - 10, 26, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#FFFFFF'; g.font = F(800, 28); g.textAlign = 'center'; g.fillText(String(i + 1), rx + 26, y);
+      g.textAlign = 'left';
+      g.fillStyle = '#1F1E1D'; g.fillText(fit(x.s.name, 330, 700, 30), rx + 68, y - 6);
+      g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(`${x.n}回`, rx + 68, y + 30);
+    });
+    // フッター
+    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 40);
+    if (geo) { g.textAlign = 'right'; g.font = F(400, 18); g.fillText('地図: 国土数値情報を加工', W - 72, H - 40); g.textAlign = 'left'; }
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
+  }
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  async function shareRecordCard() {
+    App.toast('記録カードを作成中…', 1500);
+    let blob;
+    try { blob = await buildRecordCard(); } catch (e) { App.toast('⚠️ ' + (e && e.message || '画像を作れませんでした')); return; }
+    const file = new File([blob], 'bitemap-card.png', { type: 'image/png' });
+    const text = '私のグルメ記録 #BITEMAP';
+    // 端末の共有シート（X・LINE・写真へ保存）に画像ごと渡す。非対応なら画像を表示して保存してもらう
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text });
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; /* それ以外は下の表示へ */ }
+    const url = URL.createObjectURL(blob);
+    const ov = document.createElement('div');
+    ov.className = 'modal share-modal';
+    ov.innerHTML = `<div class="modal-box rc-box">
+        <button type="button" class="modal-close" aria-label="閉じる">✕</button>
+        <h2 class="sh-title">記録カード</h2>
+        <img class="rc-img" alt="記録カード" src="${url}">
+        <p class="sh-note">画像を長押し（パソコンは右クリック）で保存できます。</p>
+        <div class="sh-actions">
+          <a class="btn primary small" href="${url}" download="bitemap-card.png">画像を保存</a>
+          <a class="btn small" href="https://x.com/intent/post?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Xに投稿（画像は保存して添付）</a>
+        </div>
+      </div>`;
+    const close = () => { ov.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.modal-close').addEventListener('click', close);
+    document.body.appendChild(ov);
+  }
+
+  // 統計タブの上部（グラフの読み込みを待たずに出す）
+  function renderRecordCards() {
+    renderRegulars();
+    renderWishCard();
+    renderConquest().catch(() => {});
   }
 
   // ========== 店舗詳細モーダル ==========
@@ -3522,6 +3948,10 @@ const Views = (() => {
       ${actionsHtml}` : `
       ${navPrev ? `<div class="d-swipehint">︿ 下に引っ張って前の店舗: ${esc(navPrev)}</div>` : ''}
       ${headHtml}
+      <div class="d-revisit-row">
+        <button type="button" class="btn d-revisit" id="d-revisit">＋ また来た</button>
+        <span class="d-revisit-note">写真なしで今日の来店を記録（${vs.length + 1}回目）</span>
+      </div>
       ${axisHtml}
       <div class="d-visits-head">
         <h3>訪問記録</h3>
@@ -3565,6 +3995,7 @@ const Views = (() => {
       const mapBtn2 = $('#d-showmap');
       if (mapBtn2) mapBtn2.addEventListener('click', () => { closeModal(); focusMapAt(s.lat, s.lon); });
       $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
+      $('#d-revisit').addEventListener('click', () => quickRevisit(shopId, () => showShop(shopId, false, null, nav)));
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
         closeModal();
@@ -4032,8 +4463,15 @@ const Views = (() => {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.sh-close').addEventListener('click', close);
 
+    // 記録カード（画像）はログインなしでも作れる
+    const cardRow = document.createElement('div');
+    cardRow.className = 'sh-card-row';
+    cardRow.innerHTML = `<button type="button" class="btn primary small sh-card">記録カードを画像で共有</button>
+      <span class="sh-note">行った店の数・制覇マップ・よく行く店を1枚の画像にします</span>`;
+    cardRow.querySelector('.sh-card').addEventListener('click', () => { close(); shareRecordCard(); });
+    body.after(cardRow);
     if (!loggedIn) {
-      body.innerHTML = `<p class="sh-note">共有するにはGoogleログイン（同期）が必要です。<br>プロフィール画面の「ログイン」からサインインしてください。</p>`;
+      body.innerHTML = `<p class="sh-note">プロフィールのURLを共有するにはGoogleログイン（同期）が必要です。<br>プロフィール画面の「ログイン」からサインインしてください。</p>`;
       document.body.appendChild(ov);
       return;
     }

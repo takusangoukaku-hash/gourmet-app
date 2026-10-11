@@ -358,6 +358,8 @@ const Cloud = (() => {
           await photoDownloadUrl(`users/${user.uid}/photos/${p0.id}.jpg`).catch(() => '');
       }
     }
+    // 写真も評価もない記録（写真なしの「また来た」）はフィードに出さない（中身のない投稿で流れを埋めないため）
+    if (!photoUrl && !(Number(visit.rating) > 0)) return;
     const post = clean({
       id: visitId, uid: user.uid, username: prof.username,
       displayName: prof.name || 'BITEMAP',

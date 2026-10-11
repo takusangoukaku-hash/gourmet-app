@@ -70,6 +70,10 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   入力用ボタンは `starBtn()`。文字の「★」ベタ塗りは使わない。
 - 投稿詳細は `buildPostSection(p, close)`、ホーム一覧はカード型の `buildFeedCard(p, list, i)` で描画する（カードの写真タップで詳細が開く）。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
+- 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
+  達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
+- 星0の訪問は「評価なし」（写真なしの「また来た」）。平均や評価の集計では `rating > 0` だけを使う。
+- 制覇マップの境界データ `data/japan-prefs.json` は国土数値情報（CC BY 4.0）の加工。画面と記録カードの出典表示を消さない。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

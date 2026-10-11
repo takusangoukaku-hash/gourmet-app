@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v302'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v303'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -370,7 +370,7 @@ const App = (() => {
   async function buildBackup(withPhotos, onProgress) {
     const data = {
       app: 'BITEMAP', version: APP_VERSION, exportedAt: new Date().toISOString(),
-      shops: Store.shops(), visits: Store.visits(), wishes: Store.wishes(), profile: Store.getProfile(),
+      shops: Store.shops(), visits: Store.visits(), wishes: Store.allWishes(), profile: Store.getProfile(),
       hitLog: Store.hitLog(), // 検索でタップした候補の記録（どの機能・情報源で見つかったか）
     };
     if (!withPhotos) return data;
@@ -437,12 +437,17 @@ const App = (() => {
         shopId: r.shopId, datetime: dt.toISOString(),
         dishGenres: Array.isArray(r.dishGenres) ? r.dishGenres.filter(g => typeof g === 'string').map(g => g.slice(0, 50)).slice(0, 20) : [],
         rating: num(r.rating, 0, 5, 0), comment: str(r.comment, 2000), visitType: str(r.visitType, 30) || '店内飲食',
+        ...(r.quick === true ? { quick: true } : {}), // 写真なしの「また来た」記録
       });
     }
     if (kind === 'wish') {
       return Object.assign(base, {
         name: str(r.name, 200), lat: numOrNull(r.lat), lon: numOrNull(r.lon), genre: str(r.genre, 100),
         fromUsername: str(r.fromUsername, 30), postId: str(r.postId, 80),
+        // 達成（行けた）記録。v303〜
+        ...(num(r.doneAt, 1, 1e13, 0) ? { doneAt: r.doneAt,
+          doneShopId: (typeof r.doneShopId === 'string' && ID_RE.test(r.doneShopId)) ? r.doneShopId : '',
+          doneVisitId: (typeof r.doneVisitId === 'string' && ID_RE.test(r.doneVisitId)) ? r.doneVisitId : '' } : {}),
       });
     }
     return null;
@@ -582,5 +587,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup, loadLib };
+  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
 })();
