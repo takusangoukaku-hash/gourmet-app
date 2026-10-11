@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v305'; // 明るい表示の地図を OpenFreeMap の Liberty（OpenStreetMap 標準地図に近い見た目・日本語ラベル）に切り替え
+const VERSION = 'v306'; // 地図を iPhone のマップ風の自前スタイルに戻して配色を寄せる（Liberty は廃止）・ピンを平らな一色の白丸あり/なしの2種類に
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる

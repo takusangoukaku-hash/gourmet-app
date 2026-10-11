@@ -422,7 +422,7 @@ const Views = (() => {
       + (axes.length ? `<div class="p-sub">${axes.join('　')}</div>` : '');
   }
 
-  // ベクトル地図（MapLibre GL）の自前スタイル（v305〜は暗い表示のときだけ使う。明るい表示は Liberty）
+  // ベクトル地図（MapLibre GL）: iPhone の「マップ」（Apple Maps）を手本にした自前スタイル
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
   //  - 道路名・番地・細かな地名は非表示ですっきりさせる
   //  - ベクトル描画なのでズーム中のちらつき（白黒タイル）も起きない
@@ -438,11 +438,13 @@ const Views = (() => {
       boundary: '#4a4658', text: '#c9c7c2', halo: '#1a1b1f',
       station: '#8fb0e8', poi: '#98938a',
     } : {
-      bg: '#f5f4ef', water: '#a9d1e6', park: '#c8e2ae', wood: '#b9d8a0',
-      building: '#e8e4db', roadMinor: '#ffffff', roadMain: '#ffffff',
-      roadCasing: '#e2ddd2', highway: '#f9d975', rail: '#cfc9bf',
-      boundary: '#bcb2cb', text: '#55524c', halo: '#ffffff',
-      station: '#3a6db4', poi: '#85806f',
+      // iPhone のマップ（標準）の配色: 明るい生成りの陸・澄んだ水色の海・やわらかい緑の公園・
+      // 白い道路に淡い縁・黄色い高速道路・薄いグレーの建物
+      bg: '#f6f4ef', water: '#9fd2f3', park: '#c4e6af', wood: '#b7dea0',
+      building: '#e6e3dd', roadMinor: '#ffffff', roadMain: '#ffffff',
+      roadCasing: '#dcd7cd', highway: '#fdd56a', rail: '#c9c5bd',
+      boundary: '#b7aec9', text: '#4a4844', halo: '#ffffff',
+      station: '#2f6bd1', poi: '#7d796f',
     };
     const label = (id, layer, filter, minzoom, size, color, haloW) => ({
       id, type: 'symbol', source: 'omt', 'source-layer': layer, minzoom,
@@ -632,9 +634,7 @@ const Views = (() => {
     // MapLibre GLネイティブ: 2本指ドラッグ（スマホ）/右ドラッグ（PC）で回転できる
     map = new maplibregl.Map({
       container: 'map-canvas',
-      // 明るい表示: OpenFreeMap の Liberty（OpenStreetMap 標準地図に近い見た目。v305〜）を日本語向けに
-      // 変換した data/map-liberty.json（tools/geo/build_liberty.py）。暗い表示は従来の自前スタイル
-      style: dark ? baseMapStyle(true) : 'data/map-liberty.json?v=' + String(Api.FILE_VERSION || '').replace(/^v/, ''),
+      style: baseMapStyle(dark),
       // minZoom 0: Googleマップのように世界全体まで引いて見られるようにする
       center: [139.7671, 35.6812], zoom: 11, minZoom: 0, maxZoom: 20,
       attributionControl: { compact: true },
@@ -663,45 +663,34 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 店のピン: Leaflet 標準マーカー風の涙型（v304〜）。どの倍率でも同じ形で、
-      // 濃い縁取り・上が明るい立体感・頭に白い丸・右下に落ちる影。色は凡例（★1〜★5・行きたい紫）と同じ。
-      // 平均が .5 以上（あと一歩でワンランク上）の店は、白い丸の中心に色の点を打って区別する
+      // 店のピン: 涙型（v306〜）。グラデーションや縁取りを使わない平らな一色で、
+      //   白丸あり … 平均が .5 以上（あと一歩でワンランク上）の店
+      //   白丸なし … それ以外（一色だけのピン）。行きたい店（紫）も白丸なし
+      // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
-      const shade = (hex, amt) => {
-        const n = parseInt(hex.slice(1), 16);
-        const f = (c) => Math.max(0, Math.min(255, Math.round(amt < 0 ? c * (1 + amt) : c + (255 - c) * amt)));
-        return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map(x => x.toString(16).padStart(2, '0')).join('');
-      };
       const MK = 41; // 画像は 41×41（1倍）。ピン本体は左寄せの幅25・先端は (12.5, 40)、右側は影
-      const makeMarker = (color, hi) => {
+      const makeMarker = (color, withCircle) => {
         const PX = 2;
         const c = document.createElement('canvas');
         c.width = MK * PX; c.height = MK * PX;
         const g = c.getContext('2d');
         g.scale(PX, PX);
-        // 影（先端から右上へ斜めに伸びる、ぼかした楕円）
+        // 足元の影（先端から右上へ斜めに伸びる、ぼかした楕円）
         g.save();
-        g.translate(20.5, 35.5); g.rotate(-0.6); g.scale(1, 0.4);
-        const sg = g.createRadialGradient(0, 0, 0, 0, 0, 14);
-        sg.addColorStop(0, 'rgba(0,0,0,0.38)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 14, 0, Math.PI * 2); g.fill();
+        g.translate(19.5, 36.5); g.rotate(-0.6); g.scale(1, 0.38);
+        const sg = g.createRadialGradient(0, 0, 0, 0, 0, 12);
+        sg.addColorStop(0, 'rgba(0,0,0,0.30)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 12, 0, Math.PI * 2); g.fill();
         g.restore();
-        // 本体（涙型）
+        // 本体（涙型・一色）
         g.beginPath();
         g.moveTo(12.5, 40);
         g.bezierCurveTo(10.6, 33.5, 1.2, 22.5, 1.2, 12.5);
         g.arc(12.5, 12.5, 11.3, Math.PI, 0);
         g.bezierCurveTo(23.8, 22.5, 14.4, 33.5, 12.5, 40);
         g.closePath();
-        const grad = g.createLinearGradient(0, 1, 0, 40);
-        grad.addColorStop(0, shade(color, 0.38)); grad.addColorStop(0.55, color); grad.addColorStop(1, shade(color, -0.18));
-        g.fillStyle = grad; g.fill();
-        g.lineWidth = 1.3; g.strokeStyle = shade(color, -0.38); g.stroke();
-        // 頭の白い丸
-        g.beginPath(); g.arc(12.5, 12.5, 4.7, 0, Math.PI * 2);
-        g.fillStyle = '#ffffff'; g.fill();
-        g.lineWidth = 0.8; g.strokeStyle = shade(color, -0.3); g.stroke();
-        if (hi) { g.beginPath(); g.arc(12.5, 12.5, 2.1, 0, Math.PI * 2); g.fillStyle = shade(color, -0.25); g.fill(); }
+        g.fillStyle = color; g.fill();
+        if (withCircle) { g.beginPath(); g.arc(12.5, 12.5, 4.8, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
