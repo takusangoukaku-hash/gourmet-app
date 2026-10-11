@@ -663,13 +663,13 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸（v308〜）
-      //   黒丸（墨色）… 平均が .5 以上（あと一歩でワンランク上）の店
-      //   白丸 … それ以外の店と、行きたい店（紫）。凡例（index.html の map-legend-float）にも同じ説明
+      // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸
+      //   金丸 … 平均が .5 以上（あと一歩でワンランク上）の店（v309〜。v308 は墨色）
+      //   白丸 … それ以外の店と、行きたい店（紫）
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 28, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅15・高さ30、先端は (8, 30)、右側は影
-      const PIN_DOT_HI = '#2b2724'; // 平均 .5 以上の丸（どの評価色の上でも見える墨色）
+      const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金色。橙のピンの上でも分かるよう細い白の縁を付ける）
       const makeMarker = (color, dotColor) => {
         const PX = 2;
         const c = document.createElement('canvas');
@@ -692,11 +692,12 @@ const Views = (() => {
         g.closePath();
         g.fillStyle = color; g.fill();
         g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
+        if (dotColor !== '#ffffff') { g.lineWidth = 0.9; g.strokeStyle = '#ffffff'; g.stroke(); }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
         map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: 2 });     // 白丸
-        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: 2 }); // 平均 .5 以上は黒丸
+        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: 2 }); // 平均 .5 以上は金丸
       });
       map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: 2 });
       // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 8px だけ左へ・1px 下へ）
