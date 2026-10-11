@@ -663,13 +663,14 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、
-      //   白丸なし（一色だけ）… 平均が .5 以上（あと一歩でワンランク上）の店
-      //   白丸あり … それ以外の店と、行きたい店（紫）
+      // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸（v308〜）
+      //   黒丸（墨色）… 平均が .5 以上（あと一歩でワンランク上）の店
+      //   白丸 … それ以外の店と、行きたい店（紫）。凡例（index.html の map-legend-float）にも同じ説明
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 28, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅15・高さ30、先端は (8, 30)、右側は影
-      const makeMarker = (color, withCircle) => {
+      const PIN_DOT_HI = '#2b2724'; // 平均 .5 以上の丸（どの評価色の上でも見える墨色）
+      const makeMarker = (color, dotColor) => {
         const PX = 2;
         const c = document.createElement('canvas');
         c.width = MK_W * PX; c.height = MK_H * PX;
@@ -690,14 +691,14 @@ const Views = (() => {
         g.bezierCurveTo(15.4, 15.5, 9.1, 24.5, 8, 30);
         g.closePath();
         g.fillStyle = color; g.fill();
-        if (withCircle) { g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
+        g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
-        map.addImage('mk-' + i, makeMarker(col, true), { pixelRatio: 2 });        // 白丸あり
-        map.addImage('mk-' + i + '-hi', makeMarker(col, false), { pixelRatio: 2 }); // 平均 .5 以上は白丸なし
+        map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: 2 });     // 白丸
+        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: 2 }); // 平均 .5 以上は黒丸
       });
-      map.addImage('mk-wish', makeMarker(WISH_COLOR, true), { pixelRatio: 2 });
+      map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: 2 });
       // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 8px だけ左へ・1px 下へ）
       const MARKER_LAYOUT = {
         'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.85, 14, 1],

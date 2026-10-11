@@ -2098,3 +2098,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .sh-card-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-lite); }
 .rc-box { max-width: 460px; }
 .rc-img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border-lite); margin: 6px 0 8px; }
+
+/* 地図の凡例の2段目: ピンの頭の丸（白丸＝平均 ○.0〜○.4 / 黒丸＝○.5〜○.9）。v308〜 */
+.map-legend-float .lg-row { line-height: 1.6; }
+.map-legend-float .lg-pin { width: 9px; height: 16px; vertical-align: -3px; margin: 0 3px 0 4px; }
