@@ -75,7 +75,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 星0の訪問は「評価なし」（写真なしの「また来た」）。平均や評価の集計では `rating > 0` だけを使う。
 - 制覇マップの境界データ `data/japan-prefs.json` は国土数値情報（CC BY 4.0）の加工。画面と記録カードの出典表示を消さない。
 - 地図の見た目は `views.js` の `baseMapStyle(dark)`（iPhone のマップ風の自前スタイル）。v305 で試した OpenFreeMap Liberty は
-  「ごちゃつく」ため v306 で戻した。ピンは平らな一色の涙型で、白丸あり（平均 .5 以上）と白丸なしの2種類。
+  「ごちゃつく」ため v306 で戻した。ピンは平らな一色の細身の涙型で、白丸なし（平均 .5 以上）と白丸あり（それ以外・行きたい店）の2種類（v307〜）。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

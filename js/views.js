@@ -663,45 +663,45 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 店のピン: 涙型（v306〜）。グラデーションや縁取りを使わない平らな一色で、
-      //   白丸あり … 平均が .5 以上（あと一歩でワンランク上）の店
-      //   白丸なし … それ以外（一色だけのピン）。行きたい店（紫）も白丸なし
+      // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、
+      //   白丸なし（一色だけ）… 平均が .5 以上（あと一歩でワンランク上）の店
+      //   白丸あり … それ以外の店と、行きたい店（紫）
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
-      const MK = 41; // 画像は 41×41（1倍）。ピン本体は左寄せの幅25・先端は (12.5, 40)、右側は影
+      const MK_W = 28, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅15・高さ30、先端は (8, 30)、右側は影
       const makeMarker = (color, withCircle) => {
         const PX = 2;
         const c = document.createElement('canvas');
-        c.width = MK * PX; c.height = MK * PX;
+        c.width = MK_W * PX; c.height = MK_H * PX;
         const g = c.getContext('2d');
         g.scale(PX, PX);
         // 足元の影（先端から右上へ斜めに伸びる、ぼかした楕円）
         g.save();
-        g.translate(19.5, 36.5); g.rotate(-0.6); g.scale(1, 0.38);
-        const sg = g.createRadialGradient(0, 0, 0, 0, 0, 12);
-        sg.addColorStop(0, 'rgba(0,0,0,0.30)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 12, 0, Math.PI * 2); g.fill();
+        g.translate(12.5, 27.5); g.rotate(-0.6); g.scale(1, 0.38);
+        const sg = g.createRadialGradient(0, 0, 0, 0, 0, 8.5);
+        sg.addColorStop(0, 'rgba(0,0,0,0.28)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 8.5, 0, Math.PI * 2); g.fill();
         g.restore();
-        // 本体（涙型・一色）
+        // 本体（細身の涙型・一色）: 頭の丸は半径7.4、先端まで高さ30
         g.beginPath();
-        g.moveTo(12.5, 40);
-        g.bezierCurveTo(10.6, 33.5, 1.2, 22.5, 1.2, 12.5);
-        g.arc(12.5, 12.5, 11.3, Math.PI, 0);
-        g.bezierCurveTo(23.8, 22.5, 14.4, 33.5, 12.5, 40);
+        g.moveTo(8, 30);
+        g.bezierCurveTo(6.9, 24.5, 0.6, 15.5, 0.6, 8);
+        g.arc(8, 8, 7.4, Math.PI, 0);
+        g.bezierCurveTo(15.4, 15.5, 9.1, 24.5, 8, 30);
         g.closePath();
         g.fillStyle = color; g.fill();
-        if (withCircle) { g.beginPath(); g.arc(12.5, 12.5, 4.8, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
+        if (withCircle) { g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
-        map.addImage('mk-' + i, makeMarker(col, false), { pixelRatio: 2 });
-        map.addImage('mk-' + i + '-hi', makeMarker(col, true), { pixelRatio: 2 });
+        map.addImage('mk-' + i, makeMarker(col, true), { pixelRatio: 2 });        // 白丸あり
+        map.addImage('mk-' + i + '-hi', makeMarker(col, false), { pixelRatio: 2 }); // 平均 .5 以上は白丸なし
       });
-      map.addImage('mk-wish', makeMarker(WISH_COLOR, false), { pixelRatio: 2 });
-      // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 12.5px だけ左へ）
+      map.addImage('mk-wish', makeMarker(WISH_COLOR, true), { pixelRatio: 2 });
+      // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 8px だけ左へ・1px 下へ）
       const MARKER_LAYOUT = {
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.8, 11, 0.9, 14, 1],
-        'icon-anchor': 'bottom-left', 'icon-offset': [-12.5, 1],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.85, 14, 1],
+        'icon-anchor': 'bottom-left', 'icon-offset': [-8, 1],
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
       };
 
@@ -748,7 +748,7 @@ const Views = (() => {
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 10,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
-          'text-offset': [0.95, -2.75], 'text-allow-overlap': true, 'text-ignore-placement': true },
+          'text-offset': [0.65, -2.15], 'text-allow-overlap': true, 'text-ignore-placement': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
       // 店名＋ジャンルのラベル。拡大（z13〜）してからピンの上に表示する。
       // symbol-sort-key: 値が小さいほど優先。評価が高い店を優先表示したいので -ravg を使う
@@ -763,7 +763,7 @@ const Views = (() => {
         'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 };
       map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
-        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -4.1] }), paint: labelPaint });
+        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -3.2] }), paint: labelPaint });
 
       // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
       map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -771,7 +771,7 @@ const Views = (() => {
         layout: Object.assign({}, MARKER_LAYOUT, { 'icon-image': 'mk-wish' }) });
       map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
-          'text-anchor': 'bottom', 'text-offset': [0, -4.1], 'text-max-width': 12 },
+          'text-anchor': 'bottom', 'text-offset': [0, -3.2], 'text-max-width': 12 },
         paint: { 'text-color': WISH_COLOR,
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
@@ -1743,9 +1743,9 @@ const Views = (() => {
       App.toast('行きたい店から外しました');
     });
     if (mapPopup) mapPopup.remove();
-    // ピン（涙型・高さ約40px）の頭の上に出す
-    const PIN_POPUP_OFFSET = { 'bottom': [0, -38], 'bottom-left': [0, -38], 'bottom-right': [0, -38],
-      'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [12, -20], 'right': [-12, -20], 'center': [0, -20] };
+    // ピン（細身の涙型・高さ約30px）の頭の上に出す
+    const PIN_POPUP_OFFSET = { 'bottom': [0, -30], 'bottom-left': [0, -30], 'bottom-right': [0, -30],
+      'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [9, -15], 'right': [-9, -15], 'center': [0, -15] };
     mapPopup = new maplibregl.Popup({ offset: PIN_POPUP_OFFSET, maxWidth: '240px' })
       .setLngLat([w.lon, w.lat]).setDOMContent(node).addTo(map);
   }
