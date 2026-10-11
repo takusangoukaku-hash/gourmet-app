@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=309">
+<link rel="stylesheet" href="css/style.css?v=310">
 </head>
 <body>
 
@@ -203,6 +203,10 @@
         <span id="map-filter-count" class="filter-count"></span>
       </div>
     </div>
+  </div>
+  <!-- 星の色の説明（地図の上に常時表示）。ピンの丸（白/金）の説明は出さない（v310） -->
+  <div class="map-legend-float">
+    味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5 <i class="dot wish"></i>行きたい
   </div>
 </section>
 
@@ -603,11 +607,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=309"></script>
-<script src="js/api.js?v=309"></script>
-<script src="js/cloud.js?v=309"></script>
-<script src="js/register.js?v=309"></script>
-<script src="js/views.js?v=309"></script>
-<script src="js/app.js?v=309"></script>
+<script src="js/store.js?v=310"></script>
+<script src="js/api.js?v=310"></script>
+<script src="js/cloud.js?v=310"></script>
+<script src="js/register.js?v=310"></script>
+<script src="js/views.js?v=310"></script>
+<script src="js/app.js?v=310"></script>
 </body>
 </html>

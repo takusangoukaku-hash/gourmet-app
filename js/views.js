@@ -591,6 +591,18 @@ const Views = (() => {
   // 評価の色（色相を大きく離してくっきり）: ★1灰→★2青→★3緑→★4橙→★5赤。[0]=評価なし（薄灰）
   const PIN_COLORS = ['#CBD5E1', '#94A3B8', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444'];
   const WISH_COLOR = '#8B5CF6'; // 行きたい店のピン（評価色と混ざらない紫）
+  // ピンの拡大率（地図の倍率 → 何倍で描くか）。拡大したとき小さすぎないよう、z15で1.4倍・z18で1.75倍（v310〜）
+  const PIN_SCALE_STOPS = [[4, 0.85], [12, 1], [15, 1.4], [18, 1.75]];
+  const pinScaleAt = (z) => {
+    const st = PIN_SCALE_STOPS;
+    if (z <= st[0][0]) return st[0][1];
+    for (let i = 1; i < st.length; i++) {
+      if (z <= st[i][0]) { const [z0, s0] = st[i - 1], [z1, s1] = st[i]; return s0 + (s1 - s0) * (z - z0) / (z1 - z0); }
+    }
+    return st[st.length - 1][1];
+  };
+  // 倍率に合わせて変わる値（ピンの大きさ・ラベル位置など）を MapLibre の式にする
+  const byPinScale = (f) => ['interpolate', ['linear'], ['zoom'], ...PIN_SCALE_STOPS.flatMap(([z, sc]) => [z, f(sc)])];
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
@@ -664,14 +676,15 @@ const Views = (() => {
       mapLoaded = true;
 
       // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸
-      //   金丸 … 平均が .5 以上（あと一歩でワンランク上）の店（v309〜。v308 は墨色）
+      //   金丸 … 平均が .5 以上（あと一歩でワンランク上）の店（v309〜。v308 は墨色。v310〜縁なしの金一色）
       //   白丸 … それ以外の店と、行きたい店（紫）
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 28, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅15・高さ30、先端は (8, 30)、右側は影
-      const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金色。橙のピンの上でも分かるよう細い白の縁を付ける）
+      const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金一色）
+      const PIN_PX = 4; // 最大1.75倍に拡大しても粗くならないよう4倍の解像度で描く
       const makeMarker = (color, dotColor) => {
-        const PX = 2;
+        const PX = PIN_PX;
         const c = document.createElement('canvas');
         c.width = MK_W * PX; c.height = MK_H * PX;
         const g = c.getContext('2d');
@@ -692,17 +705,16 @@ const Views = (() => {
         g.closePath();
         g.fillStyle = color; g.fill();
         g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
-        if (dotColor !== '#ffffff') { g.lineWidth = 0.9; g.strokeStyle = '#ffffff'; g.stroke(); }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
-        map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: 2 });     // 白丸
-        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: 2 }); // 平均 .5 以上は金丸
+        map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: PIN_PX });     // 白丸
+        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: PIN_PX }); // 平均 .5 以上は金丸
       });
-      map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: 2 });
+      map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: PIN_PX });
       // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 8px だけ左へ・1px 下へ）
       const MARKER_LAYOUT = {
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.85, 14, 1],
+        'icon-size': byPinScale(sc => sc),
         'icon-anchor': 'bottom-left', 'icon-offset': [-8, 1],
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
       };
@@ -750,11 +762,14 @@ const Views = (() => {
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 10,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
-          'text-offset': [0.65, -2.15], 'text-allow-overlap': true, 'text-ignore-placement': true },
+          'text-offset': byPinScale(sc => ['literal', [+(6 * sc / 12).toFixed(2), -+((22 * sc + 5) / 12).toFixed(2)]]),
+          'text-allow-overlap': true, 'text-ignore-placement': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
       // 店名＋ジャンルのラベル。拡大（z13〜）してからピンの上に表示する。
       // symbol-sort-key: 値が小さいほど優先。評価が高い店を優先表示したいので -ravg を使う
       // （重なって片方しか出せないときは評価が高いほうの店名が残る）
+      // 店名ラベルはピンの頭のすぐ上（文字10px＝1em、ピンの高さ30px×拡大率＋2px）
+      const PIN_LABEL_OFFSET = byPinScale(sc => ['literal', [0, -+((30 * sc + 2) / 10).toFixed(2)]]);
       const labelLayout = {
         'text-field': ['case', ['==', ['get', 'genre'], ''], ['get', 'name'],
           ['concat', ['get', 'name'], '\n', ['get', 'genre']]],
@@ -765,7 +780,7 @@ const Views = (() => {
         'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 };
       map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
-        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -3.2] }), paint: labelPaint });
+        layout: Object.assign({}, labelLayout, { 'text-offset': PIN_LABEL_OFFSET }), paint: labelPaint });
 
       // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
       map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -773,7 +788,7 @@ const Views = (() => {
         layout: Object.assign({}, MARKER_LAYOUT, { 'icon-image': 'mk-wish' }) });
       map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
-          'text-anchor': 'bottom', 'text-offset': [0, -3.2], 'text-max-width': 12 },
+          'text-anchor': 'bottom', 'text-offset': PIN_LABEL_OFFSET, 'text-max-width': 12 },
         paint: { 'text-color': WISH_COLOR,
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
@@ -1745,9 +1760,10 @@ const Views = (() => {
       App.toast('行きたい店から外しました');
     });
     if (mapPopup) mapPopup.remove();
-    // ピン（細身の涙型・高さ約30px）の頭の上に出す
-    const PIN_POPUP_OFFSET = { 'bottom': [0, -30], 'bottom-left': [0, -30], 'bottom-right': [0, -30],
-      'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [9, -15], 'right': [-9, -15], 'center': [0, -15] };
+    // ピン（細身の涙型・高さ30px×その倍率での拡大率）の頭の上に出す
+    const ph = Math.round(30 * pinScaleAt(map.getZoom())), pw = Math.round(9 * pinScaleAt(map.getZoom()));
+    const PIN_POPUP_OFFSET = { 'bottom': [0, -ph], 'bottom-left': [0, -ph], 'bottom-right': [0, -ph],
+      'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [pw, -ph / 2], 'right': [-pw, -ph / 2], 'center': [0, -ph / 2] };
     mapPopup = new maplibregl.Popup({ offset: PIN_POPUP_OFFSET, maxWidth: '240px' })
       .setLngLat([w.lon, w.lat]).setDOMContent(node).addTo(map);
   }
