@@ -95,6 +95,8 @@ Worker は本番サイトの Origin からの呼び出しだけを中継し、Go
 | `js/views.js` | 地図・一覧・写真・統計・ランキング・店舗詳細の描画 |
 | `js/app.js` | タブ制御・共通イベント・サンプルデータ |
 | `data/japan-prefs.json` | 制覇マップ用の都道府県の形（SVGパス・約36KB）。統計を開いたときに読み込む |
+| `data/map-liberty.json` | 明るい表示の地図スタイル（OpenFreeMap Liberty を変換。約42KB） |
+| `tools/geo/build_liberty.py` | 上の作り方（github.com/hyperknot/openfreemap-styles の styles/liberty/style.json を変換） |
 | `tools/geo/build_prefs.py` | 上のデータの作り方（npm の japan-choropleth の prefectures.geojson を mapshaper で簡略化 → 投影） |
 | `tools/server.ps1` | ローカル配信用の簡易サーバー（PowerShellのみ・ポート5959） |
 | `tools/setup-smartphone.ps1` | スマホからLAN経由でアクセスするための初回設定（管理者権限が必要） |
@@ -117,6 +119,7 @@ Worker は本番サイトの Origin からの呼び出しだけを中継し、Go
 - **制覇マップ（v303）**: 訪れた都道府県を、行った店の数で5段階に塗り分ける。県ごとの店数・来店回数・行きたい店の達成を一覧にし、タップでその県の店を表示。境界は `data/japan-prefs.json`（国土数値情報 行政区域データ 2025年版〔CC BY 4.0〕を `tools/geo/build_prefs.py` で簡略化）
 - **行きたい店の達成度（v303）**: 行きたい店を訪問すると消さずに「達成」（`doneAt`/`doneShopId`/`doneVisitId`）として残し、行けた数/保存した数を表示。その訪問を削除すると未達成に戻る
 - **記録カード（v303）**: 店数・来店回数・都道府県・行きたい達成・制覇マップ・よく行く店を 1080×1350 の画像にし、端末の共有シート（X・LINE・写真に保存）へ渡す
+- **地図の見た目（v305）**: 明るい表示は OpenFreeMap の Liberty スタイル（OpenStreetMap 標準地図に近い見た目）。`tools/geo/build_liberty.py` で日本語名優先のラベル・国土地理院の日本語フォントに変換した `data/map-liberty.json` を読む。暗い表示は従来の自前スタイル。Liberty は maputnik/osm-liberty の派生（デザイン CC BY 4.0・コード BSD 3-Clause、OpenFreeMap styles は MIT）、地図データ © OpenStreetMap contributors / OpenMapTiles
 - **地図のピン（v304）**: Leaflet 標準マーカー風の涙型（濃い縁取り・立体感・頭に白い丸・影）に統一。どの倍率でも同じ形で、色は評価色（★1〜★5・行きたい紫）。平均が .5 以上の店は白い丸の中心に点
 - **地図のまとまり表示（v303）**: 近い店のまとまりを件数で色分け（〜9 緑・10〜99 黄・100〜 橙）。マウスを乗せると含まれる店の範囲を青い線で囲む
 - **エッジケース（§16）**: 位置情報なし写真（主要フローとして検索/地図指定）、閉店管理、利用形態（店内/テイクアウト/デリバリー）、訪問日時の手動修正

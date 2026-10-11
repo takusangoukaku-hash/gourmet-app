@@ -422,7 +422,7 @@ const Views = (() => {
       + (axes.length ? `<div class="p-sub">${axes.join('　')}</div>` : '');
   }
 
-  // ベクトル地図（MapLibre GL）: Apple Maps風の配色で自前スタイリング
+  // ベクトル地図（MapLibre GL）の自前スタイル（v305〜は暗い表示のときだけ使う。明るい表示は Liberty）
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
   //  - 道路名・番地・細かな地名は非表示ですっきりさせる
   //  - ベクトル描画なのでズーム中のちらつき（白黒タイル）も起きない
@@ -632,7 +632,9 @@ const Views = (() => {
     // MapLibre GLネイティブ: 2本指ドラッグ（スマホ）/右ドラッグ（PC）で回転できる
     map = new maplibregl.Map({
       container: 'map-canvas',
-      style: baseMapStyle(dark),
+      // 明るい表示: OpenFreeMap の Liberty（OpenStreetMap 標準地図に近い見た目。v305〜）を日本語向けに
+      // 変換した data/map-liberty.json（tools/geo/build_liberty.py）。暗い表示は従来の自前スタイル
+      style: dark ? baseMapStyle(true) : 'data/map-liberty.json?v=' + String(Api.FILE_VERSION || '').replace(/^v/, ''),
       // minZoom 0: Googleマップのように世界全体まで引いて見られるようにする
       center: [139.7671, 35.6812], zoom: 11, minZoom: 0, maxZoom: 20,
       attributionControl: { compact: true },

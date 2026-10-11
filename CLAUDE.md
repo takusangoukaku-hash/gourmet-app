@@ -74,6 +74,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
 - 星0の訪問は「評価なし」（写真なしの「また来た」）。平均や評価の集計では `rating > 0` だけを使う。
 - 制覇マップの境界データ `data/japan-prefs.json` は国土数値情報（CC BY 4.0）の加工。画面と記録カードの出典表示を消さない。
+- 地図の明るい表示は `data/map-liberty.json`（OpenFreeMap Liberty の変換。v305〜）、暗い表示は `views.js` の `baseMapStyle(true)`。
+  ベースの見た目を変えるときは `tools/geo/build_liberty.py` で作り直す。アプリのレイヤー（ピン・まとまり等）は地図の読み込み後に上へ足す。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または
