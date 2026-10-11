@@ -592,15 +592,6 @@ const Views = (() => {
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
-  // ピンの半径。低倍でも見えやすい一定サイズ（約4px＝23区が画面から外れるz9あたりの
-  // 大きさ）。近い点をまとめたクラスタも件数で大きくせず、この同じサイズで表示する。
-  // z12以降でやや大きくして詳細（しずく型）へ繋ぐ。
-  // 日本全体〜世界（z0〜5）まで引くと点が現在地の青い点に埋もれるため、その帯だけ大きくする
-  const PIN_RADIUS = ['interpolate', ['linear'], ['zoom'],
-    0, 7, 5, 6.5, 7, 4.6, 10, 4, 12, 4.8, 13, 5.4];
-  // ピンの白フチ。広域では地図の色に沈まないよう少し太くする
-  const PIN_STROKE = ['interpolate', ['linear'], ['zoom'],
-    0, 1.8, 7, 1.4, 11, 1.4, 12, 2];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
   let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
@@ -670,29 +661,58 @@ const Views = (() => {
     map.on('load', () => {
       mapLoaded = true;
 
-      // 高倍率(z13以上)ではタップしやすい「しずく型」の大きなマーカーに切り替える
-      // （評価5色×白点あり/なし＋行きたい紫をキャンバスで描いて登録）
-      const DROP_ZOOM = 13;
-      const makeDrop = (color, withDot) => {
+      // 店のピン: Leaflet 標準マーカー風の涙型（v304〜）。どの倍率でも同じ形で、
+      // 濃い縁取り・上が明るい立体感・頭に白い丸・右下に落ちる影。色は凡例（★1〜★5・行きたい紫）と同じ。
+      // 平均が .5 以上（あと一歩でワンランク上）の店は、白い丸の中心に色の点を打って区別する
+      const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
+      const shade = (hex, amt) => {
+        const n = parseInt(hex.slice(1), 16);
+        const f = (c) => Math.max(0, Math.min(255, Math.round(amt < 0 ? c * (1 + amt) : c + (255 - c) * amt)));
+        return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map(x => x.toString(16).padStart(2, '0')).join('');
+      };
+      const MK = 41; // 画像は 41×41（1倍）。ピン本体は左寄せの幅25・先端は (12.5, 40)、右側は影
+      const makeMarker = (color, hi) => {
+        const PX = 2;
         const c = document.createElement('canvas');
-        c.width = 48; c.height = 64;
+        c.width = MK * PX; c.height = MK * PX;
         const g = c.getContext('2d');
+        g.scale(PX, PX);
+        // 影（先端から右上へ斜めに伸びる、ぼかした楕円）
+        g.save();
+        g.translate(20.5, 35.5); g.rotate(-0.6); g.scale(1, 0.4);
+        const sg = g.createRadialGradient(0, 0, 0, 0, 0, 14);
+        sg.addColorStop(0, 'rgba(0,0,0,0.38)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 14, 0, Math.PI * 2); g.fill();
+        g.restore();
+        // 本体（涙型）
         g.beginPath();
-        g.moveTo(24, 60);                       // 先端（この点が店の位置）
-        g.bezierCurveTo(14, 45, 6, 34, 6, 23);  // 左のふくらみ
-        g.arc(24, 23, 18, Math.PI, 0);          // 頭の丸
-        g.bezierCurveTo(42, 34, 34, 45, 24, 60); // 右のふくらみ
+        g.moveTo(12.5, 40);
+        g.bezierCurveTo(10.6, 33.5, 1.2, 22.5, 1.2, 12.5);
+        g.arc(12.5, 12.5, 11.3, Math.PI, 0);
+        g.bezierCurveTo(23.8, 22.5, 14.4, 33.5, 12.5, 40);
         g.closePath();
-        g.fillStyle = color; g.fill();
-        g.lineWidth = 3; g.strokeStyle = '#ffffff'; g.stroke();
-        if (withDot) { g.beginPath(); g.arc(24, 23, 5.5, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill(); }
-        return g.getImageData(0, 0, 48, 64);
+        const grad = g.createLinearGradient(0, 1, 0, 40);
+        grad.addColorStop(0, shade(color, 0.38)); grad.addColorStop(0.55, color); grad.addColorStop(1, shade(color, -0.18));
+        g.fillStyle = grad; g.fill();
+        g.lineWidth = 1.3; g.strokeStyle = shade(color, -0.38); g.stroke();
+        // 頭の白い丸
+        g.beginPath(); g.arc(12.5, 12.5, 4.7, 0, Math.PI * 2);
+        g.fillStyle = '#ffffff'; g.fill();
+        g.lineWidth = 0.8; g.strokeStyle = shade(color, -0.3); g.stroke();
+        if (hi) { g.beginPath(); g.arc(12.5, 12.5, 2.1, 0, Math.PI * 2); g.fillStyle = shade(color, -0.25); g.fill(); }
+        return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
-        map.addImage('drop-' + i, makeDrop(col, false), { pixelRatio: 2 });
-        map.addImage('drop-' + i + '-hi', makeDrop(col, true), { pixelRatio: 2 });
+        map.addImage('mk-' + i, makeMarker(col, false), { pixelRatio: 2 });
+        map.addImage('mk-' + i + '-hi', makeMarker(col, true), { pixelRatio: 2 });
       });
-      map.addImage('drop-wish', makeDrop(WISH_COLOR, false), { pixelRatio: 2 });
+      map.addImage('mk-wish', makeMarker(WISH_COLOR, false), { pixelRatio: 2 });
+      // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 12.5px だけ左へ）
+      const MARKER_LAYOUT = {
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.8, 11, 0.9, 14, 1],
+        'icon-anchor': 'bottom-left', 'icon-offset': [-12.5, 1],
+        'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      };
 
       // 店舗ピン（クラスター付き）。近い店の点は1つにまとめ、件数を丸の中に出す
       map.addSource('shops', {
@@ -723,45 +743,23 @@ const Views = (() => {
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
           'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true },
         paint: { 'text-color': '#222222' } });
-      // 低〜中倍率は小さな丸ピン（z14からはしずく型に切り替え）
-      // circle-sort-key / symbol-sort-key: 値が大きいほど上に描画される。
+      // symbol-sort-key: 値が大きいほど上に描画される。
       // ピンが重なったとき、評価（平均）の高い店が上に来るよう ravg を指定する。
       const RATING_ONTOP = ['coalesce', ['get', 'ravg'], 0];
-      map.addLayer({ id: 'pins', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
+      map.addLayer({ id: 'pins', type: 'symbol', source: 'shops',
         filter: ['!', ['has', 'point_count']],
-        layout: { 'circle-sort-key': RATING_ONTOP },
-        paint: { 'circle-color': colorByR('r'), 'circle-radius': PIN_RADIUS,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': PIN_STROKE } });
-      // 平均が .5 以上（あと一歩でワンランク上）の店は中心に白い点を重ねて区別する
-      map.addLayer({ id: 'pin-dot', type: 'circle', source: 'shops', maxzoom: DROP_ZOOM,
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hi'], 1]],
-        layout: { 'circle-sort-key': RATING_ONTOP },
-        paint: { 'circle-color': '#ffffff',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'],
-            0, 2.4, 5, 2.2, 7, 1.5, 10, 1.5, 12, 1.9, 13, 2.2] } });
-      // 高倍率: しずく型マーカー（白点＝平均.5以上もしずくの頭に表示）
-      map.addLayer({ id: 'pin-drops', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
-        filter: ['!', ['has', 'point_count']],
-        layout: {
-          'icon-image': ['concat', 'drop-', ['to-string', ['get', 'r']],
+        layout: Object.assign({}, MARKER_LAYOUT, {
+          'icon-image': ['concat', 'mk-', ['to-string', ['get', 'r']],
             ['case', ['==', ['get', 'hi'], 1], '-hi', '']],
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
-          'icon-anchor': 'bottom', 'icon-allow-overlap': true,
           'symbol-sort-key': RATING_ONTOP, // 重なり時は評価の高い方を上に
-        } });
-      // お気に入り★（拡大時のみ。しずく表示中は頭の右上に）
-      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 12, maxzoom: DROP_ZOOM,
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
-        layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 11,
-          'text-offset': [0.8, -0.8], 'text-allow-overlap': true },
-        paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
-      map.addLayer({ id: 'pin-fav-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
+        }) });
+      // お気に入り★（ピンの頭の右上）
+      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 10,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
-          'text-offset': [1.2, -2.4], 'text-allow-overlap': true },
+          'text-offset': [0.95, -2.75], 'text-allow-overlap': true, 'text-ignore-placement': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
-      // 店名＋ジャンルのラベル。しずく（drop）が出る倍率になってから表示する。
+      // 店名＋ジャンルのラベル。拡大（z13〜）してからピンの上に表示する。
       // symbol-sort-key: 値が小さいほど優先。評価が高い店を優先表示したいので -ravg を使う
       // （重なって片方しか出せないときは評価が高いほうの店名が残る）
       const labelLayout = {
@@ -774,29 +772,21 @@ const Views = (() => {
         'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 };
       map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
-        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -3.4] }), paint: labelPaint });
+        layout: Object.assign({}, labelLayout, { 'text-offset': [0, -4.1] }), paint: labelPaint });
 
       // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
       map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'wish-pins', type: 'circle', source: 'wishes', maxzoom: DROP_ZOOM,
-        paint: { 'circle-color': WISH_COLOR, 'circle-radius': PIN_RADIUS,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': PIN_STROKE } });
-      map.addLayer({ id: 'wish-drops', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
-        layout: { 'icon-image': 'drop-wish',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
-          'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
+      map.addLayer({ id: 'wish-pins', type: 'symbol', source: 'wishes',
+        layout: Object.assign({}, MARKER_LAYOUT, { 'icon-image': 'mk-wish' }) });
       map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
-          'text-anchor': 'bottom', 'text-offset': [0, -3.4], 'text-max-width': 12 },
+          'text-anchor': 'bottom', 'text-offset': [0, -4.1], 'text-max-width': 12 },
         paint: { 'text-color': WISH_COLOR,
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
       // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
       map.on('click', 'pins', (e) => openPinPopup(e.features[0]));
-      map.on('click', 'pin-drops', (e) => openPinPopup(e.features[0]));
       map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
-      map.on('click', 'wish-drops', (e) => openWishPopup(e.features[0]));
       const zoomCluster = (e) => {
         const f = e.features[0];
         map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
@@ -834,7 +824,7 @@ const Views = (() => {
         });
         map.on('movestart', clearHull);
       }
-      ['pins', 'pin-drops', 'clusters', 'cluster-halo', 'wish-pins', 'wish-drops'].forEach(id => {
+      ['pins', 'clusters', 'cluster-halo', 'wish-pins'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       });
@@ -1762,7 +1752,10 @@ const Views = (() => {
       App.toast('行きたい店から外しました');
     });
     if (mapPopup) mapPopup.remove();
-    mapPopup = new maplibregl.Popup({ offset: 12, maxWidth: '240px' })
+    // ピン（涙型・高さ約40px）の頭の上に出す
+    const PIN_POPUP_OFFSET = { 'bottom': [0, -38], 'bottom-left': [0, -38], 'bottom-right': [0, -38],
+      'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [12, -20], 'right': [-12, -20], 'center': [0, -20] };
+    mapPopup = new maplibregl.Popup({ offset: PIN_POPUP_OFFSET, maxWidth: '240px' })
       .setLngLat([w.lon, w.lat]).setDOMContent(node).addTo(map);
   }
 
