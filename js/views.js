@@ -680,7 +680,7 @@ const Views = (() => {
       //   白丸 … それ以外の店と、行きたい店（紫）
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
-      const MK_W = 28, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅15・高さ30、先端は (8, 30)、右側は影
+      const MK_W = 32, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅19・高さ30、先端は (10, 30)、右側は影（v311〜幅15→19）
       const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金一色）
       const PIN_PX = 4; // 最大1.75倍に拡大しても粗くならないよう4倍の解像度で描く
       const makeMarker = (color, dotColor) => {
@@ -691,20 +691,20 @@ const Views = (() => {
         g.scale(PX, PX);
         // 足元の影（先端から右上へ斜めに伸びる、ぼかした楕円）
         g.save();
-        g.translate(12.5, 27.5); g.rotate(-0.6); g.scale(1, 0.38);
+        g.translate(14.5, 27.5); g.rotate(-0.6); g.scale(1, 0.38);
         const sg = g.createRadialGradient(0, 0, 0, 0, 0, 8.5);
         sg.addColorStop(0, 'rgba(0,0,0,0.28)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 8.5, 0, Math.PI * 2); g.fill();
         g.restore();
-        // 本体（細身の涙型・一色）: 頭の丸は半径7.4、先端まで高さ30
+        // 本体（涙型・一色）: 頭の丸は半径9.3、先端まで高さ30
         g.beginPath();
-        g.moveTo(8, 30);
-        g.bezierCurveTo(6.9, 24.5, 0.6, 15.5, 0.6, 8);
-        g.arc(8, 8, 7.4, Math.PI, 0);
-        g.bezierCurveTo(15.4, 15.5, 9.1, 24.5, 8, 30);
+        g.moveTo(10, 30);
+        g.bezierCurveTo(8.7, 24.8, 0.7, 17, 0.7, 9.5);
+        g.arc(10, 9.5, 9.3, Math.PI, 0);
+        g.bezierCurveTo(19.3, 17, 11.3, 24.8, 10, 30);
         g.closePath();
         g.fillStyle = color; g.fill();
-        g.beginPath(); g.arc(8, 8, 3.1, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
+        g.beginPath(); g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
@@ -712,10 +712,10 @@ const Views = (() => {
         map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: PIN_PX }); // 平均 .5 以上は金丸
       });
       map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: PIN_PX });
-      // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 8px だけ左へ・1px 下へ）
+      // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 10px だけ左へ・1px 下へ）
       const MARKER_LAYOUT = {
         'icon-size': byPinScale(sc => sc),
-        'icon-anchor': 'bottom-left', 'icon-offset': [-8, 1],
+        'icon-anchor': 'bottom-left', 'icon-offset': [-10, 1],
         'icon-allow-overlap': true, 'icon-ignore-placement': true,
       };
 
@@ -762,7 +762,7 @@ const Views = (() => {
       map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 10,
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
         layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
-          'text-offset': byPinScale(sc => ['literal', [+(6 * sc / 12).toFixed(2), -+((22 * sc + 5) / 12).toFixed(2)]]),
+          'text-offset': byPinScale(sc => ['literal', [+(7.5 * sc / 12).toFixed(2), -+((20.5 * sc + 6) / 12).toFixed(2)]]),
           'text-allow-overlap': true, 'text-ignore-placement': true },
         paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
       // 店名＋ジャンルのラベル。拡大（z13〜）してからピンの上に表示する。
@@ -1761,7 +1761,7 @@ const Views = (() => {
     });
     if (mapPopup) mapPopup.remove();
     // ピン（細身の涙型・高さ30px×その倍率での拡大率）の頭の上に出す
-    const ph = Math.round(30 * pinScaleAt(map.getZoom())), pw = Math.round(9 * pinScaleAt(map.getZoom()));
+    const ph = Math.round(30 * pinScaleAt(map.getZoom())), pw = Math.round(11 * pinScaleAt(map.getZoom()));
     const PIN_POPUP_OFFSET = { 'bottom': [0, -ph], 'bottom-left': [0, -ph], 'bottom-right': [0, -ph],
       'top': [0, 4], 'top-left': [0, 4], 'top-right': [0, 4], 'left': [pw, -ph / 2], 'right': [-pw, -ph / 2], 'center': [0, -ph / 2] };
     mapPopup = new maplibregl.Popup({ offset: PIN_POPUP_OFFSET, maxWidth: '240px' })
