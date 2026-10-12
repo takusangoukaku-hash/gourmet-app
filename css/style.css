@@ -2130,3 +2130,52 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .mz-grid.pf-mz { padding: 4px 10px 16px; }
 /* 他の人のプロフィールの写真（v313〜 Pinterest 風）。モーダルの端まで広げ、左右に余白を取る */
 .pp-photo-grid.mz-grid { margin: 12px -20px 0; padding: 0 10px 16px; }
+
+/* =====================================================
+   v314: ホームの投稿とプロフィールの「お店をさがす」も Pinterest 風に
+   ===================================================== */
+/* ホーム: 縦1列の大きなカード → 列に詰めた写真カード（スマホ2列・広い画面は4列前後） */
+.feed-list.mz-grid { display: grid; flex-direction: initial; gap: 0 10px; max-width: 1100px; padding: 10px 10px 20px; }
+@media (max-width: 560px) { .feed-list.mz-grid { column-gap: 8px; } }
+.fpin, .spin { cursor: default; }
+.fpin-body { display: block; }
+.fpin-photo, .spin-photo { cursor: pointer; }
+.fpin-photo:focus-visible, .spin-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* 写真が無い投稿・店: 淡い地に🍽️の正方形 */
+.fpin-ph { display: none; }
+.fpin-nophoto .mz-card img { display: none; }
+.fpin-nophoto .fpin-ph { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; font-size: 34px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--field)); }
+/* 写真の右上: 行きたい保存（しおり）・お気に入り（♥）の丸ボタン */
+.fpin-save, .spin-fav {
+  position: absolute; top: 7px; right: 7px; width: 32px; height: 32px; border-radius: 50%; border: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  background: rgba(255, 255, 255, .92); color: #1f1e1d; box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+}
+.fpin-save .ic { width: 16px; height: 16px; }
+.fpin-save.on { background: var(--accent); color: #fff; }
+.fpin-save.on .bm-ic { fill: currentColor; }
+.spin-fav .heart-ic { width: 17px; height: 17px; fill: none; }
+.spin-fav.on { color: #e0245e; }
+.spin-fav.on .heart-ic { fill: currentColor; }
+/* 写真の下: 投稿者・一致率・いいね（Pinterest のピンの下の小さな行） */
+.fpin-meta { display: flex; align-items: center; gap: 6px; padding: 7px 2px 0; min-width: 0; }
+.fpin-author { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.fpin-author:focus-visible { outline: 2px solid var(--accent); border-radius: 6px; }
+.fpin-author .fc-avatar { width: 22px; height: 22px; font-size: 12px; flex: 0 0 auto; }
+.fpin-uname { font-size: 12px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fpin-match { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; color: var(--accent); background: var(--accent-soft);
+  border-radius: 999px; padding: 1px 6px; }
+.fpin-time { flex: 0 0 auto; font-size: 10.5px; color: var(--muted); }
+.fpin-like { all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px;
+  color: var(--muted); font-size: 11.5px; font-weight: 700; }
+.fpin-like .heart-ic { width: 17px; height: 17px; fill: none; }
+.fpin-like.liked { color: #e0245e; }
+.fpin-like.liked .heart-ic { fill: currentColor; }
+/* プロフィールの「お店をさがす」: 店カードを写真の並びに */
+.shop-list.mz-grid { padding: 6px 10px 16px; }
+.shop-list.mz-grid > .group-header { grid-column: 1 / -1; grid-row-end: span 10; align-self: end; }
+.spin-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 7px 2px 0; cursor: pointer;
+  font-size: 11.5px; color: var(--muted); }
+.spin-you { color: var(--text); font-size: 11.5px; }
+.spin-you b { color: var(--accent); }

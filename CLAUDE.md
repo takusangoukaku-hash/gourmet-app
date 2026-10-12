@@ -68,7 +68,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 ## 規約・注意
 - 星評価の表示は `views.js` の `starSvg(rating, size)` を使う（角丸SVG・ゴールドグラデ・半星対応）。
   入力用ボタンは `starBtn()`。文字の「★」ベタ塗りは使わない。
-- 投稿詳細は `buildPostSection(p, close)`、ホーム一覧はカード型の `buildFeedCard(p, list, i)` で描画する（カードの写真タップで詳細が開く）。
+- 投稿詳細は `buildPostSection(p, close)`、ホーム一覧は Pinterest 風カードの `buildFeedCard(p, list, i)` で描画する（v314〜。カードの写真タップで詳細が開く。
+  カードには店名・ジャンル・都道府県・★・行きたい保存・投稿者・いいねだけを出し、距離やナビ・コメントは詳細へ）。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
@@ -79,6 +80,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   拡大率は `PIN_SCALE_STOPS`（ラベル・★・吹き出しの位置もこれに連動）。地図の凡例は評価の色だけ出し、丸の説明は出さない（v310〜）。
 - 写真の一覧（プロフィールの写真・他の人のプロフィールの写真・検索の写真）は Pinterest 風の `mzItem()` / `.mz-grid` で描く（v312〜）。行は 4px 刻みで、
   写真が読み込まれたら `mzFit()` が高さに合わせて `grid-row-end: span N` を決める（他の人のプロフィールは v313〜）。
+  プロフィールの「お店をさがす」は `shopPin()`（`#shop-list` が `#ptab-shops` の中にあるときだけ。検索タブの「お店」は従来の `shopCard()`）。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

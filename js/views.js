@@ -2415,15 +2415,18 @@ const Views = (() => {
           ${o.sub ? `<span class="mz-sub">${esc(o.sub)}</span>` : ''}
         </span>
       </span>`;
-    const img = item.querySelector('img');
-    img.addEventListener('load', () => {
+    mzWatch(item, item.querySelector('img'));
+    if (o.onClick) item.addEventListener('click', o.onClick);
+    return item;
+  }
+  // 写真が読み込まれたら縦横比（0.75〜1.5に収める）を決め、カードの高さに合わせて行数を取り直す
+  function mzWatch(item, img) {
+    if (img) img.addEventListener('load', () => {
       const r = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
       img.style.aspectRatio = `1 / ${Math.min(1.5, Math.max(0.75, r)).toFixed(3)}`;
       mzFit(item);
     });
-    if (o.onClick) item.addEventListener('click', o.onClick);
-    if (mzRO) mzRO.observe(item.firstElementChild);
-    return item;
+    if (mzRO && item.firstElementChild) mzRO.observe(item.firstElementChild);
   }
   // 写真の下に出す「ジャンル ・ 都道府県」
   const mzSub = (genre, pref) => [genre, normPref(pref) || pref].filter(Boolean).join(' ・ ');
@@ -2495,9 +2498,14 @@ const Views = (() => {
 
     const groupFn = groupKeyFns($('#flt-group').value);
     box.innerHTML = '';
+    // プロフィールの「お店をさがす」では Pinterest 風の店カード（v314〜）。検索タブは従来の横長カード
+    const pinMode = $('#ptab-shops').contains(box);
+    box.classList.toggle('mz-grid', pinMode);
+    box.classList.toggle('shop-mz', pinMode);
+    const cardOf = pinMode ? shopPin : shopCard;
 
     if (!groupFn) {
-      shops.forEach(s => box.appendChild(shopCard(s)));
+      shops.forEach(s => box.appendChild(cardOf(s)));
     } else {
       const groups = new Map();
       for (const s of shops) {
@@ -2511,10 +2519,61 @@ const Views = (() => {
         h.className = 'group-header';
         h.innerHTML = `${esc(key)} <span class="count">${list.length}件</span>`;
         box.appendChild(h);
-        list.forEach(s => box.appendChild(shopCard(s)));
+        list.forEach(s => box.appendChild(cardOf(s)));
       });
     }
-    loadThumbs(box);
+    if (pinMode) loadPinThumbs(box); else loadThumbs(box);
+  }
+
+  // プロフィールの「お店をさがす」の店カード（Pinterest 風）。写真タップ＝その店の投稿を連続で見る、
+  // 下の文字のタップ＝店舗詳細（data-shop-open の委譲）、右上の♥＝お気に入り（data-fav の委譲）
+  function shopPin(s) {
+    const avg = Store.avgRating(s.id);
+    const n = Store.visitCount(s.id);
+    const last = Store.lastVisitDate(s.id);
+    const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+    const item = document.createElement('div');
+    item.className = 'mz-item spin';
+    item.innerHTML = `
+      <div class="fpin-body">
+        <div class="mz-card spin-photo" role="button" tabindex="0" aria-label="${esc(s.name)}の写真を見る">
+          <img alt="" loading="lazy" decoding="async" data-pin-thumb="${esc(s.id)}">
+          <span class="fpin-ph" aria-hidden="true">🍽️</span>
+          ${avg ? `<span class="mz-badge">★${fmtR(avg)}</span>` : ''}
+          <button type="button" class="s-fav ps-favbtn spin-fav ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>
+          <span class="mz-cap">
+            <span class="mz-name">${esc(s.name)}</span>
+            <span class="mz-sub">${esc(mzSub(shopLabelGenre(s) || '', s.pref))}</span>
+          </span>
+        </div>
+        <div class="spin-meta" data-shop-open="${esc(s.id)}" role="button" tabindex="0">
+          <span>${n}回訪問${last ? `・前回 ${esc(relTime(last))}` : ''}</span>
+          ${pair.raters > 1 ? `<span class="spin-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : ''}
+        </div>
+      </div>`;
+    item.classList.add('fpin-nophoto'); // 写真が見つかるまでは淡い地に🍽️
+    mzWatch(item, item.querySelector('img'));
+    const photo = item.querySelector('.spin-photo');
+    const openFeed = (e) => { if (e && e.target.closest('button')) return; openShopPostFeed(s.id, sortShops(filteredShops())); };
+    photo.addEventListener('click', openFeed);
+    photo.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFeed(); } });
+    item.querySelector('.spin-meta').addEventListener('keydown', (e) => { if (e.key === 'Enter') showShop(s.id); });
+    return item;
+  }
+  // 店カードの代表写真を24件ずつ読む（全件同時に読むと最初の1枚が遅くなる）
+  async function loadPinThumbs(root) {
+    const imgs = [...root.querySelectorAll('img[data-pin-thumb]')];
+    for (let i = 0; i < imgs.length; i += 24) {
+      if (!root.isConnected) return;
+      await Promise.all(imgs.slice(i, i + 24).map(async (img) => {
+        const rep = await Store.repPhoto(img.dataset.pinThumb).catch(() => null);
+        if (rep && img.isConnected) {
+          setThumb(img, rep);
+          const item = img.closest('.mz-item');
+          if (item) item.classList.remove('fpin-nophoto');
+        }
+      }));
+    }
   }
 
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
@@ -2522,6 +2581,7 @@ const Views = (() => {
   async function renderSearchPhotos() {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
+    box.classList.remove('mz-grid', 'shop-mz'); // プロフィールの店カード用の並びを持ち越さない
     box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
     const kw = $('#flt-keyword').value.trim().toLowerCase();
     const dg = $('#flt-dish-genre').value;
@@ -4706,6 +4766,7 @@ const Views = (() => {
     if (note) note.classList.toggle('hidden', feedSeg !== 'reco' || !posts.length);
     const box = $('#feed-list');
     if (!posts.length) {
+      box.className = 'feed-list';
       box.innerHTML = emptyBox(EMPTY_IC_PEOPLE,
         'まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。',
         '<button class="btn primary" id="feed-search-btn">ユーザーを探す</button>');
@@ -4715,9 +4776,10 @@ const Views = (() => {
     }
     feedPosts.clear();
     posts.forEach(p => feedPosts.set(p.id, p));
-    // ホームは写真が主役のカード型（店名・駅・ジャンルを写真に重ね、下段に投稿者とアクション）。
-    // カードの写真をタップすると従来どおり投稿詳細（buildPostSection）が開く。
+    // ホームは Pinterest 風の並び（v314〜）: 写真の縦横比のまま列に詰め、写真に店名と「ジャンル ・ 都道府県」を重ね、
+    // 下に投稿者といいね。写真をタップすると従来どおり投稿詳細（buildPostSection）が開く。
     // （更新は下に引っ張るプルリフレッシュ）
+    box.className = 'feed-list mz-grid feed-mz';
     box.innerHTML = '';
     posts.forEach((p, i) => box.appendChild(buildFeedCard(p, posts, i)));
   }
@@ -4739,126 +4801,87 @@ const Views = (() => {
   //            ミニ地図（左下）・ここへ行く（右下）
   //  写真の下: 投稿者、いいね・コメント・行きたい保存
   function buildFeedCard(p, list, index) {
+    // Pinterest 風のカード（v314〜）: 写真（縦横比のまま）＋店名・「ジャンル ・ 都道府県」・★、右上に行きたい保存、
+    // 下に投稿者といいね数。距離・ここへ行く・あなた向け評価・コメントは投稿詳細で見る
     const card = document.createElement('div');
-    card.className = 'fcard';
+    card.className = 'mz-item fpin';
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const genre = String(p.genre || p.shopGenre || '').split('・')[0];
-    const rating = p.rating ? Math.round(p.rating * 10) / 10 : 0;
-    const hasPos = p.lat != null && p.lon != null;
+    const rating = (Number(p.rating) || 0) > 0 ? Math.round(Number(p.rating) * 10) / 10 : 0;
     const tm = tasteMatch(p.username);
     // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
     const me = (Store.getProfile() || {}).username;
     const isMine = Store.visits().some(v => v.id === p.id) || (!!me && p.username === me);
     card.innerHTML = `
-      <div class="fcard-head2">
-        ${tasteBadge(p.username, true)}
-        <button type="button" class="feed-author pd-author">
-          <span class="fc-avatar">${av}</span>
-          <span class="fc-name">${esc(p.displayName || 'BITEMAP')}
-            <span class="fc-handle">${tm.common ? `共通店舗 ${tm.common}件` : (p.username ? '@' + esc(p.username) : '')}</span></span>
-        </button>
-        ${isMine && p.datetime ? `<span class="fcard-time">${relTime(p.datetime)}</span>` : ''}
-      </div>
-      <div class="fcard-photo">
-        ${p.photoUrl ? `<img class="fcard-img" src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">`
-          : '<div class="fcard-img fcard-noimg">🍽️</div>'}
-        <div class="fcard-scrim"></div>
-        <div class="fcard-head">
-          <div class="fcard-name">${esc(p.shopName || '')}</div>
-          ${p.station ? `<div class="fcard-sub">${IC_STATION} ${esc(p.station)}</div>` : ''}
-          ${genre ? `<span class="fcard-genre" style="background:${catColorForGenre(genre)}">${esc(genre)}</span>` : ''}
+      <div class="fpin-body">
+        <div class="mz-card fpin-photo" role="button" tabindex="0" aria-label="${esc(p.shopName || '投稿')}の投稿を開く">
+          <img class="fcard-img" alt="" loading="lazy" decoding="async">
+          <span class="fpin-ph" aria-hidden="true">🍽️</span>
+          ${rating ? `<span class="mz-badge">★${fmtR(rating)}</span>` : ''}
+          <button type="button" class="fpin-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
+          <span class="mz-cap">
+            <span class="mz-name">${esc(p.shopName || '')}</span>
+            ${(genre || p.pref) ? `<span class="mz-sub">${esc(mzSub(genre, p.pref))}</span>` : ''}
+          </span>
         </div>
-        ${rating ? `<div class="fcard-badge"><span class="fb-star">★</span>${fmtR(rating)}</div>` : ''}
-        ${hasPos ? `
-          <button type="button" class="fcard-dist hidden" title="地図で見る" aria-label="地図で見る">
-            <span class="fd-row">${IC_PIN}<span>現在地から <b class="fd-m"></b></span></span>
-            <span class="fd-row">${IC_WALK}<span>徒歩 <b class="fd-min"></b></span></span>
+        <div class="fpin-meta">
+          <button type="button" class="feed-author pd-author fpin-author">
+            <span class="fc-avatar">${av}</span>
+            <span class="fpin-uname">${esc(p.displayName || (p.username ? '@' + p.username : 'BITEMAP'))}</span>
           </button>
-          <button type="button" class="btn primary fcard-nav">${IC_NAV} ここへ行く</button>` : ''}
-      </div>
-      ${(() => {
-        // 店舗と評価が主役: 写真の下に「あなた向け評価」と「全体評価」を並べる
-        const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
-        if (!pair.raters && p.rating) return ''; // 情報が投稿1件だけなら右上の★バッジで足りる
-        return ratePairHtml(pair, { compact: true });
-      })()}
-      <div class="fcard-foot acts-only">
-        <div class="fcard-acts">
-          <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
-          <button type="button" class="fa-comment fcard-cmt" aria-label="コメント">${IC_COMMENT}<span class="fa-n fcard-cmt-n"></span></button>
-          <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
+          ${tm.common && tm.rate != null && tm.conf !== 'low' ? `<span class="fpin-match">${tm.rate}%</span>` : ''}
+          ${isMine && p.datetime ? `<span class="fpin-time">${relTime(p.datetime)}</span>` : ''}
+          <button type="button" class="fa-like pd-like fpin-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
         </div>
       </div>`;
-    // 写真の解決: クラウドURLが欠けた投稿（写真より先に投稿だけ公開された等）や
-    // URLの読み込み失敗時は、自分の記録なら端末内の写真で表示する（旧ホームと同じ挙動）
-    const setImg = (url) => {
+    const img = card.querySelector('.fcard-img');
+    mzWatch(card, img);
+    const showImg = (url) => {
       if (!url) return;
-      const cur = card.querySelector('.fcard-img');
-      if (cur.tagName === 'IMG') { if (cur.src !== url) cur.src = url; return; }
-      const im = document.createElement('img');
-      im.className = 'fcard-img'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
-      im.src = url;
-      cur.replaceWith(im);
+      if (img.src !== url) img.src = url;
+      card.classList.remove('fpin-nophoto');
     };
+    // 写真の解決: クラウドURLが欠けた投稿（写真より先に投稿だけ公開された等）や
+    // URLの読み込み失敗時は、自分の記録なら端末内の写真で表示する
     const ownLocalPhoto = async () => {
       if (!Store.visits().some(v => v.id === p.id)) return '';
       const ps = await Store.photosOfVisit(p.id).catch(() => []);
       return ps.length ? ((await fullPhotoUrl(ps[0])) || '') : '';
     };
     if (!p.photoUrl) {
-      // 端末内にも写真が無ければ、空の大きな四角を出さずコンパクト表示に切り替える
-      ownLocalPhoto().then(u => { if (u) setImg(u); else card.classList.add('fcard-nophoto'); });
+      card.classList.add('fpin-nophoto'); // 写真が無い投稿は淡い地に🍽️の小さめのカード
+      ownLocalPhoto().then(showImg);
     } else {
-      const imEl = card.querySelector('.fcard-img');
-      imEl.addEventListener('error', () => ownLocalPhoto().then(u => {
-        if (u) setImg(u); else card.classList.add('fcard-nophoto'); // 代わりが無ければコンパクト表示
-      }), { once: true });
+      img.src = String(p.photoUrl);
+      img.addEventListener('error', () => ownLocalPhoto().then(u => { if (u) showImg(u); else card.classList.add('fpin-nophoto'); }), { once: true });
       // 自分の記録は端末内の写真のほうが速く確実なので、あれば差し替える
-      ownLocalPhoto().then(u => { if (u) setImg(u); });
+      ownLocalPhoto().then(showImg);
     }
 
     // 写真タップ → 投稿詳細（中のボタンは各自の動作を優先）
     const openDetail = () => showPostDetail(p, { list, index });
-    card.querySelector('.fcard-photo').addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      openDetail();
-    });
-    // 現在地からの距離・徒歩の目安（デザイン案準拠）。位置が取れたときだけ左下に出す。
-    // タップで地図タブのその店へ（旧ミニ地図ボタンの役割を引き継ぐ）
-    const distBox = card.querySelector('.fcard-dist');
-    if (distBox) {
-      distBox.addEventListener('click', () => focusMapAt(p.lat, p.lon));
-      currentPosition().then(me => {
-        const m = Store.distMeters(me.lat, me.lon, p.lat, p.lon);
-        distBox.querySelector('.fd-m').textContent = fmtDist(m);
-        distBox.querySelector('.fd-min').textContent = Math.max(1, Math.round(m / 80)) + '分'; // 分速80m
-        distBox.classList.remove('hidden');
-      }).catch(() => { /* 位置情報が使えないときは出さない */ });
-    }
-    const navBtn = card.querySelector('.fcard-nav');
-    if (navBtn) navBtn.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
+    const photo = card.querySelector('.fpin-photo');
+    photo.addEventListener('click', (e) => { if (e.target.closest('button')) return; openDetail(); });
+    photo.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); } });
     card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
-    // いいね・コメント数・行きたい保存（取得結果は feedStats に控え、描き直しでは再取得しない）
+    // いいね数・行きたい保存（取得結果は feedStats に控え、描き直しでは再取得しない）
     const applyStats = (st) => {
       const lb = card.querySelector('.pd-like');
-      lb.querySelector('.fa-like-n').textContent = st.likes;
+      lb.querySelector('.fa-like-n').textContent = st.likes || '';
       lb.classList.toggle('liked', st.liked);
-      card.querySelector('.fcard-cmt-n').textContent = st.comments || '';
     };
     const cached = feedStats.get(p.id);
     if (cached) applyStats(cached);
-    else {
+    else if (typeof Cloud !== 'undefined' && Cloud.getLikeInfo) {
       Promise.all([Cloud.getLikeInfo(p.id), Cloud.commentCount(p.id).catch(() => 0)])
         .then(([info, n]) => { const st = { likes: info.count, liked: info.liked, comments: n || 0 }; feedStats.set(p.id, st); applyStats(st); })
         .catch(() => {});
     }
     card.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(card.querySelector('.pd-like')));
-    card.querySelector('.fcard-cmt').addEventListener('click', openDetail);
     card.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, card.querySelector('.pd-save')));
     return card;
   }
 
-  // ---------- 行きたい店（投稿から保存） ----------
   function wishStateForPost(p) {
     return !!Store.findWish({ name: p.shopName, lat: p.lat, lon: p.lon });
   }
