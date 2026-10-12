@@ -5343,12 +5343,16 @@ const Views = (() => {
       if (!grid) return;
       const withPhoto = posts.filter(p => p.photoUrl);
       if (withPhoto.length) {
+        // v313〜: 自分のプロフィールと同じ Pinterest 風（写真の縦横比のまま詰め、店名と「ジャンル ・ 都道府県」を重ねる）。
+        // 他人の投稿なので日付は出さない。文字は mzItem 内で esc()、写真は img.src で入れる
+        grid.className = 'pp-photo-grid mz-grid pp-mz';
         grid.innerHTML = '';
         withPhoto.forEach((p, i) => {
-          const cell = document.createElement('button');
-          cell.type = 'button'; cell.className = 'photo-cell';
-          cell.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async"><div class="cap">${esc(p.shopName || '')}</div>`;
-          cell.addEventListener('click', () => showPostDetail(p, { list: withPhoto, index: i }));
+          const cell = mzItem(Object.assign(mzLabelFor({ kind: 'net', p }), {
+            badge: (Number(p.rating) || 0) > 0 ? '★' + fmtR(Number(p.rating) || 0) : '',
+            onClick: () => showPostDetail(p, { list: withPhoto, index: i }),
+          }));
+          cell.querySelector('img').src = String(p.photoUrl || '');
           grid.appendChild(cell);
         });
       } else {

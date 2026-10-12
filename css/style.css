@@ -2128,3 +2128,5 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .explore-grid > .mz-grid { grid-column: 1 / -1; padding: 0 10px 16px; }
 /* プロフィールの写真（#pf-photo-grid は画面の端まで広がるので、検索と同じく左右に余白を取る） */
 .mz-grid.pf-mz { padding: 4px 10px 16px; }
+/* 他の人のプロフィールの写真（v313〜 Pinterest 風）。モーダルの端まで広げ、左右に余白を取る */
+.pp-photo-grid.mz-grid { margin: 12px -20px 0; padding: 0 10px 16px; }
