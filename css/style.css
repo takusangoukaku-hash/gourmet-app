@@ -2098,3 +2098,33 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .sh-card-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-lite); }
 .rc-box { max-width: 460px; }
 .rc-img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border-lite); margin: 6px 0 8px; }
+
+/* =====================================================
+   v312: Pinterest 風の写真の並び（プロフィールの写真・検索の写真）
+   写真ごとの縦横比のまま列に詰める。行は 4px 刻みで、JS（mzFit）が写真の高さに合わせて span を決める
+   ===================================================== */
+.mz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); grid-auto-rows: 4px;
+  column-gap: 10px; align-items: start; padding: 4px 0 16px; }
+@media (max-width: 560px) { .mz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; } }
+.mz-grid > .empty, .mz-grid > .skel-grid { grid-column: 1 / -1; grid-row: auto; }
+.mz-item { all: unset; box-sizing: border-box; display: block; cursor: pointer; min-width: 0; grid-row-end: span 46; }
+.mz-item:focus-visible .mz-card { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mz-card { position: relative; display: block; border-radius: 16px; overflow: hidden; background: var(--field);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .08); }
+.mz-card img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; transition: transform .25s ease; }
+@media (hover: hover) { .mz-item:hover .mz-card img { transform: scale(1.03); } }
+.mz-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 2px;
+  padding: 30px 11px 9px; background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(0, 0, 0, .62));
+  color: #fff; pointer-events: none; }
+.mz-name { font-weight: 800; font-size: 13.5px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mz-sub { font-size: 11px; font-weight: 600; opacity: .92; text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mz-badge { position: absolute; top: 8px; left: 8px; background: rgba(0, 0, 0, .58); color: #ffd75e;
+  font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.mz-count { position: absolute; top: 8px; right: 9px; color: #fff; font-size: 11.5px; font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+/* 検索のジャンル別写真（#explore-grid は3列グリッドなので、中の並びは全列を使う） */
+.explore-grid > .mz-grid { grid-column: 1 / -1; padding: 0 10px 16px; }
+/* プロフィールの写真（#pf-photo-grid は画面の端まで広がるので、検索と同じく左右に余白を取る） */
+.mz-grid.pf-mz { padding: 4px 10px 16px; }

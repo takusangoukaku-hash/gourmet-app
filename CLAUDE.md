@@ -77,6 +77,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 地図の見た目は `views.js` の `baseMapStyle(dark)`（iPhone のマップ風の自前スタイル）。v305 で試した OpenFreeMap Liberty は
   「ごちゃつく」ため v306 で戻した。ピンは平らな一色の涙型（幅19×高さ30px、v311〜）で、頭の丸が金丸（平均 .5 以上・縁なし）と白丸（それ以外・行きたい店）の2種類。
   拡大率は `PIN_SCALE_STOPS`（ラベル・★・吹き出しの位置もこれに連動）。地図の凡例は評価の色だけ出し、丸の説明は出さない（v310〜）。
+- 写真の一覧（プロフィールの写真・検索の写真）は Pinterest 風の `mzItem()` / `.mz-grid` で描く（v312〜）。行は 4px 刻みで、
+  写真が読み込まれたら `mzFit()` が高さに合わせて `grid-row-end: span N` を決める。他人のプロフィールの写真一覧は従来の正方形のまま。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

@@ -2388,6 +2388,57 @@ const Views = (() => {
   }
 
   // 選んだジャンルの写真を敷き詰める（genreが空なら全部、GKEY_SEP区切りで複数可）。タップで投稿表示
+  // ---------- Pinterest 風の写真の並び（v312〜。プロフィールの写真・検索の写真） ----------
+  // 縦横比がばらばらな写真を、列ごとに隙間なく詰めて並べる。CSS grid の行を 4px に細かく刻み、
+  // 写真が読み込まれて高さが決まったら「何行ぶん使うか」を合わせる（並び順は左上から右へ）。
+  // 極端に細長い写真は 縦/横 = 0.75〜1.5 に収めて切り抜く（一覧が間延びしないように）
+  const MZ_ROW = 4, MZ_GAP = 10;
+  const mzRO = (typeof ResizeObserver !== 'undefined')
+    ? new ResizeObserver(entries => { for (const e of entries) mzFit(e.target.parentElement); }) : null;
+  function mzFit(item) {
+    if (!item || !item.firstElementChild) return;
+    const h = item.firstElementChild.getBoundingClientRect().height;
+    if (h) item.style.gridRowEnd = 'span ' + Math.ceil((h + MZ_GAP) / MZ_ROW);
+  }
+  // 写真カード1枚。o = { name, sub, badge, count, onClick }。img は呼び出し側で setThumb / src
+  function mzItem(o) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'mz-item';
+    item.innerHTML = `
+      <span class="mz-card">
+        <img alt="" loading="lazy" decoding="async">
+        ${o.badge ? `<span class="mz-badge">${esc(o.badge)}</span>` : ''}
+        ${o.count ? `<span class="mz-count">${esc(o.count)}</span>` : ''}
+        <span class="mz-cap">
+          <span class="mz-name">${esc(o.name || '')}</span>
+          ${o.sub ? `<span class="mz-sub">${esc(o.sub)}</span>` : ''}
+        </span>
+      </span>`;
+    const img = item.querySelector('img');
+    img.addEventListener('load', () => {
+      const r = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
+      img.style.aspectRatio = `1 / ${Math.min(1.5, Math.max(0.75, r)).toFixed(3)}`;
+      mzFit(item);
+    });
+    if (o.onClick) item.addEventListener('click', o.onClick);
+    if (mzRO) mzRO.observe(item.firstElementChild);
+    return item;
+  }
+  // 写真の下に出す「ジャンル ・ 都道府県」
+  const mzSub = (genre, pref) => [genre, normPref(pref) || pref].filter(Boolean).join(' ・ ');
+  // 自分の写真／フォロー中の人の投稿 → カードの文字
+  function mzLabelFor(it, vById) {
+    if (it.kind === 'mine') {
+      const shop = Store.getShop(it.ph.shopId) || {};
+      const v = (vById && vById.get(it.ph.visitId)) || {};
+      const genre = (v.dishGenres && v.dishGenres[0]) || shopLabelGenre(shop) || '';
+      return { name: shop.name || '', sub: mzSub(genre, shop.pref) };
+    }
+    const p = it.p || {};
+    return { name: p.shopName || '', sub: mzSub(String(p.genre || p.shopGenre || '').split('・')[0], p.pref) };
+  }
+
   async function renderExploreGrid(genre) {
     const box = $('#explore-grid');
     box.innerHTML = SKEL_GRID;
@@ -2401,16 +2452,16 @@ const Views = (() => {
     box.innerHTML = '';
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
     const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const grid = document.createElement('div');
+    grid.className = 'mz-grid';
     list.forEach((it, i) => {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'explore-cell';
-      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
+      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }) }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
-      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
-      box.appendChild(cell);
+      grid.appendChild(cell);
     });
+    box.appendChild(grid);
   }
 
   function renderList() {
@@ -2511,20 +2562,18 @@ const Views = (() => {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません。');
       return;
     }
-    const grid = box.firstElementChild;
-    grid.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'mz-grid';
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
     const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
     list.forEach((it, i) => {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'explore-cell';
-      cell.innerHTML = '<img alt="" loading="lazy" decoding="async">';
+      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }) }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
-      cell.addEventListener('click', () => showPostDetail(posts[i], { list: posts, index: i }));
       grid.appendChild(cell);
     });
+    box.innerHTML = '';
+    box.appendChild(grid);
   }
 
   // 店舗一覧の1行（検索タブ・プロフィールの検索サブタブ共通）。
@@ -2853,29 +2902,19 @@ const Views = (() => {
     // 最初の画面はお店ごとの写真カード一覧: 写真に★平均バッジ（左上）と
     // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。
     // カードをタップすると、その店舗から始まる連続スクロールのフィード画面が開く
-    box.className = 'pf-photocards';
+    // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」）
+    box.className = 'mz-grid pf-mz';
     box.innerHTML = '';
     groups.forEach((g, idx) => {
       const shop = Store.getShop(g.shopId) || {};
       const avg = Store.avgRating(g.shopId);
       const visits = Store.visitCount(g.shopId);
-      const genre = shopLabelGenre(shop) || '';
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = 'ppc';
-      card.innerHTML = `
-        <span class="ppc-ph">
-          <img alt="" loading="lazy" decoding="async">
-          ${avg ? `<span class="ppc-badge">★${fmtR(avg)}</span>` : ''}
-          ${visits > 1 ? `<span class="ppc-count">×${visits}</span>` : ''}
-        </span>
-        <span class="ppc-info">
-          <span class="ppc-name">${esc(shop.name || '')}</span>
-          ${shop.station ? `<span class="ppc-sub">${esc(shop.station)}</span>` : ''}
-          ${genre ? `<span class="ppc-genre">${esc(genre)}<span class="ppc-dot" style="background:${catColorForGenre(genre)}"></span></span>` : ''}
-        </span>`;
+      const card = mzItem({
+        name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
+        badge: avg ? '★' + fmtR(avg) : '', count: visits > 1 ? '×' + visits : '',
+        onClick: () => showShopFeed(groups, idx),
+      });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      card.addEventListener('click', () => showShopFeed(groups, idx));
       box.appendChild(card);
     });
   }
