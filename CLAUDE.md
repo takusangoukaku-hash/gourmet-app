@@ -71,6 +71,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 投稿詳細は `buildPostSection(p, close)`、ホーム一覧は Pinterest 風カードの `buildFeedCard(p, list, i)` で描画する（v314〜。カードの写真タップで詳細が開く。
   カードには店名・ジャンル・都道府県・★・行きたい保存・投稿者・いいね、2人以上の評価がある店は「あなた向け評価」（v316〜）を出し、距離やナビ・コメントは詳細へ）。
   「あなた向け評価」は BITEMAP の中心の機能なので、カードを作り替えるときも消さない。
+- 「★5 ×N人」（v318〜）: 平均は人数が増えると 4 点台に寄るため、別に `fiveStarFans()` で数えてホームのカードと検索の一覧に `fiveChipHtml()` で出す。
+  数えるのは自分と味覚一致率 `FIVE_MATCH_MIN`（70%）以上の人だけ。地図のピンの形は変えない（利用者の希望）。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。

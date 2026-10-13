@@ -379,6 +379,29 @@ const Views = (() => {
       raters: n,
     };
   }
+  // 「★5 を付けた人」の数（v318〜）。平均は人数が増えるほど 4 点台に寄り ★5 の店が見分けにくくなるため、平均とは別に数える。
+  // 数えるのは自分と、味覚一致率 FIVE_MATCH_MIN% 以上（共通5件以上）の人だけ。誰でも数えると、ほとんどの店に付いて意味が薄れる
+  const FIVE_MATCH_MIN = 70;
+  function fiveStarFans(shopLike) {
+    const users = new Set();
+    let mine = false;
+    const my = Store.matchShop({ name: shopLike.name, lat: shopLike.lat, lon: shopLike.lon });
+    if (my && Store.visitsOf(my.id).some(v => (Number(v.rating) || 0) >= 5)) mine = true;
+    const meName = (Store.getProfile() || {}).username;
+    for (const p of networkPosts) {
+      if ((Number(p.rating) || 0) < 5 || !p.username || p.username === meName || !postMatchesShop(p, shopLike)) continue;
+      const m = tasteMatch(p.username);
+      if (m.rate != null && m.conf !== 'low' && m.rate >= FIVE_MATCH_MIN) users.add(p.username);
+    }
+    return { n: users.size + (mine ? 1 : 0), mine };
+  }
+  // 「★5 ×N人」の印（0人なら空）
+  function fiveChipHtml(f) {
+    if (!f || !f.n) return '';
+    const label = f.mine && f.n === 1 ? 'あなたが★5' : `★5 ×${f.n}人`;
+    const tip = `あなた${f.mine ? '' : '以外'}と、味覚一致率${FIVE_MATCH_MIN}%以上の人のうち ★5 を付けた人数${f.mine && f.n > 1 ? '（あなたを含む）' : ''}`;
+    return `<span class="five-chip" title="${esc(tip)}">${esc(label)}</span>`;
+  }
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
   function tasteBadge(username, small) {
     const m = tasteMatch(username);
@@ -2595,7 +2618,7 @@ const Views = (() => {
           const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
           return pair.raters > 1 ? `<span class="ps-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : '';
         })()}</div>
-        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span>${(() => {
+        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span>${fiveChipHtml(fiveStarFans(s))}${(() => {
           // 星絞り込み中: 平均で超えている店は金色、1回の記録だけで超えている店は白抜きのバッジで区別
           const minR = +($('#flt-rating').value || 0);
           if (!minR) return '';
@@ -4761,6 +4784,7 @@ const Views = (() => {
     const rating = (Number(p.rating) || 0) > 0 ? Math.round(Number(p.rating) * 10) / 10 : 0;
     const tm = tasteMatch(p.username);
     const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
+    const five = fiveStarFans({ name: p.shopName, lat: p.lat, lon: p.lon });
     // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
     const me = (Store.getProfile() || {}).username;
     const isMine = Store.visits().some(v => v.id === p.id) || (!!me && p.username === me);
@@ -4785,9 +4809,10 @@ const Views = (() => {
           ${isMine && p.datetime ? `<span class="fpin-time">${relTime(p.datetime)}</span>` : ''}
           <button type="button" class="fa-like pd-like fpin-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
         </div>
-        ${pair.raters > 1 ? `<div class="fpin-you" title="あなたと味覚が近い人の評価ほど重く数えた★">
-          <span class="fy-l">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
-          <span class="fy-all">全体 ${fmtR(pair.overall)}・${pair.raters}人</span>
+        ${(pair.raters > 1 || five.n) ? `<div class="fpin-you">
+          ${pair.raters > 1 ? `<span class="fy-l" title="あなたと味覚が近い人の評価ほど重く数えた★">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
+          <span class="fy-all">全体 ${fmtR(pair.overall)}・${pair.raters}人</span>` : ''}
+          ${fiveChipHtml(five)}
         </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
