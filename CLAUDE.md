@@ -33,7 +33,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 ## コード構成
 | ファイル | 役割 |
 |---|---|
-| `index.html` | 画面レイアウト（ホーム/検索/登録/地図/プロフィールの5タブ） |
+| `index.html` | 画面レイアウト（ホーム/検索/登録/地図/プロフィールの5タブ。プロフィールの中は写真/統計） |
 | `css/style.css` | スタイル |
 | `js/store.js` | データ層（店舗Shop/訪問Visit）。localStorage + 写真はIndexedDB（v3: 本体 photos／一覧用メタ meta／サムネ thumbs の3ストア。一覧は meta だけを読む） |
 | `js/api.js` | 外部API（OpenPOI/Overpass/Nominatim/Photon/Yahoo!/ホットペッパー/Google）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は OpenPOI（無料・キー不要）→地図データ→Google は最後の手段（課金を避ける）。OpenPOI 由来の店は `dataLicenses`/`dataAttributions` を一緒に保存し、設定画面の出典表示を消さない |
@@ -80,7 +80,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   拡大率は `PIN_SCALE_STOPS`（ラベル・★・吹き出しの位置もこれに連動）。地図の凡例は評価の色だけ出し、丸の説明は出さない（v310〜）。
 - 写真の一覧（プロフィールの写真・他の人のプロフィールの写真・検索の写真）は Pinterest 風の `mzItem()` / `.mz-grid` で描く（v312〜）。行は 4px 刻みで、
   写真が読み込まれたら `mzFit()` が高さに合わせて `grid-row-end: span N` を決める（他の人のプロフィールは v313〜）。
-  プロフィールの「お店をさがす」は `shopPin()`（`#shop-list` が `#ptab-shops` の中にあるときだけ。検索タブの「お店」は従来の `shopCard()`）。
+- 役割分担（v315〜）: プロフィール＝自分のアルバム（「写真」と「統計」の2タブ。写真の上の `#pf-photo-q` で絞り込み）、
+  検索タブ＝条件で探す・比べる（横長の `shopCard()` 一覧と写真の切り替え）。同じ機能を2か所に置かない（v314 のプロフィール「お店をさがす」は廃止）。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

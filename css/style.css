@@ -1802,7 +1802,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* プロフィールの写真グリッド: 画面の端まで広げる（両脇の白い隙間をなくす） */
 #pf-photo-grid { margin-left: -16px; margin-right: -16px; }
 /* プロフィール「お店をさがす」: 移動してきた検索UIの余白を整える */
-#ptab-shops .filters { padding: 0; margin-bottom: 10px; box-shadow: none; }
 
 /* ---------- 地図ポップアップ: フォロワーのアイコン（写真の右上・タップでプロフィールへ） ---------- */
 .pp-wrap { position: relative; }
@@ -2137,17 +2136,17 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 /* ホーム: 縦1列の大きなカード → 列に詰めた写真カード（スマホ2列・広い画面は4列前後） */
 .feed-list.mz-grid { display: grid; flex-direction: initial; gap: 0 10px; max-width: 1100px; padding: 10px 10px 20px; }
 @media (max-width: 560px) { .feed-list.mz-grid { column-gap: 8px; } }
-.fpin, .spin { cursor: default; }
+.fpin { cursor: default; }
 .fpin-body { display: block; }
-.fpin-photo, .spin-photo { cursor: pointer; }
-.fpin-photo:focus-visible, .spin-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.fpin-photo { cursor: pointer; }
+.fpin-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* 写真が無い投稿・店: 淡い地に🍽️の正方形 */
 .fpin-ph { display: none; }
 .fpin-nophoto .mz-card img { display: none; }
 .fpin-nophoto .fpin-ph { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; font-size: 34px;
   background: linear-gradient(135deg, var(--accent-soft), var(--field)); }
-/* 写真の右上: 行きたい保存（しおり）・お気に入り（♥）の丸ボタン */
-.fpin-save, .spin-fav {
+/* 写真の右上: 行きたい保存（しおり）の丸ボタン */
+.fpin-save {
   position: absolute; top: 7px; right: 7px; width: 32px; height: 32px; border-radius: 50%; border: none; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   background: rgba(255, 255, 255, .92); color: #1f1e1d; box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
@@ -2155,9 +2154,6 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .fpin-save .ic { width: 16px; height: 16px; }
 .fpin-save.on { background: var(--accent); color: #fff; }
 .fpin-save.on .bm-ic { fill: currentColor; }
-.spin-fav .heart-ic { width: 17px; height: 17px; fill: none; }
-.spin-fav.on { color: #e0245e; }
-.spin-fav.on .heart-ic { fill: currentColor; }
 /* 写真の下: 投稿者・一致率・いいね（Pinterest のピンの下の小さな行） */
 .fpin-meta { display: flex; align-items: center; gap: 6px; padding: 7px 2px 0; min-width: 0; }
 .fpin-author { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
@@ -2172,10 +2168,18 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .fpin-like .heart-ic { width: 17px; height: 17px; fill: none; }
 .fpin-like.liked { color: #e0245e; }
 .fpin-like.liked .heart-ic { fill: currentColor; }
-/* プロフィールの「お店をさがす」: 店カードを写真の並びに */
-.shop-list.mz-grid { padding: 6px 10px 16px; }
-.shop-list.mz-grid > .group-header { grid-column: 1 / -1; grid-row-end: span 10; align-self: end; }
-.spin-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 7px 2px 0; cursor: pointer;
-  font-size: 11.5px; color: var(--muted); }
-.spin-you { color: var(--text); font-size: 11.5px; }
-.spin-you b { color: var(--accent); }
+
+/* =====================================================
+   v315: プロフィールは「写真（自分のアルバム）」と「統計」の2つ。写真の上に絞り込み用の検索欄
+   ===================================================== */
+.pf-search { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; padding: 0 14px; height: 42px;
+  border-radius: 999px; background: var(--field); border: 1px solid var(--border-lite); }
+.pf-search:focus-within { border-color: var(--accent); background: var(--card); }
+.pf-search-ic { width: 18px; height: 18px; color: var(--muted); flex: 0 0 auto; }
+#pf-photo-q { flex: 1 1 auto; min-width: 0; border: none; background: transparent; font-size: 15px; color: var(--text); padding: 0; outline: none; box-shadow: none; }
+#pf-photo-q::placeholder { color: var(--muted); }
+.pf-search-n { flex: 0 0 auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 写真カードの下の1行（訪問回数・前回） */
+.mz-body { display: block; }
+.mz-meta { display: block; padding: 6px 3px 0; font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

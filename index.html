@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=314">
+<link rel="stylesheet" href="css/style.css?v=315">
 </head>
 <body>
 
@@ -341,11 +341,6 @@
         <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
       </svg>
     </button>
-    <button class="psub" data-ptab="shops" title="お店をさがす" aria-label="お店をさがす">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-      </svg>
-    </button>
     <button class="psub" data-ptab="stats" title="統計" aria-label="統計">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
@@ -353,13 +348,15 @@
     </button>
   </div>
 
-  <!-- 写真パネル（初期表示） -->
+  <!-- 写真パネル（初期表示）。上の検索欄で自分のアルバムを絞り込む（条件での絞り込み・並べ替えは検索タブ）。v315〜 -->
   <div id="ptab-photos" class="ptab-panel">
+    <div class="pf-search">
+      <svg class="pf-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="pf-photo-q" placeholder="店名・ジャンル・地名でしぼりこむ" autocomplete="off" enterkeyhint="search" aria-label="自分のアルバムをしぼりこむ">
+      <span class="pf-search-n" id="pf-photo-n" aria-live="polite"></span>
+    </div>
     <div id="pf-photo-grid" class="photo-grid"></div>
   </div>
-
-  <!-- お店をさがすパネル（検索タブと同じ検索バー・絞り込み・店舗リストをここへ移動して表示） -->
-  <div id="ptab-shops" class="ptab-panel hidden"></div>
 
   <!-- 統計パネル -->
   <div id="ptab-stats" class="ptab-panel hidden">
@@ -607,11 +604,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=314"></script>
-<script src="js/api.js?v=314"></script>
-<script src="js/cloud.js?v=314"></script>
-<script src="js/register.js?v=314"></script>
-<script src="js/views.js?v=314"></script>
-<script src="js/app.js?v=314"></script>
+<script src="js/store.js?v=315"></script>
+<script src="js/api.js?v=315"></script>
+<script src="js/cloud.js?v=315"></script>
+<script src="js/register.js?v=315"></script>
+<script src="js/views.js?v=315"></script>
+<script src="js/app.js?v=315"></script>
 </body>
 </html>

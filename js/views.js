@@ -2246,13 +2246,6 @@ const Views = (() => {
 
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
   function enterListTab() {
-    // プロフィールの「お店をさがす」に検索UIを移動していたら元の位置へ戻す
-    const lv = $('#view-list');
-    const fc = $('#list-filters-card');
-    if (!lv.contains(fc)) {
-      lv.insertBefore(fc, $('#explore-head')); // 検索バーは常に最上部
-      lv.appendChild($('#shop-list'));
-    }
     $('#flt-keyword').value = '';
     // 絞り込みも毎回まっさらに（見えない絞り込みが残って「表示されない」と混乱しないように）
     $('#flt-dish-genre').value = '';
@@ -2400,12 +2393,13 @@ const Views = (() => {
     const h = item.firstElementChild.getBoundingClientRect().height;
     if (h) item.style.gridRowEnd = 'span ' + Math.ceil((h + MZ_GAP) / MZ_ROW);
   }
-  // 写真カード1枚。o = { name, sub, badge, count, onClick }。img は呼び出し側で setThumb / src
+  // 写真カード1枚。o = { name, sub, badge, count, meta, onClick }。img は呼び出し側で setThumb / src。
+  // meta を渡すと写真の下に1行（訪問回数など）を出す
   function mzItem(o) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'mz-item';
-    item.innerHTML = `
+    item.innerHTML = `${o.meta != null ? '<span class="mz-body">' : ''}
       <span class="mz-card">
         <img alt="" loading="lazy" decoding="async">
         ${o.badge ? `<span class="mz-badge">${esc(o.badge)}</span>` : ''}
@@ -2414,7 +2408,7 @@ const Views = (() => {
           <span class="mz-name">${esc(o.name || '')}</span>
           ${o.sub ? `<span class="mz-sub">${esc(o.sub)}</span>` : ''}
         </span>
-      </span>`;
+      </span>${o.meta != null ? `<span class="mz-meta">${esc(o.meta)}</span></span>` : ''}`;
     mzWatch(item, item.querySelector('img'));
     if (o.onClick) item.addEventListener('click', o.onClick);
     return item;
@@ -2498,11 +2492,7 @@ const Views = (() => {
 
     const groupFn = groupKeyFns($('#flt-group').value);
     box.innerHTML = '';
-    // プロフィールの「お店をさがす」では Pinterest 風の店カード（v314〜）。検索タブは従来の横長カード
-    const pinMode = $('#ptab-shops').contains(box);
-    box.classList.toggle('mz-grid', pinMode);
-    box.classList.toggle('shop-mz', pinMode);
-    const cardOf = pinMode ? shopPin : shopCard;
+    const cardOf = shopCard; // 検索タブは比べやすい横長の一覧（プロフィールは写真の並び）
 
     if (!groupFn) {
       shops.forEach(s => box.appendChild(cardOf(s)));
@@ -2522,58 +2512,7 @@ const Views = (() => {
         list.forEach(s => box.appendChild(cardOf(s)));
       });
     }
-    if (pinMode) loadPinThumbs(box); else loadThumbs(box);
-  }
-
-  // プロフィールの「お店をさがす」の店カード（Pinterest 風）。写真タップ＝その店の投稿を連続で見る、
-  // 下の文字のタップ＝店舗詳細（data-shop-open の委譲）、右上の♥＝お気に入り（data-fav の委譲）
-  function shopPin(s) {
-    const avg = Store.avgRating(s.id);
-    const n = Store.visitCount(s.id);
-    const last = Store.lastVisitDate(s.id);
-    const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
-    const item = document.createElement('div');
-    item.className = 'mz-item spin';
-    item.innerHTML = `
-      <div class="fpin-body">
-        <div class="mz-card spin-photo" role="button" tabindex="0" aria-label="${esc(s.name)}の写真を見る">
-          <img alt="" loading="lazy" decoding="async" data-pin-thumb="${esc(s.id)}">
-          <span class="fpin-ph" aria-hidden="true">🍽️</span>
-          ${avg ? `<span class="mz-badge">★${fmtR(avg)}</span>` : ''}
-          <button type="button" class="s-fav ps-favbtn spin-fav ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>
-          <span class="mz-cap">
-            <span class="mz-name">${esc(s.name)}</span>
-            <span class="mz-sub">${esc(mzSub(shopLabelGenre(s) || '', s.pref))}</span>
-          </span>
-        </div>
-        <div class="spin-meta" data-shop-open="${esc(s.id)}" role="button" tabindex="0">
-          <span>${n}回訪問${last ? `・前回 ${esc(relTime(last))}` : ''}</span>
-          ${pair.raters > 1 ? `<span class="spin-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : ''}
-        </div>
-      </div>`;
-    item.classList.add('fpin-nophoto'); // 写真が見つかるまでは淡い地に🍽️
-    mzWatch(item, item.querySelector('img'));
-    const photo = item.querySelector('.spin-photo');
-    const openFeed = (e) => { if (e && e.target.closest('button')) return; openShopPostFeed(s.id, sortShops(filteredShops())); };
-    photo.addEventListener('click', openFeed);
-    photo.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFeed(); } });
-    item.querySelector('.spin-meta').addEventListener('keydown', (e) => { if (e.key === 'Enter') showShop(s.id); });
-    return item;
-  }
-  // 店カードの代表写真を24件ずつ読む（全件同時に読むと最初の1枚が遅くなる）
-  async function loadPinThumbs(root) {
-    const imgs = [...root.querySelectorAll('img[data-pin-thumb]')];
-    for (let i = 0; i < imgs.length; i += 24) {
-      if (!root.isConnected) return;
-      await Promise.all(imgs.slice(i, i + 24).map(async (img) => {
-        const rep = await Store.repPhoto(img.dataset.pinThumb).catch(() => null);
-        if (rep && img.isConnected) {
-          setThumb(img, rep);
-          const item = img.closest('.mz-item');
-          if (item) item.classList.remove('fpin-nophoto');
-        }
-      }));
-    }
+    loadThumbs(box);
   }
 
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
@@ -2581,7 +2520,6 @@ const Views = (() => {
   async function renderSearchPhotos() {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
-    box.classList.remove('mz-grid', 'shop-mz'); // プロフィールの店カード用の並びを持ち越さない
     box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
     const kw = $('#flt-keyword').value.trim().toLowerCase();
     const dg = $('#flt-dish-genre').value;
@@ -2869,6 +2807,12 @@ const Views = (() => {
     }
 
     $('#pf-share').addEventListener('click', () => openShareProfile());
+    // 自分のアルバムの絞り込み（打つたびに少し待ってから描き直す）
+    let pfQTimer = null;
+    $('#pf-photo-q').addEventListener('input', () => {
+      clearTimeout(pfQTimer);
+      pfQTimer = setTimeout(() => renderProfilePhotos(), 180);
+    });
     const cardBtn = $('#stat-share-card');
     if (cardBtn) cardBtn.addEventListener('click', () => shareRecordCard());
     // 設定内の行: プロフィール行→マイページへ、共有→共有シート
@@ -2903,25 +2847,11 @@ const Views = (() => {
   function showProfileTab(name) {
     document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
     $('#ptab-photos').classList.toggle('hidden', name !== 'photos');
-    $('#ptab-shops').classList.toggle('hidden', name !== 'shops');
     $('#ptab-stats').classList.toggle('hidden', name !== 'stats');
+    // v315〜 プロフィールは「写真（自分のアルバム）」と「統計」の2つ。条件で探すのは検索タブ
     if (name === 'stats') {
       // グラフは表示中のcanvasでないと大きさが0になるため、表示時に描画する
       renderStats();
-    } else if (name === 'shops') {
-      // 検索タブの検索バー・絞り込み・店舗リストをこのパネルへ移動して表示
-      // （DOMごと移動するので機能は検索タブと完全に同じ。検索タブへ戻ると元の位置に戻る）
-      const panel = $('#ptab-shops');
-      panel.appendChild($('#list-filters-card'));
-      panel.appendChild($('#shop-list'));
-      exploreMode = false;
-      $('#shop-list').classList.remove('hidden');
-      $('#list-back').classList.add('hidden'); // プロフィール内では戻る矢印は不要
-      // 検索タブと同じ「お店/写真」の切り替えをここでも使えるようにする（開くたびに「お店」から）
-      listResultMode = 'shop';
-      document.querySelectorAll('#list-mode-segs .vl-seg').forEach(x => x.classList.toggle('on', x.dataset.m === 'shop'));
-      $('#list-mode-segs').classList.remove('hidden');
-      renderList();
     } else {
       renderProfilePhotos();
     }
@@ -2962,17 +2892,35 @@ const Views = (() => {
     // 最初の画面はお店ごとの写真カード一覧: 写真に★平均バッジ（左上）と
     // ×訪問回数（右下）、下に店名・駅・ジャンル＋カテゴリ色の点。
     // カードをタップすると、その店舗から始まる連続スクロールのフィード画面が開く
-    // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」）
+    // 上の検索欄で絞り込む（店名・ジャンル・料理・地名・駅・コメント）。v315〜
+    const q = String(($('#pf-photo-q') || {}).value || '').trim().toLowerCase();
+    const shown = !q ? groups : groups.filter(g => {
+      const shop = Store.getShop(g.shopId) || {};
+      const vs = Store.visitsOf(g.shopId);
+      const hay = [shop.name, shopLabelGenre(shop), shop.pref, normPref(shop.pref), shop.city, shop.station, shop.address,
+        ...vs.flatMap(v => [v.comment, ...(v.dishGenres || [])])].map(x => x || '').join(' ').toLowerCase();
+      return q.split(/\s+/).every(w => hay.includes(w));
+    });
+    const nEl = $('#pf-photo-n');
+    if (nEl) nEl.textContent = q ? `${shown.length}店` : '';
+    if (!shown.length) {
+      box.className = 'photo-grid';
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, `「${esc(q)}」に合うお店はアルバムにありません。<br>条件で探すときは検索タブを使ってください。`);
+      return;
+    }
+    // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」、下に訪問回数と前回）
     box.className = 'mz-grid pf-mz';
     box.innerHTML = '';
-    groups.forEach((g, idx) => {
+    shown.forEach((g, idx) => {
       const shop = Store.getShop(g.shopId) || {};
       const avg = Store.avgRating(g.shopId);
       const visits = Store.visitCount(g.shopId);
+      const last = Store.lastVisitDate(g.shopId);
       const card = mzItem({
         name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
-        badge: avg ? '★' + fmtR(avg) : '', count: visits > 1 ? '×' + visits : '',
-        onClick: () => showShopFeed(groups, idx),
+        badge: avg ? '★' + fmtR(avg) : '',
+        meta: `${visits}回訪問${last ? '・前回 ' + relTime(last) : ''}`,
+        onClick: () => showShopFeed(shown, idx), // 絞り込み中は、絞り込んだ店の中で前後へ送る
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
       box.appendChild(card);
