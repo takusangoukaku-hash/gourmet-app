@@ -519,9 +519,13 @@ const Store = (() => {
   }
   const hitLog = () => hits.slice();
   // 情報源ごとの件数（設定画面の表示用）
+  // 情報源ごとの件数。複数の情報源で見つかった候補は、それぞれに1件ずつ数える（合計は件数より多くなる。v317〜）
   function hitSummary() {
     const by = {};
-    for (const h of hits) { const k = h.source || '?'; by[k] = (by[k] || 0) + 1; }
+    for (const h of hits) {
+      const srcs = Array.isArray(h.sources) && h.sources.length ? h.sources : [h.source || '?'];
+      for (const k of srcs) by[k] = (by[k] || 0) + 1;
+    }
     return by;
   }
   function mergeHits(list) {

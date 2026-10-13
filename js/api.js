@@ -377,11 +377,22 @@ out center 25;`;
           for (const k of ['address', 'pref', 'city', 'station', 'jaGenre', 'cuisine', 'source', 'osmId', 'openpoiId', 'yahooId', 'hotpepperId', 'googleId']) {
             if ((dup[k] == null || dup[k] === '') && c[k] != null && c[k] !== '') dup[k] = c[k];
           }
+          // 見つけた情報源はすべて残す（検索ヒットの集計で、後から来た情報源も数えるため。v317〜）
+          if (!Array.isArray(dup.sources)) dup.sources = dup.source ? [dup.source] : [];
+          for (const src of (Array.isArray(c.sources) && c.sources.length ? c.sources : [c.source])) {
+            if (src && !dup.sources.includes(src)) dup.sources.push(src);
+          }
           for (const k of ['licenses', 'attributions']) {
-            if ((!Array.isArray(dup[k]) || !dup[k].length) && Array.isArray(c[k]) && c[k].length) dup[k] = c[k];
+            if ((!Array.isArray(dup[k]) || !dup[k].length) && Array.isArray(c[k]) && c[k].length) {
+              dup[k] = c[k];
+              // 出典（ライセンス）付きのデータを出したのはこちらの情報源（例: OSM の候補に OpenPOI の出典を足した）
+              if (k === 'licenses' && c.source) dup.dataSource = c.source;
+            }
           }
           continue;
         }
+        if (!Array.isArray(c.sources)) c.sources = c.source ? [c.source] : []; // 合わせ直し（周辺の詳細検索を後から足す等）でも消さない
+        if (Array.isArray(c.licenses) && c.licenses.length && c.source && !c.dataSource) c.dataSource = c.source;
         seen.add(key);
         if (ref && c.lat != null && c.distance == null) {
           c.distance = Store.distMeters(ref.lat, ref.lon, c.lat, c.lon);
@@ -752,7 +763,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=316')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=317')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -887,7 +898,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v316',
+    FILE_VERSION: 'v317',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

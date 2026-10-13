@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v316'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v317'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -92,7 +92,7 @@ const App = (() => {
       parts.push(keyLabel('hotpepper', 'ホットペッパー'));
       parts.push(keyLabel('google', 'Googleキー'));
       // 検索でタップした候補の情報源の内訳（どの検索源が役に立っているか）
-      const hs = Store.hitSummary(); const total = Object.values(hs).reduce((a, b) => a + b, 0);
+      const hs = Store.hitSummary(); const total = Store.hitLog().length; // 内訳は情報源ごと（重複して見つかった分は両方に数える）
       if (total) parts.push('検索ヒット ' + total + '件（' + Object.entries(hs).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join('・') + '）');
       // 部品(api.js)のバージョンも表示: アプリと違えば古いキャッシュ混在のサイン
       const partVer = Api.FILE_VERSION || '旧';
@@ -474,6 +474,7 @@ const App = (() => {
         t: num(h.t, 0, 1e13, 0), flow: FLOWS.includes(h.flow) ? h.flow : 'unknown', source: str(h.source, 20) || 'unknown',
         name: str(h.name, 200), query: str(h.query, 100), rank: (typeof h.rank === 'number' && h.rank >= 0 && h.rank < 1000) ? h.rank : null,
         auto: !!h.auto, ...(typeof h.shopId === 'string' && ID_RE.test(h.shopId) ? { shopId: h.shopId } : {}),
+        ...(Array.isArray(h.sources) ? { sources: h.sources.filter(x => typeof x === 'string').map(x => x.slice(0, 20)).slice(0, 8) } : {}),
       })).filter(h => h.t > 0).slice(-1000);
       Store.mergeHits(clean);
     }

@@ -723,9 +723,11 @@ const Views = (() => {
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
         cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
+        clusterProperties: { maxR: ['max', ['get', 'r']] }, // まとまりの外側の輪＝中で一番評価の高い店の色（v317〜）
       });
-      // まとまり（クラスター）の見た目: 件数で色分けした半透明の丸＋外側の淡い輪（v303〜）
-      //   〜9件 緑 / 10〜99件 黄 / 100件〜 橙。中に件数を黒文字で出す
+      // まとまり（クラスター）の見た目: 件数で色分けした半透明の丸＋外側の輪（v303〜）
+      //   内側の丸＝件数（〜9件 緑 / 10〜99件 黄 / 100件〜 橙）。中に件数を黒文字で出す
+      //   外側の輪＝中で一番評価の高い店の評価色（v317〜。引いた地図でもおいしい店がある地域が分かる）
       const byCount = (small, mid, large) => ['step', ['get', 'point_count'], small, 10, mid, 100, large];
       // マウスを乗せたとき、そのまとまりに含まれる店の範囲（凸包）を青い線で囲む
       map.addSource('cluster-hull', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -737,12 +739,12 @@ const Views = (() => {
         paint: { 'line-color': '#3388ff', 'line-width': 3, 'line-opacity': 0.9 } });
       map.addLayer({ id: 'cluster-halo', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 20,
-          'circle-color': byCount('rgba(181,226,140,0.6)', 'rgba(241,211,87,0.6)', 'rgba(253,156,115,0.6)') } });
+        paint: { 'circle-radius': 20, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.55 } });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
         paint: { 'circle-radius': 15,
-          'circle-color': byCount('rgba(110,204,57,0.6)', 'rgba(240,194,12,0.6)', 'rgba(241,128,23,0.6)') } });
+          // 下の外側の輪と色が混ざらないよう不透明にする（地図の地色に60%で重ねたときと同じ見え方の色）
+          'circle-color': byCount('#a4dc82', '#f2d667', '#f3ae6d') } });
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,

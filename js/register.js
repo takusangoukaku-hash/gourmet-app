@@ -702,6 +702,8 @@ const Register = (() => {
       name: isExisting ? cand.shop.name : (cand.name || ''),
       query: lastQuery, rank: rank >= 0 ? rank : null, auto: !!auto,
     };
+    // 複数の情報源で見つかった候補は、その全部を残す（例: ['osm', 'openpoi']。v317〜）
+    if (!isExisting && Array.isArray(cand.sources) && cand.sources.length > 1) entry.sources = cand.sources.slice(0, 8);
     if (isExisting) entry.shopId = cand.shop.id;
     lastHit = Store.addHit(entry);
   }
@@ -777,7 +779,8 @@ const Register = (() => {
   async function applyLocation(c) {
     selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '', station: '', country: '日本',
       // 出どころと利用条件（OpenPOI 由来の店は licenses / attributions を記録と一緒に保存する）
-      dataSource: c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [] };
+      // 出典（ライセンス）付きのデータを出した情報源を優先（OSM と OpenPOI の両方で見つかった店は OpenPOI。v317〜）
+      dataSource: c.dataSource || c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [] };
     const mine = selected; // 通信中に別の候補が選ばれたら、この結果は捨てる
     $('#f-shop-name').value = c.name || '';
     if (c.address) $('#f-address').value = c.address;
