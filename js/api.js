@@ -585,8 +585,8 @@ out center 25;`;
   // キーをアプリ（公開リポジトリ・ブラウザ）に置かずに Yahoo!／ホットペッパー／Google を全利用者が使えるようにする。
   // キーは Worker 側の Secret に置き、アプリは Worker の URL だけを知る（tools/proxy/ を参照）。
   // 利用者が ⚙️ で自分のキーを入れた場合はそちらを優先する（開発者の枠を使わない）。
-  // 未設定（''）なら従来どおり利用者のキーだけで動く。テスト用に window.__searchProxy で差し替え可。
-  const SEARCH_PROXY = ((typeof window !== 'undefined' && window.__searchProxy) || '').replace(/\/+$/, '');
+  // 空文字にすると従来どおり利用者のキーだけで動く。テスト用に window.__searchProxy で差し替え可。
+  const SEARCH_PROXY = ((typeof window !== 'undefined' && window.__searchProxy) || 'https://bitemap-search.takusangoukaku.workers.dev').replace(/\/+$/, '');
   const proxyOn = () => !!SEARCH_PROXY;
   // Worker が提供しているサービス（/status の結果）。null = まだ確認していない（= あるものとして扱う）
   let proxyServices = null;
@@ -763,7 +763,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=318')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=319')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -898,7 +898,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v318',
+    FILE_VERSION: 'v319',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

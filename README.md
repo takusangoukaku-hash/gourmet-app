@@ -79,7 +79,8 @@ Overture 由来のレコードには Foursquare（Apache-2.0）のデータが�
 これら3つはキーの登録（Google は課金）が必要なため、キーをアプリに埋め込まず、開発者が用意した
 Cloudflare Worker（`tools/proxy/`）に Secret として置き、アプリはその Worker を経由して検索する。
 Worker は本番サイトの Origin からの呼び出しだけを中継し、Google へ送る項目と回数も Worker 側で固定・制限する。
-設定手順は `tools/proxy/README.md`。利用者が⚙️で自分のキーを入れた場合はそちらが優先される。
+設定手順は `tools/proxy/README.md`。本番の Worker は `https://bitemap-search.takusangoukaku.workers.dev`（v319〜、`js/api.js` の `SEARCH_PROXY`）。
+利用者が⚙️で自分のキーを入れた場合はそちらが優先される。
 
 ## 構成
 
