@@ -4750,13 +4750,15 @@ const Views = (() => {
   //  写真の下: 投稿者、いいね・コメント・行きたい保存
   function buildFeedCard(p, list, index) {
     // Pinterest 風のカード（v314〜）: 写真（縦横比のまま）＋店名・「ジャンル ・ 都道府県」・★、右上に行きたい保存、
-    // 下に投稿者といいね数。距離・ここへ行く・あなた向け評価・コメントは投稿詳細で見る
+    // 下に投稿者といいね数。2人以上の評価がある店は「あなた向け評価」（味覚の近い人ほど重く数えた★）も出す（v316〜）。
+    // 距離・ここへ行く・コメントは投稿詳細で見る
     const card = document.createElement('div');
     card.className = 'mz-item fpin';
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
     const genre = String(p.genre || p.shopGenre || '').split('・')[0];
     const rating = (Number(p.rating) || 0) > 0 ? Math.round(Number(p.rating) * 10) / 10 : 0;
     const tm = tasteMatch(p.username);
+    const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
     // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
     const me = (Store.getProfile() || {}).username;
     const isMine = Store.visits().some(v => v.id === p.id) || (!!me && p.username === me);
@@ -4781,6 +4783,10 @@ const Views = (() => {
           ${isMine && p.datetime ? `<span class="fpin-time">${relTime(p.datetime)}</span>` : ''}
           <button type="button" class="fa-like pd-like fpin-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
         </div>
+        ${pair.raters > 1 ? `<div class="fpin-you" title="あなたと味覚が近い人の評価ほど重く数えた★">
+          <span class="fy-l">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
+          <span class="fy-all">全体 ${fmtR(pair.overall)}・${pair.raters}人</span>
+        </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
     mzWatch(card, img);
@@ -4790,11 +4796,13 @@ const Views = (() => {
       card.classList.remove('fpin-nophoto');
     };
     // 写真の解決: クラウドURLが欠けた投稿（写真より先に投稿だけ公開された等）や
-    // URLの読み込み失敗時は、自分の記録なら端末内の写真で表示する
+    // URLの読み込み失敗時は、自分の記録なら端末内の写真で表示する。
+    // カードは小さいので一覧用のサムネイル（長辺640px）で足りる（元の写真を毎回読まない。v316〜）
     const ownLocalPhoto = async () => {
       if (!Store.visits().some(v => v.id === p.id)) return '';
       const ps = await Store.photosOfVisit(p.id).catch(() => []);
-      return ps.length ? ((await fullPhotoUrl(ps[0])) || '') : '';
+      if (!ps.length) return '';
+      return (await thumbUrl(ps[0]).catch(() => null)) || (await fullPhotoUrl(ps[0])) || '';
     };
     if (!p.photoUrl) {
       card.classList.add('fpin-nophoto'); // 写真が無い投稿は淡い地に🍽️の小さめのカード

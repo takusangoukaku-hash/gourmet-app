@@ -69,7 +69,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 星評価の表示は `views.js` の `starSvg(rating, size)` を使う（角丸SVG・ゴールドグラデ・半星対応）。
   入力用ボタンは `starBtn()`。文字の「★」ベタ塗りは使わない。
 - 投稿詳細は `buildPostSection(p, close)`、ホーム一覧は Pinterest 風カードの `buildFeedCard(p, list, i)` で描画する（v314〜。カードの写真タップで詳細が開く。
-  カードには店名・ジャンル・都道府県・★・行きたい保存・投稿者・いいねだけを出し、距離やナビ・コメントは詳細へ）。
+  カードには店名・ジャンル・都道府県・★・行きたい保存・投稿者・いいね、2人以上の評価がある店は「あなた向け評価」（v316〜）を出し、距離やナビ・コメントは詳細へ）。
+  「あなた向け評価」は BITEMAP の中心の機能なので、カードを作り替えるときも消さない。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
