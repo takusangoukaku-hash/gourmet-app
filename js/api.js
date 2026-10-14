@@ -602,11 +602,23 @@ out center 25;`;
     return proxyStatusPromise;
   }
   const proxyHas = (name) => proxyOn() && (proxyServices == null || !!proxyServices[name]);
-  // キーの出どころ: 'own'（⚙️で設定）／'proxy'（開発者提供）／''（なし）
+  // キーの出どころ: 'own'（⚙️で設定）／'proxy'（開発者提供）／''（なし）。'anthropic' は AI判定（v324〜）
   function keySource(name) {
-    const own = name === 'google' ? getGoogleKey() : name === 'yahoo' ? getYahooKey() : name === 'hotpepper' ? getHotpepperKey() : '';
+    const own = name === 'google' ? getGoogleKey() : name === 'yahoo' ? getYahooKey() : name === 'hotpepper' ? getHotpepperKey()
+      : name === 'anthropic' ? getApiKey() : '';
     if (own) return 'own';
-    return proxyHas(name) ? 'proxy' : '';
+    return proxyHas(name === 'anthropic' ? 'classify' : name) ? 'proxy' : '';
+  }
+  // AI判定が使えるか（自分のキー、または開発者提供）
+  const canClassify = () => !!getApiKey() || proxyHas('classify');
+  // 端末の識別子（AI判定の 1 日の上限を端末ごとに数えるため。個人情報は含まない乱数）
+  function deviceId() {
+    const K = 'gourmet.deviceId';
+    try {
+      let id = localStorage.getItem(K);
+      if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)); localStorage.setItem(K, id); }
+      return id;
+    } catch { return ''; }
   }
   async function proxyFetch(path, init) {
     const res = await fetchT(SEARCH_PROXY + path, Object.assign({ mode: 'cors', credentials: 'omit' }, init || {}), 12000);
@@ -763,7 +775,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=323')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=324')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -785,13 +797,27 @@ out center 25;`;
 
   // ---------- AIによる料理ジャンル判定（仕様書v2 §5） ----------
   // 戻り値: { dishGenres: string[], shopGenre: string } / 判定不可・低確信時は空
-  // APIキー未設定時は null（呼び出し側でOSMタグ推定にフォールバック）
+  // 自分のキーがあればブラウザから直接 Anthropic を呼ぶ。無ければ開発者提供の中継（Worker の /classify、v324〜）。
+  // どちらも無ければ null（呼び出し側でOSMタグ推定にフォールバック）
   async function classifyDishPhoto(file) {
-    if (!hasApiKey()) return null;
+    if (!canClassify()) return null;
 
     // 送信サイズを抑えるため縮小してから送る（判定精度には十分）
     const blob = await compressImage(file, 768, 0.7);
     const base64 = await blobToBase64(blob);
+
+    if (!hasApiKey()) {
+      // 開発者提供: 写真とジャンル一覧を Worker に送る。モデル・プロンプト・回数の上限は Worker 側
+      const j = await proxyFetch('/classify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType: 'image/jpeg', device: deviceId(), dishGenres: DISH_GENRES, shopGenres: SHOP_GENRES }),
+      });
+      if (!j || !j.confident) return { dishGenres: [], shopGenre: '' };
+      return {
+        dishGenres: (Array.isArray(j.dishGenres) ? j.dishGenres : []).filter(g => DISH_GENRES.includes(g)).slice(0, 5),
+        shopGenre: SHOP_GENRES.includes(j.shopGenre) ? j.shopGenre : '',
+      };
+    }
 
     const schema = {
       type: 'object',
@@ -898,10 +924,10 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v323',
+    FILE_VERSION: 'v324',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
-    guessGenres, compressImage, fileHash,
+    guessGenres, compressImage, fileHash, canClassify,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus, searchSourcesStatus,
     getYahooKey, setYahooKey, hasYahooKey, getHotpepperKey, setHotpepperKey, hasHotpepperKey, yahooLocalSearch, hotpepperSearch,

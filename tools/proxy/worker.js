@@ -8,15 +8,21 @@
 //   GOOGLE_KEY       Google Maps Platform の API キー（Places API (New) のみ許可にしておく）
 //   YAHOO_APPID      Yahoo! デベロッパーネットワークの Client ID（サーバーサイド用）
 //   HOTPEPPER_KEY    リクルート Web サービスの API キー
+//   ANTHROPIC_KEY    Anthropic（Claude Platform）の API キー。写真の料理ジャンル判定（/classify）に使う（v324〜）
 //   ALLOWED_ORIGINS  （任意）許可する Origin をカンマ区切り。既定は本番の GitHub Pages のみ
 //   PER_MINUTE       （任意）1 IP あたり 1 分間の上限回数。既定 60
 //   GOOGLE_PER_MINUTE（任意）Google 中継の全体で 1 分間の上限回数。既定 30
+//   CLASSIFY_PER_DAY （任意）AI判定の 1 端末（および 1 IP）あたり 1 日の上限枚数。既定 30
+//   CLASSIFY_PER_MINUTE（任意）AI判定の全体で 1 分間の上限回数。既定 20
+//   CLASSIFY_MODEL   （任意）AI判定に使うモデル。既定 claude-haiku-5-5（分類には十分で安価）
 //
 // 設定していないサービスは /status で false になり、アプリはそのサービスを呼ばない。
 // ※ 本当の課金上限は Google Cloud コンソールの「割り当て（Quotas）」で設定すること。ここでの回数制限は補助。
 
 const DEFAULT_ORIGINS = ['https://takusangoukaku-hash.github.io'];
 const GOOGLE_FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,places.types';
+const CLASSIFY_MODEL_DEFAULT = 'claude-haiku-5-5';
+const CLASSIFY_SYSTEM = 'あなたは料理写真の分類器です。写真に写っている料理を指定されたジャンル一覧から選んで分類してください。料理が写っていない写真（外観・店内・メニュー表など）や判別が難しい場合は dishGenres を空配列、confident を false にしてください。';
 
 // 簡易レート制限（インスタンスごとのメモリ。厳密ではないが連打の抑止には足りる）
 const buckets = new Map();
@@ -28,6 +34,19 @@ function limited(key, max, now) {
   b.n += 1;
   return b.n > max;
 }
+
+// 1 日単位の簡易上限（AI判定用。インスタンスごとのメモリなので厳密ではないが、連続利用の抑止には足りる）
+const dayBuckets = new Map();
+function limitedDay(key, max, now) {
+  const day = Math.floor(now / 86400000);
+  let b = dayBuckets.get(key);
+  if (!b || b.day !== day) { b = { day, n: 0 }; dayBuckets.set(key, b); }
+  if (dayBuckets.size > 20000) dayBuckets.clear();
+  b.n += 1;
+  return b.n > max;
+}
+// 文字列の配列を安全な形に整える（ジャンル一覧用）
+const strList = (v, maxItems, maxLen) => (Array.isArray(v) ? v : []).map(x => clean(x, maxLen)).filter(Boolean).slice(0, maxItems);
 
 function allowedOrigins(env) {
   const raw = String(env.ALLOWED_ORIGINS || '').trim();
@@ -85,7 +104,7 @@ export default {
     if (path === '/' || path === '/status') {
       return json({
         ok: true,
-        services: { yahoo: !!env.YAHOO_APPID, hotpepper: !!env.HOTPEPPER_KEY, google: !!env.GOOGLE_KEY },
+        services: { yahoo: !!env.YAHOO_APPID, hotpepper: !!env.HOTPEPPER_KEY, google: !!env.GOOGLE_KEY, classify: !!env.ANTHROPIC_KEY },
       }, 200, origin);
     }
 
@@ -132,6 +151,74 @@ export default {
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.GOOGLE_KEY, 'X-Goog-FieldMask': GOOGLE_FIELDS },
         body: JSON.stringify(out),
       }, origin);
+    }
+
+    // 写真の料理ジャンル判定（v324〜）。アプリは縮小した写真（JPEG の base64）とジャンル一覧を送る。
+    // キーは Worker だけが持ち、モデル・プロンプト・出力形式はここで固定する。
+    if (path === '/classify') {
+      if (req.method !== 'POST') return json({ error: 'method' }, 405, origin);
+      if (!env.ANTHROPIC_KEY) return json({ error: 'AI判定は提供していません' }, 404, origin);
+      let body = null;
+      try { body = await req.json(); } catch { body = null; }
+      const image = clean(body && body.image, 2_000_000); // base64。768px の JPEG なら 150KB 程度
+      if (!image || !/^[A-Za-z0-9+/=]+$/.test(image)) return json({ error: 'image が必要です' }, 400, origin);
+      const mediaType = ['image/jpeg', 'image/png', 'image/webp'].includes(body.mediaType) ? body.mediaType : 'image/jpeg';
+      const dishGenres = strList(body.dishGenres, 80, 30);
+      const shopGenres = strList(body.shopGenres, 80, 30);
+      if (!dishGenres.length) return json({ error: 'dishGenres が必要です' }, 400, origin);
+      // 上限: 端末ごと・IP ごとに 1 日 N 枚、全体で 1 分 M 回（クレジットの消費を抑える）
+      const perDay = Number(env.CLASSIFY_PER_DAY) || 30;
+      const device = clean(body.device, 64) || ('ip:' + ip);
+      const overDay = '今日の AI 判定の上限（' + perDay + '枚）に達しました。明日またお試しください';
+      if (limitedDay('cls-dev:' + device, perDay, now)) return json({ error: overDay }, 429, origin);
+      if (limitedDay('cls-ip:' + ip, perDay * 3, now)) return json({ error: overDay }, 429, origin);
+      if (limited('classify', Number(env.CLASSIFY_PER_MINUTE) || 20, now)) return json({ error: 'AI 判定が混み合っています。少し待ってからお試しください' }, 429, origin);
+
+      const schema = {
+        type: 'object',
+        properties: {
+          dishGenres: { type: 'array', items: { type: 'string', enum: dishGenres }, description: '写真に写っている料理のジャンル（複数可）' },
+          shopGenre: { type: 'string', enum: shopGenres.concat(['不明']), description: '写真から推定される店舗ジャンル。判断できなければ「不明」' },
+          confident: { type: 'boolean', description: '判定に自信がある場合のみ true' },
+        },
+        required: ['dishGenres', 'shopGenre', 'confident'],
+        additionalProperties: false,
+      };
+      const payload = {
+        model: clean(env.CLASSIFY_MODEL, 60) || CLASSIFY_MODEL_DEFAULT,
+        max_tokens: 512,
+        system: CLASSIFY_SYSTEM,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
+          { type: 'text', text: 'この料理写真を分類してください。' },
+        ] }],
+        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      };
+      let res;
+      try {
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) { return json({ error: 'AI に接続できません' }, 502, origin); }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = (data && data.error && data.error.message) || '';
+        // 上流のエラー文はそのまま出さず、種類だけ伝える（キーや内部事情を漏らさない）
+        const kind = res.status === 401 ? 'AI のキーが無効です（開発者側の設定）' : res.status === 429 ? 'AI の利用が混み合っています' : 'AI 判定に失敗しました';
+        return json({ error: kind, status: res.status, detail: msg.slice(0, 120) }, res.status === 429 ? 429 : 502, origin);
+      }
+      if (!data || data.stop_reason === 'refusal') return json({ dishGenres: [], shopGenre: '', confident: false }, 200, origin);
+      const text = (data.content || []).find(b => b.type === 'text');
+      let out = null;
+      try { out = text ? JSON.parse(text.text) : null; } catch { out = null; }
+      if (!out) return json({ dishGenres: [], shopGenre: '', confident: false }, 200, origin);
+      return json({
+        dishGenres: strList(out.dishGenres, 5, 30).filter(g => dishGenres.includes(g)),
+        shopGenre: shopGenres.includes(out.shopGenre) ? out.shopGenre : '',
+        confident: !!out.confident,
+      }, 200, origin);
     }
 
     return json({ error: 'not found' }, 404, origin);

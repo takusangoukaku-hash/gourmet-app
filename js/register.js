@@ -450,7 +450,7 @@ const Register = (() => {
     const dishPhoto = pendingPhotos.find(p => p.type === 'dish') || pendingPhotos[0];
     if (!dishPhoto) { ai.classList.add('hidden'); return; }
 
-    if (!Api.hasApiKey()) { ai.classList.add('hidden'); return; } // キー未設定時は案内を出さない
+    if (!Api.canClassify()) { ai.classList.add('hidden'); return; } // 自分のキーも開発者提供も無いときは案内を出さない
 
     ai.classList.remove('hidden', 'warn');
     ai.textContent = '🤖 AIが料理ジャンルを判定しています…';
@@ -477,7 +477,9 @@ const Register = (() => {
     } catch (e) {
       console.error('AI classification failed:', e);
       ai.classList.add('warn');
-      const msg = (e && e.status === 401) ? 'APIキーが無効です。⚙️ から設定を確認してください。'
+      const relayMsg = /中継サーバー HTTP \d+ — (.+)$/.exec(e && e.message || ''); // Worker 経由の説明（上限など）
+      const msg = relayMsg ? relayMsg[1]
+        : (e && e.status === 401) ? 'APIキーが無効です。⚙️ から設定を確認してください。'
         : (e && e.status === 429) ? 'レート制限中です。しばらく待ってから再度お試しください。'
         : '通信エラーのため判定できませんでした。';
       ai.textContent = '⚠️ AI判定に失敗: ' + msg;

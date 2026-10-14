@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v323'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v324'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -85,9 +85,9 @@ const App = (() => {
     // 設定モーダル（Anthropic APIキー — AI料理ジャンル判定用）
     const settingsStatus = () => {
       const parts = [];
-      parts.push(Api.hasApiKey() ? '✅ Anthropicキー: 設定済み' : 'Anthropicキー: 未設定');
       // 'own' = ⚙️で設定したキー、'proxy' = 開発者提供（キーはアプリに置かず中継サーバーが持つ）
       const keyLabel = (name, label) => { const k = Api.keySource(name); return k === 'own' ? `✅ ${label}: 設定済み` : k === 'proxy' ? `✅ ${label}: 開発者提供` : `${label}: 未設定`; };
+      parts.push(keyLabel('anthropic', 'AI判定'));
       parts.push(keyLabel('yahoo', 'Yahoo!'));
       parts.push(keyLabel('hotpepper', 'ホットペッパー'));
       parts.push(keyLabel('google', 'Googleキー'));
