@@ -150,22 +150,6 @@ const Views = (() => {
     if (s < 86400 * 365) return `${Math.floor(s / 86400 / 30)}ヶ月前`;
     return `${Math.floor(s / 86400 / 365)}年前`;
   };
-  // 点の集まりの凸包（地図のまとまりに乗せたときの範囲表示用）。[lon,lat] の配列 → GeoJSON
-  function hullGeo(pts) {
-    const uniq = [...new Map(pts.filter(p => p && isFinite(p[0]) && isFinite(p[1])).map(p => [p[0] + ',' + p[1], p])).values()]
-      .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const empty = { type: 'FeatureCollection', features: [] };
-    if (uniq.length < 2) return empty;
-    if (uniq.length === 2) return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: uniq } }] };
-    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-    const lower = [], upper = [];
-    for (const p of uniq) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
-    for (let i = uniq.length - 1; i >= 0; i--) { const p = uniq[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
-    const ring = lower.slice(0, -1).concat(upper.slice(0, -1));
-    if (ring.length < 3) return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ring } }] };
-    ring.push(ring[0]);
-    return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } }] };
-  }
   // date input用 YYYY-MM-DD（ローカル日付）
   const toDateInput = (iso) => {
     const d = new Date(iso);
@@ -760,28 +744,17 @@ const Views = (() => {
       map.addSource('shops', {
         type: 'geojson', data: { type: 'FeatureCollection', features: [] },
         cluster: true, clusterMaxZoom: 11, clusterRadius: 40, // z12以上でピンが個別化し店名を表示できる
-        clusterProperties: { maxR: ['max', ['get', 'r']] }, // まとまりの外側の輪＝中で一番評価の高い店の色（v317〜）
+        clusterProperties: { maxR: ['max', ['get', 'r']] }, // まとまりの色＝中で一番評価の高い店の色
       });
-      // まとまり（クラスター）の見た目: 件数で色分けした半透明の丸＋外側の輪（v303〜）
-      //   内側の丸＝件数（〜9件 緑 / 10〜99件 黄 / 100件〜 橙）。中に件数を黒文字で出す
-      //   外側の輪＝中で一番評価の高い店の評価色（v317〜。引いた地図でもおいしい店がある地域が分かる）
-      const byCount = (small, mid, large) => ['step', ['get', 'point_count'], small, 10, mid, 100, large];
-      // マウスを乗せたとき、そのまとまりに含まれる店の範囲（凸包）を青い線で囲む
-      map.addSource('cluster-hull', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'cluster-hull-fill', type: 'fill', source: 'cluster-hull',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': '#3388ff', 'fill-opacity': 0.2 } });
-      map.addLayer({ id: 'cluster-hull-line', type: 'line', source: 'cluster-hull',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#3388ff', 'line-width': 3, 'line-opacity': 0.9 } });
+      // まとまり（クラスター）の見た目: Leaflet.markercluster 風の「丸＋外側の淡い輪」（v321〜）
+      //   丸も輪も、中で一番評価の高い店の評価色（★5 の店を含めば赤）。中に件数を黒文字で出す
+      //   v320 までの「乗せると範囲を囲む」表示と、件数での色分けはやめた
       map.addLayer({ id: 'cluster-halo', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 20, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.55 } });
+        paint: { 'circle-radius': 20, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.35 } });
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 15,
-          // 下の外側の輪と色が混ざらないよう不透明にする（地図の地色に60%で重ねたときと同じ見え方の色）
-          'circle-color': byCount('#a4dc82', '#f2d667', '#f3ae6d') } });
+        paint: { 'circle-radius': 15, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.75 } });
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
@@ -845,32 +818,6 @@ const Views = (() => {
         if (map.queryRenderedFeatures(e.point, { layers: ['clusters'] }).length) return;
         zoomCluster(e);
       });
-      // マウスのある端末だけ: まとまりに乗せると含まれる店の範囲を囲む（タップ端末はそのまま拡大）
-      if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
-        let hoverId = null, hullSeq = 0;
-        const clearHull = () => {
-          hoverId = null; hullSeq++;
-          const src = map.getSource('cluster-hull');
-          if (src) src.setData({ type: 'FeatureCollection', features: [] });
-        };
-        const showHull = (e) => {
-          const f = e.features && e.features[0];
-          if (!f) return;
-          const id = f.properties.cluster_id;
-          if (id === hoverId) return;
-          hoverId = id;
-          const seq = ++hullSeq;
-          map.getSource('shops').getClusterLeaves(id, 5000, 0).then(leaves => {
-            if (seq !== hullSeq) return;
-            map.getSource('cluster-hull').setData(hullGeo((leaves || []).map(l => l.geometry.coordinates)));
-          }).catch(() => {});
-        };
-        ['clusters', 'cluster-halo'].forEach(id => {
-          map.on('mousemove', id, showHull);
-          map.on('mouseleave', id, clearHull);
-        });
-        map.on('movestart', clearHull);
-      }
       ['pins', 'clusters', 'cluster-halo', 'wish-pins'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
@@ -1905,7 +1852,7 @@ const Views = (() => {
       paint: {
         'heatmap-radius': 32, 'heatmap-opacity': 0.6,
         'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 15, 2],
-      } }, 'cluster-hull-fill'); // ピンとまとまりの下に描画
+      } }, 'cluster-halo'); // ピンとまとまりの下に描画
   }
 
   // ========== 一覧 ==========
