@@ -683,15 +683,16 @@ const Views = (() => {
       mapLoaded = true;
 
       // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸
-      //   金丸 … 平均が .5 以上（あと一歩でワンランク上）の店（v309〜。v308 は墨色。v310〜縁なしの金一色）
-      //   白丸 … それ以外の店と、行きたい店（紫）
-      //   金の★ … 自分か味覚一致率 FIVE_MATCH_MIN% 以上の人が ★5 を付けた店（v320〜。fiveStarFans。金丸より優先）
+      //   白丸   … 平均が .0〜.4 の店と、行きたい店（紫）
+      //   白半月 … 平均が .5 以上（あと一歩でワンランク上）の店（v322〜。v309〜v321 は金丸だったが ★と紛らわしいため白の◐に）
+      //   金の★ … 自分か味覚一致率 FIVE_MATCH_MIN% 以上の人が ★5 を付けた店（v320〜。fiveStarFans。半月より優先）
+      //   金色は「★5 の印」だけに使う
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 32, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅19・高さ30、先端は (10, 30)、右側は影（v311〜幅15→19）
-      const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金一色）
+      const PIN_STAR = '#ffcf40'; // ★5 の印の金
       const PIN_PX = 4; // 最大1.75倍に拡大しても粗くならないよう4倍の解像度で描く
-      const makeMarker = (color, dotColor, star) => {
+      const makeMarker = (color, mark) => { // mark: 'dot' | 'half' | 'star'
         const PX = PIN_PX;
         const c = document.createElement('canvas');
         c.width = MK_W * PX; c.height = MK_H * PX;
@@ -713,26 +714,33 @@ const Views = (() => {
         g.closePath();
         g.fillStyle = color; g.fill();
         g.beginPath();
-        if (star) {
-          // 頭の中の小さな★（外半径5.4・内半径2.3、角を少し丸める）
+        if (mark === 'star') {
+          // 頭の中の小さな金の★（外半径5.4・内半径2.3、角を少し丸める）
           for (let k = 0; k < 10; k++) {
             const rr = k % 2 ? 2.3 : 5.4, a = -Math.PI / 2 + k * Math.PI / 5;
             g[k ? 'lineTo' : 'moveTo'](10 + rr * Math.cos(a), 9.7 + rr * Math.sin(a));
           }
           g.closePath();
-          g.fillStyle = dotColor; g.fill();
-          g.lineJoin = 'round'; g.lineWidth = 0.6; g.strokeStyle = dotColor; g.stroke();
+          // 橙（★4）のピンでも金が沈まないよう、細い白の縁を下に敷いてから金で塗る
+          g.lineJoin = 'round'; g.lineWidth = 2.2; g.strokeStyle = '#ffffff'; g.stroke();
+          g.fillStyle = PIN_STAR; g.fill();
+          g.lineWidth = 0.6; g.strokeStyle = PIN_STAR; g.stroke();
         } else {
-          g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
+          g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill();
+          if (mark === 'half') {
+            // 白の半月（◐）: 左半分をピンの色でくり抜き、細い白の縁だけ残す
+            g.beginPath(); g.arc(10, 9.5, 2.7, Math.PI / 2, Math.PI * 3 / 2); g.closePath();
+            g.fillStyle = color; g.fill();
+          }
         }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
-        map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: PIN_PX });     // 白丸
-        map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: PIN_PX }); // 平均 .5 以上は金丸
-        map.addImage('mk-' + i + '-five', makeMarker(col, PIN_DOT_HI, true), { pixelRatio: PIN_PX }); // ★5 の印は金の★
+        map.addImage('mk-' + i, makeMarker(col, 'dot'), { pixelRatio: PIN_PX });            // 白丸
+        map.addImage('mk-' + i + '-hi', makeMarker(col, 'half'), { pixelRatio: PIN_PX });    // 平均 .5 以上は白の半月
+        map.addImage('mk-' + i + '-five', makeMarker(col, 'star'), { pixelRatio: PIN_PX });  // ★5 の印は金の★
       });
-      map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: PIN_PX });
+      map.addImage('mk-wish', makeMarker(WISH_COLOR, 'dot'), { pixelRatio: PIN_PX });
       // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 10px だけ左へ・1px 下へ）
       const MARKER_LAYOUT = {
         'icon-size': byPinScale(sc => sc),
@@ -1346,7 +1354,7 @@ const Views = (() => {
               <button type="button" class="btn msh-mapbtn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
               ${hasPos ? `<button type="button" class="btn primary msh-navbtn">${IC_NAV} ここへ行く</button>` : ''}
             </div>
-            <button type="button" class="btn msh-revisit">＋ また来た<small>（写真なしで今日の来店を記録）</small></button>
+            <button type="button" class="btn msh-revisit">＋ また来た<small>写真なしで今日の来店を記録</small></button>
           </div>
         </div>
         <div class="msh-sec msh-mine ${photos.length ? '' : 'hidden'}">
@@ -3225,6 +3233,9 @@ const Views = (() => {
     if (charts[id]) charts[id].destroy();
     charts[id] = new Chart(document.getElementById(id), cfg);
   }
+  // 円グラフの凡例: 画面が狭いスマホでは右に置くと文字が切れるため下に並べる（v322〜）
+  const legendOpt = () => ({ position: window.innerWidth < 560 ? 'bottom' : 'right',
+    labels: { font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 10 } });
   // Instagram風パレット（CSSのアクセントと統一）
   const PALETTE = ['#C6613F', '#D97757', '#8B6FA8', '#5B84A8', '#D9B36B', '#B04A3D', '#96658F', '#A56A32', '#B65C77', '#4E8E7F', '#E0C98F', '#C9705E', '#7C8F3F', '#A6A49B', '#6E8B54'];
 
@@ -3395,7 +3406,7 @@ const Views = (() => {
       },
       options: {
         plugins: {
-          legend: { position: 'right', labels: { font: { size: 11 } } },
+          legend: legendOpt(),
           tooltip: { callbacks: { label: (c) => {
             const total = c.dataset.data.reduce((a, b) => a + b, 0);
             return `${c.raw}件（${total ? Math.round(c.raw / total * 100) : 0}%）`;
@@ -3417,7 +3428,7 @@ const Views = (() => {
         data: { labels: entries.map(e => `${e[0]} ${total ? Math.round(e[1] / total * 100) : 0}%`),
           datasets: [{ data: entries.map(e => e[1]), backgroundColor: PALETTE }] },
         options: { plugins: {
-          legend: { position: 'right', labels: { font: { size: 11 } } },
+          legend: legendOpt(),
           tooltip: { callbacks: { label: (c) => `${c.raw}件（${total ? Math.round(c.raw / total * 100) : 0}%）` } },
         } },
       });

@@ -775,7 +775,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   color: var(--muted); font-size: 12.5px; margin-top: 3px;
 }
 .pf-shopcard .ps-row .ic { width: 14px; height: 14px; }
-.pf-shopcard .ps-stars { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.pf-shopcard .ps-stars { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; }
 .pf-shopcard .ps-avg { color: var(--accent); font-size: 23px; font-weight: 800; line-height: 1; }
 .pf-shopcard .ps-meta {
   display: flex; align-items: center; gap: 6px 8px; margin-top: 7px; font-size: 12.5px; color: var(--text);
@@ -1407,6 +1407,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   margin: 10px 12px 0; padding: 8px 12px; border-radius: 10px;
   background: #FBF1DE; color: #8A6A2F; font-size: 12.5px;
 }
+@media (prefers-color-scheme: dark) { .feed-note { background: #3A2E1C; color: #E8C98A; } }
 /* 味覚一致率バッジ（緑） */
 .tm-badge {
   display: inline-block; background: #E7F3E4; color: #3E7A34; font-weight: 800;
@@ -1443,9 +1444,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .rp-wrap.compact .rp-you { flex: 1.35; }
 .rp-wrap.compact .rp-box:not(.rp-you) { background: transparent; border: 1px solid var(--border-lite); }
 .rp-wrap.compact .rp-box:not(.rp-you) .rp-val { color: var(--muted); font-size: 15px; }
-/* 検索カードの「あなた向け」表示 */
-.ps-you { margin-left: 8px; font-size: 12px; color: var(--muted); }
-.ps-you b { color: var(--accent); font-size: 15px; }
+/* 検索カードの「あなた向け」表示: 割れないよう1つの丸いチップにする（v322〜） */
+.ps-you { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; margin-left: 4px;
+  padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); font-size: 11px; font-weight: 700; color: var(--accent); }
+.ps-you b { color: var(--accent); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 /* 味覚が近いユーザー TOP5 */
 .tr-row {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -1699,6 +1701,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .filter-row .search-field { flex: 1; }
 .wish-btn { flex: 0 0 auto; color: var(--text); }
 .wish-btn svg { width: 22px; height: 22px; }
+/* 汎用モーダル（#modal）の先頭見出し: 左上の ✕ と重ならないよう同じ段で中央に（v322〜） */
+#modal-body > h2:first-child { text-align: center; justify-content: center; padding: 8px 40px 0; margin-top: 0; }
 /* 行きたい店リスト（モーダル） */
 .wish-title { display: flex; align-items: center; gap: 6px; }
 .wish-title .ic { width: 20px; height: 20px; }
@@ -2008,12 +2012,16 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .d-revisit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 12px; }
 .d-revisit { border-radius: 999px; padding: 9px 18px; font-weight: 700; border-color: var(--accent); color: var(--accent); }
 .d-revisit-note { font-size: 12px; color: var(--muted); min-width: 0; }
-.msh-revisit { width: 100%; margin-top: 8px; justify-content: center; border-radius: 999px; font-size: 13px; font-weight: 700;
+.msh-revisit { width: 100%; margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 8px 14px; border-radius: 16px; font-size: 14px; font-weight: 700; line-height: 1.25;
   border-color: var(--accent); color: var(--accent); white-space: normal; }
-.msh-revisit small { font-weight: 500; color: var(--muted); margin-left: 2px; }
+.msh-revisit small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin: 0; }
 
-/* 統計タブ上部 */
-.stat-actions { display: flex; justify-content: flex-end; margin: -4px 0 12px; }
+/* 統計タブ上部: 記録カードの共有（全幅の輪郭ボタン。v322〜） */
+.stat-actions { display: flex; margin: 0 0 12px; }
+.stat-share { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 999px; padding: 10px 16px; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.stat-share .ic { width: 16px; height: 16px; }
 .stat-card .v small { font-size: .55em; color: var(--muted); font-weight: 600; margin-left: 1px; }
 
 /* よく行く店 */
@@ -2195,4 +2203,4 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 /* v318: 「★5 ×N人」（自分と味覚一致率70%以上の人のうち ★5 を付けた人数）。平均とは別に、最高評価の店を見分ける印 */
 .five-chip { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; font-size: 11px; font-weight: 800;
   padding: 1px 8px; border-radius: 999px; color: #fff; background: var(--r5); font-variant-numeric: tabular-nums; }
-.fpin-you .five-chip { margin-left: auto; }
+.fpin-you .five-chip { margin-left: 0; }

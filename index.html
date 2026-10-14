@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=321">
+<link rel="stylesheet" href="css/style.css?v=322">
 </head>
 <body>
 
@@ -79,7 +79,7 @@
       <div class="full flabel">料理ジャンル（複数選択可）
         <div id="f-dish-genres" class="chips"></div>
       </div>
-      <div class="full flabel">味の評価 <span class="req">必須</span>
+      <div class="full flabel"><span class="flabel-head">味の評価 <span class="req">必須</span></span>
         <div class="rating-row"><div id="f-rating" class="stars taste"></div><span id="f-rating-val" class="rating-val"></span></div>
         <div class="rating-hint">星をなぞる／もう一度タップで 0.5 刻み</div>
       </div>
@@ -363,7 +363,7 @@
     <div id="stat-memory" class="stat-memory hidden"></div>
     <div id="stat-cards" class="stat-cards"></div>
     <div class="stat-actions">
-      <button type="button" id="stat-share-card" class="btn primary small">記録カードを画像で共有</button>
+      <button type="button" id="stat-share-card" class="btn stat-share"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 記録カードを画像で共有</button>
     </div>
     <div id="stat-regulars" class="card"></div>
     <div id="stat-conquest" class="card"></div>
@@ -604,11 +604,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=321"></script>
-<script src="js/api.js?v=321"></script>
-<script src="js/cloud.js?v=321"></script>
-<script src="js/register.js?v=321"></script>
-<script src="js/views.js?v=321"></script>
-<script src="js/app.js?v=321"></script>
+<script src="js/store.js?v=322"></script>
+<script src="js/api.js?v=322"></script>
+<script src="js/cloud.js?v=322"></script>
+<script src="js/register.js?v=322"></script>
+<script src="js/views.js?v=322"></script>
+<script src="js/app.js?v=322"></script>
 </body>
 </html>
