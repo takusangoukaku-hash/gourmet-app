@@ -763,7 +763,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=319')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=320')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -898,7 +898,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v319',
+    FILE_VERSION: 'v320',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash,

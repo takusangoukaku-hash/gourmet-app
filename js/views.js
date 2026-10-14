@@ -701,12 +701,13 @@ const Views = (() => {
       // 店のピン: 細身の涙型（v307〜）。グラデーションや縁取りを使わない平らな一色で、頭に丸
       //   金丸 … 平均が .5 以上（あと一歩でワンランク上）の店（v309〜。v308 は墨色。v310〜縁なしの金一色）
       //   白丸 … それ以外の店と、行きたい店（紫）
+      //   金の★ … 自分か味覚一致率 FIVE_MATCH_MIN% 以上の人が ★5 を付けた店（v320〜。fiveStarFans。金丸より優先）
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 32, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅19・高さ30、先端は (10, 30)、右側は影（v311〜幅15→19）
       const PIN_DOT_HI = '#ffcf40'; // 平均 .5 以上の丸（金一色）
       const PIN_PX = 4; // 最大1.75倍に拡大しても粗くならないよう4倍の解像度で描く
-      const makeMarker = (color, dotColor) => {
+      const makeMarker = (color, dotColor, star) => {
         const PX = PIN_PX;
         const c = document.createElement('canvas');
         c.width = MK_W * PX; c.height = MK_H * PX;
@@ -727,12 +728,25 @@ const Views = (() => {
         g.bezierCurveTo(19.3, 17, 11.3, 24.8, 10, 30);
         g.closePath();
         g.fillStyle = color; g.fill();
-        g.beginPath(); g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
+        g.beginPath();
+        if (star) {
+          // 頭の中の小さな★（外半径5.4・内半径2.3、角を少し丸める）
+          for (let k = 0; k < 10; k++) {
+            const rr = k % 2 ? 2.3 : 5.4, a = -Math.PI / 2 + k * Math.PI / 5;
+            g[k ? 'lineTo' : 'moveTo'](10 + rr * Math.cos(a), 9.7 + rr * Math.sin(a));
+          }
+          g.closePath();
+          g.fillStyle = dotColor; g.fill();
+          g.lineJoin = 'round'; g.lineWidth = 0.6; g.strokeStyle = dotColor; g.stroke();
+        } else {
+          g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = dotColor; g.fill();
+        }
         return g.getImageData(0, 0, c.width, c.height);
       };
       PIN_COLORS.forEach((col, i) => {
         map.addImage('mk-' + i, makeMarker(col, '#ffffff'), { pixelRatio: PIN_PX });     // 白丸
         map.addImage('mk-' + i + '-hi', makeMarker(col, PIN_DOT_HI), { pixelRatio: PIN_PX }); // 平均 .5 以上は金丸
+        map.addImage('mk-' + i + '-five', makeMarker(col, PIN_DOT_HI, true), { pixelRatio: PIN_PX }); // ★5 の印は金の★
       });
       map.addImage('mk-wish', makeMarker(WISH_COLOR, '#ffffff'), { pixelRatio: PIN_PX });
       // 先端を店の位置に合わせる（画像の左下を基準に、先端までの 10px だけ左へ・1px 下へ）
@@ -780,7 +794,7 @@ const Views = (() => {
         filter: ['!', ['has', 'point_count']],
         layout: Object.assign({}, MARKER_LAYOUT, {
           'icon-image': ['concat', 'mk-', ['to-string', ['get', 'r']],
-            ['case', ['==', ['get', 'hi'], 1], '-hi', '']],
+            ['case', ['==', ['get', 'five'], 1], '-five', ['==', ['get', 'hi'], 1], '-hi', '']],
           'symbol-sort-key': RATING_ONTOP, // 重なり時は評価の高い方を上に
         }) });
       // お気に入り★（ピンの頭の右上）
@@ -1654,7 +1668,7 @@ const Views = (() => {
     const features = shops.map(s => {
       const f = { type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
         properties: { id: s.id, kind: 'me', mine: 1, name: s.name, genre: shopLabelGenre(s),
-          r: 0, hi: 0, ravg: 0, fav: s.favorite ? 1 : 0 } };
+          r: 0, hi: 0, five: 0, ravg: 0, fav: s.favorite ? 1 : 0 } };
       featureByShopId.set(s.id, f);
       return f;
     });
@@ -1716,7 +1730,8 @@ const Views = (() => {
         networkById.set(fid, g);
         features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
           properties: { id: fid, kind: 'other', mine: 0, name: g.name, genre: '',
-            r: Math.floor(avg) || 0, hi: bandOf(avg), ravg: avg || 0, fav: 0 } });
+            r: Math.floor(avg) || 0, hi: bandOf(avg), ravg: avg || 0, fav: 0,
+            five: fiveStarFans({ name: g.name, lat: g.lat, lon: g.lon }).n ? 1 : 0 } });
         bounds.push([g.lon, g.lat]);
       });
     }
@@ -1731,6 +1746,7 @@ const Views = (() => {
       f.properties.r = Math.floor(avg) || 0;
       f.properties.hi = bandOf(avg);
       f.properties.ravg = avg || 0;
+      f.properties.five = fiveStarFans({ name: s.name, lat: s.lat, lon: s.lon }).n ? 1 : 0;
     }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
     refreshWishData();
