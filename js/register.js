@@ -105,13 +105,6 @@ const Register = (() => {
         : '▾ 詳細';
     });
 
-    // お気に入りの★トグル（店名の右の星）
-    $('#f-fav-btn').addEventListener('click', () => {
-      const cb = $('#f-fav');
-      cb.checked = !cb.checked;
-      updateFavStar();
-    });
-
     // 評価スター（味）＋ 店の評価3軸
     mountTasteStars();
     mountAxisStars();
@@ -256,10 +249,12 @@ const Register = (() => {
   }
 
   // お気に入りハート（店名右）の表示を #f-fav の状態に合わせる
+  // （v323〜 ボタンは廃止。隠しチェック #f-fav の値だけ保存に使い、既存の記録の favorite を保つ）
   function updateFavStar() {
-    const on = $('#f-fav').checked;
     const btn = $('#f-fav-btn');
-    btn.classList.toggle('on', on); // 塗りつぶし＋色はCSSで切り替え
+    if (!btn) return;
+    const on = $('#f-fav').checked;
+    btn.classList.toggle('on', on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 

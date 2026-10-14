@@ -1414,7 +1414,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border-radius: 999px; padding: 3px 10px; font-size: 12px; white-space: nowrap;
 }
 .tm-badge.small { padding: 2px 8px; font-size: 11px; }
-.tm-badge.dim { opacity: .55; } /* 共通店舗5〜19件: 参考値として薄く表示（仕様書4-3） */
+.tm-badge.dim { opacity: .7; } /* 共通店舗5〜19件: 参考値として薄く表示（仕様書4-3） */
+.tm-badge .tm-n { font-weight: 600; opacity: .8; }
+.tm-badge.low { background: var(--field); color: var(--muted); font-weight: 600; } /* 共通5件未満: データ不足 */
 /* ホームカードの最上部: 一致率・投稿者・共通店舗数・投稿時期 */
 /* 投稿者の行は補足情報なので控えめに（主役は店名・写真・あなた向け評価） */
 .fcard-head2 { display: flex; align-items: center; gap: 8px; padding: 8px 12px 7px; }
@@ -1431,6 +1433,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   background: var(--field); display: flex; flex-direction: column; gap: 2px;
 }
 .rp-you { background: var(--accent-soft); }
+.rp-you .rp-label em { font-style: normal; font-weight: 700; font-size: 9.5px; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: var(--card); color: var(--muted); }
+.rp-you.rp-ref .rp-val { color: var(--text); }
+.rp-you.rp-none { background: transparent; border: 1px dashed var(--border); }
+.rp-you.rp-none .rp-label { color: var(--muted); }
+.rp-val.rp-nd { font-size: 13px; font-weight: 700; color: var(--muted); }
 .rp-label { font-size: 10.5px; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .rp-you .rp-label { color: var(--accent); }
 .rp-val { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 800; color: var(--text); }
@@ -1448,6 +1455,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .ps-you { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; margin-left: 4px;
   padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); font-size: 11px; font-weight: 700; color: var(--accent); }
 .ps-you b { color: var(--accent); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ps-you.ref { background: var(--field); color: var(--muted); }
+.ps-you.ref b { color: var(--text); }
+.ps-you i { font-style: normal; font-size: 9.5px; margin-left: 2px; }
 /* 味覚が近いユーザー TOP5 */
 .tr-row {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -1779,6 +1789,22 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   font-size: 10.5px; color: var(--muted); white-space: nowrap;
   box-shadow: 0 1px 6px rgba(0, 0, 0, .12);
 }
+.legend-help { margin-left: 4px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); background: var(--card);
+  color: var(--muted); font: inherit; font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer; padding: 0; vertical-align: -3px; }
+/* ピンの見方（v323〜） */
+.lg-sec { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 6px; }
+.lg-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+.lg-txt { font-size: 13px; margin-left: 4px; }
+.lg-pin { position: relative; display: inline-block; width: 19px; height: 30px; flex: 0 0 auto;
+  background: var(--c); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  clip-path: path('M9.5 30C8.2 24.8 0.2 17 0.2 9.5a9.3 9.3 0 0 1 18.6 0c0 7.5-8 15.3-9.3 20.5z'); }
+.lg-head { position: absolute; left: 50%; top: 9.5px; width: 7.6px; height: 7.6px; margin-left: -3.8px; margin-top: -3.8px; border-radius: 50%; background: #fff; }
+.lg-head.half { background: linear-gradient(90deg, transparent 50%, #fff 50%); box-shadow: inset 0 0 0 1.1px #fff; }
+.lg-head.star { width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; border-radius: 0; background: #ffcf40;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.lg-cluster { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: 0 0 auto; }
+.lg-cluster i { position: absolute; inset: 0; border-radius: 50%; background: var(--r5); opacity: .35; }
+.lg-cluster b { position: relative; width: 27px; height: 27px; border-radius: 50%; background: var(--r5); opacity: .85; color: #222; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
 /* 地図の絞り込みの「詳細」も右寄せ・枠なしのテキストに（✕はその右に残す） */
 .map-toolbar .btn#map-detail-toggle { margin-left: auto; border: none; background: none; color: var(--muted); }
 .map-toolbar .map-close { margin-left: 0; }
@@ -2017,6 +2043,13 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
   border-color: var(--accent); color: var(--accent); white-space: normal; }
 .msh-revisit small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin: 0; }
 
+/* 統計の主役4タイル（v323〜）と「もっと見る」 */
+.stat-cards-main { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 10px; }
+.stat-cards-main .stat-card .v { font-size: 30px; }
+.stat-more-btn { display: block; width: 100%; margin: 0 0 14px; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--card); color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.stat-more-btn[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.stat-more { padding-top: 4px; }
 /* 統計タブ上部: 記録カードの共有（全幅の輪郭ボタン。v322〜） */
 .stat-actions { display: flex; margin: 0 0 12px; }
 .stat-share { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;

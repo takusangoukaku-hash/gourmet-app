@@ -345,7 +345,7 @@ const Views = (() => {
       byUser.get(p.username).push(p.rating);
     }
     const parts = []; // { r, w }
-    let sum = 0, n = 0;
+    let sum = 0, n = 0, reliable = 0;
     if (mine) { parts.push({ r: mine, w: 1.0 }); sum += mine; n++; } // 自分の評価は一致率100%扱い
     for (const [name, arr] of byUser) {
       const r = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -353,14 +353,20 @@ const Views = (() => {
       const m = tasteMatch(name);
       // 重み＝味覚一致率。一致率が出せない人はごく弱く反映
       const w = m.rate == null ? 0.15 : Math.max(0.05, m.rate / 100);
+      if (m.rate != null && m.conf !== 'low') reliable++; // 一致率が計算できる（共通5件以上）人の数
       parts.push({ r, w });
     }
-    if (!n) return { personal: 0, overall: 0, raters: 0 };
+    if (!n) return { personal: 0, overall: 0, raters: 0, reliable: 0, conf: 'none' };
     const personal = parts.reduce((a, x) => a + x.r * x.w, 0) / parts.reduce((a, x) => a + x.w, 0);
+    // 信頼度（v323〜）: 人数が少ないと「あなた向け 4.8」が誇張になるため、数字を出す条件を決める
+    //   ok   … 3人以上の評価があり、一致率が計算できる人が2人以上（十分なデータ。ホームのカードにも出す）
+    //   ref  … 2人以上の評価があり、一致率が計算できる人が1人以上（参考。詳細では「参考」と添えて出す）
+    //   none … それ以外（データ不足。数字は出さない）
+    const conf = (n >= 3 && reliable >= 2) ? 'ok' : (n >= 2 && reliable >= 1) ? 'ref' : 'none';
     return {
       personal: Math.round(personal * 10) / 10,
       overall: Math.round(sum / n * 10) / 10,
-      raters: n,
+      raters: n, reliable, conf,
     };
   }
   // 「★5 を付けた人」の数（v318〜）。平均は人数が増えるほど 4 点台に寄り ★5 の店が見分けにくくなるため、平均とは別に数える。
@@ -387,19 +393,31 @@ const Views = (() => {
     return `<span class="five-chip" title="${esc(tip)}">${esc(label)}</span>`;
   }
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
+  // 一致率と一緒に共通店舗数と信頼度を出す（v323〜）: 「82%」だけでは根拠が分からないため
+  //   共通5件未満 … 「共通2店・データ不足」（%は出さない） ／ 5〜19件 … 「一致 82%・共通7店」を薄く（参考）
+  //   20件以上   … 「一致 82%・共通24店」を通常表示
   function tasteBadge(username, small) {
     const m = tasteMatch(username);
-    if (m.rate == null || m.conf === 'low') return ''; // 共通5件未満は信頼できないため出さない
-    return `<span class="tm-badge${small ? ' small' : ''}${m.conf === 'mid' ? ' dim' : ''}"
-      title="共通店舗${m.common}件">味覚一致 ${m.rate}%</span>`;
+    if (!m.common) return '';
+    const sm = small ? ' small' : '';
+    if (m.rate == null || m.conf === 'low') {
+      return `<span class="tm-badge low${sm}" title="共通して評価した店が5件未満のため、一致率はまだ出せません">共通${m.common}店・データ不足</span>`;
+    }
+    const tip = m.conf === 'mid' ? `共通して評価した店が${m.common}件。20件以上で十分なデータになります` : `共通して評価した店が${m.common}件`;
+    return `<span class="tm-badge${sm}${m.conf === 'mid' ? ' dim' : ''}" title="${tip}">味覚一致 ${m.rate}%<span class="tm-n">・共通${m.common}店${m.conf === 'mid' ? '・参考' : ''}</span></span>`;
   }
   // あなた向け評価と全体評価を並べる共通部品（デザイン案の2枚の箱）
   function ratePairHtml(pair, opt) {
     const o = opt || {};
     if (!pair.raters) return '';
+    // 信頼度に応じて「あなた向け」の箱を変える（v323〜）: ok=数字 / ref=数字＋「参考」 / none=「データ不足」
+    const youBox = pair.conf === 'none'
+      ? `<div class="rp-box rp-you rp-none"><span class="rp-label">あなた向け評価</span>
+        <span class="rp-val rp-nd">データ不足</span><span class="rp-n">味覚の近い人の評価がまだありません</span></div>`
+      : `<div class="rp-box rp-you${pair.conf === 'ref' ? ' rp-ref' : ''}"><span class="rp-label">あなた向け評価${pair.conf === 'ref' ? '<em>参考</em>' : ''}</span>
+        <span class="rp-val">${starIc('full', o.compact ? 14 : 18)}${fmtR(pair.personal)}</span></div>`;
     return `<div class="rp-wrap${o.compact ? ' compact' : ''}">
-      <div class="rp-box rp-you"><span class="rp-label">あなた向け評価</span>
-        <span class="rp-val">${starIc('full', o.compact ? 14 : 18)}${fmtR(pair.personal)}</span></div>
+      ${youBox}
       <div class="rp-box"><span class="rp-label">全体評価</span>
         <span class="rp-val muted">${starIc('full', o.compact ? 12 : 14)}${fmtR(pair.overall)}</span>
         ${o.count ? `<span class="rp-n">（${pair.raters}人の評価）</span>` : ''}</div>
@@ -440,18 +458,19 @@ const Views = (() => {
     // Apple Maps参考の配色（ライト/ダーク）
     const c = dark ? {
       bg: '#212227', water: '#17344d', park: '#26372a', wood: '#223125',
-      building: '#2a2b31', roadMinor: '#33353b', roadMain: '#43464e',
-      roadCasing: '#1b1c20', highway: '#8d7439', rail: '#45464c',
+      building: '#2a2b31', roadMinor: '#33353b', roadMain: '#4a4d56',
+      roadCasing: '#1b1c20', highway: '#8d7439', rail: '#50525a',
       boundary: '#4a4658', text: '#c9c7c2', halo: '#1a1b1f',
       station: '#8fb0e8', poi: '#98938a',
     } : {
       // iPhone のマップ（標準）の配色: 明るい生成りの陸・澄んだ水色の海・やわらかい緑の公園・
       // 白い道路に淡い縁・黄色い高速道路・薄いグレーの建物
       bg: '#f6f4ef', water: '#9fd2f3', park: '#c4e6af', wood: '#b7dea0',
+      // v323: 幹線道路の縁・鉄道・駅名を少し強くし、位置関係をつかみやすくする（全体の薄さは保つ）
       building: '#e6e3dd', roadMinor: '#ffffff', roadMain: '#ffffff',
-      roadCasing: '#dcd7cd', highway: '#fdd56a', rail: '#c9c5bd',
+      roadCasing: '#d6d0c4', highway: '#fdd56a', rail: '#b9b4aa',
       boundary: '#b7aec9', text: '#4a4844', halo: '#ffffff',
-      station: '#2f6bd1', poi: '#7d796f',
+      station: '#2457b8', poi: '#7d796f',
     };
     const label = (id, layer, filter, minzoom, size, color, haloW) => ({
       id, type: 'symbol', source: 'omt', 'source-layer': layer, minzoom,
@@ -523,16 +542,16 @@ const Views = (() => {
           layout: { 'line-cap': 'round' },
           paint: { 'line-color': c.roadMain,
             'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 13, 1.5, 18, 10] } },
-        { id: 'road-major-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
+        { id: 'road-major-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 7,
           filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
           layout: { 'line-cap': 'round' },
           paint: { 'line-color': c.roadCasing,
-            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.9, 12, 2.2, 14, 4.5, 18, 14] } },
-        { id: 'road-major', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 8,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.0, 12, 2.8, 14, 5.5, 18, 16] } },
+        { id: 'road-major', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 7,
           filter: ['in', ['get', 'class'], ['literal', ['primary', 'trunk']]],
           layout: { 'line-cap': 'round' },
           paint: { 'line-color': c.roadMain,
-            'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 12, 1.5, 14, 3.2, 18, 12] } },
+            'line-width': ['interpolate', ['linear'], ['zoom'], 7, 0.7, 12, 2.0, 14, 4.0, 18, 14] } },
         { id: 'motorway-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6,
           filter: ['==', ['get', 'class'], 'motorway'],
           layout: { 'line-cap': 'round' },
@@ -566,7 +585,7 @@ const Views = (() => {
         // 駅名: ある程度拡大したとき（z12〜）のみ表示
         label('station-label', 'poi',
           ['==', ['get', 'class'], 'railway'], 12,
-          ['interpolate', ['linear'], ['zoom'], 12, 9.5, 16, 12], c.station, 1.2),
+          ['interpolate', ['linear'], ['zoom'], 12, 10.5, 16, 13.5], c.station, 1.5),
         // 主要施設のみ: 大学・スタジアム・博物館・動物園・遊園地・城など
         // （病院はOSM上でクリニックとの区別が曖昧なため表示しない）
         label('poi-major', 'poi',
@@ -647,8 +666,28 @@ const Views = (() => {
     return true;
   }
 
+  // ピンの見方（v323〜）: 色・頭の印・まとまりの意味。凡例の ? から開け、地図を初めて開いたときに一度だけ出す
+  function showMapLegendHelp() {
+    const body = $('#modal-body');
+    const pin = (color, mark) => `<span class="lg-pin" style="--c:${color}"><i class="lg-head ${mark}"></i></span>`;
+    body.innerHTML = `<h2>ピンの見方</h2>
+      <div class="lg-sec">色＝味の平均</div>
+      <div class="lg-row">${[1, 2, 3, 4, 5].map(r => pin(PIN_COLORS[r], 'dot')).join('')}${pin(WISH_COLOR, 'dot')}
+        <span class="lg-txt">★1 → ★5。紫は「行きたい店」</span></div>
+      <div class="lg-sec">頭の印</div>
+      <div class="lg-row">${pin(PIN_COLORS[4], 'dot')}<span class="lg-txt"><b>白丸</b>　ふつう（平均 ○.0〜○.4）</span></div>
+      <div class="lg-row">${pin(PIN_COLORS[4], 'half')}<span class="lg-txt"><b>白の半月</b>　平均 ○.5 以上</span></div>
+      <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>金の★</b>　あなたか味覚の近い人が ★5 を付けた店</span></div>
+      <div class="lg-sec">引いたとき</div>
+      <div class="lg-row"><span class="lg-cluster"><i></i><b>12</b></span><span class="lg-txt">近い店は丸にまとまり、中に件数。色はその中で一番評価が高い店の色</span></div>
+      <p class="hint" style="margin:12px 0 0">この説明は地図の左下の「?」からいつでも開けます。</p>`;
+    $('#modal').classList.remove('modal-full');
+    $('#modal').classList.remove('hidden');
+  }
   function initMap() {
     if (map) return;
+    const help = $('#map-legend-help');
+    if (help) help.addEventListener('click', showMapLegendHelp);
     const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     // MapLibre GLネイティブ: 2本指ドラッグ（スマホ）/右ドラッグ（PC）で回転できる
     map = new maplibregl.Map({
@@ -778,13 +817,7 @@ const Views = (() => {
             ['case', ['==', ['get', 'five'], 1], '-five', ['==', ['get', 'hi'], 1], '-hi', '']],
           'symbol-sort-key': RATING_ONTOP, // 重なり時は評価の高い方を上に
         }) });
-      // お気に入り★（ピンの頭の右上）
-      map.addLayer({ id: 'pin-fav', type: 'symbol', source: 'shops', minzoom: 10,
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'fav'], 1]],
-        layout: { 'text-field': '★', 'text-font': FONT, 'text-size': 12,
-          'text-offset': byPinScale(sc => ['literal', [+(7.5 * sc / 12).toFixed(2), -+((20.5 * sc + 6) / 12).toFixed(2)]]),
-          'text-allow-overlap': true, 'text-ignore-placement': true },
-        paint: { 'text-color': '#f5b301', 'text-halo-color': '#fff', 'text-halo-width': 1 } });
+      // お気に入り★（ピンの頭の右上）は v323 で廃止（「行きたい」のしおりと紛らわしいため。データの favorite は残す）
       // 店名＋ジャンルのラベル。拡大（z13〜）してからピンの上に表示する。
       // symbol-sort-key: 値が小さいほど優先。評価が高い店を優先表示したいので -ravg を使う
       // （重なって片方しか出せないときは評価が高いほうの店名が残る）
@@ -832,6 +865,13 @@ const Views = (() => {
       });
 
       refreshMapData(true);
+      // 初めて地図を開いたときだけ、ピンの見方を案内する（記録が1件以上あるとき）
+      try {
+        if (!localStorage.getItem('gourmet.mapLegendSeen') && Store.shops().length) {
+          localStorage.setItem('gourmet.mapLegendSeen', '1');
+          setTimeout(showMapLegendHelp, 600);
+        }
+      } catch { /* noop */ }
       ensureNetworkLoaded(); // 初回の地図読み込み後にもフォロー中の記録を重ねる
       if (pendingRefresh) { pendingRefresh = false; }
       // 現在地を青い点で表示（地図は動かさない。許可済みなら再確認なしで表示される）
@@ -1321,7 +1361,6 @@ const Views = (() => {
       <div class="msh-top">
         <button type="button" class="msh-round msh-back" aria-label="地図に戻る"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
         <div class="msh-topright">
-          <button type="button" class="msh-round msh-favbtn ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}" aria-label="お気に入り">${IC_HEART}</button>
           <button type="button" class="msh-round msh-share" aria-label="共有"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M8 7l4-3.5L16 7"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/></svg></button>
         </div>
       </div>
@@ -1680,7 +1719,7 @@ const Views = (() => {
         });
         let avg = avgOf(mapStats.get(fid).taste);
         const pairN = ratingPair({ name: g.name, lat: g.lat, lon: g.lon });
-        if (pairN.raters > 1) avg = pairN.personal;
+        if (pairN.conf !== 'none') avg = pairN.personal; // 信頼できるときだけ「あなた向け」の色（v323〜）
         g.avg = avg;
         networkById.set(fid, g);
         features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
@@ -1696,7 +1735,7 @@ const Views = (() => {
     for (const s of shops) {
       let avg = avgOf(mapStats.get(s.id).taste);
       const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
-      if (pair.raters > 1) avg = pair.personal;
+      if (pair.conf !== 'none') avg = pair.personal; // 信頼できるときだけ「あなた向け」の色（v323〜）
       const f = featureByShopId.get(s.id);
       f.properties.r = Math.floor(avg) || 0;
       f.properties.hi = bandOf(avg);
@@ -1865,12 +1904,12 @@ const Views = (() => {
 
   // ========== 一覧 ==========
   function initList() {
-    ['#flt-keyword', '#flt-group', '#flt-sort', '#flt-pref', '#flt-dish-genre', '#flt-rating', '#flt-fav']
+    ['#flt-keyword', '#flt-group', '#flt-sort', '#flt-pref', '#flt-dish-genre', '#flt-rating']
       .forEach(sel => $(sel).addEventListener($(sel).tagName === 'INPUT' && $(sel).type === 'text' ? 'input' : 'change', renderList));
     // フィルタ選択肢
     $('#flt-dish-genre').innerHTML = '<option value="">料理ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
     // 検索バーをタップしたら発見グリッドから店舗検索へ切り替え、絞り込みを開く（インスタと同じ操作感）
-    // 最初はお気に入り・地図・詳細のみ。細かい絞り込みは「詳細」で開く
+    // 最初は地図・詳細のみ。細かい絞り込みは「詳細」で開く
     $('#flt-keyword').addEventListener('focus', () => {
       // プロフィールの「お店をさがす」へ移動中はグリッド切り替えをせず、絞り込みだけ開く
       if ($('#view-list').contains($('#flt-keyword'))) setListMode(false);
@@ -1991,10 +2030,8 @@ const Views = (() => {
     const pref = $('#flt-pref').value;
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
-    const favOnly = $('#flt-fav').checked;
 
     return Store.shops().filter(s => {
-      if (favOnly && !s.favorite) return false;
       if (pref && s.pref !== pref) return false;
       const vs = Store.visitsOf(s.id);
       if (dg && !vs.some(v => (v.dishGenres || []).includes(dg))) return false;
@@ -2248,7 +2285,6 @@ const Views = (() => {
     $('#flt-rating').value = '';
     $('#flt-pref').value = '';
     $('#flt-group').value = '';
-    $('#flt-fav').checked = false;
     document.querySelectorAll('#list-genre-chips .chip, .star-chip').forEach(x => x.classList.remove('on'));
     $('#list-filter-panel').classList.add('hidden');
     // 結果表示は「お店」から（写真モードのまま残さない）
@@ -2520,7 +2556,6 @@ const Views = (() => {
     const kw = $('#flt-keyword').value.trim().toLowerCase();
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
-    const favOnly = $('#flt-fav').checked;
     const pref = $('#flt-pref').value;
     const items = exploreItems || await loadExploreItems();
     if (seq !== searchPhotoSeq) return; // 入力が続いた場合は新しい方の描画に任せる
@@ -2530,7 +2565,6 @@ const Views = (() => {
       if (it.kind === 'mine') {
         const shop = Store.getShop(it.ph.shopId) || {};
         const v = vById.get(it.ph.visitId) || {};
-        if (favOnly && !shop.favorite) return false;
         if (pref && shop.pref !== pref) return false;
         if (minR && (v.rating || 0) < minR) return false;
         if (kw) {
@@ -2540,9 +2574,8 @@ const Views = (() => {
         }
         return true;
       }
-      // フォロー中の人の投稿（お気に入りは自分の店だけの概念なので対象外）
+      // フォロー中の人の投稿
       const p = it.p;
-      if (favOnly) return false;
       if (pref && (p.pref || '') !== pref) return false;
       if (minR && (p.rating || 0) < minR) return false;
       if (kw) {
@@ -2587,7 +2620,7 @@ const Views = (() => {
         <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span>${(() => {
           // フォロワーの評価があるお店は「あなた向け評価」を並べて出す（一致率で重み付け）
           const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
-          return pair.raters > 1 ? `<span class="ps-you">あなた向け <b>${fmtR(pair.personal)}</b></span>` : '';
+          return pair.conf !== 'none' ? `<span class="ps-you${pair.conf === 'ref' ? ' ref' : ''}" title="${pair.conf === 'ref' ? '参考: 評価した人がまだ少なめです' : 'あなたと味覚が近い人の評価ほど重く数えた★'}">あなた向け <b>${fmtR(pair.personal)}</b>${pair.conf === 'ref' ? '<i>参考</i>' : ''}</span>` : '';
         })()}</div>
         <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span>${fiveChipHtml(fiveStarFans(s))}${(() => {
           // 星絞り込み中: 平均で超えている店は金色、1回の記録だけで超えている店は白抜きのバッジで区別
@@ -2598,8 +2631,7 @@ const Views = (() => {
           const best = Math.max(0, ...Store.visitsOf(s.id).map(v => v.rating || 0));
           return best >= minR ? `<span class="ps-hit ps-hit-once">${lbl}の記録あり</span>` : '';
         })()}</div>
-      </div>
-      <button class="s-fav ps-favbtn ${s.favorite ? 'on' : ''}" data-fav="${s.id}" title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>`;
+      </div>`;
     // 写真タップはホームの投稿と同じ表示（上下スクロールで検索結果の前後の店の投稿へ）。
     // カードの他の場所のタップは従来どおり店舗詳細（data-shopOpen の委譲）
     div.querySelector('.ps-thumb').addEventListener('click', (e) => {
@@ -3058,8 +3090,6 @@ const Views = (() => {
           ${genre ? `<div class="sfs-sub">🍜 ${esc(genre)}</div>` : ''}
           ${s.station ? `<div class="sfs-sub">${IC_PIN} ${esc(s.station)}</div>` : ''}
         </div>
-        <button type="button" class="s-fav ps-favbtn sfs-fav ${s.favorite ? 'on' : ''}" data-fav="${esc(s.id)}"
-          title="お気に入り" aria-label="お気に入り">${IC_HEART}</button>
       </div>
       <div class="sfs-photos">
         <div class="sfs-carousel"></div>
@@ -3290,11 +3320,31 @@ const Views = (() => {
     }
   }
 
+  // 統計の「もっと見る」（v323〜）: 主役の4タイル以外を畳む。開閉は端末に記憶
+  let statMoreBound = false;
+  function bindStatMore() {
+    if (statMoreBound) return;
+    statMoreBound = true;
+    const btn = $('#stat-more-btn'), box = $('#stat-more');
+    if (!btn || !box) return;
+    const apply = (open) => {
+      box.classList.toggle('hidden', !open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.textContent = open ? '閉じる' : 'もっと見る';
+      if (open) Object.values(charts).forEach(c => { try { c.resize(); } catch { /* noop */ } });
+    };
+    let open = false;
+    try { open = localStorage.getItem('gourmet.statMore') === '1'; } catch { /* noop */ }
+    apply(open);
+    btn.addEventListener('click', () => {
+      open = box.classList.contains('hidden');
+      apply(open);
+      try { localStorage.setItem('gourmet.statMore', open ? '1' : '0'); } catch { /* noop */ }
+    });
+  }
   async function renderStats() {
+    bindStatMore();
     renderRecordCards(); // よく行く店・制覇マップ・行きたい達成度（グラフ部品を待たずに出す）
-    if (typeof Chart === 'undefined') {
-      try { await App.loadLib('chart'); } catch (e) { App.toast('⚠️ グラフの読み込みに失敗しました'); return; }
-    }
     renderTasteSections();
     const shops = Store.shops();
     const visits = Store.visits();
@@ -3329,18 +3379,28 @@ const Views = (() => {
       memBox.classList.add('hidden');
     }
 
+    // 主役の4つ（v323〜）: 店の数・今年の訪問・自分が★5を付けた店・行きたい店の達成。残りは「もっと見る」へ
+    const tile = ([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+    const fiveShops = shops.filter(s => Store.visitsOf(s.id).some(v => (Number(v.rating) || 0) >= 5)).length;
+    const pg = Store.wishProgress();
     $('#stat-cards').innerHTML = [
-      [shops.length, '総店舗数'],
+      [shops.length, '行った店'],
+      [yearVisits, `${year}年の訪問`],
+      [fiveShops, '★5をつけた店'],
+      [pg.total ? `${pg.done}<small>/${pg.total}</small>` : '－', '行きたい店の達成'],
+    ].map(tile).join('');
+    $('#stat-cards-more').innerHTML = [
       [visits.length, '総訪問回数'],
+      [monthVisits, '今月の訪問'],
       [photos.length, '保存写真枚数'],
       [allAvg || '－', '味の平均'],
-      [yearVisits, `${year}年の訪問`],
-      [monthVisits, '今月の訪問'],
-      [shops.filter(s => s.favorite).length, 'お気に入り'],
-      [(() => { const pg = Store.wishProgress(); return pg.total ? `${pg.done}/${pg.total}` : '－'; })(), '行きたい店の達成'],
       [`<span id="stat-pref-n">${prefCount}</span><small>/47</small>`, '訪れた都道府県'],
-    ].map(([v, l]) => `<div class="stat-card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+    ].map(tile).join('');
 
+    // ここから下はグラフ（Chart.js）。読み込めなくても上のタイルやカードは出ている
+    if (typeof Chart === 'undefined') {
+      try { await App.loadLib('chart'); } catch (e) { App.toast('⚠️ グラフの読み込みに失敗しました'); return; }
+    }
     // 月別訪問。最初の記録の月から今月までを全部並べ、横スクロールで見られるようにする
     // （画面に収まらないので、幅は月数ぶん確保して .chart-scroll でスクロールさせる）
     const now = new Date();
@@ -3917,7 +3977,7 @@ const Views = (() => {
         <div class="d-sub">店名・住所などを変更して「保存」を押してください。</div>
       </div>` : `
       <div class="detail-head">
-        <h2>${esc(s.name)} ${s.favorite ? IC_FAV : ''}</h2>
+        <h2>${esc(s.name)}</h2>
         <div class="d-stars">${starSvg(avg, 16)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
         ${(() => { const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon }); return pair.raters > 1 ? ratePairHtml(pair, { count: true }) : ''; })()}
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
@@ -3977,9 +4037,6 @@ const Views = (() => {
         ${s.lat != null && s.lon != null ? `
         <button class="btn d-map-btn" id="d-showmap"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
         <button class="btn primary d-nav-btn" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
-        <button class="d-fav-btn${s.favorite ? ' on' : ''}" id="d-fav"
-          title="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}"
-          aria-label="${s.favorite ? 'お気に入り解除' : 'お気に入り登録'}">${IC_FAV}</button>
       </div>`;
 
     // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
@@ -4049,10 +4106,6 @@ const Views = (() => {
         closeModal();
         App.switchTab('register');
         Register.preselectShop(shopId);
-      });
-      $('#d-fav').addEventListener('click', () => {
-        Store.updateShop(shopId, { favorite: !s.favorite });
-        showShop(shopId);
       });
       $('#d-closed').addEventListener('click', () => {
         Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' });
@@ -4748,17 +4801,14 @@ const Views = (() => {
   //            ミニ地図（左下）・ここへ行く（右下）
   //  写真の下: 投稿者、いいね・コメント・行きたい保存
   function buildFeedCard(p, list, index) {
-    // Pinterest 風のカード（v314〜）: 写真（縦横比のまま）＋店名・「ジャンル ・ 都道府県」・★、右上に行きたい保存、
-    // 下に投稿者といいね数。2人以上の評価がある店は「あなた向け評価」（味覚の近い人ほど重く数えた★）も出す（v316〜）。
-    // 距離・ここへ行く・コメントは投稿詳細で見る
+    // Pinterest 風のカード（v314〜）。v323 で要素を絞った: 写真（投稿者の★バッジ・行きたい保存）・店名・投稿者といいね、
+    // そして信頼できるデータがある店（ratingPair の conf が ok）だけ「あなた向け ★x」。
+    // ジャンル・都道府県・一致率・全体評価・★5 ×N人は投稿詳細や検索の一覧で見る（カードで視線が散るため）
     const card = document.createElement('div');
     card.className = 'mz-item fpin';
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
-    const genre = String(p.genre || p.shopGenre || '').split('・')[0];
     const rating = (Number(p.rating) || 0) > 0 ? Math.round(Number(p.rating) * 10) / 10 : 0;
-    const tm = tasteMatch(p.username);
     const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
-    const five = fiveStarFans({ name: p.shopName, lat: p.lat, lon: p.lon });
     // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
     const me = (Store.getProfile() || {}).username;
     const isMine = Store.visits().some(v => v.id === p.id) || (!!me && p.username === me);
@@ -4771,7 +4821,6 @@ const Views = (() => {
           <button type="button" class="fpin-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           <span class="mz-cap">
             <span class="mz-name">${esc(p.shopName || '')}</span>
-            ${(genre || p.pref) ? `<span class="mz-sub">${esc(mzSub(genre, p.pref))}</span>` : ''}
           </span>
         </div>
         <div class="fpin-meta">
@@ -4779,14 +4828,12 @@ const Views = (() => {
             <span class="fc-avatar">${av}</span>
             <span class="fpin-uname">${esc(p.displayName || (p.username ? '@' + p.username : 'BITEMAP'))}</span>
           </button>
-          ${tm.common && tm.rate != null && tm.conf !== 'low' ? `<span class="fpin-match">${tm.rate}%</span>` : ''}
           ${isMine && p.datetime ? `<span class="fpin-time">${relTime(p.datetime)}</span>` : ''}
           <button type="button" class="fa-like pd-like fpin-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
         </div>
-        ${(pair.raters > 1 || five.n) ? `<div class="fpin-you">
-          ${pair.raters > 1 ? `<span class="fy-l" title="あなたと味覚が近い人の評価ほど重く数えた★">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
-          <span class="fy-all">全体 ${fmtR(pair.overall)}・${pair.raters}人</span>` : ''}
-          ${fiveChipHtml(five)}
+        ${pair.conf === 'ok' ? `<div class="fpin-you">
+          <span class="fy-l" title="あなたと味覚が近い人の評価ほど重く数えた★（${pair.raters}人の評価）">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
+          <span class="fy-all">${pair.raters}人</span>
         </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
@@ -5459,5 +5506,6 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle };
+  return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+    ratingPair, tasteBadge }; // ratingPair / tasteBadge は動作確認用に公開（v323〜）
 })();

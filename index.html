@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=322">
+<link rel="stylesheet" href="css/style.css?v=323">
 </head>
 <body>
 
@@ -58,12 +58,7 @@
         <div class="reg-top">
           <div id="photo-previews" class="photo-previews"></div>
           <div class="reg-top-main">
-            <div class="flabel-head">店舗名 <span class="req">必須</span>
-              <button type="button" id="f-fav-btn" class="fav-btn" aria-label="お気に入りに登録" aria-pressed="false">
-                <svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>
-                <span>お気に入り</span>
-              </button>
-            </div>
+            <div class="flabel-head">店舗名 <span class="req">必須</span></div>
             <div class="search-row">
               <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
               <button type="button" id="shop-search-btn" class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> 検索</button>
@@ -207,6 +202,7 @@
   <!-- 星の色の説明（地図の上に常時表示）。ピンの丸（白/金）の説明は出さない（v310） -->
   <div class="map-legend-float">
     味: <i class="dot r1"></i>★1 <i class="dot r2"></i>★2 <i class="dot r3"></i>★3 <i class="dot r4"></i>★4 <i class="dot r5"></i>★5 <i class="dot wish"></i>行きたい
+    <button type="button" id="map-legend-help" class="legend-help" title="ピンの見方" aria-label="ピンの見方">?</button>
   </div>
 </section>
 
@@ -228,9 +224,8 @@
       </button>
     </div>
     <div id="list-filter-panel" class="hidden">
-    <!-- 検索バーを押したとき最初に見える操作（お気に入り・地図・詳細） -->
+    <!-- 検索バーを押したとき最初に見える操作（地図・詳細）。「お気に入りのみ」は v323 で廃止 -->
     <div class="filter-row">
-      <label class="check"><input type="checkbox" id="flt-fav"> <svg class="ic" viewBox="0 0 24 24" fill="currentColor" style="color:var(--accent)"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg> お気に入りのみ</label>
       <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
       <button type="button" id="list-detail-toggle" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg> 詳細</button>
     </div>
@@ -361,7 +356,11 @@
   <!-- 統計パネル -->
   <div id="ptab-stats" class="ptab-panel hidden">
     <div id="stat-memory" class="stat-memory hidden"></div>
-    <div id="stat-cards" class="stat-cards"></div>
+    <div id="stat-cards" class="stat-cards stat-cards-main"></div>
+    <!-- 主役の4つ以外は「もっと見る」に畳む（v323〜）。開いた状態は端末に記憶 -->
+    <button type="button" id="stat-more-btn" class="stat-more-btn" aria-expanded="false" aria-controls="stat-more">もっと見る</button>
+    <div id="stat-more" class="stat-more hidden">
+    <div id="stat-cards-more" class="stat-cards"></div>
     <div class="stat-actions">
       <button type="button" id="stat-share-card" class="btn stat-share"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 記録カードを画像で共有</button>
     </div>
@@ -386,6 +385,7 @@
         <div><h3>よく食べる料理</h3><ol id="rank-dish"></ol></div>
       </div>
     </div>
+    </div><!-- /#stat-more -->
   </div>
 </section>
 
@@ -604,11 +604,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=322"></script>
-<script src="js/api.js?v=322"></script>
-<script src="js/cloud.js?v=322"></script>
-<script src="js/register.js?v=322"></script>
-<script src="js/views.js?v=322"></script>
-<script src="js/app.js?v=322"></script>
+<script src="js/store.js?v=323"></script>
+<script src="js/api.js?v=323"></script>
+<script src="js/cloud.js?v=323"></script>
+<script src="js/register.js?v=323"></script>
+<script src="js/views.js?v=323"></script>
+<script src="js/app.js?v=323"></script>
 </body>
 </html>
