@@ -254,7 +254,17 @@ const Views = (() => {
   let map = null, heatOn = false, mapLoaded = false, pendingRefresh = false, mapPopup = null;
   let userMarker = null;      // 現在地マーカー（青い点）
   let placeMarker = null;     // 地名検索の目印ピン（検索した場所を示す。タップで消える）
-  let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地に使う）
+  let lastKnownPos = null;    // 直近の現在地 { lat, lon }（ナビの出発地・ホームの「近く」に使う）
+  const LAST_POS_LS = 'gourmet.lastPos', LAST_POS_TTL = 30 * 60 * 1000;
+  // 現在地は端末に控え、30分以内ならホームを開いたときに位置情報の許可を求めずに使う（v325〜）
+  function rememberPos(lat, lon) {
+    lastKnownPos = { lat, lon };
+    try { localStorage.setItem(LAST_POS_LS, JSON.stringify({ lat, lon, time: Date.now() })); } catch { /* noop */ }
+  }
+  try {
+    const j = JSON.parse(localStorage.getItem(LAST_POS_LS) || 'null');
+    if (j && isFinite(j.lat) && isFinite(j.lon) && Date.now() - (j.time || 0) < LAST_POS_TTL) lastKnownPos = { lat: j.lat, lon: j.lon };
+  } catch { /* noop */ }
   let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ(既定) / 'all' 自分＋フォロー中 / 'wish' 行きたい店のみ
   let mapHasView = false;     // 一度でも視点が決まったらtrue。以降の再描画では視点を勝手に動かさない
                               // （店舗詳細を閉じたりタブを往復してもズームが戻らないように）
@@ -1068,7 +1078,7 @@ const Views = (() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = [pos.coords.longitude, pos.coords.latitude];
-        lastKnownPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        rememberPos(pos.coords.latitude, pos.coords.longitude);
         if (!userMarker) {
           const el = document.createElement('div');
           el.className = 'user-loc';
@@ -1123,7 +1133,7 @@ const Views = (() => {
       if (!navigator.geolocation) { reject(); return; }
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          lastKnownPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          rememberPos(pos.coords.latitude, pos.coords.longitude);
           resolve(lastKnownPos);
         },
         () => reject(),
@@ -1748,12 +1758,27 @@ const Views = (() => {
     // 視点合わせは「まだ視点が決まっていないとき」だけ。決まった後の再描画
     // （店舗詳細を閉じた・タブを往復した等）では現在のズーム・位置を維持する。
     // 絞り込みや表示範囲の切り替えは refitMap() 経由で mapHasView をリセットして再フィットする
+    if (pendingMapFocus) applyPendingFocus(); // 「地図で見る」からの移動を優先
     if (fit && bounds.length && !mapHasView) {
       const b = new maplibregl.LngLatBounds();
       bounds.forEach(c => b.extend(c));
       try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); mapHasView = true; } catch { /* noop */ }
     }
     if (heatOn) buildHeat();
+  }
+
+  // 地図を特定の場所へ寄せる（v325〜）。地図がまだ初期化前なら控えておき、読み込み後の最初の描画で寄せる
+  // （以前は 350ms 待って jumpTo していたが、初回の fitBounds に上書きされることがあった）
+  let pendingMapFocus = null;
+  function focusMap(lon, lat, zoom) {
+    pendingMapFocus = { lon, lat, zoom: zoom || 15 };
+    if (map && mapLoaded) applyPendingFocus();
+  }
+  function applyPendingFocus() {
+    if (!pendingMapFocus || !map) return;
+    const f = pendingMapFocus; pendingMapFocus = null;
+    map.jumpTo({ center: [f.lon, f.lat], zoom: f.zoom });
+    mapHasView = true; // 以降の再描画で視点を動かさない
   }
 
   // 行きたい店のピンを地図へ反映（保存/削除のたびに呼べる）
@@ -2012,9 +2037,8 @@ const Views = (() => {
       const w = Store.wishes().find(x => x.id === b.dataset.id);
       if (!w) return;
       $('#modal').classList.add('hidden');
+      focusMap(w.lon, w.lat, 15);
       App.switchTab('map');
-      // 地図の初期化直後でも移動できるよう少し待ってから寄る
-      setTimeout(() => { if (map) map.jumpTo({ center: [w.lon, w.lat], zoom: 15 }); }, 350);
     }));
   }
 
@@ -3361,19 +3385,11 @@ const Views = (() => {
     const rated = visits.filter(v => (v.rating || 0) > 0); // 星0＝評価なし（「また来た」の記録）は平均に入れない
     const allAvg = rated.length ? Math.round(rated.reduce((s, v) => s + v.rating, 0) / rated.length * 10) / 10 : 0;
 
-    // 「1年前の今日ごろ」の振り返り（同じ月日±3日の過去の訪問）
+    // 「1年前の今日ごろ」の振り返り（ホームにも出す。v325〜 共通化）
     const memBox = $('#stat-memory');
-    const past = visits.filter(v => {
-      const d = new Date(v.datetime);
-      if (d.getFullYear() >= year) return false;
-      const thisYear = new Date(year, d.getMonth(), d.getDate());
-      return Math.abs(thisYear - new Date(year, now0.getMonth(), now0.getDate())) <= 3 * 86400000;
-    }).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-    if (past.length) {
-      const v = past[0];
-      const s = Store.getShop(v.shopId);
-      const yearsAgo = year - new Date(v.datetime).getFullYear();
-      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${yearsAgo}年前の今ごろ、<b>${esc(s ? s.name : '')}</b> に行きました（${starSvg(v.rating || 0, 12)}）`;
+    const mem = memoryVisit();
+    if (mem) {
+      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${mem.yearsAgo}年前の今ごろ、<b>${esc(mem.shop ? mem.shop.name : '')}</b> に行きました（${starSvg(mem.visit.rating || 0, 12)}）`;
       memBox.classList.remove('hidden');
     } else {
       memBox.classList.add('hidden');
@@ -4693,8 +4709,111 @@ const Views = (() => {
     }, { passive: true });
   }
 
+  // 「N年前の今ごろ」の訪問（同じ月日±3日の過去の訪問のうち最新）。統計とホームで使う
+  function memoryVisit() {
+    const now = new Date(), year = now.getFullYear();
+    const past = Store.visits().filter(v => {
+      const d = new Date(v.datetime);
+      if (isNaN(d) || d.getFullYear() >= year) return false;
+      const thisYear = new Date(year, d.getMonth(), d.getDate());
+      return Math.abs(thisYear - new Date(year, now.getMonth(), now.getDate())) <= 3 * 86400000;
+    }).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    if (!past.length) return null;
+    const v = past[0];
+    return { visit: v, shop: Store.getShop(v.shopId), yearsAgo: year - new Date(v.datetime).getFullYear() };
+  }
+
+  // ========== 一人でも使えるホーム（v325〜） ==========
+  // フォローが 0 人でもホームを開く理由を作る。自分の記録と現在地から、今日の行動につながるものだけを横並びで出す。
+  //   近くの行きたい店（3km）／しばらく行っていない名店（★4.5以上・90日以上）／近くの自分の店（2km）／N年前の今ごろ／最近の記録
+  // 現在地は地図などで取得して 30 分以内の控えがあるときだけ使う（ホームで突然の許可ダイアログを出さない）。
+  // 無いときは「現在地を使う」ボタンを出す。
+  const HM_NEAR_WISH = 3000, HM_NEAR_SHOP = 2000, HM_STALE_DAYS = 90, HM_STALE_MIN = 4.5, HM_MAX = 8;
+  async function renderHomeMine() {
+    const box = $('#home-mine');
+    if (!box) return;
+    const shops = Store.shops();
+    const wishes = Store.wishes();
+    if (!shops.length && !wishes.length) {
+      // まだ何も無い: 最初の一歩だけ案内する（統計やSNSの説明はしない）
+      box.innerHTML = `<div class="hm-first">
+        <div class="hm-first-t">まずは1皿、残してみましょう</div>
+        <div class="hm-first-s">写真を選ぶと店の候補と料理ジャンルが自動で入ります。店名と★だけで保存できます。</div>
+        <div class="hm-first-b"><button type="button" class="btn primary" id="hm-go-register">＋ 記録する</button>
+        <button type="button" class="btn" id="hm-go-wish">🔖 行きたい店を入れる</button></div>
+      </div>`;
+      $('#hm-go-register').addEventListener('click', () => App.switchTab('register'));
+      $('#hm-go-wish').addEventListener('click', () => { App.switchTab('register'); setTimeout(() => { const i = $('#f-shop-name'); if (i) i.focus(); }, 300); });
+      return;
+    }
+    const pos = lastKnownPos;
+    const photos = await Store.allPhotos();
+    const photoByVisit = new Map(), photoByShop = new Map();
+    photos.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).forEach(p => {
+      if (p.visitId && !photoByVisit.has(p.visitId)) photoByVisit.set(p.visitId, p);
+      if (p.shopId && !photoByShop.has(p.shopId) && (p.type === 'dish' || !photoByShop.has(p.shopId))) photoByShop.set(p.shopId, p);
+    });
+    const dist = (x) => (pos && x.lat != null && x.lon != null) ? Store.distMeters(pos.lat, pos.lon, x.lat, x.lon) : Infinity;
+    const fmtDist = (m) => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
+    const secs = [];
+    const card = (o) => `<button type="button" class="hm-card${o.cls ? ' ' + o.cls : ''}" data-act="${esc(o.act)}" data-id="${esc(o.id)}">
+        <span class="hm-thumb">${o.photo ? '<img alt="" loading="lazy" decoding="async">' : `<span class="hm-ph">${o.icon || '🍽️'}</span>`}${o.badge ? `<span class="hm-badge">${esc(o.badge)}</span>` : ''}</span>
+        <span class="hm-name">${esc(o.name)}</span>
+        <span class="hm-sub">${esc(o.sub || '')}</span></button>`;
+    // 1) 近くの行きたい店
+    if (pos) {
+      const near = wishes.map(w => ({ w, d: dist(w) })).filter(x => x.d <= HM_NEAR_WISH).sort((a, b) => a.d - b.d).slice(0, HM_MAX);
+      if (near.length) secs.push({ title: '近くの行きたい店', sub: `${fmtDist(HM_NEAR_WISH)}以内`, items: near.map(x => ({ act: 'wish', id: x.w.id, name: x.w.name || '', sub: fmtDist(x.d) + (x.w.genre ? '・' + x.w.genre : ''), icon: '🔖', cls: 'hm-wish', photo: false })) });
+    }
+    // 2) しばらく行っていない名店
+    const now = Date.now();
+    const stale = shops.map(s => ({ s, avg: Store.avgRating(s.id), last: Store.lastVisitDate(s.id) }))
+      .filter(x => x.avg >= HM_STALE_MIN && x.last && (now - new Date(x.last).getTime()) > HM_STALE_DAYS * 86400000)
+      .sort((a, b) => (b.avg - a.avg) || (new Date(a.last) - new Date(b.last))).slice(0, HM_MAX);
+    if (stale.length) secs.push({ title: 'しばらく行っていない名店', sub: `あなたの★${HM_STALE_MIN}以上・${HM_STALE_DAYS}日以上`, items: stale.map(x => ({ act: 'shop', id: x.s.id, name: x.s.name, sub: '前回 ' + relTime(x.last), badge: '★' + fmtR(x.avg), photo: photoByShop.get(x.s.id) })) });
+    // 3) 近くの自分の店
+    if (pos) {
+      const near = shops.map(s => ({ s, d: dist(s) })).filter(x => x.d <= HM_NEAR_SHOP).sort((a, b) => a.d - b.d).slice(0, HM_MAX);
+      if (near.length) secs.push({ title: '近くの自分の店', sub: `${fmtDist(HM_NEAR_SHOP)}以内`, items: near.map(x => { const a = Store.avgRating(x.s.id); return { act: 'shop', id: x.s.id, name: x.s.name, sub: fmtDist(x.d) + '・' + Store.visitCount(x.s.id) + '回', badge: a ? '★' + fmtR(a) : '', photo: photoByShop.get(x.s.id) }; }) });
+    }
+    // 4) N年前の今ごろ
+    const mem = memoryVisit();
+    if (mem && mem.shop) secs.push({ title: `${mem.yearsAgo}年前の今ごろ`, sub: fmtDate(mem.visit.datetime), items: [{ act: 'shop', id: mem.shop.id, name: mem.shop.name, sub: (mem.visit.comment || '').slice(0, 30) || (mem.visit.dishGenres || []).join('・'), badge: mem.visit.rating ? '★' + fmtR(mem.visit.rating) : '', photo: photoByVisit.get(mem.visit.id) || photoByShop.get(mem.shop.id) }] });
+    // 5) 最近の記録
+    const recent = Store.visits().slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0)).slice(0, HM_MAX)
+      .map(v => ({ v, s: Store.getShop(v.shopId) })).filter(x => x.s);
+    if (recent.length) secs.push({ title: '最近の記録', sub: '', items: recent.map(x => ({ act: 'shop', id: x.s.id, name: x.s.name, sub: relTime(x.v.datetime), badge: x.v.rating ? '★' + fmtR(x.v.rating) : '', photo: photoByVisit.get(x.v.id) || photoByShop.get(x.s.id) })) });
+
+    const posBtn = pos ? '' : `<button type="button" class="hm-pos" id="hm-use-pos">${IC_PIN} 現在地を使って近くの店を出す</button>`;
+    box.innerHTML = secs.map(sec => `<section class="hm-sec">
+        <div class="hm-h"><span class="hm-t">${esc(sec.title)}</span>${sec.sub ? `<span class="hm-s">${esc(sec.sub)}</span>` : ''}</div>
+        <div class="hm-rail">${sec.items.map(card).join('')}</div>
+      </section>`).join('') + posBtn;
+    // サムネイル（メタ情報から1枚ずつ）
+    const allById = new Map(photos.map(p => [p.id, p]));
+    const photoOf = (sec, i) => sec.items[i].photo;
+    let k = 0;
+    secs.forEach(sec => sec.items.forEach((it, i) => {
+      const el = box.querySelectorAll('.hm-card')[k++];
+      const img = el && el.querySelector('img');
+      if (img && it.photo) setThumb(img, allById.get(it.photo.id) || it.photo);
+    }));
+    box.querySelectorAll('.hm-card').forEach(el => el.addEventListener('click', () => {
+      if (el.dataset.act === 'shop') showShop(el.dataset.id);
+      else if (el.dataset.act === 'wish') {
+        const w = Store.wishes().find(x => x.id === el.dataset.id);
+        if (!w || w.lat == null) { openWishlist(); return; }
+        focusMap(w.lon, w.lat, 15);
+        App.switchTab('map');
+      }
+    }));
+    const pb = $('#hm-use-pos');
+    if (pb) pb.addEventListener('click', () => { pb.disabled = true; pb.textContent = '現在地を取得中…'; currentPosition().then(() => renderHomeMine(), () => { pb.disabled = false; pb.textContent = '現在地を取得できませんでした'; }); });
+  }
+
   async function renderFeed(force) {
     setupPullToRefresh();
+    renderHomeMine(); // 自分の記録からの提案（フォローが無くても出る）
     // 味覚一致率・あなた向け評価はフォロー中の記録(networkPosts)から計算するため、
     // 地図を開いていなくてもホーム表示時に読み込む（取得後は並びとバッジを描き直す）
     loadCachedNetwork();

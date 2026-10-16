@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=324">
+<link rel="stylesheet" href="css/style.css?v=325">
 </head>
 <body>
 
@@ -115,6 +115,8 @@
 
 <!-- ========== ホーム／フィード（フォロー中の投稿） ========== -->
 <section id="view-feed" class="view">
+  <!-- 一人でも使えるホーム（v325〜）: 自分の記録から「近くの行きたい店」「しばらく行っていない名店」「近くの自分の店」「1年前の今日」「最近の記録」を出す -->
+  <div id="home-mine" class="home-mine"></div>
   <div class="feed-segs" id="feed-segs">
     <button type="button" class="feed-seg active" data-seg="reco">おすすめ</button>
     <button type="button" class="feed-seg" data-seg="new">最新</button>
@@ -604,11 +606,11 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=324"></script>
-<script src="js/api.js?v=324"></script>
-<script src="js/cloud.js?v=324"></script>
-<script src="js/register.js?v=324"></script>
-<script src="js/views.js?v=324"></script>
-<script src="js/app.js?v=324"></script>
+<script src="js/store.js?v=325"></script>
+<script src="js/api.js?v=325"></script>
+<script src="js/cloud.js?v=325"></script>
+<script src="js/register.js?v=325"></script>
+<script src="js/views.js?v=325"></script>
+<script src="js/app.js?v=325"></script>
 </body>
 </html>
