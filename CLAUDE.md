@@ -25,7 +25,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 1. `js/app.js` の `const APP_VERSION = 'vNNN'`
 2. `js/api.js` の `FILE_VERSION: 'vNNN'`
 3. `sw.js` の `const VERSION = 'vNNN'`（コメントに変更概要も書く）
-4. `index.html` の各アセットの `?v=NNN`（CSS 1 + スクリプト6 = 7箇所）
+4. `index.html` の各アセットの `?v=NNN`（CSS 1 + スクリプト7 = 8箇所。v326 で `js/import.js` が増えた）
 
 これを怠るとスマホが古いキャッシュを使い続け、変更が反映されない。
 バージョンは単調増加（現在の最新は sw.js を見て +1）。
@@ -38,6 +38,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 | `js/store.js` | データ層（店舗Shop/訪問Visit）。localStorage + 写真はIndexedDB（v3: 本体 photos／一覧用メタ meta／サムネ thumbs の3ストア。一覧は meta だけを読む） |
 | `js/api.js` | 外部API（OpenPOI/Overpass/Nominatim/Photon/Yahoo!/ホットペッパー/Google）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は OpenPOI（無料・キー不要）→地図データ→Google は最後の手段（課金を避ける）。OpenPOI 由来の店は `dataLicenses`/`dataAttributions` を一緒に保存し、設定画面の出典表示を消さない |
 | `js/register.js` | 登録フロー |
+| `js/import.js` | 過去の写真のまとめて取り込み（v326〜）。一度に最大100枚を「日付×場所」で訪問候補にまとめ、店名（既存の店→周辺検索の候補→入力）と★を付けて一括で記録。取り込み済みは指紋で除外、飛ばした写真は `gourmet.importSkipped.v1`。AI判定は `classifyDishPhoto(file, {bulk:true})`（Worker の別枠 1日200枚） |
 | `js/views.js` | 地図・一覧・写真・統計・プロフィール・投稿詳細の描画（最大のファイル） |
 | `js/cloud.js` | Firebase 同期・SNS（フィード/いいね/コメント/フォロー/公開プロフィール） |
 | `js/app.js` | タブ制御・共通イベント・設定・サンプルデータ・バックアップ（取り込み時に形式と型を検証） |
@@ -72,6 +73,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   カードは写真（投稿者の★バッジ・行きたい保存）・店名・投稿者・いいねの4要素に絞る（v323〜。ジャンル・県・一致率・全体評価・★5チップは詳細や検索へ）。
   「あなた向け評価」は `ratingPair().conf === 'ok'`（3人以上かつ一致率が出せる人2人以上）のときだけカードに出す。
   「あなた向け評価」は BITEMAP の中心の機能なので、カードを作り替えるときも消さない。
+- まとめて取り込み（v326〜）: 入口は登録タブ下の `.import-entry` とホームの「まずは1皿」カード（`[data-import-open]`）。sw.js の SHELL と index.html の `<script>` に `import` が入っている。
+  ★が無い候補は記録しない（仮の評価で統計を汚さない）。新しい店は `foundBy: 'import'`。
 - 一人でも使えるホーム（v325〜）: `#home-mine` に `renderHomeMine()` が自分の記録から「近くの行きたい店（3km）／しばらく行っていない名店（★4.5以上・90日以上）／
   近くの自分の店（2km）／N年前の今ごろ（`memoryVisit()`、統計と共通）／最近の記録」を横並びで出す。フォロー中の投稿はその下。記録が無ければ「まずは1皿」の案内だけ。
   現在地は `rememberPos()` が `gourmet.lastPos` に控え、30分以内のものだけ使う（ホームで突然の許可ダイアログを出さない。無ければ「現在地を使う」ボタン）。

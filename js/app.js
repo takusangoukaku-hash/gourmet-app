@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v325'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v326'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -45,6 +45,7 @@ const App = (() => {
   function init() {
     const params = new URLSearchParams(location.search);
     Register.init();
+    if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
     Views.initList();
     Views.initPhotos();
     Views.initProfile();

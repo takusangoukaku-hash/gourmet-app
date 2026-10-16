@@ -4740,9 +4740,11 @@ const Views = (() => {
         <div class="hm-first-t">まずは1皿、残してみましょう</div>
         <div class="hm-first-s">写真を選ぶと店の候補と料理ジャンルが自動で入ります。店名と★だけで保存できます。</div>
         <div class="hm-first-b"><button type="button" class="btn primary" id="hm-go-register">＋ 記録する</button>
-        <button type="button" class="btn" id="hm-go-wish">🔖 行きたい店を入れる</button></div>
+        <button type="button" class="btn" id="hm-go-wish">🔖 行きたい店を入れる</button>
+        <button type="button" class="btn" data-import-open>📚 過去の写真から</button></div>
       </div>`;
       $('#hm-go-register').addEventListener('click', () => App.switchTab('register'));
+      box.querySelectorAll('[data-import-open]').forEach(b => b.addEventListener('click', () => { if (typeof Import !== 'undefined') Import.open(); }));
       $('#hm-go-wish').addEventListener('click', () => { App.switchTab('register'); setTimeout(() => { const i = $('#f-shop-name'); if (i) i.focus(); }, 300); });
       return;
     }

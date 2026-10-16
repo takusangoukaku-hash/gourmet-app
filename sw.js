@@ -5,14 +5,14 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v325'; // 一人でも使えるホーム：自分の記録から「近くの行きたい店・しばらく行っていない名店・近くの自分の店・N年前の今ごろ・最近の記録」を出す
+const VERSION = 'v326'; // 過去の写真のまとめて取り込み（js/import.js）：日付×場所で訪問にまとめ、店名と★を付けるだけ。AI判定は bulk 枠（1日200枚）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
 const VN = VERSION.replace(/^v/, '');
 const SHELL = [
   './', './index.html', `./css/style.css?v=${VN}`,
-  ...['store', 'api', 'cloud', 'register', 'views', 'app'].map(n => `./js/${n}.js?v=${VN}`),
+  ...['store', 'api', 'cloud', 'register', 'import', 'views', 'app'].map(n => `./js/${n}.js?v=${VN}`),
   `./js/vendor/anthropic-sdk.js?v=${VN}`,
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',

@@ -1403,6 +1403,46 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 .feed-seg.active { color: var(--text); border-bottom-color: var(--accent); }
+/* 過去の写真のまとめて取り込み（v326〜） */
+.import-entry { display: block; width: 100%; max-width: 560px; margin: 14px auto 0; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--border); background: var(--card);
+  color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
+.import-entry span { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+.modal.import-modal { padding: 0; align-items: stretch; }
+.import-modal .modal-box { max-width: none; height: 100%; max-height: 100%; border-radius: 0; padding: 0 0 72px; display: flex; flex-direction: column; overflow: hidden; }
+.im-foot .btn { white-space: nowrap; flex-shrink: 0; }
+.import-modal .modal-head { padding: 10px 14px 6px; }
+.import-modal .im-body { flex: 1; overflow-y: auto; padding: 0 14px 16px; }
+.im-intro p { font-size: 14px; line-height: 1.7; }
+.im-tips { margin: 6px 0 10px; padding-left: 18px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+.im-inc { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.im-progress { margin: 10px 0; }
+.im-bar { height: 6px; border-radius: 999px; background: var(--field); overflow: hidden; }
+.im-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.im-ptext { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.im-group { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-lite); align-items: start; }
+.im-group.skip { opacity: .45; }
+.im-thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.im-th { position: relative; width: 44px; height: 44px; border-radius: 8px; overflow: hidden; background: var(--field); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.im-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.im-th.im-more { font-size: 12px; font-weight: 800; color: var(--muted); }
+.im-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.im-when { font-size: 12px; color: var(--muted); font-weight: 600; }
+.im-nogps { margin-left: 6px; font-weight: 500; color: var(--accent); }
+.im-shop { display: flex; flex-direction: column; gap: 6px; }
+.im-sel, .im-name { width: 100%; font: inherit; font-size: 14px; font-weight: 700; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--field); color: var(--text); }
+.im-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.im-stars { display: flex; gap: 2px; }
+.im-stars button svg { width: 26px; height: 26px; }
+.im-ai { font-size: 12px; color: var(--accent); font-weight: 700; }
+.im-ai.dim { color: var(--muted); font-weight: 500; }
+.im-skip { align-self: center; font: inherit; font-size: 12px; font-weight: 700; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+.im-foot { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--card); border-top: 1px solid var(--border-lite); }
+.im-count { font-size: 12.5px; color: var(--muted); min-width: 0; }
+.im-summary { padding: 20px 0; }
+.im-sum-t { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+.im-sum-s { font-size: 13px; color: var(--muted); }
+.im-sum-b { display: flex; gap: 8px; margin-top: 14px; }
 /* 一人でも使えるホーム（v325〜）: 横に流れる小さなカードの段 */
 .home-mine { max-width: 1100px; margin: 0 auto; padding: 8px 0 2px; }
 .home-mine:empty { padding: 0; }

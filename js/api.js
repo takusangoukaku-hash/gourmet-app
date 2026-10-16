@@ -775,7 +775,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=325')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=326')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -799,8 +799,9 @@ out center 25;`;
   // 戻り値: { dishGenres: string[], shopGenre: string } / 判定不可・低確信時は空
   // 自分のキーがあればブラウザから直接 Anthropic を呼ぶ。無ければ開発者提供の中継（Worker の /classify、v324〜）。
   // どちらも無ければ null（呼び出し側でOSMタグ推定にフォールバック）
-  async function classifyDishPhoto(file) {
+  async function classifyDishPhoto(file, opts) {
     if (!canClassify()) return null;
+    const bulk = !!(opts && opts.bulk); // まとめて取り込みからの判定（Worker 側で別枠の上限）
 
     // 送信サイズを抑えるため縮小してから送る（判定精度には十分）
     const blob = await compressImage(file, 768, 0.7);
@@ -810,7 +811,7 @@ out center 25;`;
       // 開発者提供: 写真とジャンル一覧を Worker に送る。モデル・プロンプト・回数の上限は Worker 側
       const j = await proxyFetch('/classify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, mediaType: 'image/jpeg', device: deviceId(), dishGenres: DISH_GENRES, shopGenres: SHOP_GENRES }),
+        body: JSON.stringify({ image: base64, mediaType: 'image/jpeg', device: deviceId(), dishGenres: DISH_GENRES, shopGenres: SHOP_GENRES, bulk }),
       });
       if (!j || !j.confident) return { dishGenres: [], shopGenre: '' };
       return {
@@ -924,7 +925,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v325',
+    FILE_VERSION: 'v326',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,

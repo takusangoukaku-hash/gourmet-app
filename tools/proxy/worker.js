@@ -13,6 +13,7 @@
 //   PER_MINUTE       （任意）1 IP あたり 1 分間の上限回数。既定 60
 //   GOOGLE_PER_MINUTE（任意）Google 中継の全体で 1 分間の上限回数。既定 30
 //   CLASSIFY_PER_DAY （任意）AI判定の 1 端末（および 1 IP）あたり 1 日の上限枚数。既定 30
+//   CLASSIFY_BULK_PER_DAY（任意）「過去の写真をまとめて取り込む」からの判定の 1 端末あたり 1 日の上限。既定 200（v326〜）
 //   CLASSIFY_PER_MINUTE（任意）AI判定の全体で 1 分間の上限回数。既定 20
 //   CLASSIFY_MODEL   （任意）AI判定に使うモデル。既定 claude-haiku-5-5（分類には十分で安価）
 //
@@ -167,11 +168,13 @@ export default {
       const shopGenres = strList(body.shopGenres, 80, 30);
       if (!dishGenres.length) return json({ error: 'dishGenres が必要です' }, 400, origin);
       // 上限: 端末ごと・IP ごとに 1 日 N 枚、全体で 1 分 M 回（クレジットの消費を抑える）
-      const perDay = Number(env.CLASSIFY_PER_DAY) || 30;
+      // 通常は 1 日 30 枚。まとめて取り込み（bulk）は別枠で 1 日 200 枚（過去の写真を一気に入れるため）
+      const bulk = body.bulk === true;
+      const perDay = bulk ? (Number(env.CLASSIFY_BULK_PER_DAY) || 200) : (Number(env.CLASSIFY_PER_DAY) || 30);
       const device = clean(body.device, 64) || ('ip:' + ip);
       const overDay = '今日の AI 判定の上限（' + perDay + '枚）に達しました。明日またお試しください';
-      if (limitedDay('cls-dev:' + device, perDay, now)) return json({ error: overDay }, 429, origin);
-      if (limitedDay('cls-ip:' + ip, perDay * 3, now)) return json({ error: overDay }, 429, origin);
+      if (limitedDay((bulk ? 'clsb-dev:' : 'cls-dev:') + device, perDay, now)) return json({ error: overDay }, 429, origin);
+      if (limitedDay((bulk ? 'clsb-ip:' : 'cls-ip:') + ip, perDay * 3, now)) return json({ error: overDay }, 429, origin);
       if (limited('classify', Number(env.CLASSIFY_PER_MINUTE) || 20, now)) return json({ error: 'AI 判定が混み合っています。少し待ってからお試しください' }, 429, origin);
 
       const schema = {
