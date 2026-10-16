@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v326'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v327'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -264,6 +264,12 @@ const App = (() => {
     // 共有リンク(?u=ユーザー名)で開かれた場合は、その人の公開プロフィールを表示
     const shareUser = params.get('u');
     if (shareUser) Views.showPublicProfile(shareUser);
+    // 地図アプリなどから「共有」で開かれた場合（manifest の share_target。Android）: 行きたい店の追加を開く
+    if (params.has('share')) {
+      const text = [params.get('title'), params.get('text'), params.get('url')].filter(Boolean).join('\n');
+      history.replaceState(null, '', location.pathname); // 再読み込みで二度開かないよう消す
+      if (text) setTimeout(() => Views.openWishAdd(text), 400);
+    }
 
     // 初回起動の案内（一度だけ。共有リンクで開いた時はプロフィール表示を優先して出さない）
     // ※「見た」フラグは閉じた時に立てる。初回はSW登録直後の自動リロードが入るため、
@@ -443,7 +449,7 @@ const App = (() => {
     }
     if (kind === 'wish') {
       return Object.assign(base, {
-        name: str(r.name, 200), lat: numOrNull(r.lat), lon: numOrNull(r.lon), genre: str(r.genre, 100),
+        name: str(r.name, 200), lat: numOrNull(r.lat), lon: numOrNull(r.lon), genre: str(r.genre, 100), address: str(r.address, 200),
         fromUsername: str(r.fromUsername, 30), postId: str(r.postId, 80),
         // 達成（行けた）記録。v303〜
         ...(num(r.doneAt, 1, 1e13, 0) ? { doneAt: r.doneAt,

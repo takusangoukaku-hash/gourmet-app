@@ -73,6 +73,9 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   カードは写真（投稿者の★バッジ・行きたい保存）・店名・投稿者・いいねの4要素に絞る（v323〜。ジャンル・県・一致率・全体評価・★5チップは詳細や検索へ）。
   「あなた向け評価」は `ratingPair().conf === 'ok'`（3人以上かつ一致率が出せる人2人以上）のときだけカードに出す。
   「あなた向け評価」は BITEMAP の中心の機能なので、カードを作り替えるときも消さない。
+- 行きたい店の追加（v327〜）: `openWishAdd(prefill)`。店名か Google／Apple マップの共有リンク（文章ごと可）を `parseWishInput()` で店名・位置・住所に分解し、
+  位置が無ければ `Api.searchShopsFast` の候補から選ぶ。入口はホームの `#hm-add-wish`・「まずは1皿」カード・行きたい一覧の `#wish-add`・manifest の `share_target`（Android の共有 → `?share=1&title=&text=&url=` を app.js が拾う）。
+  wish には `address` も保存（`sanitizeRecord` も対応）。
 - まとめて取り込み（v326〜）: 入口は登録タブ下の `.import-entry` とホームの「まずは1皿」カード（`[data-import-open]`）。sw.js の SHELL と index.html の `<script>` に `import` が入っている。
   ★が無い候補は記録しない（仮の評価で統計を汚さない）。新しい店は `foundBy: 'import'`。
 - 一人でも使えるホーム（v325〜）: `#home-mine` に `renderHomeMine()` が自分の記録から「近くの行きたい店（3km）／しばらく行っていない名店（★4.5以上・90日以上）／

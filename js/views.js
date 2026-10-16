@@ -1998,13 +1998,116 @@ const Views = (() => {
   }
 
   // 行きたい店の一覧（保存した順に新しい方から）。上に達成度、下に「行けた店」
+  // ========== 行きたい店の追加（v327〜） ==========
+  // 店名、または Google マップ／Apple マップの共有リンク（共有シートの文章ごとでも可）を貼り付けると、店名・位置・住所を取り出す。
+  //   Google: /maps/place/<店名>/@lat,lon…（data=…!3d<lat>!4d<lon> があればそちら）、/maps/search/?query=…、?q=…
+  //           maps.app.goo.gl の短縮リンクは中身を読めないので、一緒に貼られた店名の行を使う
+  //   Apple:  maps.apple.com/?q=<店名>&ll=lat,lon、/place?coordinate=lat,lon&name=<店名>、?address=…
+  // 戻り値: { name, lat, lon, address, source }（source: google / apple / text / ''）
+  function parseWishInput(text) {
+    const out = { name: '', lat: null, lon: null, address: '', source: '' };
+    const raw = String(text || '').trim();
+    if (!raw) return out;
+    const dec = (s) => { try { return decodeURIComponent(String(s).replace(/\+/g, ' ')); } catch { return String(s); } };
+    const numPair = (s) => { const m = /(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/.exec(String(s || '')); if (!m) return null; const la = +m[1], lo = +m[2]; return (Math.abs(la) <= 90 && Math.abs(lo) <= 180) ? { lat: la, lon: lo } : null; };
+    const urls = raw.match(/https?:\/\/[^\s<>"]+/g) || [];
+    for (const u0 of urls) {
+      let u; try { u = new URL(u0); } catch { continue; }
+      const host = u.hostname.toLowerCase(), q = u.searchParams;
+      if (/(^|\.)google\.[a-z.]+$|goo\.gl$|google\.co\.jp$/.test(host) && /maps|goo\.gl/.test(host + u.pathname)) {
+        out.source = 'google';
+        const m = /\/maps\/place\/([^/]+)/.exec(u.pathname);
+        if (m) out.name = out.name || dec(m[1]);
+        const d = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/.exec(u0);
+        const at = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(u.pathname);
+        const pos = d ? { lat: +d[1], lon: +d[2] } : at ? { lat: +at[1], lon: +at[2] } : numPair(q.get('query') || q.get('q') || q.get('ll') || q.get('center') || '');
+        if (pos && out.lat == null) { out.lat = pos.lat; out.lon = pos.lon; }
+        const qn = q.get('query') || q.get('q');
+        if (qn && !numPair(qn)) out.name = out.name || dec(qn);
+      } else if (/(^|\.)apple\.com$/.test(host) && /maps/.test(host)) {
+        out.source = 'apple';
+        const pos = numPair(q.get('ll') || q.get('coordinate') || q.get('sll') || q.get('daddr') || '');
+        if (pos) { out.lat = pos.lat; out.lon = pos.lon; }
+        const nm = q.get('name') || (q.get('q') && !numPair(q.get('q')) ? q.get('q') : '');
+        if (nm) out.name = out.name || dec(nm);
+        if (q.get('address')) out.address = out.address || dec(q.get('address'));
+      }
+    }
+    // URL 以外の行: 店名（最初の行）と住所（〒・都道府県で始まる行）
+    const lines = raw.split(/\r?\n/).map(l => l.replace(/https?:\/\/[^\s<>"]+/g, '').trim()).filter(Boolean);
+    const addrRe = /^(〒|日本|.{1,3}[都道府県])/;
+    for (const l of lines) {
+      if (addrRe.test(l)) { if (!out.address) out.address = l.replace(/^日本、?\s*/, ''); continue; }
+      if (!out.name) out.name = l;
+    }
+    if (!out.source && out.name) out.source = 'text';
+    out.name = out.name.replace(/\s+/g, ' ').trim().slice(0, 100);
+    return out;
+  }
+  // 追加シート。prefill があれば（共有から開いたとき）最初から解析して出す
+  function openWishAdd(prefill) {
+    const body = $('#modal-body');
+    body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店を追加</h2>
+      <p class="hint" style="margin:0 0 8px">店名を入力するか、Google マップ／Apple マップの「共有」で出る文章やリンクをそのまま貼り付けてください。</p>
+      <textarea id="wa-text" class="wa-text" rows="3" placeholder="例: 麺屋 こがね　／　https://maps.app.goo.gl/…"></textarea>
+      <div id="wa-parsed" class="wa-parsed hidden"></div>
+      <div id="wa-cands" class="wa-cands"></div>
+      <div class="wa-actions">
+        <button type="button" class="btn" id="wa-search">🔍 場所を探す</button>
+        <button type="button" class="btn primary" id="wa-save" disabled>保存</button>
+      </div>`;
+    $('#modal').classList.remove('modal-full');
+    $('#modal').classList.remove('hidden');
+    const ta = $('#wa-text'), parsed = $('#wa-parsed'), cands = $('#wa-cands'), saveBtn = $('#wa-save'), searchBtn = $('#wa-search');
+    let cur = parseWishInput('');
+    let picked = null; // 候補から選んだ店 { name, lat, lon, address, genre }
+    const paint = () => {
+      const p = picked || cur;
+      saveBtn.disabled = !p.name;
+      searchBtn.disabled = !cur.name;
+      if (!cur.name && !cur.lat) { parsed.classList.add('hidden'); return; }
+      parsed.classList.remove('hidden');
+      parsed.innerHTML = `<div class="wa-name">${esc(p.name || '（店名なし）')}</div>
+        <div class="wa-sub">${p.lat != null ? `${IC_PIN} 位置あり（地図にピンが出ます）` : '位置なし（「場所を探す」で候補から選べます）'}${p.address ? '　' + esc(p.address) : ''}${cur.source === 'google' ? '　Google マップ' : cur.source === 'apple' ? '　Apple マップ' : ''}</div>`;
+    };
+    ta.addEventListener('input', () => { cur = parseWishInput(ta.value); picked = null; cands.innerHTML = ''; paint(); });
+    searchBtn.addEventListener('click', async () => {
+      if (!cur.name) return;
+      searchBtn.disabled = true; cands.innerHTML = '<p class="hint">探しています…</p>';
+      let list = [];
+      try { list = await Api.searchShopsFast(cur.name + (cur.address ? ' ' + cur.address : ''), cur.name, cur.lat != null ? { lat: cur.lat, lon: cur.lon } : lastKnownPos); } catch { list = []; }
+      searchBtn.disabled = false;
+      list = (list || []).slice(0, 6);
+      if (!list.length) { cands.innerHTML = '<p class="hint">候補が見つかりませんでした。このまま保存すると、位置なしの行きたい店になります。</p>'; return; }
+      cands.innerHTML = list.map((c, i) => `<button type="button" class="wa-cand" data-i="${i}"><b>${esc(c.name || '')}</b><span>${esc(c.address || '')}${c.distance != null ? `　${c.distance < 1000 ? Math.round(c.distance) + 'm' : (c.distance / 1000).toFixed(1) + 'km'}` : ''}</span></button>`).join('');
+      cands.querySelectorAll('.wa-cand').forEach(b => b.addEventListener('click', () => {
+        const c = list[+b.dataset.i];
+        picked = { name: c.name || cur.name, lat: c.lat ?? null, lon: c.lon ?? null, address: c.address || '', genre: (Api.guessGenres(c) || {}).shopGenre || '' };
+        cands.querySelectorAll('.wa-cand').forEach(x => x.classList.toggle('on', x === b));
+        paint();
+      }));
+    });
+    saveBtn.addEventListener('click', () => {
+      const p = picked || cur;
+      if (!p.name) return;
+      if (Store.matchShop({ name: p.name, lat: p.lat, lon: p.lon })) { App.toast('この店はすでに訪問の記録があります'); return; }
+      const w = Store.addWish({ name: p.name, lat: p.lat, lon: p.lon, genre: p.genre || '', address: p.address || '' });
+      App.toast(w.lat != null ? '🔖 行きたい店に保存しました。地図に紫のピンで表示されます' : '🔖 行きたい店に保存しました（位置なし）', 4000);
+      closeModal();
+      refreshWishData();
+      if (App.currentTab && App.currentTab() === 'feed') renderHomeMine();
+    });
+    if (prefill) { ta.value = prefill; cur = parseWishInput(prefill); paint(); if (cur.name && cur.lat == null) searchBtn.click(); }
+  }
+
   function openWishlist() {
     const all = Store.allWishes();
     const wishes = all.filter(w => !w.doneAt).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const done = all.filter(w => w.doneAt).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
     const pg = Store.wishProgress();
     const body = $('#modal-body');
-    body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>`
+    body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>
+      <button type="button" class="btn small wish-add" id="wish-add">＋ 店名やリンクを貼って追加</button>`
       + (pg.total ? `<div class="wish-pg"><div class="wish-pg-l">達成度</div>${wishProgressHtml(pg)}</div>` : '')
       + (wishes.length ? wishes.map(w => `
         <div class="wish-row">
@@ -2027,6 +2130,7 @@ const Views = (() => {
         </div>`).join('') : '');
     $('#modal').classList.remove('modal-full'); // 行きたいリストはカード表示に戻す
     $('#modal').classList.remove('hidden');
+    $('#wish-add').addEventListener('click', () => openWishAdd());
     body.querySelectorAll('.wish-del').forEach(b => b.addEventListener('click', () => {
       Store.removeWish(b.dataset.id);
       refreshWishData();
@@ -4745,7 +4849,7 @@ const Views = (() => {
       </div>`;
       $('#hm-go-register').addEventListener('click', () => App.switchTab('register'));
       box.querySelectorAll('[data-import-open]').forEach(b => b.addEventListener('click', () => { if (typeof Import !== 'undefined') Import.open(); }));
-      $('#hm-go-wish').addEventListener('click', () => { App.switchTab('register'); setTimeout(() => { const i = $('#f-shop-name'); if (i) i.focus(); }, 300); });
+      $('#hm-go-wish').addEventListener('click', () => openWishAdd());
       return;
     }
     const pos = lastKnownPos;
@@ -4787,7 +4891,8 @@ const Views = (() => {
     if (recent.length) secs.push({ title: '最近の記録', sub: '', items: recent.map(x => ({ act: 'shop', id: x.s.id, name: x.s.name, sub: relTime(x.v.datetime), badge: x.v.rating ? '★' + fmtR(x.v.rating) : '', photo: photoByVisit.get(x.v.id) || photoByShop.get(x.s.id) })) });
 
     const posBtn = pos ? '' : `<button type="button" class="hm-pos" id="hm-use-pos">${IC_PIN} 現在地を使って近くの店を出す</button>`;
-    box.innerHTML = secs.map(sec => `<section class="hm-sec">
+    const addBtn = `<button type="button" class="hm-add" id="hm-add-wish">${IC_BOOKMARK} 行きたい店を追加<span>店名や地図のリンクを貼るだけ</span></button>`;
+    box.innerHTML = addBtn + secs.map(sec => `<section class="hm-sec">
         <div class="hm-h"><span class="hm-t">${esc(sec.title)}</span>${sec.sub ? `<span class="hm-s">${esc(sec.sub)}</span>` : ''}</div>
         <div class="hm-rail">${sec.items.map(card).join('')}</div>
       </section>`).join('') + posBtn;
@@ -4809,6 +4914,7 @@ const Views = (() => {
         App.switchTab('map');
       }
     }));
+    $('#hm-add-wish').addEventListener('click', () => openWishAdd());
     const pb = $('#hm-use-pos');
     if (pb) pb.addEventListener('click', () => { pb.disabled = true; pb.textContent = '現在地を取得中…'; currentPosition().then(() => renderHomeMine(), () => { pb.disabled = false; pb.textContent = '現在地を取得できませんでした'; }); });
   }
@@ -5628,5 +5734,6 @@ const Views = (() => {
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
   return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
-    ratingPair, tasteBadge }; // ratingPair / tasteBadge は動作確認用に公開（v323〜）
+    ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
+    openWishAdd, parseWishInput }; // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
 })();
