@@ -4827,12 +4827,10 @@ const Views = (() => {
     return { visit: v, shop: Store.getShop(v.shopId), yearsAgo: year - new Date(v.datetime).getFullYear() };
   }
 
-  // ========== 一人でも使えるホーム（v325〜） ==========
-  // フォローが 0 人でもホームを開く理由を作る。自分の記録と現在地から、今日の行動につながるものだけを横並びで出す。
-  //   近くの行きたい店（3km）／しばらく行っていない名店（★4.5以上・90日以上）／近くの自分の店（2km）／N年前の今ごろ／最近の記録
-  // 現在地は地図などで取得して 30 分以内の控えがあるときだけ使う（ホームで突然の許可ダイアログを出さない）。
-  // 無いときは「現在地を使う」ボタンを出す。
-  const HM_NEAR_WISH = 3000, HM_NEAR_SHOP = 2000, HM_STALE_DAYS = 90, HM_STALE_MIN = 4.5, HM_MAX = 8;
+  // ========== ホームの「まずは1皿」案内（v325〜） ==========
+  // v325 で入れた「近くの行きたい店／しばらく行っていない名店／近くの自分の店／N年前の今ごろ／最近の記録」の段と
+  // 「行きたい店を追加」ボタンは、利用者の希望で v328 で廃止した（ホームはフォロー中の投稿だけ）。戻さない。
+  // 記録がまったく無いときの案内だけ残す。
   async function renderHomeMine() {
     const box = $('#home-mine');
     if (!box) return;
@@ -4852,71 +4850,7 @@ const Views = (() => {
       $('#hm-go-wish').addEventListener('click', () => openWishAdd());
       return;
     }
-    const pos = lastKnownPos;
-    const photos = await Store.allPhotos();
-    const photoByVisit = new Map(), photoByShop = new Map();
-    photos.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).forEach(p => {
-      if (p.visitId && !photoByVisit.has(p.visitId)) photoByVisit.set(p.visitId, p);
-      if (p.shopId && !photoByShop.has(p.shopId) && (p.type === 'dish' || !photoByShop.has(p.shopId))) photoByShop.set(p.shopId, p);
-    });
-    const dist = (x) => (pos && x.lat != null && x.lon != null) ? Store.distMeters(pos.lat, pos.lon, x.lat, x.lon) : Infinity;
-    const fmtDist = (m) => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
-    const secs = [];
-    const card = (o) => `<button type="button" class="hm-card${o.cls ? ' ' + o.cls : ''}" data-act="${esc(o.act)}" data-id="${esc(o.id)}">
-        <span class="hm-thumb">${o.photo ? '<img alt="" loading="lazy" decoding="async">' : `<span class="hm-ph">${o.icon || '🍽️'}</span>`}${o.badge ? `<span class="hm-badge">${esc(o.badge)}</span>` : ''}</span>
-        <span class="hm-name">${esc(o.name)}</span>
-        <span class="hm-sub">${esc(o.sub || '')}</span></button>`;
-    // 1) 近くの行きたい店
-    if (pos) {
-      const near = wishes.map(w => ({ w, d: dist(w) })).filter(x => x.d <= HM_NEAR_WISH).sort((a, b) => a.d - b.d).slice(0, HM_MAX);
-      if (near.length) secs.push({ title: '近くの行きたい店', sub: `${fmtDist(HM_NEAR_WISH)}以内`, items: near.map(x => ({ act: 'wish', id: x.w.id, name: x.w.name || '', sub: fmtDist(x.d) + (x.w.genre ? '・' + x.w.genre : ''), icon: '🔖', cls: 'hm-wish', photo: false })) });
-    }
-    // 2) しばらく行っていない名店
-    const now = Date.now();
-    const stale = shops.map(s => ({ s, avg: Store.avgRating(s.id), last: Store.lastVisitDate(s.id) }))
-      .filter(x => x.avg >= HM_STALE_MIN && x.last && (now - new Date(x.last).getTime()) > HM_STALE_DAYS * 86400000)
-      .sort((a, b) => (b.avg - a.avg) || (new Date(a.last) - new Date(b.last))).slice(0, HM_MAX);
-    if (stale.length) secs.push({ title: 'しばらく行っていない名店', sub: `あなたの★${HM_STALE_MIN}以上・${HM_STALE_DAYS}日以上`, items: stale.map(x => ({ act: 'shop', id: x.s.id, name: x.s.name, sub: '前回 ' + relTime(x.last), badge: '★' + fmtR(x.avg), photo: photoByShop.get(x.s.id) })) });
-    // 3) 近くの自分の店
-    if (pos) {
-      const near = shops.map(s => ({ s, d: dist(s) })).filter(x => x.d <= HM_NEAR_SHOP).sort((a, b) => a.d - b.d).slice(0, HM_MAX);
-      if (near.length) secs.push({ title: '近くの自分の店', sub: `${fmtDist(HM_NEAR_SHOP)}以内`, items: near.map(x => { const a = Store.avgRating(x.s.id); return { act: 'shop', id: x.s.id, name: x.s.name, sub: fmtDist(x.d) + '・' + Store.visitCount(x.s.id) + '回', badge: a ? '★' + fmtR(a) : '', photo: photoByShop.get(x.s.id) }; }) });
-    }
-    // 4) N年前の今ごろ
-    const mem = memoryVisit();
-    if (mem && mem.shop) secs.push({ title: `${mem.yearsAgo}年前の今ごろ`, sub: fmtDate(mem.visit.datetime), items: [{ act: 'shop', id: mem.shop.id, name: mem.shop.name, sub: (mem.visit.comment || '').slice(0, 30) || (mem.visit.dishGenres || []).join('・'), badge: mem.visit.rating ? '★' + fmtR(mem.visit.rating) : '', photo: photoByVisit.get(mem.visit.id) || photoByShop.get(mem.shop.id) }] });
-    // 5) 最近の記録
-    const recent = Store.visits().slice().sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0)).slice(0, HM_MAX)
-      .map(v => ({ v, s: Store.getShop(v.shopId) })).filter(x => x.s);
-    if (recent.length) secs.push({ title: '最近の記録', sub: '', items: recent.map(x => ({ act: 'shop', id: x.s.id, name: x.s.name, sub: relTime(x.v.datetime), badge: x.v.rating ? '★' + fmtR(x.v.rating) : '', photo: photoByVisit.get(x.v.id) || photoByShop.get(x.s.id) })) });
-
-    const posBtn = pos ? '' : `<button type="button" class="hm-pos" id="hm-use-pos">${IC_PIN} 現在地を使って近くの店を出す</button>`;
-    const addBtn = `<button type="button" class="hm-add" id="hm-add-wish">${IC_BOOKMARK} 行きたい店を追加<span>店名や地図のリンクを貼るだけ</span></button>`;
-    box.innerHTML = addBtn + secs.map(sec => `<section class="hm-sec">
-        <div class="hm-h"><span class="hm-t">${esc(sec.title)}</span>${sec.sub ? `<span class="hm-s">${esc(sec.sub)}</span>` : ''}</div>
-        <div class="hm-rail">${sec.items.map(card).join('')}</div>
-      </section>`).join('') + posBtn;
-    // サムネイル（メタ情報から1枚ずつ）
-    const allById = new Map(photos.map(p => [p.id, p]));
-    const photoOf = (sec, i) => sec.items[i].photo;
-    let k = 0;
-    secs.forEach(sec => sec.items.forEach((it, i) => {
-      const el = box.querySelectorAll('.hm-card')[k++];
-      const img = el && el.querySelector('img');
-      if (img && it.photo) setThumb(img, allById.get(it.photo.id) || it.photo);
-    }));
-    box.querySelectorAll('.hm-card').forEach(el => el.addEventListener('click', () => {
-      if (el.dataset.act === 'shop') showShop(el.dataset.id);
-      else if (el.dataset.act === 'wish') {
-        const w = Store.wishes().find(x => x.id === el.dataset.id);
-        if (!w || w.lat == null) { openWishlist(); return; }
-        focusMap(w.lon, w.lat, 15);
-        App.switchTab('map');
-      }
-    }));
-    $('#hm-add-wish').addEventListener('click', () => openWishAdd());
-    const pb = $('#hm-use-pos');
-    if (pb) pb.addEventListener('click', () => { pb.disabled = true; pb.textContent = '現在地を取得中…'; currentPosition().then(() => renderHomeMine(), () => { pb.disabled = false; pb.textContent = '現在地を取得できませんでした'; }); });
+    box.innerHTML = '';
   }
 
   async function renderFeed(force) {

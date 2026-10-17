@@ -74,14 +74,14 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   「あなた向け評価」は `ratingPair().conf === 'ok'`（3人以上かつ一致率が出せる人2人以上）のときだけカードに出す。
   「あなた向け評価」は BITEMAP の中心の機能なので、カードを作り替えるときも消さない。
 - 行きたい店の追加（v327〜）: `openWishAdd(prefill)`。店名か Google／Apple マップの共有リンク（文章ごと可）を `parseWishInput()` で店名・位置・住所に分解し、
-  位置が無ければ `Api.searchShopsFast` の候補から選ぶ。入口はホームの `#hm-add-wish`・「まずは1皿」カード・行きたい一覧の `#wish-add`・manifest の `share_target`（Android の共有 → `?share=1&title=&text=&url=` を app.js が拾う）。
+  位置が無ければ `Api.searchShopsFast` の候補から選ぶ。入口は「まずは1皿」カード・行きたい一覧の `#wish-add`・manifest の `share_target`（Android の共有 → `?share=1&title=&text=&url=` を app.js が拾う）。
   wish には `address` も保存（`sanitizeRecord` も対応）。
 - まとめて取り込み（v326〜）: 入口は登録タブ下の `.import-entry` とホームの「まずは1皿」カード（`[data-import-open]`）。sw.js の SHELL と index.html の `<script>` に `import` が入っている。
   ★が無い候補は記録しない（仮の評価で統計を汚さない）。新しい店は `foundBy: 'import'`。
-- 一人でも使えるホーム（v325〜）: `#home-mine` に `renderHomeMine()` が自分の記録から「近くの行きたい店（3km）／しばらく行っていない名店（★4.5以上・90日以上）／
-  近くの自分の店（2km）／N年前の今ごろ（`memoryVisit()`、統計と共通）／最近の記録」を横並びで出す。フォロー中の投稿はその下。記録が無ければ「まずは1皿」の案内だけ。
-  現在地は `rememberPos()` が `gourmet.lastPos` に控え、30分以内のものだけ使う（ホームで突然の許可ダイアログを出さない。無ければ「現在地を使う」ボタン）。
-  地図へ寄せるときは `focusMap(lon, lat, zoom)`（初期化前なら控えて最初の描画で寄せる。setTimeout で jumpTo しない）。
+- ホーム上部（v328〜）: v325 で入れた「近くの行きたい店／しばらく行っていない名店／近くの自分の店／N年前の今ごろ／最近の記録」の段と「行きたい店を追加」ボタンは
+  利用者の希望で廃止した。戻さない。`#home-mine` は記録がまったく無いときの「まずは1皿」案内だけ（`renderHomeMine()`）。
+  v325 の部品で残っているもの: `memoryVisit()`（統計の「N年前の今ごろ」）、`rememberPos()`／`gourmet.lastPos`（現在地の控え）、
+  `focusMap(lon, lat, zoom)`（地図へ寄せる。初期化前なら控えて最初の描画で寄せる。setTimeout で jumpTo しない）。
 - 信頼度（v323〜）: `ratingPair()` は `{personal, overall, raters, reliable, conf}` を返す。`conf` は ok／ref（参考: 2人以上・一致率が出せる人1人以上）／none（データ不足）。
   店の詳細・店シートは `ratePairHtml()` が ref に「参考」、none に「データ不足」を出す。検索カードは none を出さない。地図のピンの色も none なら自分の平均。
   一致率バッジ `tasteBadge()` は「味覚一致 82%・共通12店」の形で共通店舗数を添え、共通5件未満は「共通N店・データ不足」（%なし）、5〜19件は「・参考」。
