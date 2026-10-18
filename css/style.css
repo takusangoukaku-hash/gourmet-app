@@ -1091,8 +1091,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .msh-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
 .msh-meta .ic { width: 14px; height: 14px; vertical-align: -2px; }
 .msh-sep { width: 1px; height: 14px; background: var(--border-lite); }
-.msh-btns { display: flex; gap: 8px; margin-top: 4px; }
-.msh-btns .btn { flex: 1; justify-content: center; white-space: nowrap; padding-left: 8px; padding-right: 8px; font-size: 13px; }
+.msh-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+/* 幅の狭い端末（360px）では2つ並ぶとはみ出すので、入らなければ縦に並ぶ（v330） */
+.msh-btns .btn { flex: 1 1 120px; min-width: 0; justify-content: center; white-space: nowrap; padding-left: 8px; padding-right: 8px; font-size: 13px; }
 .msh-sec { background: var(--card); border-radius: 18px; padding: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
 .msh-sechead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .msh-sechead b { font-size: 15px; }
@@ -1500,7 +1501,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .rp-you.rp-none { background: transparent; border: 1px dashed var(--border); }
 .rp-you.rp-none .rp-label { color: var(--muted); }
 .rp-val.rp-nd { font-size: 13px; font-weight: 700; color: var(--muted); }
-.rp-label { font-size: 10.5px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.rp-label { font-size: 10.5px; color: var(--muted); font-weight: 700; line-height: 1.25; } /* 狭い箱でははみ出さず折り返す（v330） */
 .rp-you .rp-label { color: var(--accent); }
 .rp-val { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 800; color: var(--text); }
 .rp-you .rp-val { color: var(--accent); font-size: 22px; }
@@ -1848,7 +1849,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   position: absolute; left: 10px; bottom: 10px; z-index: 1040;
   background: rgba(255, 255, 255, .93); border: 1px solid var(--border-lite);
   border-radius: 10px; padding: 5px 10px 5px 6px;
-  font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  font-size: 10.5px; color: var(--muted); white-space: normal; line-height: 1.7;
+  max-width: calc(100% - 70px); /* 右下のズームボタンに重ならない（360px では2行に折り返す。v330） */
   box-shadow: 0 1px 6px rgba(0, 0, 0, .12);
 }
 .legend-help { margin-left: 4px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); background: var(--card);
@@ -2007,8 +2009,9 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .modal.modal-full #modal-body > .d-mainrow { margin-top: auto; }
 /* flex化で「▸ 詳細」ボタンが全幅に伸びないよう、内容ぶんの幅で右端に置く */
 .modal.modal-full #modal-body > .d-detail-toggle { align-self: flex-end; }
-/* ✕は右上に固定（stickyのまま。全画面でも押しやすいよう少し大きめ） */
-.modal.modal-full .modal-close { top: 12px; left: 12px; }
+/* ✕は左上に固定（stickyのまま。全画面でも押しやすいよう少し大きめ）。
+   箱が縦 flex なので ✕ が縮んで（40px→19px）見出しが上にずれて重なっていた。縮めない（v330） */
+.modal.modal-full .modal-close { top: 12px; left: 12px; flex-shrink: 0; }
 
 /* ---------- 公開プロフィール: 全画面＋写真グリッド ---------- */
 .pubprofile-modal.panel-modal { padding: 0; }
