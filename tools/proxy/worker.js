@@ -23,7 +23,7 @@
 const DEFAULT_ORIGINS = ['https://takusangoukaku-hash.github.io'];
 const GOOGLE_FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,places.types';
 const CLASSIFY_MODEL_DEFAULT = 'claude-haiku-5-5';
-const CLASSIFY_SYSTEM = 'あなたは料理写真の分類器です。写真に写っている料理を指定されたジャンル一覧から選んで分類してください。料理が写っていない写真（外観・店内・メニュー表など）や判別が難しい場合は dishGenres を空配列、confident を false にしてください。';
+const CLASSIFY_SYSTEM = 'あなたは料理写真の分類器です。写真に写っている料理を、指定されたジャンル一覧の中から最も近いものを1〜3つ選んで dishGenres に入れてください（一覧に完全に一致する料理が無くても、最も近いジャンルを選ぶこと。例: 牛肉のステーキ→「ステーキ」、ローストビーフ→「ステーキ」か「洋食」、パエリア→「スペイン料理」）。料理や飲み物が写っていれば confident は true にしてください。confident を false にするのは、料理が写っていない写真（外観・店内・メニュー表・人物など）のときだけです。shopGenre は写真から推定される店の種類で、判断できなければ「不明」。';
 
 // 簡易レート制限（インスタンスごとのメモリ。厳密ではないが連打の抑止には足りる）
 const buckets = new Map();
@@ -195,7 +195,7 @@ export default {
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
           { type: 'text', text: 'この料理写真を分類してください。' },
         ] }],
-        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
       };
       let res;
       try {

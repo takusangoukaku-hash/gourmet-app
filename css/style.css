@@ -1443,6 +1443,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .im-sum-t { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
 .im-sum-s { font-size: 13px; color: var(--muted); }
 .im-sum-b { display: flex; gap: 8px; margin-top: 14px; }
+/* AI判定の「参考」表示の採用ボタン（v329〜） */
+.exif-status .ai-apply { margin-left: 8px; padding: 4px 10px; border-radius: 999px; font-size: 12px; vertical-align: middle; }
 /* 行きたい店の追加（v327〜） */
 .wa-text { width: 100%; font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--field); color: var(--text); resize: vertical; }
 .wa-parsed { margin: 10px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }

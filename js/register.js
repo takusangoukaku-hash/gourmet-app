@@ -461,6 +461,17 @@ const Register = (() => {
         if (userTouchedGenres) {
           // 手動選択を優先: AIの結果では上書きしない（参考として表示のみ）
           ai.innerHTML = `🤖 AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択中のためそのままにしています）。`;
+        } else if (result.confident === false && result.dishGenres.length) {
+          // 自信なし: 勝手に入れず「参考」として出し、ボタンで入れられるようにする（v329〜）
+          ai.innerHTML = `🤖 AIの判定（自信なし）: <b>${result.dishGenres.map(esc).join('・')}</b>
+            <button type="button" class="btn small ai-apply">この内容にする</button>`;
+          ai.querySelector('.ai-apply').addEventListener('click', () => {
+            aiClassified = true; autoFilledGenres = true;
+            selectedDishGenres.clear();
+            result.dishGenres.forEach(g => selectedDishGenres.add(g));
+            dishPicker.reset();
+            ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・')}</b> — 違っていたら下のフォームで修正できます。`;
+          });
         } else {
           aiClassified = true;
           autoFilledGenres = true;

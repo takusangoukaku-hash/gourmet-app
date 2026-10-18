@@ -775,7 +775,7 @@ out center 25;`;
   let anthropicClientPromise = null;
   function anthropicClient() {
     if (!anthropicClientPromise) {
-      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=328')
+      anthropicClientPromise = import('./vendor/anthropic-sdk.js?v=329')
         .then(({ default: Anthropic }) => new Anthropic({
           apiKey: getApiKey(),
           dangerouslyAllowBrowser: true, // 個人用ローカルアプリ: キーは利用者自身のブラウザにのみ保存
@@ -813,10 +813,12 @@ out center 25;`;
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64, mediaType: 'image/jpeg', device: deviceId(), dishGenres: DISH_GENRES, shopGenres: SHOP_GENRES, bulk }),
       });
-      if (!j || !j.confident) return { dishGenres: [], shopGenre: '' };
+      // 自信なし（confident=false）でも候補があれば返す（呼び出し側が「参考」として出す。v329〜）
+      if (!j) return { dishGenres: [], shopGenre: '', confident: false };
       return {
         dishGenres: (Array.isArray(j.dishGenres) ? j.dishGenres : []).filter(g => DISH_GENRES.includes(g)).slice(0, 5),
         shopGenre: SHOP_GENRES.includes(j.shopGenre) ? j.shopGenre : '',
+        confident: !!j.confident,
       };
     }
 
@@ -865,12 +867,12 @@ out center 25;`;
     let result;
     try { result = JSON.parse(text.text); } catch { return { dishGenres: [], shopGenre: '' }; }
 
-    // 確信度が低い場合は空欄にして利用者に選択を促す（§5）
-    if (!result || !result.confident) return { dishGenres: [], shopGenre: '' };
-    // 念のため一覧にあるジャンル名だけを通す（スキーマ外の値が来ても画面に入れない）
+    if (!result) return { dishGenres: [], shopGenre: '', confident: false };
+    // 念のため一覧にあるジャンル名だけを通す（スキーマ外の値が来ても画面に入れない）。
+    // 自信なしでも候補は返し、呼び出し側が「参考」として出す（v329〜。以前は空にしていた）
     const dish = (Array.isArray(result.dishGenres) ? result.dishGenres : []).filter(g => DISH_GENRES.includes(g)).slice(0, 5);
     const shop = SHOP_GENRES.includes(result.shopGenre) ? result.shopGenre : '';
-    return { dishGenres: dish, shopGenre: shop };
+    return { dishGenres: dish, shopGenre: shop, confident: !!result.confident };
   }
 
   // ---------- ジャンル推定（OSMタグからのフォールバック） ----------
@@ -925,7 +927,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v328',
+    FILE_VERSION: 'v329',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,
