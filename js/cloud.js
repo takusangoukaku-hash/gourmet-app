@@ -290,7 +290,7 @@ const Cloud = (() => {
           try { blob = await fetchPhotoBlob(remoteUrl); } catch { fails++; }
           await Store.putPhotoRaw({
             id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
-            hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl,
+            hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl, ar: Number(m.ar) || 0,
             ...(blob ? { blob } : {}),
           });
         } else {
@@ -348,11 +348,11 @@ const Cloud = (() => {
     const shop = Store.getShop(visit.shopId) || {};
     let photoUrl = presetUrl || '';
     if (!photoUrl && photoPath) photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
+    const ps = await Store.photosOfVisit(visitId).catch(() => []);
+    const p0 = ps && ps[0]; // 投稿に使う写真（1枚目）。縦横比 ar も一緒に公開する（v331〜）
     // 引数でURLが来ない場合（編集後の再発行など）は、訪問の写真から自力で取得する
     // （ここで空のまま保存すると既存投稿の写真が消えてしまうため）
     if (!photoUrl) {
-      const ps = await Store.photosOfVisit(visitId).catch(() => []);
-      const p0 = ps && ps[0];
       if (p0) {
         photoUrl = p0.remoteUrl ||
           await photoDownloadUrl(`users/${user.uid}/photos/${p0.id}.jpg`).catch(() => '');
@@ -366,7 +366,7 @@ const Cloud = (() => {
       avatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
       shopName: shop.name || '', shopId: visit.shopId,
       rating: visit.rating || 0, genre: (visit.dishGenres || []).join('・'),
-      comment: visit.comment || '', photoUrl,
+      comment: visit.comment || '', photoUrl, ar: (p0 && Number(p0.ar) > 0) ? Number(p0.ar) : 0,
       // 詳細表示・ナビ用の店舗情報
       shopGenre: shop.shopGenre || '', pref: shop.pref || '', city: shop.city || '',
       station: shop.station || '', address: shop.address || '',

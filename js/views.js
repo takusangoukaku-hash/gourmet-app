@@ -202,6 +202,7 @@ const Views = (() => {
         if (!full) return rec.remoteUrl || null;
         try {
           const bmp = await createImageBitmap(full);
+          const ar = bmp.width ? bmp.height / bmp.width : 0; // 縦横比を meta に残す（並び替え用。v331〜）
           const scale = Math.min(1, THUMB_DIM / Math.max(bmp.width, bmp.height));
           const w = Math.max(1, Math.round(bmp.width * scale));
           const h = Math.max(1, Math.round(bmp.height * scale));
@@ -210,7 +211,7 @@ const Views = (() => {
           c.getContext('2d').drawImage(bmp, 0, 0, w, h);
           bmp.close();
           blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
-          if (blob) { rec.thumbV = THUMB_V; Store.putPhotoThumb(rec.id, blob, THUMB_V).catch(() => {}); }
+          if (blob) { rec.thumbV = THUMB_V; if (ar && !rec.ar) rec.ar = ar; Store.putPhotoThumb(rec.id, blob, THUMB_V, ar).catch(() => {}); }
         } catch (e) { blob = null; } // 生成に失敗したら元画像で表示
       }
       return URL.createObjectURL(blob || full);
@@ -2553,8 +2554,8 @@ const Views = (() => {
     const h = item.firstElementChild.getBoundingClientRect().height;
     if (h) item.style.gridRowEnd = 'span ' + Math.ceil((h + MZ_GAP) / MZ_ROW);
   }
-  // 写真カード1枚。o = { name, sub, badge, count, meta, onClick }。img は呼び出し側で setThumb / src。
-  // meta を渡すと写真の下に1行（訪問回数など）を出す
+  // 写真カード1枚。o = { name, sub, badge, count, meta, onClick, rec }。img は呼び出し側で setThumb / src。
+  // meta を渡すと写真の下に1行（訪問回数など）を出す。rec（自分の写真のメタ）を渡すと読み込み時に縦横比を後追いで保存する
   function mzItem(o) {
     const item = document.createElement('button');
     item.type = 'button';
@@ -2569,19 +2570,78 @@ const Views = (() => {
           ${o.sub ? `<span class="mz-sub">${esc(o.sub)}</span>` : ''}
         </span>
       </span>${o.meta != null ? `<span class="mz-meta">${esc(o.meta)}</span></span>` : ''}`;
-    mzWatch(item, item.querySelector('img'));
+    mzWatch(item, item.querySelector('img'), o.rec);
     if (o.onClick) item.addEventListener('click', o.onClick);
     return item;
   }
-  // 写真が読み込まれたら縦横比（0.75〜1.5に収める）を決め、カードの高さに合わせて行数を取り直す
-  function mzWatch(item, img) {
+  // 写真が読み込まれたら縦横比（0.75〜1.5に収める）を決め、カードの高さに合わせて行数を取り直す。
+  // rec（自分の写真のメタ）があり縦横比が未保存なら、ここで覚えて次回の並び替えに使う（v331〜）
+  function mzWatch(item, img, rec) {
     if (img) img.addEventListener('load', () => {
       const r = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
       img.style.aspectRatio = `1 / ${Math.min(1.5, Math.max(0.75, r)).toFixed(3)}`;
+      if (rec && rec.id && !rec.ar && img.naturalWidth) { rec.ar = r; Store.setPhotoAspect(rec.id, r).catch(() => {}); }
       mzFit(item);
     });
     if (mzRO && item.firstElementChild) mzRO.observe(item.firstElementChild);
   }
+  // ---------- 見た目が整う並び（v331〜） ----------
+  // 新着順を土台に、次の2つだけ手を入れる（写真が動くのは最大3つ分。「だいたい新しい順」の感覚は残る）:
+  //   1. 同じ列に縦長／横長が続きそうなら、直近3枚の中から形の違う写真を先に置く（列の境目がジグザグになる）
+  //   2. 最後の4枚は、列の底がいちばん揃う順にする
+  // 縦横比（縦/横）は保存済みのメタ（ar）を使い、無いものは正方形とみなす（正方形はどちらとも組める）。
+  // 描いたあとに並べ替えない（写真が動いて見えるため）。使うのは検索タブの写真モードとホーム。
+  // プロフィールの写真（自分のアルバム）は新着順のまま。
+  const MZ_LOOK = 3, MZ_TAIL = 4;
+  const mzClampAr = (ar) => Math.min(1.5, Math.max(0.75, Number(ar) > 0 ? Number(ar) : 1));
+  const mzShape = (ar) => ar > 1.1 ? 'tall' : ar < 0.9 ? 'wide' : 'square';
+  // 今の画面幅での列数（CSS の .mz-grid と同じ: スマホは2列、広い画面は 170px+10px 刻み）
+  function mzCols(box) {
+    const w = (box && box.clientWidth) || window.innerWidth || 390;
+    if ((window.innerWidth || 390) <= 560) return 2;
+    return Math.max(1, Math.floor((w + 10) / 180));
+  }
+  // list を見た目が整う順に並べ替えた新しい配列を返す。arOf(item) は縦/横（0 や undefined は不明）。extra は写真以外の高さ（列幅比）
+  function mzOrder(list, arOf, cols, extra) {
+    if (!Array.isArray(list) || list.length < 3 || !(cols > 1)) return (list || []).slice();
+    const add = extra || 0;
+    const ars = list.map(it => mzClampAr(arOf(it)));
+    const idx = list.map((_, i) => i);
+    const out = [];
+    const heights = new Array(cols).fill(0);   // 列ごとの高さ（列幅 = 1 として）
+    const lastShape = new Array(cols).fill(''); // 列の一番下の写真の形
+    const shortest = (hs) => hs.indexOf(Math.min(...hs)); // CSS grid の自動配置と同じく、いちばん短い列に入る
+    const place = (i) => { const c = shortest(heights); heights[c] += ars[i] + add; lastShape[c] = mzShape(ars[i]); out.push(list[i]); };
+    while (idx.length > MZ_TAIL) {
+      const c = shortest(heights);
+      let pick = 0;
+      const s0 = mzShape(ars[idx[0]]);
+      if (s0 !== 'square' && s0 === lastShape[c]) { // 1. 同じ形が続く → 直近3枚から形の違うものを先に
+        for (let j = 1; j < Math.min(MZ_LOOK + 1, idx.length); j++) if (mzShape(ars[idx[j]]) !== s0) { pick = j; break; }
+      }
+      place(idx.splice(pick, 1)[0]);
+    }
+    // 2. 残りは列の底がいちばん揃う順（同点なら元の順に近いほう）
+    let best = null, bestKey = Infinity;
+    const perm = (rest, acc) => {
+      if (!rest.length) {
+        const hs = heights.slice();
+        for (const i of acc) { const c = shortest(hs); hs[c] += ars[i] + add; }
+        const spread = Math.max(...hs) - Math.min(...hs);
+        const move = acc.reduce((a, i, pos) => a + Math.abs(idx.indexOf(i) - pos), 0);
+        const key = spread * 100 + move;
+        if (key < bestKey) { bestKey = key; best = acc.slice(); }
+        return;
+      }
+      for (let k = 0; k < rest.length; k++) perm(rest.filter((_, m) => m !== k), acc.concat(rest[k]));
+    };
+    perm(idx, []);
+    for (const i of best || idx) place(i);
+    return out;
+  }
+  // 発見アイテム（自分の写真／フォロー中の人の投稿）の縦横比
+  const mzArOfItem = (it) => it.kind === 'mine' ? Number(it.ph && it.ph.ar) || 0 : Number(it.p && it.p.ar) || 0;
+
   // 写真の下に出す「ジャンル ・ 都道府県」
   const mzSub = (genre, pref) => [genre, normPref(pref) || pref].filter(Boolean).join(' ・ ');
   // 自分の写真／フォロー中の人の投稿 → カードの文字
@@ -2607,13 +2667,14 @@ const Views = (() => {
       return;
     }
     box.innerHTML = '';
+    const ordered = mzOrder(list, mzArOfItem, mzCols(box)); // 見た目が整う順（v331〜）。詳細の左右送りもこの順
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
+    const posts = ordered.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     const grid = document.createElement('div');
     grid.className = 'mz-grid';
-    list.forEach((it, i) => {
-      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }) }));
+    ordered.forEach((it, i) => {
+      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }), rec: it.kind === 'mine' ? it.ph : null }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
       grid.appendChild(cell);
@@ -2719,10 +2780,11 @@ const Views = (() => {
     }
     const grid = document.createElement('div');
     grid.className = 'mz-grid';
+    const ordered = mzOrder(list, mzArOfItem, mzCols(box)); // 見た目が整う順（v331〜）
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
-    const posts = list.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
-    list.forEach((it, i) => {
-      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }) }));
+    const posts = ordered.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
+    ordered.forEach((it, i) => {
+      const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }), rec: it.kind === 'mine' ? it.ph : null }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
       grid.appendChild(cell);
@@ -4942,7 +5004,9 @@ const Views = (() => {
     // （更新は下に引っ張るプルリフレッシュ）
     box.className = 'feed-list mz-grid feed-mz';
     box.innerHTML = '';
-    posts.forEach((p, i) => box.appendChild(buildFeedCard(p, posts, i)));
+    // 見た目が整う順（v331〜）: おすすめ／新着の順を土台に、直近4件の中から列が揃う写真を選ぶ。カードの下の段ぶん（投稿者といいね）は extra で見込む
+    const shown = mzOrder(posts, p => Number(p.ar) || 0, mzCols(box), 0.28);
+    shown.forEach((p, i) => box.appendChild(buildFeedCard(p, shown, i)));
   }
 
   // ジャンル名 → 発見タイルと同じカテゴリ色（チップの背景に使う）
@@ -5669,5 +5733,6 @@ const Views = (() => {
   }
   return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
-    openWishAdd, parseWishInput }; // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
+    openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
+    mzOrder }; // 見た目が整う並び（v331〜。動作確認用に公開）
 })();

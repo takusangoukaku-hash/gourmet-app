@@ -922,12 +922,13 @@ out center 25;`;
     canvas.getContext('2d').drawImage(src, 0, 0, w, h);
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
     if (!blob) throw new Error('画像の圧縮に失敗しました');
+    try { blob.aspect = h / w; } catch { /* noop */ } // 縦横比（縦/横）。Store.addPhoto が meta の ar に保存する（v331〜）
     return blob;
   }
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v330',
+    FILE_VERSION: 'v331',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,

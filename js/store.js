@@ -143,13 +143,15 @@ const Store = (() => {
   }
 
   // photo（本体 photos ストア） = { id, shopId, visitId, type('dish'|'exterior'|'interior'|'menu'), blob, hash, createdAt, remoteUrl? }
-  // meta（一覧用 meta ストア）   = { id, shopId, visitId, type, hash, createdAt, remoteUrl?, hasBlob, thumbV }
+  // meta（一覧用 meta ストア）   = { id, shopId, visitId, type, hash, createdAt, remoteUrl?, hasBlob, thumbV, ar }
+  // ar は写真の縦横比（縦/横）。Pinterest 風の並び替えに使う（v331〜）。保存時か、サムネ作成・表示時に埋まる（無ければ 0）
   // thumbs ストア                = { id, blob(サムネイル), v(規格バージョン) }
   // hash は圧縮前の元ファイルのSHA-256（同じ写真の二重登録を検出するための指紋）
   // 一覧・グリッドは meta だけを読み、本体は getPhotoBlob(id)、サムネイルは getThumb(id) で1枚ずつ取る
   function metaOf(r) {
     return { id: r.id, shopId: r.shopId, visitId: r.visitId, type: r.type || 'dish', hash: r.hash || '',
-      createdAt: r.createdAt || 0, remoteUrl: r.remoteUrl || '', hasBlob: !!r.blob, thumbV: r.thumb ? (r.thumbV || 1) : (r.thumbV || 0) };
+      createdAt: r.createdAt || 0, remoteUrl: r.remoteUrl || '', hasBlob: !!r.blob, thumbV: r.thumb ? (r.thumbV || 1) : (r.thumbV || 0),
+      ar: Number(r.ar) || 0 };
   }
   // 本体＋メタ情報を書く共通処理（既存のサムネイル情報は保つ）
   function writePhoto(rec, notify) {
@@ -163,6 +165,7 @@ const Store = (() => {
         const prev = req.result;
         const m = metaOf(body);
         if (prev && prev.thumbV) m.thumbV = prev.thumbV;
+        if (prev && prev.ar && !m.ar) m.ar = prev.ar;
         ms.put(m);
       };
       tx.oncomplete = () => {
@@ -173,8 +176,10 @@ const Store = (() => {
       tx.onerror = () => reject(tx.error);
     }));
   }
-  async function addPhoto(shopId, visitId, type, blob, hash) {
-    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, hash: hash || '', createdAt: Date.now() };
+  // ar（縦/横）は Api.compressImage() が blob.aspect に付けてくる（v331〜）。無ければ後でサムネ作成時に埋まる
+  async function addPhoto(shopId, visitId, type, blob, hash, ar) {
+    const rec = { id: uid(), shopId, visitId, type: type || 'dish', blob, hash: hash || '', createdAt: Date.now(),
+      ar: Number(ar) || Number(blob && blob.aspect) || 0 };
     return writePhoto(rec, true);
   }
   // クラウドから取り込んだ写真をそのまま保存（通知しない）
@@ -195,14 +200,28 @@ const Store = (() => {
   }
   // グリッド表示用のサムネイルを保存（次回から縮小画像を即表示できる）
   // thumbV はサムネの規格バージョン。表示側が規格を上げたとき古いサムネは作り直される
-  async function putPhotoThumb(id, thumbBlob, thumbV) {
+  async function putPhotoThumb(id, thumbBlob, thumbV, ar) {
     const d = await db();
     return new Promise((resolve, reject) => {
       const tx = d.transaction(['thumbs', 'meta'], 'readwrite');
       tx.objectStore('thumbs').put({ id, blob: thumbBlob, v: thumbV || 1 });
       const ms = tx.objectStore('meta');
       const req = ms.get(id);
-      req.onsuccess = () => { const m = req.result; if (m) { m.thumbV = thumbV || 1; ms.put(m); } };
+      req.onsuccess = () => { const m = req.result; if (m) { m.thumbV = thumbV || 1; if (Number(ar) > 0) m.ar = Number(ar); ms.put(m); } };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  // 写真の縦横比（縦/横）をメタ情報にだけ書く（表示時の後追い。クラウドへは通知しない。v331〜）
+  async function setPhotoAspect(id, ar) {
+    ar = Number(ar);
+    if (!(ar > 0)) return;
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const tx = d.transaction('meta', 'readwrite');
+      const ms = tx.objectStore('meta');
+      const req = ms.get(id);
+      req.onsuccess = () => { const m = req.result; if (m && !m.ar) { m.ar = ar; ms.put(m); } };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -574,7 +593,7 @@ const Store = (() => {
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoCreatedAt, getThumb, getPhotoBlob,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
