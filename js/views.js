@@ -283,6 +283,7 @@ const Views = (() => {
     if (j && isFinite(j.lat) && isFinite(j.lon) && Date.now() - (j.time || 0) < LAST_POS_TTL) lastKnownPos = { lat: j.lat, lon: j.lon };
   } catch { /* noop */ }
   let mapScope = 'me';        // 地図の表示範囲: 'me' 自分のみ(既定) / 'all' 自分＋フォロー中 / 'wish' 行きたい店のみ
+  let prevScope = 'me';       // 「行きたい店だけ」に入る前の表示範囲（戻すときに使う）
   let mapHasView = false;     // 一度でも視点が決まったらtrue。以降の再描画では視点を勝手に動かさない
                               // （店舗詳細を閉じたりタブを往復してもズームが戻らないように）
   let networkLoaded = false;  // フォロー中の人の記録を読み込み済みか（地図を開いたとき自動で読む）
@@ -1049,7 +1050,6 @@ const Views = (() => {
     }));
 
     // 検索バー横のしおり: 行きたい店（紫ピン）だけの表示に切り替え（もう一度押すと元へ）
-    let prevScope = 'me';
     $('#map-wish-btn').addEventListener('click', () => {
       if (mapScope === 'wish') {
         mapScope = prevScope || 'me';
@@ -1649,6 +1649,13 @@ const Views = (() => {
   // フィルタ適用後の店舗一覧 → GeoJSONに変換して地図へ反映
   function refreshMapData(fit) {
     // 「行きたい」モード: 行った店のピンを消して、行きたい店（紫）だけを表示
+    // 位置つきの行きたい店が無くなったら（外した・記録して達成した）、空の地図にせず元の表示に戻す（v334〜）
+    if (mapScope === 'wish' && !Store.wishes().some(w => w.lat != null && w.lon != null)) {
+      mapScope = prevScope || 'me';
+      $('#map-wish-btn').classList.remove('on');
+      document.querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('on', x.dataset.scope === mapScope));
+      App.toast('行きたい店がなくなったので、行った店の表示に戻しました');
+    }
     if (mapScope === 'wish') {
       networkById.clear();
       map.getSource('shops').setData({ type: 'FeatureCollection', features: [] });
@@ -1832,9 +1839,9 @@ const Views = (() => {
     node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: w.name, lat: w.lat, lon: w.lon }));
     node.querySelector('.popup-unwish').addEventListener('click', () => {
       Store.removeWish(w.id);
-      refreshWishData();
       if (mapPopup) mapPopup.remove();
       App.toast('行きたい店から外しました');
+      refreshMap(); // 「行きたい店だけ」表示で最後の1件を外したときは元の表示に戻る
     });
     if (mapPopup) mapPopup.remove();
     // ピン（細身の涙型・高さ30px×その倍率での拡大率）の頭の上に出す

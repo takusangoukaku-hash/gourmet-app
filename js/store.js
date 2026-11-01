@@ -419,12 +419,14 @@ const Store = (() => {
   // wishes() は未達成（まだ行っていない）だけを返す。達成済みも含めるときは allWishes()
   function persistWishes() { rev++; setItemSafe(WISHES_KEY, JSON.stringify(wishes)); }
   const isDone = (w) => !!(w && w.doneAt);
-  // 同じ店の判定: 店名が同じ、または「100m以内 かつ 店名の一方が他方を含む」。
+  // 同じ店の判定: 店名が同じ（空白・全角半角・大文字小文字は無視。v334〜）、または「100m以内 かつ 店名の一方が他方を含む」。
   // 位置だけで同一視すると、同じビルの別の店の「行きたい」を消してしまうため。未達成の中から探す
+  const normName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
   function findWish({ name, lat, lon }) {
     const near = (w) => lat != null && lon != null && w.lat != null && w.lon != null && distMeters(lat, lon, w.lat, w.lon) < 100;
+    const n = normName(name);
     const similar = (a, b) => !!a && !!b && (a === b || a.includes(b) || b.includes(a));
-    return wishes.find(w => !isDone(w) && ((name && w.name === name) || (near(w) && (!name || !w.name || similar(name, w.name))))) || null;
+    return wishes.find(w => !isDone(w) && ((n && normName(w.name) === n) || (near(w) && (!n || !w.name || similar(n, normName(w.name)))))) || null;
   }
   function addWish(data) {
     const dup = findWish(data);
@@ -483,7 +485,13 @@ const Store = (() => {
     const s = getShop(visit.shopId);
     if (s) {
       const w = findWish({ name: s.name, lat: s.lat, lon: s.lon });
-      if (w) { try { markWishDone(w, s.id, visit.id, new Date(visit.datetime).getTime() || Date.now()); } catch { /* 達成の記録は任意 */ } }
+      if (w) {
+        try { markWishDone(w, s.id, visit.id, new Date(visit.datetime).getTime() || Date.now()); } catch { /* 達成の記録は任意 */ }
+        // 店に位置が無く、行きたい店には位置がある → 行きたい店の位置を店に写す（地図にピンが出るように。v334〜）
+        if (s.lat == null && w.lat != null && w.lon != null) {
+          try { updateShop(s.id, Object.assign({ lat: w.lat, lon: w.lon }, !s.address && w.address ? { address: w.address } : {})); } catch { /* noop */ }
+        }
+      }
     }
     return visit;
   }
