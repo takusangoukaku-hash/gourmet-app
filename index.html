@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=339">
+<link rel="stylesheet" href="css/style.css?v=340">
 </head>
 <body>
 
@@ -142,6 +142,14 @@
 <!-- ========== 地図（全画面＋地図上の検索バー） ========== -->
 <section id="view-map" class="view">
   <div id="map-canvas"></div>
+  <!-- 店の位置を地図で指定する（v340〜。店舗情報の「地図で指定」から。地図を動かして中央の印に店を合わせる） -->
+  <div class="map-pick hidden" id="map-pick">
+    <svg class="map-pick-pin" viewBox="0 0 19 30" aria-hidden="true"><path d="M9.5 0C4.3 0 0 4.3 0 9.5c0 7 9.5 20.5 9.5 20.5S19 16.5 19 9.5C19 4.3 14.7 0 9.5 0z" fill="#D97757"/><circle cx="9.5" cy="9.5" r="3.2" fill="#fff"/></svg>
+    <div class="map-pick-bar">
+      <button type="button" class="btn" id="map-pick-cancel">やめる</button>
+      <button type="button" class="btn primary" id="map-pick-ok">この位置にする</button>
+    </div>
+  </div>
   <div class="map-overlay">
     <div class="map-search-row">
       <div class="search-field map-search-field collapsed">
@@ -616,12 +624,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=339"></script>
-<script src="js/api.js?v=339"></script>
-<script src="js/cloud.js?v=339"></script>
-<script src="js/register.js?v=339"></script>
-<script src="js/import.js?v=339"></script>
-<script src="js/views.js?v=339"></script>
-<script src="js/app.js?v=339"></script>
+<script src="js/store.js?v=340"></script>
+<script src="js/api.js?v=340"></script>
+<script src="js/cloud.js?v=340"></script>
+<script src="js/register.js?v=340"></script>
+<script src="js/import.js?v=340"></script>
+<script src="js/views.js?v=340"></script>
+<script src="js/app.js?v=340"></script>
 </body>
 </html>

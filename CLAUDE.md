@@ -96,6 +96,10 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
   訪問と行きたい店の照合 `findWish()` は店名の空白・全角半角・大文字小文字を無視（v334〜）。位置の無い店を記録したら行きたい店の位置を店に写す。
   地図の「行きたい店だけ」（`mapScope === 'wish'`、検索バー横の🔖）は行った店のピンを隠す。位置つきの行きたい店が無くなったら `refreshMapData()` が元の表示に戻す（空の地図にしない）。
+- 店の位置の精度（v340〜）: OpenPOI の営業許可データ（`source: 'jff'`）の位置は住所から求めたもので、`level` が 8（街区・地番）未満なら町丁目の代表点＝数百m ずれる。
+  `openPoiToCandidate()` が `coarse` / `posLevel`（town／block）を付け、`mergeCandidates()` は粗い候補に同じ店の正確な位置（OSM など）があればそちらを使う。
+  保存時は `Register.pickBestPos(selected, lastGps)`: 粗い候補で写真・現在地が 600m 以内ならその位置（`posLevel: 'gps'`）。店には `posLevel`（gps／block／town／manual／geocode）を保存（`sanitizeRecord` も通す）。
+  店舗の詳細は `posLevel === 'town'` のとき「ピンの位置は町名までのおおよそです ・ 直す」を出し、店舗情報（編集）に「住所から探す」（`fixPosByAddress` → Nominatim）と「地図で指定」（`pickOnMap` → 地図の中央の印 `#map-pick`）がある。
 - 星0の訪問は「評価なし」（写真なしの「また来た」）。平均や評価の集計では `rating > 0` だけを使う。
 - 制覇マップの境界データ `data/japan-prefs.json` は国土数値情報（CC BY 4.0）の加工。画面と記録カードの出典表示を消さない。
 - 地図の見た目は `views.js` の `baseMapStyle(dark)`（iPhone のマップ風の自前スタイル）。v305 で試した OpenFreeMap Liberty は

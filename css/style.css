@@ -2330,3 +2330,14 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 .map-legend-float.mini { padding: 0; border: none; background: none; box-shadow: none; font-size: 0; }
 .map-legend-float.mini .dot, .map-legend-float.mini i { display: none; }
 .map-legend-float.mini .legend-help { margin: 0; width: 34px; height: 34px; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.14); border-color: var(--border-lite); }
+
+/* ---------- 店の位置の修正（v340〜） ---------- */
+.map-pick { position: absolute; inset: 0; z-index: 1060; pointer-events: none; }
+.map-pick-pin { position: absolute; left: 50%; top: 50%; width: 28px; height: 44px; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.map-pick-bar { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; gap: 8px; pointer-events: auto; }
+.map-pick-bar .btn { flex: 1; justify-content: center; height: 46px; border-radius: 14px; background: var(--card); }
+.map-pick-bar .btn.primary { flex: 2; background: var(--accent); }
+body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-picking .map-scope { display: none; }
+.de-pos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.de-pos-l { flex: 1 1 100%; }
+.d-posfix { display: block; margin-top: 4px; border: none; background: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--accent); text-align: left; }

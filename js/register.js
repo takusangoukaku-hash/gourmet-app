@@ -819,7 +819,8 @@ const Register = (() => {
   }
 
   async function applyLocation(c) {
-    selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '', station: '', country: '日本',
+    selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '',
+      coarse: !!c.coarse, posLevel: c.posLevel || (c.lat != null ? 'block' : ''), // 位置の精度（v340〜。町丁目までなら写真の位置を優先する） station: '', country: '日本',
       // 出どころと利用条件（OpenPOI 由来の店は licenses / attributions を記録と一緒に保存する）
       // 出典（ライセンス）付きのデータを出した情報源を優先（OSM と OpenPOI の両方で見つかった店は OpenPOI。v317〜）
       dataSource: c.dataSource || c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [] };
@@ -853,6 +854,17 @@ const Register = (() => {
       }
     }
     syncMeta(); updateStep();
+  }
+
+  // 店の位置を決める（v340〜）: 候補の位置が町丁目までの粗いもの（OpenPOI の営業許可データ）で、
+  // 写真の撮影位置か現在地（gps）がその近く（600m 以内）にあれば、そちらを店の位置にする。
+  // 遠ければ別の場所の写真なので候補の位置のまま。精度は posLevel（gps / block / town / manual / geocode）に残す
+  function pickBestPos(sel, gps) {
+    if (!sel || sel.lat == null || sel.lon == null) return { lat: null, lon: null, posLevel: '' };
+    if (sel.coarse && gps && gps.lat != null && Store.distMeters(sel.lat, sel.lon, gps.lat, gps.lon) <= 600) {
+      return { lat: gps.lat, lon: gps.lon, posLevel: 'gps' };
+    }
+    return { lat: sel.lat, lon: sel.lon, posLevel: sel.posLevel || (sel.coarse ? 'town' : 'block') };
   }
 
   // 店舗名・味の評価が埋まるまで保存ボタンを薄くする（案内文は出さない。v335〜。
@@ -906,12 +918,16 @@ const Register = (() => {
       if (derivedShopGenre) shopData.shopGenre = derivedShopGenre;
       // 店の評価（3軸）: つけた値のみ反映（0のままなら既存値を消さない）
       for (const k of AXES) if (shopRatings[k] > 0) shopData[k] = shopRatings[k];
+      const pos = pickBestPos(selected, lastGps);
       if (shop) {
+        // 既存の店の位置が町丁目までの粗さで、今回より良い位置が分かったら直す
+        if (shop.posLevel === 'town' && pos.lat != null && pos.posLevel !== 'town') Object.assign(shopData, { lat: pos.lat, lon: pos.lon, posLevel: pos.posLevel });
         Store.updateShop(shop.id, shopData);
       } else {
         shop = Store.addShop(Object.assign(shopData, {
-          lat: selected ? selected.lat : null,
-          lon: selected ? selected.lon : null,
+          lat: pos.lat,
+          lon: pos.lon,
+          posLevel: pos.posLevel,
           osmId: selected ? selected.osmId : '',
           country: selected && selected.country ? selected.country : '日本',
           dataSource: (selected && selected.dataSource) || '',
@@ -1039,5 +1055,5 @@ const Register = (() => {
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-  return { init, preselectShop, prefillWish, openCamera, isDirty };
+  return { init, preselectShop, prefillWish, openCamera, isDirty, pickBestPos };
 })();

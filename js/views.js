@@ -1074,6 +1074,13 @@ const Views = (() => {
       refitMap();
     });
 
+    $('#map-pick-ok').addEventListener('click', () => {
+      if (!mapPick) return;
+      const c = map.getCenter(); const cb = mapPick.cb;
+      endMapPick();
+      cb({ lat: c.lat, lon: c.lng });
+    });
+    $('#map-pick-cancel').addEventListener('click', endMapPick);
     $('#map-locate').addEventListener('click', () => locateUser(true));
     $('#map-nearby').addEventListener('click', () => openNearby());
     $('#map-heat').addEventListener('click', toggleHeat);
@@ -4133,6 +4140,7 @@ const Views = (() => {
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
+        ${s.posLevel === 'town' ? `<button type="button" class="d-posfix" id="d-posfix">ピンの位置は町名までのおおよそです ・ 直す</button>` : ''}
       </div>`;
 
     // 店舗情報の入力フォーム（編集モードのみ・一番下に配置）
@@ -4155,6 +4163,11 @@ const Views = (() => {
           <label class="full">住所
             <input type="text" id="de-address" value="${esc(s.address || '')}">
           </label>
+          <div class="full de-pos">
+            <span class="de-pos-l">位置${POS_LEVEL_LABEL[s.posLevel] ? `: ${POS_LEVEL_LABEL[s.posLevel]}` : (s.lat != null ? '' : ': 未設定')}</span>
+            <button type="button" class="btn small" id="de-pos-addr">住所から探す</button>
+            <button type="button" class="btn small" id="de-pos-map">地図で指定</button>
+          </div>
         </div>
       </div>` : '';
 
@@ -4252,6 +4265,8 @@ const Views = (() => {
       $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
       $('#d-revisit').addEventListener('click', () => quickRevisit(shopId, () => showShop(shopId, false, null, nav)));
       $('#d-edit').addEventListener('click', () => showShop(shopId, true));
+      const posFix = $('#d-posfix');
+      if (posFix) posFix.addEventListener('click', () => showShop(shopId, true));
       $('#d-add-visit').addEventListener('click', () => {
         closeModal();
         App.switchTab('register');
@@ -4270,6 +4285,14 @@ const Views = (() => {
       });
     }
 
+    if (editMode) {
+      $('#de-pos-addr').addEventListener('click', () => fixPosByAddress(shopId));
+      $('#de-pos-map').addEventListener('click', () => pickOnMap({ lat: s.lat, lon: s.lon }, (c) => {
+        Store.updateShop(shopId, { lat: c.lat, lon: c.lon, posLevel: 'manual' });
+        App.toast('位置を直しました');
+        refreshMap();
+      }));
+    }
     // 店舗情報のみ保存（店名・住所など。各訪問は訪問カードから個別に編集）
     function saveShopInfo() {
       const name = $('#de-name').value.trim();
@@ -4984,6 +5007,42 @@ const Views = (() => {
   }
 
   // 地図タブへ切り替えて指定の場所を表示（ホームカードのミニ地図から）
+  // 店の位置を地図で指定する（v340〜）。地図タブへ移り、中央の印に合わせて「この位置にする」で cb({lat, lon})
+  let mapPick = null;
+  function pickOnMap(center, cb) {
+    closeModal();
+    App.switchTab('map');
+    const start = () => {
+      if (!map || !mapLoaded) { setTimeout(start, 200); return; }
+      if (center && center.lat != null) map.jumpTo({ center: [center.lon, center.lat], zoom: 17 });
+      mapHasView = true;
+      mapPick = { cb };
+      $('#map-pick').classList.remove('hidden');
+      document.body.classList.add('map-picking');
+    };
+    setTimeout(start, 350);
+  }
+  function endMapPick() {
+    mapPick = null;
+    $('#map-pick').classList.add('hidden');
+    document.body.classList.remove('map-picking');
+  }
+  // 住所から位置を探し直す（Nominatim）。候補を出して選ばせる
+  async function fixPosByAddress(shopId) {
+    const s = Store.getShop(shopId);
+    if (!s || !s.address) { App.toast('住所が入っていません'); return; }
+    App.toast('住所から探しています…');
+    let list = [];
+    try { list = await Api.searchPlaces(s.address); } catch { list = []; }
+    list = (list || []).filter(x => x && x.lat != null && x.lon != null).slice(0, 5);
+    if (!list.length) { App.toast('住所から位置が見つかりませんでした。「地図で指定」をお試しください'); return; }
+    openActionSheet(list.map(x => ({
+      label: `${x.name || x.display_name || '候補'}${s.lat != null ? `　今の位置から ${Math.round(haversine({ lat: s.lat, lon: s.lon }, { lat: x.lat, lon: x.lon }))}m` : ''}`,
+      onClick: () => { Store.updateShop(shopId, { lat: +x.lat, lon: +x.lon, posLevel: 'geocode' }); App.toast('位置を直しました'); showShop(shopId); App.refreshCurrent(); },
+    })));
+  }
+  const POS_LEVEL_LABEL = { town: '町名までのおおよその位置', gps: '写真の位置', manual: '地図で指定した位置', geocode: '住所から求めた位置', block: '' };
+
   function focusMapAt(lat, lon) {
     App.switchTab('map');
     setTimeout(() => { if (map) { map.jumpTo({ center: [lon, lat], zoom: 15 }); mapHasView = true; } }, 350);
@@ -5701,6 +5760,7 @@ const Views = (() => {
   return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
+    pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）
     mzOrder, // 見た目が整う並び（v331〜。動作確認用に公開）
     icons: ICONS }; // 線画アイコン（v332〜。register.js / import.js / app.js が使う）
 })();

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v339'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v340'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -433,7 +433,7 @@ const App = (() => {
         country: str(r.country, 50) || '日本', pref: str(r.pref, 50), city: str(r.city, 100), station: str(r.station, 100),
         shopGenre: str(r.shopGenre, 50) || 'その他', favorite: !!r.favorite, status: str(r.status, 20) || 'open', osmId: str(r.osmId, 80),
         casual: num(r.casual, 0, 5, 0), atmosphere: num(r.atmosphere, 0, 5, 0), speed: num(r.speed, 0, 5, 0),
-        dataSource: str(r.dataSource, 20), foundBy: str(r.foundBy, 30), foundQuery: str(r.foundQuery, 100),
+        dataSource: str(r.dataSource, 20), foundBy: str(r.foundBy, 30), foundQuery: str(r.foundQuery, 100), posLevel: str(r.posLevel, 10),
         dataLicenses: Array.isArray(r.dataLicenses) ? r.dataLicenses.filter(x => typeof x === 'string').map(x => x.slice(0, 80)).slice(0, 10) : [],
         dataAttributions: Array.isArray(r.dataAttributions) ? r.dataAttributions.filter(x => typeof x === 'string').map(x => x.slice(0, 200)).slice(0, 10) : [],
       });

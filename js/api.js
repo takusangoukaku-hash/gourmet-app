@@ -374,6 +374,8 @@ out center 25;`;
         if (dup) {
           // 同じ店が別の情報源からも来たら、空いている項目だけ補う
           // （例: OSM 由来の候補に OpenPOI の住所・市区町村・出典を足す。先に来た候補の値が優先）
+          // 位置だけは例外: 先の候補が町丁目までの粗い位置（OpenPOI の jff）で、後の候補が正確なら後の位置を使う（v340〜）
+          if (dup.coarse && !c.coarse && c.lat != null && c.lon != null) { dup.lat = c.lat; dup.lon = c.lon; dup.coarse = false; dup.posLevel = c.posLevel || 'block'; }
           for (const k of ['address', 'pref', 'city', 'station', 'jaGenre', 'cuisine', 'source', 'osmId', 'openpoiId', 'yahooId', 'hotpepperId', 'googleId']) {
             if ((dup[k] == null || dup[k] === '') && c[k] != null && c[k] !== '') dup[k] = c[k];
           }
@@ -525,9 +527,13 @@ out center 25;`;
     let addr = stripJpAddress(r.address || '');
     if (addr && r.prefecture && !addr.startsWith(r.prefecture)) addr = r.prefecture + (addr.startsWith(r.city || '\u0001') ? '' : (r.city || '')) + addr;
     else if (!addr) addr = (r.prefecture || '') + (r.city || '');
+    // 営業許可（jff）の位置は住所から求めたもの。level が 8（街区・地番）未満なら町丁目の代表点＝数百m ずれることがある（v340〜）
+    const level = Number(r.level);
+    const coarse = r.source === 'jff' && !(isFinite(level) && level >= 8);
     return {
       osmId: '', openpoiId: `${r.name}@${la.toFixed(5)},${lo.toFixed(5)}`, name: String(r.name).replace(/\s+/g, ' ').trim(),
       address: addr, lat: la, lon: lo, cuisine: '', jaGenre: OPENPOI_CAT_JA[cat] || '', amenity: cat === 'cafe' ? 'cafe' : 'restaurant',
+      coarse, posLevel: coarse ? 'town' : 'block',
       station: '', distance: null, source: 'openpoi', pref: r.prefecture || '', city: r.city || '',
       // 保存時に一緒に持つ（OpenPOI の利用条件: licenses / attributions を配列のまま保存する）
       licenses: Array.isArray(r.licenses) ? r.licenses.slice(0, 10) : [], attributions: Array.isArray(r.attributions) ? r.attributions.slice(0, 10) : [],
@@ -928,7 +934,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v339',
+    FILE_VERSION: 'v340',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,
