@@ -1054,78 +1054,54 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   z-index: 1990; background: transparent; padding: 0;
   display: flex; flex-direction: column; align-items: stretch; overflow: hidden;
 }
-.msh-top { height: 118px; flex-shrink: 0; position: relative; }
-.msh-top .msh-round { position: absolute; top: 16px; }
-.msh-back { left: 14px; }
-.msh-topright { position: absolute; top: 16px; right: 14px; display: flex; gap: 10px; }
-.msh-topright .msh-round { position: static; }
-.msh-round {
-  width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
-  background: var(--card); color: var(--text); box-shadow: 0 2px 12px rgba(0,0,0,.2);
-  display: flex; align-items: center; justify-content: center;
-}
-.msh-round .ic { width: 20px; height: 20px; }
-.msh-favbtn.on { color: var(--accent); }
-.msh-favbtn.on .heart-ic { fill: currentColor; }
-.msh-wishbtn.on { color: var(--accent); }
-.msh-wishbtn.on .bm-ic { fill: currentColor; }
+.msh-top { height: 150px; flex-shrink: 0; position: relative; } /* 上は地図が見える（タップで閉じる） */
 .msh-sheet {
-  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  background: var(--bg); border-radius: 18px 18px 0 0;
-  box-shadow: 0 -6px 24px rgba(0,0,0,.18); padding: 16px 14px 28px;
-  display: flex; flex-direction: column; gap: 14px;
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative;
+  background: var(--card); border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.18); padding: 8px 16px 28px;
+  display: flex; flex-direction: column; gap: 0;
 }
-.msh-card {
-  background: var(--card); border-radius: 18px; padding: 16px;
-  display: flex; gap: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.07);
-}
-.msh-thumb {
-  flex: 0 0 96px; width: 96px; height: 96px; border-radius: 14px; overflow: hidden;
-  border: none; padding: 0; cursor: pointer; background: var(--field);
-  font-size: 32px; display: flex; align-items: center; justify-content: center;
-}
-.msh-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.msh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+/* v336〜 モックどおり: つまみ → 写真 → 店名 → 駅 → タイル4つ → 要点行 → 写真のタイル */
+.msh-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 10px; flex-shrink: 0; }
+.msh-close { position: absolute; top: 22px; right: 26px; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.45); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }
+.msh-close .x-ic { width: 16px; height: 16px; }
+.msh-hero { height: 210px; border-radius: 14px; overflow: hidden; border: none; padding: 0; background: var(--field); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.msh-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .msh-name {
-  border: none; background: none; padding: 0; cursor: pointer; text-align: left;
-  font-weight: 700; font-size: 22px; color: var(--text); line-height: 1.25;
+  border: none; background: none; padding: 0; margin: 14px 0 0; cursor: pointer; text-align: left;
+  font-weight: 700; font-size: 20px; color: var(--text); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.msh-rating { display: flex; align-items: center; gap: 6px; }
-.msh-rating b { color: var(--accent); font-size: 22px; font-weight: 800; }
-.msh-rating span { color: var(--muted); font-size: 13px; }
-.msh-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
-.msh-meta .ic { width: 14px; height: 14px; vertical-align: -2px; }
-.msh-sep { width: 1px; height: 14px; background: var(--border-lite); }
-.msh-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-/* 幅の狭い端末（360px）では2つ並ぶとはみ出すので、入らなければ縦に並ぶ（v330） */
-.msh-btns .btn { flex: 1 1 120px; min-width: 0; justify-content: center; white-space: nowrap; padding-left: 8px; padding-right: 8px; font-size: 13px; }
-.msh-sec { background: var(--card); border-radius: 18px; padding: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
-.msh-sechead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.msh-sechead b { font-size: 15px; }
-.msh-secic {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft);
-  display: flex; align-items: center; justify-content: center; font-size: 16px;
-}
+.msh-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.msh-tiles { display: flex; gap: 8px; margin-top: 14px; }
+.msh-tile { flex: 1; min-width: 0; height: 58px; border: none; border-radius: 12px; background: var(--accent-soft); color: var(--accent); cursor: pointer; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700; }
+.msh-tile .ic { width: 20px; height: 20px; }
+.msh-tile.pri { background: var(--accent); color: #fff; }
+.msh-tile.msh-wishbtn.on .bm-ic { fill: currentColor; }
+.msh-facts { display: flex; margin-top: 14px; border-top: 1px solid var(--border-lite); border-bottom: 1px solid var(--border-lite); }
+.msh-fact { flex: 1; padding: 10px 0; text-align: center; }
+.msh-fact + .msh-fact { border-left: 1px solid var(--border-lite); }
+.msh-fact .k { font-size: 11px; color: var(--muted); }
+.msh-fact .v { font-size: 16px; font-weight: 700; margin-top: 2px; display: flex; align-items: center; justify-content: center; gap: 3px; }
 .msh-n { color: var(--muted); font-size: 13px; }
 .msh-all, .msh-sort {
   margin-left: auto; border: none; background: none; cursor: pointer;
   color: var(--muted); font-size: 13px; padding: 4px 0 4px 8px;
 }
-/* あなたの写真: 横スワイプのカード */
+/* あなたの写真: 角丸タイルの横並び（左上に日付だけ） */
 .msh-myrow {
-  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px;
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  margin: 14px -16px 0; padding: 0 16px;
 }
 .msh-myrow::-webkit-scrollbar { display: none; }
 .msh-mycard {
-  position: relative; flex: 0 0 72%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
-  border: none; padding: 0; cursor: pointer; background: var(--field); scroll-snap-align: start;
+  position: relative; flex: 0 0 112px; width: 112px; height: 112px; border-radius: 12px; overflow: hidden;
+  border: none; padding: 0; cursor: pointer; background: var(--field);
 }
 .msh-mycard img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.msh-mydate {
-  position: absolute; left: 10px; bottom: 10px; color: #fff; font-size: 12px; font-weight: 600;
-  background: rgba(0,0,0,.55); border-radius: 999px; padding: 4px 8px;
-}
+.msh-mydate { position: absolute; left: 8px; top: 8px; color: #fff; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.msh-sec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-lite); }
+.msh-sechead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.msh-sechead b { font-size: 15px; }
 /* フォロワーの写真: 人ごとの行 */
 .msh-frow { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
 .msh-frow + .msh-frow { border-top: 1px solid var(--border-lite); }
@@ -2305,3 +2281,6 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .five-chip { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; font-size: 11px; font-weight: 800;
   padding: 1px 8px; border-radius: 999px; color: #fff; background: var(--r5); font-variant-numeric: tabular-nums; }
 .fpin-you .five-chip { margin-left: 0; }
+
+/* 店シートが開いている間はアプリの見出しと地図の検索バーを隠す（v336〜） */
+body.msh-open .app-header, body.msh-open .map-search-row, body.msh-open .map-scope { visibility: hidden; }
