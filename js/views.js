@@ -113,8 +113,24 @@ const Views = (() => {
   const IC_HEART = '<svg class="heart-ic" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
   // ナビ用の白黒ピクトグラム（ナビ矢印・車・電車・徒歩）
   const IC_NAV = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2.2-7.8z"/></svg>';
-  const IC_BOOKMARK = '<svg class="ic bm-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-  const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
+  const IC_BOOKMARK = '<svg class="ic bm-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+  const IC_COMMENT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>';
+  // ---------- 線画アイコン（v332〜 絵文字の置き換え。1組・同じ太さ。.ic=14px / .btn内16px、閉じる=.x-ic 18px、
+  //            写真の仮表示=.ph-ic（箱の36%）、プロフィール写真の仮表示=.av-ic（箱の56%）） ----------
+  const svgIc = (cls, body) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  const IC_X = svgIc('x-ic', '<path d="M6 6l12 12M18 6L6 18"/>');
+  const IC_BOWL = svgIc('av-ic', '<path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20h7"/><path d="M14 3l-6.5 8M19 4l-9 7"/>');
+  const IC_DISH = svgIc('ph-ic', '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/>');
+  const IC_CAMERA = svgIc('ic', '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>');
+  const IC_PEOPLE = svgIc('ic', '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M17.5 13.5a6.5 6.5 0 0 1 4 6.5"/>');
+  const IC_SEARCH = svgIc('ic', '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>');
+  const IC_MAP = svgIc('ic', '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>');
+  const IC_CHECK = svgIc('ic', '<path d="M5 12.5l4.5 4.5L19 7"/>');
+  const IC_CLOCK = svgIc('ic', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>');
+  const IC_AI = svgIc('ic', '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="10" y="10" width="4" height="4"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>');
+  const IC_IMAGES = svgIc('ic', '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/>');
+  const IC_FORK = svgIc('ic', '<path d="M7 3v7a2.5 2.5 0 0 0 5 0V3M9.5 3v18"/><path d="M17 3c-2 2-2.5 5-2.5 8h2.5v10"/>');
+  const ICONS = { x: IC_X, bowl: IC_BOWL, dish: IC_DISH, camera: IC_CAMERA, people: IC_PEOPLE, search: IC_SEARCH, map: IC_MAP, check: IC_CHECK, clock: IC_CLOCK, ai: IC_AI, images: IC_IMAGES, fork: IC_FORK, bookmark: IC_BOOKMARK };
   // お気に入りマーク（小さな塗りハート）: 絵文字⭐の置き換え
   const IC_FAV = '<svg class="ic-fav" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5S3.5 15 3.5 9.2A4.2 4.2 0 0 1 12 6.8a4.2 4.2 0 0 1 8.5 2.4C20.5 15 12 20.5 12 20.5z"/></svg>';
 
@@ -1190,7 +1206,7 @@ const Views = (() => {
             <div class="nearby-title">近い順に表示</div>
             <div class="nearby-cond">${esc(cond)}　${shops.length}件</div>
           </div>
-          <button type="button" class="nearby-close" aria-label="閉じる">✕</button>
+          <button type="button" class="nearby-close" aria-label="閉じる">${IC_X}</button>
         </div>
         <div class="nearby-origin">
           <div class="nb-origin-row">
@@ -1319,7 +1335,7 @@ const Views = (() => {
     if (!users || !users.length) return '';
     return `<span class="pp-avatars">` + users.slice(0, 3).map(u =>
       `<button type="button" class="pp-av" data-u="${esc(u.username)}" aria-label="@${esc(u.username)} のプロフィール">`
-      + (u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : '🍜') + `</button>`).join('') + `</span>`;
+      + (u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : IC_BOWL) + `</button>`).join('') + `</span>`;
   }
   function wireContribAvatars(node) {
     node.querySelectorAll('.pp-av').forEach(b => b.addEventListener('click', (e) => {
@@ -1377,7 +1393,7 @@ const Views = (() => {
       </div>
       <div class="msh-sheet">
         <div class="msh-card">
-          <button type="button" class="msh-thumb" aria-label="店舗詳細を開く">${photos.length ? '<img alt="" decoding="async">' : '🍽️'}</button>
+          <button type="button" class="msh-thumb" aria-label="店舗詳細を開く">${photos.length ? '<img alt="" decoding="async">' : IC_DISH}</button>
           <div class="msh-info">
             <button type="button" class="msh-name">${esc(s.name)}</button>
             <div class="msh-rating">${(() => {
@@ -1396,7 +1412,7 @@ const Views = (() => {
                 ? `<div class="msh-hitrow"><span class="ps-hit ps-hit-once">${lbl}の記録あり</span></div>` : '';
             })()}
             <div class="msh-meta">
-              ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
+              ${genre ? `<span>${IC_FORK} ${esc(genre)}</span>` : ''}
               ${genre && s.station ? '<span class="msh-sep"></span>' : ''}
               ${s.station ? `<span>${IC_PIN} ${esc(s.station)}</span>` : ''}
             </div>
@@ -1409,14 +1425,14 @@ const Views = (() => {
         </div>
         <div class="msh-sec msh-mine ${photos.length ? '' : 'hidden'}">
           <div class="msh-sechead">
-            <span class="msh-secic">📷</span><b>あなたの写真</b><span class="msh-n">(${photos.length})</span>
+            <span class="msh-secic">${IC_CAMERA}</span><b>あなたの写真</b><span class="msh-n">(${photos.length})</span>
             <button type="button" class="msh-all">すべて見る ›</button>
           </div>
           <div class="msh-myrow"></div>
         </div>
         <div class="msh-sec msh-follow hidden">
           <div class="msh-sechead">
-            <span class="msh-secic">👥</span><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
+            <span class="msh-secic">${IC_PEOPLE}</span><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
             <button type="button" class="msh-sort">新しい順 ⇅</button>
           </div>
           <div class="msh-frows"></div>
@@ -1518,7 +1534,7 @@ const Views = (() => {
       row.className = 'msh-frow';
       row.innerHTML = `
         <button type="button" class="msh-fuser">
-          <span class="msh-favatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : '🍜'}</span>
+          <span class="msh-favatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : IC_BOWL}</span>
           <span class="msh-fname">${esc(u.name || u.username)}さん</span>
           ${tasteBadge(u.username, true)}
           <span class="msh-fhandle">@${esc(u.username)}</span>
@@ -1568,7 +1584,7 @@ const Views = (() => {
       </div>
       <div class="msh-sheet">
         <div class="msh-card">
-          <button type="button" class="msh-thumb" aria-label="投稿を見る">${latest.photoUrl ? '<img alt="" decoding="async">' : '🍽️'}</button>
+          <button type="button" class="msh-thumb" aria-label="投稿を見る">${latest.photoUrl ? '<img alt="" decoding="async">' : IC_DISH}</button>
           <div class="msh-info">
             <button type="button" class="msh-name">${esc(g.name || latest.shopName || '')}</button>
             <div class="msh-rating">${(() => {
@@ -1577,7 +1593,7 @@ const Views = (() => {
                 : `${starIc(avg ? 'full' : 'empty', 20)}<b>${avg ? fmtR(avg) : '－'}</b><span>（${posts.length}件の投稿）</span>`;
             })()}</div>
             <div class="msh-meta">
-              ${genre ? `<span>🍜 ${esc(genre)}</span>` : ''}
+              ${genre ? `<span>${IC_FORK} ${esc(genre)}</span>` : ''}
               ${genre && station ? '<span class="msh-sep"></span>' : ''}
               ${station ? `<span>${IC_PIN} ${esc(station)}</span>` : ''}
             </div>
@@ -1589,7 +1605,7 @@ const Views = (() => {
         </div>
         <div class="msh-sec msh-follow hidden">
           <div class="msh-sechead">
-            <span class="msh-secic">👥</span><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
+            <span class="msh-secic">${IC_PEOPLE}</span><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
             <button type="button" class="msh-sort">新しい順 ⇅</button>
           </div>
           <div class="msh-frows"></div>
@@ -1851,7 +1867,7 @@ const Views = (() => {
     if (typeof maplibregl === 'undefined') {
       if (!refreshMap._loading) {
         refreshMap._loading = App.loadLib('maplibre').then(() => { refreshMap._loading = null; refreshMap(); })
-          .catch(e => { refreshMap._loading = null; App.toast('⚠️ 地図の読み込みに失敗しました: ' + (e && e.message || e)); });
+          .catch(e => { refreshMap._loading = null; App.toast('地図の読み込みに失敗しました: ' + (e && e.message || e)); });
       }
       return;
     }
@@ -2054,7 +2070,7 @@ const Views = (() => {
       <div id="wa-parsed" class="wa-parsed hidden"></div>
       <div id="wa-cands" class="wa-cands"></div>
       <div class="wa-actions">
-        <button type="button" class="btn" id="wa-search">🔍 場所を探す</button>
+        <button type="button" class="btn" id="wa-search">${IC_SEARCH} 場所を探す</button>
         <button type="button" class="btn primary" id="wa-save" disabled>保存</button>
       </div>`;
     $('#modal').classList.remove('modal-full');
@@ -2093,7 +2109,7 @@ const Views = (() => {
       if (!p.name) return;
       if (Store.matchShop({ name: p.name, lat: p.lat, lon: p.lon })) { App.toast('この店はすでに訪問の記録があります'); return; }
       const w = Store.addWish({ name: p.name, lat: p.lat, lon: p.lon, genre: p.genre || '', address: p.address || '' });
-      App.toast(w.lat != null ? '🔖 行きたい店に保存しました。地図に紫のピンで表示されます' : '🔖 行きたい店に保存しました（位置なし）', 4000);
+      App.toast(w.lat != null ? '行きたい店に保存しました。地図に紫のピンで表示されます' : '行きたい店に保存しました（位置なし）', 4000);
       closeModal();
       refreshWishData();
       if (App.currentTab && App.currentTab() === 'feed') renderHomeMine();
@@ -2123,7 +2139,7 @@ const Views = (() => {
       + (done.length ? `<h3 class="wish-h3">行けた店（${done.length}）</h3>` + done.map(w => `
         <div class="wish-row wish-done">
           <div class="wish-main">
-            <div class="wish-name">✓ ${esc(w.name || '')}</div>
+            <div class="wish-name">${IC_CHECK} ${esc(w.name || '')}</div>
             <div class="wish-sub">${esc(fmtDate(new Date(w.doneAt).toISOString()))} に達成${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
           </div>
           ${w.doneShopId && Store.getShop(w.doneShopId) ? `<button class="btn small wish-shop" data-id="${esc(w.doneShopId)}">記録</button>` : ''}
@@ -2204,7 +2220,7 @@ const Views = (() => {
   function groupKeyFns(mode) {
     switch (mode) {
       case 'station': return (s) => [s.station || '最寄駅なし'];
-      case 'pref': return (s) => [s.country && s.country !== '日本' ? `🌏 ${s.country}` : (s.pref || '都道府県なし')];
+      case 'pref': return (s) => [s.country && s.country !== '日本' ? s.country : (s.pref || '都道府県なし')];
       case 'city': return (s) => [s.city || '市区町村なし'];
       case 'dishGenre': return (s) => {
         const gs = new Set();
@@ -2802,10 +2818,10 @@ const Views = (() => {
     div.className = 'pf-shopcard';
     div.dataset.shopOpen = s.id;
     div.innerHTML = `
-      <div class="ps-thumb" data-thumb="${s.id}">🍽️</div>
+      <div class="ps-thumb" data-thumb="${s.id}">${IC_DISH}</div>
       <div class="ps-main">
         <div class="ps-name">${esc(s.name)}</div>
-        ${genre ? `<div class="ps-row">🍜 ${esc(genre)}</div>` : ''}
+        ${genre ? `<div class="ps-row">${IC_FORK} ${esc(genre)}</div>` : ''}
         ${(s.station || s.city) ? `<div class="ps-row">${s.station ? IC_STATION + ' ' + esc(s.station) : ''}${s.city ? (s.station ? '　' : '') + IC_PIN + ' ' + esc(s.city) : ''}</div>` : ''}
         <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span>${(() => {
           // フォロワーの評価があるお店は「あなた向け評価」を並べて出す（一致率で重み付け）
@@ -2960,8 +2976,8 @@ const Views = (() => {
         });
         Store.setProfile({ avatar: dataUrl });
         renderProfile();
-        App.toast('✅ プロフィール写真を変更しました');
-      } catch { App.toast('⚠️ 写真の設定に失敗しました'); }
+        App.toast('プロフィール写真を変更しました');
+      } catch { App.toast('写真の設定に失敗しました'); }
       e.target.value = '';
     });
 
@@ -2974,7 +2990,7 @@ const Views = (() => {
         try { await Cloud.login(); }
         catch (e) {
           loginLabel().textContent = 'Googleでログインして同期';
-          App.toast('⚠️ ログインに失敗しました: ' + (e && e.message || e));
+          App.toast('ログインに失敗しました: ' + (e && e.message || e));
         }
       });
       $('#pf-logout').addEventListener('click', () => Cloud.logout());
@@ -2995,11 +3011,11 @@ const Views = (() => {
             setTimeout(() => App.toast(
               'Firebase側で写真の保存が拒否されています。Firebaseコンソール → Storage → ルール を「本人のみ読み書き可」に修正してください（READMEに設定例あり）', 9000), 400);
           }
-        } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+        } catch (e) { App.toast('' + (e && e.message || e)); }
         btn.disabled = false; lab.textContent = '写真を再同期';
       });
       // 同期状態の表示更新
-      const SYNC_MSG = { loading: 'ログイン中…', syncing: '同期中…', synced: '✅ 同期済み', error: '⚠️ 同期エラー' };
+      const SYNC_MSG = { loading: 'ログイン中…', syncing: '同期中…', synced: '同期済み', error: '同期エラー' };
       Cloud.onStatus((state, u, detail) => {
         const inNow = !!u;
         $('#pf-login').classList.toggle('hidden', inNow);
@@ -3052,7 +3068,7 @@ const Views = (() => {
       });
       $('#pf-edit-form').classList.add('hidden');
       renderProfile();
-      App.toast('✅ プロフィールを保存しました');
+      App.toast('プロフィールを保存しました');
     });
     // 一覧の詳細検索から地図を開けるように
     $('#list-open-map').addEventListener('click', () => App.switchTab('map'));
@@ -3202,7 +3218,7 @@ const Views = (() => {
     ov.className = 'modal modal-full visitlist-modal shopfeed-modal';
     ov.innerHTML = `<div class="modal-box">
         <div class="vl-topbar">
-          <button type="button" class="modal-close sfm-close" aria-label="閉じる">✕</button>
+          <button type="button" class="modal-close sfm-close" aria-label="閉じる">${IC_X}</button>
           <span class="vl-title">お店の記録</span>
         </div>
         <div class="vl-body"><div class="pf-shopfeed"></div></div>
@@ -3277,7 +3293,7 @@ const Views = (() => {
       <div class="sfs-head">
         <div class="sfs-titles">
           <div class="sfs-name">${esc(s.name || '')}</div>
-          ${genre ? `<div class="sfs-sub">🍜 ${esc(genre)}</div>` : ''}
+          ${genre ? `<div class="sfs-sub">${IC_FORK} ${esc(genre)}</div>` : ''}
           ${s.station ? `<div class="sfs-sub">${IC_PIN} ${esc(s.station)}</div>` : ''}
         </div>
       </div>
@@ -3431,7 +3447,7 @@ const Views = (() => {
     // プロフィール写真（未設定なら🍜）
     const av = $('#pf-avatar');
     if (p.avatar) av.innerHTML = `<img src="${esc(p.avatar)}" alt="">`;
-    else av.textContent = '🍜';
+    else av.innerHTML = IC_BOWL;
     $('#pf-shops').textContent = Store.shops().length;
     // フォロー/フォロワー数（ログイン中はクラウドから実数を取得）
     $('#pf-following').textContent = p.following || 0;
@@ -3477,7 +3493,7 @@ const Views = (() => {
       rankBox.classList.remove('hidden');
       rankBox.innerHTML = '<h2>味覚が近いユーザー TOP5</h2>' + ranked.map(([name, m], i) => {
         const p = profs.get(name) || {};
-        const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+        const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL;
         return `<button type="button" class="tr-row" data-user="${esc(name)}">
           <span class="tr-rank">${i + 1}位</span>
           <span class="tr-avatar">${av}</span>
@@ -3555,7 +3571,7 @@ const Views = (() => {
     const memBox = $('#stat-memory');
     const mem = memoryVisit();
     if (mem) {
-      memBox.innerHTML = `<span class="sm-ic">🕰</span> ${mem.yearsAgo}年前の今ごろ、<b>${esc(mem.shop ? mem.shop.name : '')}</b> に行きました（${starSvg(mem.visit.rating || 0, 12)}）`;
+      memBox.innerHTML = `<span class="sm-ic">${IC_CLOCK}</span> ${mem.yearsAgo}年前の今ごろ、<b>${esc(mem.shop ? mem.shop.name : '')}</b> に行きました（${starSvg(mem.visit.rating || 0, 12)}）`;
       memBox.classList.remove('hidden');
     } else {
       memBox.classList.add('hidden');
@@ -3581,7 +3597,7 @@ const Views = (() => {
 
     // ここから下はグラフ（Chart.js）。読み込めなくても上のタイルやカードは出ている
     if (typeof Chart === 'undefined') {
-      try { await App.loadLib('chart'); } catch (e) { App.toast('⚠️ グラフの読み込みに失敗しました'); return; }
+      try { await App.loadLib('chart'); } catch (e) { App.toast('グラフの読み込みに失敗しました'); return; }
     }
     // 月別訪問。最初の記録の月から今月までを全部並べ、横スクロールで見られるようにする
     // （画面に収まらないので、幅は月数ぶん確保して .chart-scroll でスクロールさせる）
@@ -3734,7 +3750,7 @@ const Views = (() => {
     try { v = Store.addVisit({ shopId, datetime: today.toISOString(), rating: 0, dishGenres: [], comment: '', quick: true }); }
     catch { return null; } // 保存できないときは Store 側で案内済み
     const n = Store.visitCount(shopId);
-    App.toast(`✅ 「${s.name}」${n}回目の来店を記録しました`);
+    App.toast(`「${s.name}」${n}回目の来店を記録しました`);
     if (after) { try { after(v); } catch { /* noop */ } }
     // 後ろの画面も新しい回数に。プロフィールは描き直すと「写真」に戻ってしまうので、統計の部分だけ描き直す
     try {
@@ -3861,7 +3877,7 @@ const Views = (() => {
     const recent = Store.doneWishes().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 3);
     box.innerHTML = `<h2>${IC_BOOKMARK} 行きたい店の達成度</h2>`
       + (pg.total ? wishProgressHtml(pg)
-        + (recent.length ? `<div class="wp-recent">${recent.map(w => `<div class="wp-ritem">✓ ${esc(w.name || '')}<span>${esc(fmtDate(new Date(w.doneAt).toISOString()))}</span></div>`).join('')}</div>` : '')
+        + (recent.length ? `<div class="wp-recent">${recent.map(w => `<div class="wp-ritem">${IC_CHECK} ${esc(w.name || '')}<span>${esc(fmtDate(new Date(w.doneAt).toISOString()))}</span></div>`).join('')}</div>` : '')
         + `<button type="button" class="btn small wp-open">行きたい店の一覧</button>`
         : '<p class="hint">ホームの投稿のしおりマークで「行きたい店」に保存すると、行けた割合がここに出ます。</p>');
     const b = box.querySelector('.wp-open');
@@ -3924,7 +3940,7 @@ const Views = (() => {
           <span class="cq-msub">${esc(s.city || '')}${Store.lastVisitDate(s.id) ? '・前回 ' + esc(relTime(Store.lastVisitDate(s.id))) : ''}</span>
           <span class="cq-mn">${Store.visitCount(s.id)}回</span></button>`).join('')}
       ${wishes.length ? `<h3 class="cq-mh3">${IC_BOOKMARK} 行きたい店</h3>${wishes.map(w => `<div class="cq-mrow cq-mwish${w.doneAt ? ' done' : ''}">
-          <span class="cq-mname">${w.doneAt ? '✓ ' : ''}${esc(w.name || '')}</span>
+          <span class="cq-mname">${w.doneAt ? IC_CHECK + ' ' : ''}${esc(w.name || '')}</span>
           <span class="cq-msub">${w.doneAt ? esc(fmtDate(new Date(w.doneAt).toISOString())) + ' に達成' : 'まだ'}</span></div>`).join('')}` : ''}`;
     body.querySelectorAll('button.cq-mrow').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
     $('#modal').classList.remove('modal-full');
@@ -4035,7 +4051,7 @@ const Views = (() => {
   async function shareRecordCard() {
     App.toast('記録カードを作成中…', 1500);
     let blob;
-    try { blob = await buildRecordCard(); } catch (e) { App.toast('⚠️ ' + (e && e.message || '画像を作れませんでした')); return; }
+    try { blob = await buildRecordCard(); } catch (e) { App.toast('' + (e && e.message || '画像を作れませんでした')); return; }
     const file = new File([blob], 'bitemap-card.png', { type: 'image/png' });
     const text = '私のグルメ記録 #BITEMAP';
     // 端末の共有シート（X・LINE・写真へ保存）に画像ごと渡す。非対応なら画像を表示して保存してもらう
@@ -4049,7 +4065,7 @@ const Views = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal share-modal';
     ov.innerHTML = `<div class="modal-box rc-box">
-        <button type="button" class="modal-close" aria-label="閉じる">✕</button>
+        <button type="button" class="modal-close" aria-label="閉じる">${IC_X}</button>
         <h2 class="sh-title">記録カード</h2>
         <img class="rc-img" alt="記録カード" src="${url}">
         <p class="sh-note">画像を長押し（パソコンは右クリック）で保存できます。</p>
@@ -4313,7 +4329,7 @@ const Views = (() => {
         city: $('#de-city').value.trim(),
         address: $('#de-address').value.trim(),
       });
-      App.toast('✅ 保存しました');
+      App.toast('保存しました');
       showShop(shopId, false);
       App.refreshCurrent();
     }
@@ -4330,12 +4346,12 @@ const Views = (() => {
         block.innerHTML = `
           <div class="pd-photos d-swipe">
             <button type="button" class="pd-slide d-noph">
-              <span class="v-cover-ph">🍽️</span>
+              <span class="v-cover-ph">${IC_DISH}</span>
               <span class="pd-photo-star">★${avg ? fmtR(avg) : '－'}</span>
             </button>
           </div>`;
         const box = block.querySelector('.d-swipe');
-        // 写真が無いときは🍽️のまま。タップで訪問記録の一覧へ
+        // 写真が無いときは${IC_DISH}のまま。タップで訪問記録の一覧へ
         // （各訪問の編集は「訪問記録」見出し横の✎＝訪問一覧から行う）
         block.querySelector('.d-noph').addEventListener('click', () => showVisitList(shopId));
         vbox.appendChild(block);
@@ -4460,7 +4476,7 @@ const Views = (() => {
             if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
               Cloud.publishPostForVisit(v.id).catch(() => {});
             }
-            App.toast('✅ 保存しました');
+            App.toast('保存しました');
             showShop(shopId, false, null);
             App.refreshCurrent();
           });
@@ -4469,7 +4485,7 @@ const Views = (() => {
           const dateStr = new Date(v.datetime).toLocaleDateString('ja-JP');
           block.innerHTML = `
             <button type="button" class="v-cover">
-              <span class="v-cover-ph">🍽️</span>
+              <span class="v-cover-ph">${IC_DISH}</span>
               <span class="v-badge">★${v.rating ? fmtR(v.rating) : '－'}</span>
             </button>
             <div class="v-caption">
@@ -4495,9 +4511,9 @@ const Views = (() => {
         block.className = 'visit-block';
         block.innerHTML = `
           <button type="button" class="v-cover">
-            ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : '<span class="v-cover-ph">🍽️</span>'}
+            ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" alt="">` : '<span class="v-cover-ph">' + IC_DISH + '</span>'}
             <span class="v-badge">★${p.rating ? fmtR(p.rating) : '－'}</span>
-            <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜'}</span>
+            <span class="v-user">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL}</span>
           </button>
           <div class="v-caption">@${esc(p.username || '')} ${tasteBadge(p.username, true)}</div>`;
         block.querySelector('.v-cover').addEventListener('click', () => showPostDetail(p));
@@ -4618,7 +4634,7 @@ const Views = (() => {
       Store.photosOfVisit(v.id).then(ps => {
         const box = card.querySelector('.vl-photos');
         const urls = ps;
-        if (!urls.length) { box.innerHTML = '<div class="vlc-noph">🍽️</div>'; return; }
+        if (!urls.length) { box.innerHTML = '<div class="vlc-noph">' + IC_DISH + '</div>'; return; }
         box.innerHTML = '';
         for (const ph of ps) { const sl = document.createElement('div'); sl.className = 'pd-slide'; sl.appendChild(fullImg(ph, 'pd-photo')); box.appendChild(sl); }
         if (urls.length > 1) {
@@ -4651,7 +4667,7 @@ const Views = (() => {
         it.innerHTML = `
           <div class="vl-tldate">${new Date(v.datetime).toLocaleDateString('ja-JP', { dateStyle: 'medium' })}<span>${relTime(v.datetime)}</span></div>
           <div class="vl-tlrow">
-            <button type="button" class="vl-tlph">🍽️</button>
+            <button type="button" class="vl-tlph">${IC_DISH}</button>
             <div class="vl-tlinfo">
               <div class="vl-tlstars">${starSvg(v.rating, 14)}${v.rating ? `<b>${fmtR(v.rating)}</b>` : ''}</div>
               ${gtxt ? `<div class="vl-tlg">${esc(gtxt)}</div>` : ''}
@@ -4737,7 +4753,7 @@ const Views = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal share-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close sh-close" aria-label="閉じる">✕</button>
+        <button type="button" class="modal-close sh-close" aria-label="閉じる">${IC_X}</button>
         <h2 class="sh-title">プロフィールを共有</h2>
         <div class="sh-body"></div>
       </div>`;
@@ -4775,10 +4791,10 @@ const Views = (() => {
           msg.textContent = '設定中…';
           try {
             await Cloud.setUsername(input.value);
-            App.toast('✅ ユーザー名を設定しました');
+            App.toast('ユーザー名を設定しました');
             renderProfile();
             renderShare();
-          } catch (e) { msg.textContent = '⚠️ ' + (e && e.message || e); }
+          } catch (e) { msg.textContent = '' + (e && e.message || e); }
         });
       } else {
         const url = shareUrlFor(cur.username);
@@ -4795,13 +4811,13 @@ const Views = (() => {
           <div class="sh-msg"></div>`;
         const msg = body.querySelector('.sh-msg');
         body.querySelector('.sh-copy').addEventListener('click', async () => {
-          try { await navigator.clipboard.writeText(url); App.toast('✅ リンクをコピーしました'); }
+          try { await navigator.clipboard.writeText(url); App.toast('リンクをコピーしました'); }
           catch { body.querySelector('.sh-url').select(); App.toast('リンクを選択しました。コピーしてください'); }
         });
         body.querySelector('.sh-refresh').addEventListener('click', async () => {
           msg.textContent = '更新中…';
-          try { await Cloud.publishPublicProfile(); msg.textContent = '✅ 最新の内容を公開しました'; }
-          catch (e) { msg.textContent = '⚠️ ' + (e && e.message || e); }
+          try { await Cloud.publishPublicProfile(); msg.textContent = '最新の内容を公開しました'; }
+          catch (e) { msg.textContent = '' + (e && e.message || e); }
         });
         body.querySelector('.sh-rename').addEventListener('click', () => {
           Store.setProfile({ username: '' }); // 入力欄を出すため一旦クリア（確定時に新名を予約）
@@ -4904,8 +4920,8 @@ const Views = (() => {
         <div class="hm-first-t">まずは1皿、残してみましょう</div>
         <div class="hm-first-s">写真を選ぶと店の候補と料理ジャンルが自動で入ります。店名と★だけで保存できます。</div>
         <div class="hm-first-b"><button type="button" class="btn primary" id="hm-go-register">＋ 記録する</button>
-        <button type="button" class="btn" id="hm-go-wish">🔖 行きたい店を入れる</button>
-        <button type="button" class="btn" data-import-open>📚 過去の写真から</button></div>
+        <button type="button" class="btn" id="hm-go-wish">${IC_BOOKMARK} 行きたい店を入れる</button>
+        <button type="button" class="btn" data-import-open>${IC_IMAGES} 過去の写真から</button></div>
       </div>`;
       $('#hm-go-register').addEventListener('click', () => App.switchTab('register'));
       box.querySelectorAll('[data-import-open]').forEach(b => b.addEventListener('click', () => { if (typeof Import !== 'undefined') Import.open(); }));
@@ -5031,7 +5047,7 @@ const Views = (() => {
     // ジャンル・都道府県・一致率・全体評価・★5 ×N人は投稿詳細や検索の一覧で見る（カードで視線が散るため）
     const card = document.createElement('div');
     card.className = 'mz-item fpin';
-    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL;
     const rating = (Number(p.rating) || 0) > 0 ? Math.round(Number(p.rating) * 10) / 10 : 0;
     const pair = ratingPair({ name: p.shopName, lat: p.lat, lon: p.lon });
     // 日付は自分の投稿だけに出す（他人の投稿では出さない方針。投稿詳細と同じ判定）
@@ -5041,7 +5057,7 @@ const Views = (() => {
       <div class="fpin-body">
         <div class="mz-card fpin-photo" role="button" tabindex="0" aria-label="${esc(p.shopName || '投稿')}の投稿を開く">
           <img class="fcard-img" alt="" loading="lazy" decoding="async">
-          <span class="fpin-ph" aria-hidden="true">🍽️</span>
+          <span class="fpin-ph" aria-hidden="true">${IC_DISH}</span>
           ${rating ? `<span class="mz-badge">★${fmtR(rating)}</span>` : ''}
           <button type="button" class="fpin-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           <span class="mz-cap">
@@ -5078,7 +5094,7 @@ const Views = (() => {
       return (await thumbUrl(ps[0]).catch(() => null)) || (await fullPhotoUrl(ps[0])) || '';
     };
     if (!p.photoUrl) {
-      card.classList.add('fpin-nophoto'); // 写真が無い投稿は淡い地に🍽️の小さめのカード
+      card.classList.add('fpin-nophoto'); // 写真が無い投稿は淡い地に${IC_DISH}の小さめのカード
       ownLocalPhoto().then(showImg);
     } else {
       img.src = String(p.photoUrl);
@@ -5168,7 +5184,7 @@ const Views = (() => {
       btn.classList.toggle('liked', wasLiked);
       nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? 1 : -1));
       if (s) { s.liked = wasLiked; s.likes = Math.max(0, s.likes + (wasLiked ? 1 : -1)); }
-      App.toast('⚠️ ' + (err && err.message || err));
+      App.toast('' + (err && err.message || err));
     }
   }
 
@@ -5177,7 +5193,7 @@ const Views = (() => {
   function buildPostSection(p, close) {
     // 自分の記録かどうか（端末内の訪問に一致）。他人の投稿では日付・編集は出さない
     const isMine = Store.visits().some(v => v.id === p.id);
-    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL;
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
     const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
       .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starSvg(p[k], 13)}</span></div>`).join('');
@@ -5313,11 +5329,11 @@ const Views = (() => {
       try { list = await Cloud.getComments(p.id); } catch { list = []; }
       const me = Cloud.getUser();
       box.innerHTML = list.length ? list.map(c => {
-        const av2 = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : '🍜';
+        const av2 = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : IC_BOWL;
         return `<div class="pd-crow">
             <span class="pd-cav">${av2}</span>
             <div class="pd-cmain"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>
-            ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">✕</button>` : ''}
+            ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">${IC_X}</button>` : ''}
           </div>`;
       }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
       box.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
@@ -5332,7 +5348,7 @@ const Views = (() => {
       if (!Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
       input.value = '';
       try { await Cloud.addComment(p.id, t); feedStats.delete(p.id); await loadComments(); }
-      catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+      catch (e) { App.toast('' + (e && e.message || e)); }
     };
     sect.querySelector('.pd-csend').addEventListener('click', sendComment);
     sect.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
@@ -5349,7 +5365,7 @@ const Views = (() => {
     ov.className = 'modal postdetail-modal';
     ov.innerHTML = `<div class="modal-box pd-full">
         <div class="pd-topbar">
-          <button type="button" class="modal-close pd-close" aria-label="閉じる">✕</button>
+          <button type="button" class="modal-close pd-close" aria-label="閉じる">${IC_X}</button>
           <span class="pd-top-title">投稿</span>
         </div>
         <div class="pd-scroll"><div class="pd-sentinel-top"></div><div class="pd-sentinel"></div></div>
@@ -5431,7 +5447,7 @@ const Views = (() => {
     ov.innerHTML = `<div class="modal-box">
         <div class="modal-head">
           <h2 class="vl-title">お知らせ</h2>
-          <button type="button" class="modal-close nt-close" aria-label="閉じる">✕</button>
+          <button type="button" class="modal-close nt-close" aria-label="閉じる">${IC_X}</button>
         </div>
         <div class="modal-scroll"><div class="nt-body"><div class="empty"><p>読み込み中…</p></div></div></div>
       </div>`;
@@ -5447,7 +5463,7 @@ const Views = (() => {
       body.innerHTML = `<div class="empty"><p>まだお知らせはありません。</p></div>`;
     } else {
       body.innerHTML = list.map((n, i) => {
-        const av = n.fromAvatar ? `<img src="${esc(n.fromAvatar)}" alt="">` : '🍜';
+        const av = n.fromAvatar ? `<img src="${esc(n.fromAvatar)}" alt="">` : IC_BOWL;
         return `<div class="nt-row ${n.read ? '' : 'unread'}" data-i="${i}" data-u="${esc(n.fromUsername)}">
             <div class="ur-avatar">${av}</div>
             <div class="ur-main">
@@ -5477,7 +5493,7 @@ const Views = (() => {
           try {
             if (following) await Cloud.unfollow(uid); else await Cloud.follow(uid);
             following = !following; paint();
-          } catch (err) { App.toast('⚠️ ' + (err && err.message || err)); }
+          } catch (err) { App.toast('' + (err && err.message || err)); }
           btn.disabled = false;
         });
       }
@@ -5494,7 +5510,7 @@ const Views = (() => {
     ov.innerHTML = `<div class="modal-box">
         <div class="modal-head">
           <h2 class="pp-title">@${esc(username)}</h2>
-          <button type="button" class="modal-close pp-close" aria-label="閉じる">✕</button>
+          <button type="button" class="modal-close pp-close" aria-label="閉じる">${IC_X}</button>
         </div>
         <div class="modal-scroll"><div class="pp-body"><div class="empty"><p>読み込み中…</p></div></div></div>
       </div>`;
@@ -5511,7 +5527,7 @@ const Views = (() => {
       body.innerHTML = `<div class="empty"><p>@${esc(username)} のプロフィールが見つかりませんでした。</p></div>`;
       return;
     }
-    const avatar = prof.avatar ? `<img src="${esc(prof.avatar)}" alt="">` : '🍜';
+    const avatar = prof.avatar ? `<img src="${esc(prof.avatar)}" alt="">` : IC_BOWL;
     const shops = (prof.topShops || []).map(s =>
       `<div class="pp-shop">
         <div class="pp-shop-main">
@@ -5552,7 +5568,7 @@ const Views = (() => {
       if (both.length) {
         const box = body.querySelector('.pp-both');
         box.classList.remove('hidden');
-        box.innerHTML = `<h3 class="pp-h3">🤝 2人とも行きたい店</h3>` + both.slice(0, 10).map(w =>
+        box.innerHTML = `<h3 class="pp-h3">${IC_PEOPLE} 2人とも行きたい店</h3>` + both.slice(0, 10).map(w =>
           `<div class="pp-shop"><div class="pp-shop-main">
               <div class="pp-shop-name">${esc(w.name)}</div>
               <div class="pp-shop-sub">${esc(w.genre || '')}</div>
@@ -5643,7 +5659,7 @@ const Views = (() => {
             Cloud.followCounts(prof.uid).then(c => {
               const f2 = body.querySelector('.pp-followers'); if (f2) f2.textContent = c.followers;
             }).catch(() => {});
-          } catch (e) { App.toast('⚠️ ' + (e && e.message || e)); }
+          } catch (e) { App.toast('' + (e && e.message || e)); }
           fbtn.disabled = false;
         });
       }
@@ -5655,7 +5671,7 @@ const Views = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal followlist-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close fl-close" aria-label="閉じる">✕</button>
+        <button type="button" class="modal-close fl-close" aria-label="閉じる">${IC_X}</button>
         <h2 class="vl-title">${esc(name || '')} の${type === 'followers' ? 'フォロワー' : 'フォロー'}</h2>
         <div class="fl-body"><div class="empty"><p>読み込み中…</p></div></div>
       </div>`;
@@ -5677,7 +5693,7 @@ const Views = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal usersearch-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close us-close" aria-label="閉じる">✕</button>
+        <button type="button" class="modal-close us-close" aria-label="閉じる">${IC_X}</button>
         <h2 class="vl-title">ユーザーを探す</h2>
         <div class="us-row">
           <span class="sh-at">@</span>
@@ -5710,7 +5726,7 @@ const Views = (() => {
 
   // ユーザー一覧の1行（検索結果・フォロー一覧共通）
   function userRow(p) {
-    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '🍜';
+    const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL;
     return `<div class="user-row" data-u="${esc(p.username)}">
         <div class="ur-avatar">${av}</div>
         <div class="ur-main">
@@ -5734,5 +5750,6 @@ const Views = (() => {
   return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
-    mzOrder }; // 見た目が整う並び（v331〜。動作確認用に公開）
+    mzOrder, // 見た目が整う並び（v331〜。動作確認用に公開）
+    icons: ICONS }; // 線画アイコン（v332〜。register.js / import.js / app.js が使う）
 })();

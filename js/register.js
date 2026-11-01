@@ -149,8 +149,8 @@ const Register = (() => {
       genre: derivedShopGenre || '',
     });
     App.toast(w.lat != null
-      ? '🔖 行きたい店に保存しました。地図に紫のピンで表示されます'
-      : '🔖 行きたい店に保存しました。検索から候補を選んで保存すると地図にもピンが出ます', 4500);
+      ? '行きたい店に保存しました。地図に紫のピンで表示されます'
+      : '行きたい店に保存しました。検索から候補を選んで保存すると地図にもピンが出ます', 4500);
     resetForm();
   }
 
@@ -173,12 +173,12 @@ const Register = (() => {
         station: $('#f-station').value.trim(),
         photos,
       });
-      App.toast('🕓 下書きに保存しました。あとで評価を入力して完成できます');
+      App.toast('下書きに保存しました。あとで評価を入力して完成できます');
       resetForm();
       await refreshDraftsBanner();
       App.switchTab('profile');
     } catch (e) {
-      console.error(e); App.toast('⚠️ 下書きの保存に失敗しました');
+      console.error(e); App.toast('下書きの保存に失敗しました');
     } finally {
       btn.disabled = false; btn.textContent = 'あとで記録（写真だけ保存）';
     }
@@ -190,7 +190,7 @@ const Register = (() => {
     const ov = document.createElement('div');
     ov.className = 'modal drafts-modal';
     ov.innerHTML = `<div class="modal-box">
-        <button type="button" class="modal-close dr-close" aria-label="閉じる">✕</button>
+        <button type="button" class="modal-close dr-close" aria-label="閉じる">${Views.icons.x}</button>
         <h2 class="vl-title">下書き（あとで記録）</h2>
         <div class="dr-body"></div>
       </div>`;
@@ -207,7 +207,7 @@ const Register = (() => {
         if (url) urls.push(url);
         const when = d.datetime ? new Date(d.datetime).toLocaleDateString('ja-JP') : '';
         return `<div class="draft-row" data-id="${d.id}">
-            <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : '🍽️'}</div>
+            <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : Views.icons.dish}</div>
             <div class="draft-main">
               <div class="draft-when">${when}${(d.photos || []).length > 1 ? '　写真' + d.photos.length + '枚' : ''}</div>
               <div class="draft-sub">${d.station ? esc(d.station) + '　' : ''}評価はまだ未入力</div>
@@ -362,10 +362,10 @@ const Register = (() => {
     const dupBox = $('#dup-status');
     if (dupMsgs.length) {
       dupBox.classList.remove('hidden');
-      dupBox.textContent = '⚠️ ' + dupMsgs.join(' ／ ');
+      dupBox.textContent = '' + dupMsgs.join(' ／ ');
       // 追加できた写真が1枚も無い（＝すべて重複）ときは登録画面に切り替わらず
       // #dup-status が見えないため、トーストでも知らせる
-      if (pendingPhotos.length === before) App.toast('⚠️ この写真は登録されています。');
+      if (pendingPhotos.length === before) App.toast('この写真は登録されています。');
     } else {
       dupBox.classList.add('hidden');
     }
@@ -394,7 +394,7 @@ const Register = (() => {
       div.className = 'photo-preview';
       div.innerHTML = `
         <img src="${p.url}" alt="">
-        <button type="button" class="remove" data-i="${i}">✕</button>`;
+        <button type="button" class="remove" data-i="${i}">${Views.icons.x}</button>`;
       div.querySelector('.remove').addEventListener('click', () => {
         URL.revokeObjectURL(p.url);
         pendingPhotos.splice(i, 1);
@@ -419,7 +419,7 @@ const Register = (() => {
     const status = $('#exif-status');
     status.classList.remove('hidden');
     status.classList.remove('warn');
-    status.textContent = '🔎 写真を解析しています…';
+    status.textContent = '写真を解析しています…';
 
     let gps = null, earliest = null;
     for (const p of pendingPhotos) {
@@ -453,24 +453,24 @@ const Register = (() => {
     if (!Api.canClassify()) { ai.classList.add('hidden'); return; } // 自分のキーも開発者提供も無いときは案内を出さない
 
     ai.classList.remove('hidden', 'warn');
-    ai.textContent = '🤖 AIが料理ジャンルを判定しています…';
+    ai.textContent = 'AIが料理ジャンルを判定しています…';
     try {
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (result && (result.dishGenres.length || result.shopGenre)) {
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         if (userTouchedGenres) {
           // 手動選択を優先: AIの結果では上書きしない（参考として表示のみ）
-          ai.innerHTML = `🤖 AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択中のためそのままにしています）。`;
+          ai.innerHTML = `AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択中のためそのままにしています）。`;
         } else if (result.confident === false && result.dishGenres.length) {
           // 自信なし: 勝手に入れず「参考」として出し、ボタンで入れられるようにする（v329〜）
-          ai.innerHTML = `🤖 AIの判定（自信なし）: <b>${result.dishGenres.map(esc).join('・')}</b>
+          ai.innerHTML = `AIの判定（自信なし）: <b>${result.dishGenres.map(esc).join('・')}</b>
             <button type="button" class="btn small ai-apply">この内容にする</button>`;
           ai.querySelector('.ai-apply').addEventListener('click', () => {
             aiClassified = true; autoFilledGenres = true;
             selectedDishGenres.clear();
             result.dishGenres.forEach(g => selectedDishGenres.add(g));
             dishPicker.reset();
-            ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・')}</b> — 違っていたら下のフォームで修正できます。`;
+            ai.innerHTML = `AI判定: <b>${result.dishGenres.map(esc).join('・')}</b> — 違っていたら下のフォームで修正できます。`;
           });
         } else {
           aiClassified = true;
@@ -478,22 +478,22 @@ const Register = (() => {
           selectedDishGenres.clear();
           result.dishGenres.forEach(g => selectedDishGenres.add(g));
           dishPicker.reset();
-          ai.innerHTML = `🤖 AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
+          ai.innerHTML = `AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
             + ' — 違っていたら下のフォームで修正できます。';
         }
       } else {
         ai.classList.add('warn');
-        ai.textContent = '🤖 AIはこの写真からジャンルを特定できませんでした。下のフォームから選択してください。';
+        ai.textContent = 'AIはこの写真からジャンルを特定できませんでした。下のフォームから選択してください。';
       }
     } catch (e) {
       console.error('AI classification failed:', e);
       ai.classList.add('warn');
       const relayMsg = /中継サーバー HTTP \d+ — (.+)$/.exec(e && e.message || ''); // Worker 経由の説明（上限など）
       const msg = relayMsg ? relayMsg[1]
-        : (e && e.status === 401) ? 'APIキーが無効です。⚙️ から設定を確認してください。'
+        : (e && e.status === 401) ? 'APIキーが無効です。設定（右上のメニュー）から確認してください。'
         : (e && e.status === 429) ? 'レート制限中です。しばらく待ってから再度お試しください。'
         : '通信エラーのため判定できませんでした。';
-      ai.textContent = '⚠️ AI判定に失敗: ' + msg;
+      ai.textContent = 'AI判定に失敗: ' + msg;
     }
   }
 
@@ -512,12 +512,12 @@ const Register = (() => {
       results.forEach(c => { c.flow = 'nearby'; });
       existing.forEach(e => { e.flow = 'nearby'; });
       lastQuery = '';
-      renderCandidates(box, existing, results, '周辺に店舗候補が見つかりませんでした。「🔍 名前で検索」をお試しください。');
+      renderCandidates(box, existing, results, '周辺に店舗候補が見つかりませんでした。「名前で検索」をお試しください。');
       // 利用者が自分で店を選んだあと（2枚目の写真の追加など）は、自動選択で上書きしない
       if (selected && !autoPicked) return;
       autoSelectBest(box, existing, results);
     } catch (e) {
-      box.innerHTML = '<p class="hint">⚠️ 店舗検索に失敗しました（通信エラー）。「🔍 名前で検索」または「🗺️ 地図で指定」をご利用ください。</p>';
+      box.innerHTML = '<p class="hint">店舗検索に失敗しました（通信エラー）。「名前で検索」または「地図で指定」をご利用ください。</p>';
     }
   }
 
@@ -616,7 +616,7 @@ const Register = (() => {
     renderCandidates(box, existing, results, '');
     const p = document.createElement('p');
     p.className = 'hint';
-    p.textContent = '💡 入力に合わせた予測候補です。見つからないときは🔍検索でさらに広く探せます。';
+    p.textContent = '入力に合わせた予測候補です。見つからないときは「名前で検索」でさらに広く探せます。';
     box.appendChild(p);
   }
 
@@ -626,8 +626,8 @@ const Register = (() => {
     suggestSeq++; // 進行中の予測検索を無効化（手動検索を優先）
     const q = $('#f-shop-name').value.trim();
     const box = $('#shop-candidates');
-    if (!q) { box.innerHTML = '<p class="hint">店舗名を入力してから🔍検索を押してください。</p>'; return; }
-    box.innerHTML = '<p class="hint">🔎 検索中…（周辺の店舗情報も含めて探しています）</p>';
+    if (!q) { box.innerHTML = '<p class="hint">店舗名を入力してから「名前で検索」を押してください。</p>'; return; }
+    box.innerHTML = '<p class="hint">検索中…（周辺の店舗情報も含めて探しています）</p>';
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
     const existing = Store.shops()
@@ -649,7 +649,7 @@ const Register = (() => {
     }
     if (!ref) ref = await getCurrentPos();
 
-    const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で再検索するか、「🗺️ 地図で指定」から位置を指定して店舗名を入力してください。';
+    const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で再検索するか、「地図で指定」から位置を指定して店舗名を入力してください。';
     const mySeq = ++searchSeq;
 
     // まず高速な検索（Photon + Nominatim）を即表示
@@ -667,22 +667,22 @@ const Register = (() => {
     const hint = (t) => { const p = document.createElement('p'); p.className = 'hint'; p.textContent = t; box.appendChild(p); };
     for (const [k, label] of [['openpoi', 'OpenPOI'], ['yahoo', 'Yahoo!ローカルサーチ'], ['hotpepper', 'ホットペッパー']]) {
       if (src[k] && src[k].state === 'error') {
-        hint(`⚠️ ${label}でエラー: ${src[k].message}` + (Api.keySource(k) === 'own' ? '｜⚙️のキーが正しいか確認してください。' : '｜しばらくしてからもう一度お試しください。'));
+        hint(`${label}でエラー: ${src[k].message}` + (Api.keySource(k) === 'own' ? '｜設定のキーが正しいか確認してください。' : '｜しばらくしてからもう一度お試しください。'));
       }
     }
     if (gs.state === 'error') {
-      hint(`⚠️ Googleマップ検索でエラー: ${gs.message}` + (Api.keySource('google') === 'own'
-        ? '｜⚙️のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。'
+      hint(`Googleマップ検索でエラー: ${gs.message}` + (Api.keySource('google') === 'own'
+        ? '｜設定のキーが正しいか、Google Cloudで「Places API (New)」の有効化と課金設定が済んでいるか確認してください。'
         : '｜しばらくしてからもう一度お試しください。'));
     } else if (!results.length && !existing.length) {
-      hint('💡 見つからないときは「店名 地名」（例: ○○軒 渋谷）で探すか、🗺️ 地図で位置を指定してください。');
+      hint('見つからないときは「店名 地名」（例: ○○軒 渋谷）で探すか、「地図で指定」から位置を指定してください。');
     }
 
     // 周辺の詳細検索（個人店に強いが遅い）を裏で実行し、結果が来たら追加表示
     if (ref) {
       const note = document.createElement('p');
       note.className = 'hint';
-      note.textContent = '🔎 周辺の店舗をさらに検索中…';
+      note.textContent = '周辺の店舗をさらに検索中…';
       box.appendChild(note);
       const more = await Api.searchShopsNearby(nameQuery, ref).catch(() => []);
       note.remove();
@@ -744,7 +744,7 @@ const Register = (() => {
     if (!needStation && !needGeo) return;
 
     const stationInput = $('#f-station');
-    if (needStation) stationInput.placeholder = '🔎 最寄駅を検索中…';
+    if (needStation) stationInput.placeholder = '最寄駅を検索中…';
     try {
       const [geo, station] = await Promise.all([
         needGeo ? Api.reverseGeocode(shop.lat, shop.lon) : Promise.resolve({}),
@@ -801,7 +801,7 @@ const Register = (() => {
     if (c.lat != null && c.lon != null) {
       // 逆ジオコーディング＋最寄駅（店舗確定時に1回のみ — §15.1）
       const stationInput = $('#f-station');
-      stationInput.placeholder = '🔎 最寄駅を検索中…';
+      stationInput.placeholder = '最寄駅を検索中…';
       try {
         const [geo, station] = await Promise.all([
           Api.reverseGeocode(c.lat, c.lon),
@@ -919,7 +919,7 @@ const Register = (() => {
         Cloud.autoBackupSweep(true).catch(() => {});
       }
 
-      App.toast(`✅ 「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
+      App.toast(`「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
       resetForm();
       App.switchTab('list');
       document.dispatchEvent(new CustomEvent('bitemap:saved'));
@@ -928,7 +928,7 @@ const Register = (() => {
       // 写真の保存で失敗したときは、先に作った訪問（と新規の店）を取り消して、再送で二重にならないようにする
       if (createdVisitId) { try { await Store.deleteVisit(createdVisitId); } catch { /* noop */ } }
       if (createdShopId && !Store.visitsOf(createdShopId).length) { try { await Store.deleteShop(createdShopId); } catch { /* noop */ } }
-      App.toast('⚠️ 保存に失敗しました: ' + e.message);
+      App.toast('保存に失敗しました: ' + e.message);
     } finally {
       btn.disabled = false; btn.textContent = 'この内容で記録する';
     }

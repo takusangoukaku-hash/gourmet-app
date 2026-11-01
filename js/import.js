@@ -40,7 +40,7 @@ const Import = (() => {
     ov = document.createElement('div');
     ov.className = 'modal import-modal';
     ov.innerHTML = `<div class="modal-box">
-      <div class="modal-head"><button type="button" class="modal-close im-close" aria-label="閉じる">✕</button><h2>過去の写真をまとめて取り込む</h2></div>
+      <div class="modal-head"><button type="button" class="modal-close im-close" aria-label="閉じる">${Views.icons.x}</button><h2>過去の写真をまとめて取り込む</h2></div>
       <div class="im-body">
         <div class="im-intro">
           <p>写真アプリから料理の写真を選ぶと、<b>撮った日と場所ごとに「1回の訪問」にまとめて</b>並べます。店名と★を付けて「記録する」を押すだけです。</p>
@@ -51,7 +51,7 @@ const Import = (() => {
           </ul>
           <label class="check im-inc"><input type="checkbox" id="im-include-skipped"> 前に「飛ばす」にした写真も表示する</label>
           <input type="file" id="im-files" accept="image/*" multiple hidden>
-          <button type="button" class="btn primary big" id="im-pick">📷 写真を選ぶ（最大${IMPORT_BATCH}枚）</button>
+          <button type="button" class="btn primary big" id="im-pick">${Views.icons.camera} 写真を選ぶ（最大${IMPORT_BATCH}枚）</button>
         </div>
         <div class="im-progress hidden" id="im-progress"><div class="im-bar"><i></i></div><div class="im-ptext"></div></div>
         <div class="im-list" id="im-list"></div>
@@ -212,18 +212,18 @@ const Import = (() => {
     if (!ov) return;
     const el = $(`.im-group[data-id="${g.id}"]`, ov);
     if (!el) return;
-    const thumbs = g.photos.slice(0, 4).map(p => `<span class="im-th">${p.url ? `<img src="${p.url}" alt="">` : '🍽️'}</span>`).join('')
+    const thumbs = g.photos.slice(0, 4).map(p => `<span class="im-th">${p.url ? `<img src="${p.url}" alt="">` : Views.icons.dish}</span>`).join('')
       + (g.photos.length > 4 ? `<span class="im-th im-more">+${g.photos.length - 4}</span>` : '');
     const when = fmtDay(g.start) + '　' + fmtTime(g.start) + (g.end - g.start > 60000 ? '〜' + fmtTime(g.end) : '');
     // 店の選択肢: 自分の店 → 候補 → 入力
     const opts = [];
-    (g.own || []).forEach((s, i) => opts.push({ v: 'own:' + i, t: `📍 ${s.name}（記録済み）` }));
+    (g.own || []).forEach((s, i) => opts.push({ v: 'own:' + i, t: `${s.name}（記録済み）` }));
     (g.cands || []).forEach((c, i) => opts.push({ v: 'cand:' + i, t: `${c.name}${c.distance != null ? `（${Math.round(c.distance)}m）` : ''}` }));
     opts.push({ v: 'manual', t: '店名を入力する…' });
     const curV = g.shop ? 'own:' + (g.own || []).indexOf(g.shop) : g.cand ? 'cand:' + (g.cands || []).indexOf(g.cand) : 'manual';
-    const ai = g.ai === 'busy' ? '<span class="im-ai">🤖 判定中…</span>'
-      : g.ai === 'done' ? (g.genres.length ? `<span class="im-ai">🤖 ${esc(g.genres.join('・'))}</span>` : '<span class="im-ai dim">🤖 判定できず</span>')
-      : g.ai === 'error' ? `<span class="im-ai dim" title="${esc(g.aiMsg || '')}">🤖 判定なし</span>` : '';
+    const ai = g.ai === 'busy' ? '<span class="im-ai">' + Views.icons.ai + ' 判定中…</span>'
+      : g.ai === 'done' ? (g.genres.length ? `<span class="im-ai">${Views.icons.ai} ${esc(g.genres.join('・'))}</span>` : '<span class="im-ai dim">' + Views.icons.ai + ' 判定できず</span>')
+      : g.ai === 'error' ? `<span class="im-ai dim" title="${esc(g.aiMsg || '')}">${Views.icons.ai} 判定なし</span>` : '';
     const skip = g.state === 'skip';
     el.classList.toggle('skip', skip);
     el.innerHTML = `
@@ -299,7 +299,7 @@ const Import = (() => {
       saveSkipped(skipped);
     } catch (e) {
       console.error(e);
-      App.toast('⚠️ 途中で保存に失敗しました: ' + (e && e.message || e));
+      App.toast('途中で保存に失敗しました: ' + (e && e.message || e));
     }
     busy = false;
     prog.classList.add('hidden');
@@ -308,7 +308,7 @@ const Import = (() => {
     $('#im-foot', ov).classList.add('hidden');
     const sum = $('#im-summary', ov);
     sum.classList.remove('hidden');
-    sum.innerHTML = `<div class="im-sum-t">✅ ${done}回の訪問・${photosN}枚の写真を記録しました</div>
+    sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
       <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
       <div class="im-sum-b"><button type="button" class="btn primary" id="im-again">続けて写真を選ぶ</button><button type="button" class="btn" id="im-done">閉じる</button></div>`;
     $('#im-again', ov).addEventListener('click', () => { groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); });

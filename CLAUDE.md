@@ -115,6 +115,10 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - スマホ表示（v330〜）: 幅 360〜390px で見切れないことを基準にする。全画面モーダルの ✕（`.modal.modal-full .modal-close`）は `flex-shrink: 0`（列 flex で潰れて見出しに重なった）、
   店シートのボタン列 `.msh-btns` は折り返し、評価の箱の見出し `.rp-label` は折り返す、地図の凡例 `.map-legend-float` は `max-width: calc(100% - 70px)` でズームボタンを避ける。
   画面を足したら幅 360px でも確認する。
+- 見た目の決めごと（v332〜。heydamir の unslop の手順を手で当てた）: 絵文字を UI のアイコンに使わない。線画 SVG は `views.js` の `IC_*`（`Views.icons` で register.js / import.js / app.js からも使う）1組で、
+  `.ic` 14px（`.btn` 内 16px）・太さ 1.75、閉じるは `.x-ic` 18px、写真の仮表示は `.ph-ic`、プロフィール写真の仮表示は `.av-ic`（お椀）。トーストや状態の文には印を付けず文だけ。
+  文字サイズは 11/12/13/14/15/16/18/20/22/24/28/32/40/48px の尺から選ぶ（11px 未満は地図の凡例・ピンのラベル・出典だけ）。余白は 4px 刻み（2px・6px・10px・14px の半歩は可）。
+  角丸は 10（ボタン・チップ・小さい写真）／14（カード・入力欄）／18（シート・モーダル）の3種類＋小物の 4px。サンプル写真の絵文字（canvas に描く中身）と発見タイルの絵は対象外。
 - `tools/*.ps1` を編集する場合は **UTF-8 with BOM** で保存する。
   Windows PowerShell 5.1 は BOM 無しを cp932 として読み、日本語コメントが壊れて構文エラーになる。
 - ローカル確認: `tools/server.ps1` を起動して http://localhost:5959/ 、または

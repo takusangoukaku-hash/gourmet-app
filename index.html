@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=331">
+<link rel="stylesheet" href="css/style.css?v=332">
 </head>
 <body>
 
@@ -109,10 +109,10 @@
     <button id="save-btn" class="btn primary big">この内容で記録する</button>
     <button type="button" id="save-later-btn" class="btn full save-later hidden">あとで記録（写真だけ保存）</button>
     <!-- 行きたい店: 店舗名だけで保存できる（写真・評価は不要）。訪問を記録すると自動で外れる -->
-    <button type="button" id="save-wish-btn" class="btn full save-wish">🔖 行きたい店として保存（店舗名だけでOK）</button>
+    <button type="button" id="save-wish-btn" class="btn full save-wish"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> 行きたい店として保存（店舗名だけでOK）</button>
   </div>
   <!-- 過去の写真のまとめて取り込み（v326〜。js/import.js） -->
-  <button type="button" class="import-entry" data-import-open>📚 過去の写真をまとめて取り込む <span>撮った日と場所ごとに訪問にまとめ、店名と★を付けるだけ</span></button>
+  <button type="button" class="import-entry" data-import-open><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/></svg> 過去の写真をまとめて取り込む <span>撮った日と場所ごとに訪問にまとめ、店名と★を付けるだけ</span></button>
 </section>
 
 <!-- ========== ホーム／フィード（フォロー中の投稿） ========== -->
@@ -124,7 +124,7 @@
     <button type="button" class="feed-seg" data-seg="new">最新</button>
     <button type="button" class="feed-seg" data-seg="follow">フォロー中</button>
   </div>
-  <div id="feed-note" class="feed-note">✨ 味覚が近い人の投稿を優先的に表示しています</div>
+  <div id="feed-note" class="feed-note">味覚が近い人の投稿を優先的に表示しています</div>
   <div id="feed-list" class="feed-list"></div>
 </section>
 
@@ -306,7 +306,7 @@
   <div class="card frameless">
     <div class="profile-head">
       <button type="button" class="avatar-ring" id="pf-avatar-btn" title="プロフィール写真を変更">
-        <div class="avatar" id="pf-avatar">🍜</div>
+        <div class="avatar" id="pf-avatar"><svg class="av-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20h7"/><path d="M14 3l-6.5 8M19 4l-9 7"/></svg></div>
         <span class="avatar-cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span>
       </button>
       <input type="file" id="pf-avatar-input" accept="image/*" hidden>
@@ -422,7 +422,7 @@
 <!-- 店舗詳細モーダル -->
 <div id="modal" class="modal hidden">
   <div class="modal-box">
-    <button class="modal-close" data-close>✕</button>
+    <button class="modal-close" data-close><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div id="modal-body"></div>
   </div>
 </div>
@@ -430,7 +430,7 @@
 <!-- 初回案内（はじめて開いた人向けの使い方ガイド） -->
 <div id="welcome-modal" class="modal hidden">
   <div class="modal-box welcome-box">
-    <button class="modal-close" data-close>✕</button>
+    <button class="modal-close" data-close><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h2 class="welcome-title">BITEMAP へようこそ</h2>
     <p class="welcome-sub">食べた一皿を記録して、地図と写真で振り返るアプリです。</p>
     <div class="welcome-steps">
@@ -456,13 +456,13 @@
   <div class="modal-box">
     <div class="modal-head">
       <h2>設定</h2>
-      <button class="modal-close" data-close>✕</button>
+      <button class="modal-close" data-close><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="modal-scroll">
     <!-- LINEの設定画面を参考にした構成:
          上にプロフィール行 → 用途ごとにグループ化した行リスト → 最下部にバージョン -->
     <button type="button" id="set-profile" class="set-profile">
-      <span class="sp-avatar" id="set-avatar">🍜</span>
+      <span class="sp-avatar" id="set-avatar"><svg class="av-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20h7"/><path d="M14 3l-6.5 8M19 4l-9 7"/></svg></span>
       <span class="sp-main">
         <span class="sp-name" id="set-name">BITEMAP</span>
         <span class="sp-sub" id="set-sub">プロフィールを編集</span>
@@ -583,7 +583,7 @@
 <div id="camera-overlay" class="camera-overlay hidden">
   <video id="cam-video" autoplay playsinline muted></video>
   <canvas id="cam-canvas" hidden></canvas>
-  <button id="cam-close" class="cam-close" aria-label="閉じる">✕</button>
+  <button id="cam-close" class="cam-close" aria-label="閉じる"><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <div id="cam-error" class="cam-error hidden"></div>
   <div class="cam-controls">
     <button id="cam-library" class="cam-library" aria-label="写真から選択">
@@ -598,7 +598,7 @@
 
 <!-- 写真拡大 -->
 <div id="lightbox" class="modal hidden">
-  <button class="lb-close" data-close aria-label="閉じる">✕</button>
+  <button class="lb-close" data-close aria-label="閉じる"><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <div class="lightbox-box" data-close>
     <img id="lightbox-img" alt="">
     <p id="lightbox-caption"></p>
@@ -608,12 +608,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=331"></script>
-<script src="js/api.js?v=331"></script>
-<script src="js/cloud.js?v=331"></script>
-<script src="js/register.js?v=331"></script>
-<script src="js/import.js?v=331"></script>
-<script src="js/views.js?v=331"></script>
-<script src="js/app.js?v=331"></script>
+<script src="js/store.js?v=332"></script>
+<script src="js/api.js?v=332"></script>
+<script src="js/cloud.js?v=332"></script>
+<script src="js/register.js?v=332"></script>
+<script src="js/import.js?v=332"></script>
+<script src="js/views.js?v=332"></script>
+<script src="js/app.js?v=332"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v331'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v332'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -87,7 +87,7 @@ const App = (() => {
     const settingsStatus = () => {
       const parts = [];
       // 'own' = ⚙️で設定したキー、'proxy' = 開発者提供（キーはアプリに置かず中継サーバーが持つ）
-      const keyLabel = (name, label) => { const k = Api.keySource(name); return k === 'own' ? `✅ ${label}: 設定済み` : k === 'proxy' ? `✅ ${label}: 開発者提供` : `${label}: 未設定`; };
+      const keyLabel = (name, label) => { const k = Api.keySource(name); return k === 'own' ? `${label}: 設定済み` : k === 'proxy' ? `${label}: 開発者提供` : `${label}: 未設定`; };
       parts.push(keyLabel('anthropic', 'AI判定'));
       parts.push(keyLabel('yahoo', 'Yahoo!'));
       parts.push(keyLabel('hotpepper', 'ホットペッパー'));
@@ -97,7 +97,7 @@ const App = (() => {
       if (total) parts.push('検索ヒット ' + total + '件（' + Object.entries(hs).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join('・') + '）');
       // 部品(api.js)のバージョンも表示: アプリと違えば古いキャッシュ混在のサイン
       const partVer = Api.FILE_VERSION || '旧';
-      parts.push('アプリ ' + APP_VERSION + (partVer !== APP_VERSION ? '（⚠️部品 ' + partVer + '）' : ''));
+      parts.push('アプリ ' + APP_VERSION + (partVer !== APP_VERSION ? '（部品 ' + partVer + '）' : ''));
       return parts.join(' ／ ');
     };
     // このアカウントに紐づくメールアドレスを表示（ログイン中のみ）
@@ -123,7 +123,7 @@ const App = (() => {
       av.textContent = '';
       // 画像はDOM経由で設定する（文字列連結でHTMLに埋め込まない）
       if (p.avatar && /^data:image\//.test(p.avatar)) { const img = document.createElement('img'); img.src = p.avatar; img.alt = ''; av.appendChild(img); }
-      else av.textContent = '🍜';
+      else av.innerHTML = Views.icons.bowl;
     };
     $('#settings-btn').addEventListener('click', () => {
       $('#settings-api-key').value = Api.getApiKey();
@@ -148,7 +148,7 @@ const App = (() => {
       // ログイン中はアカウントにも控えを保存（ブラウザ都合で消えても自動復元される）
       if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.syncApiKeys().catch(() => {});
       $('#settings-modal').classList.add('hidden');
-      toast('✅ 設定を保存しました。');
+      toast('設定を保存しました。');
     });
     $('#settings-clear').addEventListener('click', () => {
       Api.setApiKey('');
@@ -182,7 +182,7 @@ const App = (() => {
     };
     $('#backup-export').addEventListener('click', async () => {
       downloadJson(await buildBackup(false), backupName(''));
-      toast('✅ バックアップを書き出しました');
+      toast('バックアップを書き出しました');
     });
     $('#backup-export-photos').addEventListener('click', async () => {
       const btn = $('#backup-export-photos');
@@ -190,9 +190,9 @@ const App = (() => {
       try {
         const data = await buildBackup(true, (done, total, label) => { toast(`${label || '写真'}を準備中… ${done}/${total}`); });
         downloadJson(data, backupName('-photos'));
-        toast(`✅ 写真込みで書き出しました（写真${(data.photos || []).length}枚）`);
+        toast(`写真込みで書き出しました（写真${(data.photos || []).length}枚）`);
       } catch (err) {
-        toast('⚠️ 書き出せませんでした: ' + (err && err.message || err));
+        toast('書き出せませんでした: ' + (err && err.message || err));
       } finally { btn.disabled = false; }
     });
     $('#backup-import').addEventListener('click', () => $('#backup-file').click());
@@ -204,11 +204,11 @@ const App = (() => {
         const data = JSON.parse(await file.text());
         const r = await restoreBackup(data);
         toast(r.added || r.photos
-          ? `✅ 読み込みました（記録${r.added}件・写真${r.photos}枚を追加・更新）`
+          ? `読み込みました（記録${r.added}件・写真${r.photos}枚を追加・更新）`
           : '追加の記録はありませんでした（すべて登録済み）');
         refreshCurrent();
       } catch (err) {
-        toast('⚠️ 読み込めませんでした: ' + (err && err.message || err));
+        toast('読み込めませんでした: ' + (err && err.message || err));
       }
     });
 
@@ -585,10 +585,10 @@ const App = (() => {
           await Store.addPhoto(shop.id, visit.id, 'dish', blob);
         }
       }
-      toast('✅ サンプルデータを登録しました');
+      toast('サンプルデータを登録しました');
     } catch (e) {
       console.error(e);
-      toast('⚠️ サンプルデータの作成に失敗しました: ' + (e && e.message || e));
+      toast('サンプルデータの作成に失敗しました: ' + (e && e.message || e));
     }
     refreshCurrent();
   }
