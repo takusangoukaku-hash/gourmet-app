@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=336">
+<link rel="stylesheet" href="css/style.css?v=337">
 </head>
 <body>
 
@@ -49,32 +49,47 @@
   <input type="file" id="photo-input" accept="image/*" multiple hidden>
   <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
   <button type="button" id="drafts-btn" class="drafts-banner hidden"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 下書き <b id="drafts-count">0</b> 件 — タップして記録を完成</button>
+  <!-- 登録は2段階（v337〜）: 1枚目「写真を選ぶ」(#reg-pick) → 2枚目「記録」(#record-card)。
+       写真があるか、店名が入っていれば2枚目になる（#view-register.step2） -->
+  <div class="reg-title">
+    <button type="button" id="reg-back" class="reg-back" aria-label="写真を選ぶに戻る"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <span class="reg-title-1">新しい記録</span><span class="reg-title-2">記録</span>
+  </div>
+  <div id="reg-pick" class="reg-pick">
+    <button type="button" id="reg-pick-cam" class="reg-pick-hero" aria-label="写真を撮る">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <span>写真を撮る</span>
+    </button>
+    <button type="button" id="reg-pick-lib" class="reg-row"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/></svg>写真から選ぶ</span><span class="chev">›</span></button>
+    <button type="button" class="reg-row" data-import-open><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>過去の写真をまとめて取り込む</span><span class="chev">›</span></button>
+    <button type="button" id="reg-pick-text" class="reg-row"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>写真なしで記録する</span><span class="chev">›</span></button>
+    <button type="button" id="reg-pick-wish" class="reg-row"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>行きたい店に入れる</span><span class="chev">›</span></button>
+  </div>
   <div class="card" id="record-card">
     <div id="dup-status" class="exif-status warn hidden"></div>
     <div id="exif-status" class="exif-status hidden"></div>
     <div id="ai-status" class="exif-status hidden"></div>
+    <!-- 写真: 1枚目を全幅で、2枚目以降は下の帯に。帯の最後の「＋」で追加 -->
+    <div id="reg-photo" class="reg-photo"></div>
+    <div id="photo-previews" class="photo-previews"></div>
     <div class="form-grid">
-      <div class="full flabel">
-        <div class="reg-top">
-          <div id="photo-previews" class="photo-previews"></div>
-          <div class="reg-top-main">
-            <div class="flabel-head">店舗名</div>
-            <div class="search-row">
-              <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
-              <button type="button" id="shop-search-btn" class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> 検索</button>
-            </div>
-          </div>
+      <div class="full flabel reg-namebox">
+        <div class="search-row reg-name-row">
+          <input type="text" id="f-shop-name" placeholder="店舗名を追加" autocomplete="off">
+          <button type="button" id="shop-search-btn" class="btn icon-only" aria-label="店舗名で検索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
         </div>
+        <div class="reg-meta"><span id="reg-station"></span><button type="button" id="genre-pill" class="genre-pill">ジャンルを選ぶ</button></div>
         <input type="checkbox" id="f-fav" hidden>
         <div id="shop-candidates" class="candidate-list"></div>
         <div id="selected-shop-note" class="selected-note hidden"></div>
       </div>
+      <!-- 料理ジャンルの選択肢は、上の札をタップしたときか AI が判定できなかったときだけ開く（v337〜） -->
       <!-- 注意: ボタン群を <label> で包まないこと。ラベルの隙間をタップすると
            先頭のボタンにクリックが転送され、意図しない選択になる（スマホで顕在化） -->
-      <div class="full flabel">料理ジャンル（複数選択可）
+      <div class="full flabel reg-genres hidden" id="reg-genres">
         <div id="f-dish-genres" class="chips"></div>
       </div>
-      <div class="full flabel"><span class="flabel-head">味の評価</span>
+      <div class="full flabel reg-rating">
         <div class="rating-row"><div id="f-rating" class="stars taste"></div><span id="f-rating-val" class="rating-val"></span></div>
       </div>
       <!-- 仕様書5: 評価の3軸は「最初は不要」のため入力欄を隠す（過去データの表示は維持） -->
@@ -84,11 +99,12 @@
         <div class="axis-row"><span>雰囲気</span><div id="f-ax-atmosphere" class="stars small"></div></div>
         <div class="axis-row"><span>提供の早さ</span><div id="f-ax-speed" class="stars small"></div></div>
       </div>
-      <button type="button" id="detail-toggle" class="btn full detail-toggle">▸ 詳細</button>
-      <div id="detail-fields" class="full detail-fields hidden">
-        <label class="full">コメント・感想
-          <textarea id="f-comment" rows="2" placeholder="味の感想、おすすめメニューなど"></textarea>
-        </label>
+      <button type="button" class="reg-row full" data-reg-open="comment"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-1L3 20l1.2-4.3A8.4 8.4 0 1 1 21 11.5z"/></svg>ひとこと</span><span class="chev">›</span></button>
+      <div id="reg-comment" class="full reg-fold hidden">
+        <textarea id="f-comment" rows="2" placeholder="味の感想、おすすめメニューなど"></textarea>
+      </div>
+      <button type="button" id="detail-toggle" class="reg-row full" data-reg-open="detail"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>住所・最寄駅</span><span class="chev">›</span></button>
+      <div id="detail-fields" class="full detail-fields reg-fold hidden">
         <label>住所
           <input type="text" id="f-address" placeholder="自動入力されます">
         </label>
@@ -102,16 +118,13 @@
           <input type="text" id="f-city">
         </label>
       </div>
+      <button type="button" id="save-wish-btn" class="reg-row full"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>記録せずに行きたい店へ</span><span class="chev">›</span></button>
+      <button type="button" id="save-later-btn" class="reg-row full hidden"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>あとで記録（写真だけ保存）</span><span class="chev">›</span></button>
     </div>
-    <!-- 必須（店舗名・味の評価）が埋まるまで保存ボタンを薄くし、足りないものを案内する -->
     <div id="save-hint" class="save-hint hidden"></div>
-    <button id="save-btn" class="btn primary big">この内容で記録する</button>
-    <button type="button" id="save-later-btn" class="btn full save-later hidden">あとで記録（写真だけ保存）</button>
-    <!-- 行きたい店: 店舗名だけで保存できる（写真・評価は不要）。訪問を記録すると自動で外れる -->
-    <button type="button" id="save-wish-btn" class="btn full save-wish"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> 行きたい店として保存（店舗名だけでOK）</button>
   </div>
-  <!-- 過去の写真のまとめて取り込み（v326〜。js/import.js） -->
-  <button type="button" class="import-entry" data-import-open><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/></svg> 過去の写真をまとめて取り込む</button>
+  <!-- 記録ボタンはタブバーの上に固定（2枚目のときだけ） -->
+  <div class="reg-sticky"><button id="save-btn" class="btn primary big">記録する</button></div>
 </section>
 
 <!-- ========== ホーム／フィード（フォロー中の投稿） ========== -->
@@ -605,12 +618,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=336"></script>
-<script src="js/api.js?v=336"></script>
-<script src="js/cloud.js?v=336"></script>
-<script src="js/register.js?v=336"></script>
-<script src="js/import.js?v=336"></script>
-<script src="js/views.js?v=336"></script>
-<script src="js/app.js?v=336"></script>
+<script src="js/store.js?v=337"></script>
+<script src="js/api.js?v=337"></script>
+<script src="js/cloud.js?v=337"></script>
+<script src="js/register.js?v=337"></script>
+<script src="js/import.js?v=337"></script>
+<script src="js/views.js?v=337"></script>
+<script src="js/app.js?v=337"></script>
 </body>
 </html>

@@ -37,7 +37,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 | `css/style.css` | スタイル |
 | `js/store.js` | データ層（店舗Shop/訪問Visit）。localStorage + 写真はIndexedDB（v3: 本体 photos／一覧用メタ meta／サムネ thumbs の3ストア。一覧は meta だけを読む） |
 | `js/api.js` | 外部API（OpenPOI/Overpass/Nominatim/Photon/Yahoo!/ホットペッパー/Google）・EXIF・画像圧縮・AIジャンル判定・ジャンル定義。店舗検索は OpenPOI（無料・キー不要）→地図データ→Google は最後の手段（課金を避ける）。OpenPOI 由来の店は `dataLicenses`/`dataAttributions` を一緒に保存し、設定画面の出典表示を消さない |
-| `js/register.js` | 登録フロー |
+| `js/register.js` | 登録フロー。v337〜 2段階: 1枚目 `#reg-pick`（写真を撮る／写真から選ぶ／まとめて取り込む／写真なしで記録／行きたい店に入れる）→ 2枚目 `#record-card`（`#view-register.step2`。`updateStep()` が写真・店名・`forceStep2` で判定）。2枚目は 写真（1枚目は全幅 `#reg-photo`、2枚目以降は帯）→ 店名（枠なしの入力 `#f-shop-name`）→ 駅 `#reg-station`＋ジャンルの札 `#genre-pill`（`updateGenrePill()`。選択肢 `#reg-genres` は札をタップしたときか AI が判定できないときだけ開く。自信なしは「ラーメン？」）→ 星 → 行「ひとこと／住所・最寄駅／記録せずに行きたい店へ／あとで記録」→ 下に固定の「記録する」`.reg-sticky`。検索・登録・地図では `body[data-tab]` でアプリの見出しを隠す |
 | `js/import.js` | 過去の写真のまとめて取り込み（v326〜）。一度に最大100枚を「日付×場所」で訪問候補にまとめ、店名（既存の店→周辺検索の候補→入力）と★を付けて一括で記録。取り込み済みは指紋で除外、飛ばした写真は `gourmet.importSkipped.v1`。AI判定は `classifyDishPhoto(file, {bulk:true})`（Worker の別枠 1日200枚） |
 | `js/views.js` | 地図・一覧・写真・統計・プロフィール・投稿詳細の描画（最大のファイル） |
 | `js/cloud.js` | Firebase 同期・SNS（フィード/いいね/コメント/フォロー/公開プロフィール） |
@@ -119,7 +119,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   画面を足したら幅 360px でも確認する。
 - 一画面の情報は少ないほどよい（v335〜。利用者の方針）: 説明文・案内文・「必須」は出さない（足りなければボタンを薄くし、押されたらトーストで理由を言う）。
   無いデータは「データ不足」と書かず、その箱ごと出さない。同じ数字を1画面に2回出さない。見出し・店名は明朝をやめてゴシック（`--serif` は未使用）。点線の枠は使わない。
-  デザイン刷新は v335（土台）→ v336 店シート → 登録の2段階 → お店の記録 の順で進める。案のモック: https://claude.ai/artifact/SGQmzsHtrH7QtNCnbKt95Q
+  デザイン刷新は v335（土台）→ v336 店シート → v337 登録の2段階 → お店の記録 の順で進める。案のモック: https://claude.ai/artifact/SGQmzsHtrH7QtNCnbKt95Q
 - 地図の店シート（v336〜）: `showMapShopSheet` / `showNetShopSheet` は共通の `sheetHeadHtml()` で「つまみ → 写真（全幅）→ 店名 → 駅 → タイル4つ → 要点行」を描く。
   タイルは「N分（現在地の控えからの徒歩。`walkMinutes()`。無ければ「経路」）／また来た（他人の店は「行きたい」）／地図／共有」。要点行は「あなた／みんな／訪問」で無いものは列ごと出さない。
   ジャンル・★バッジ・「あなたの写真」の見出しと枚数は出さない。開いている間は `body.msh-open` でアプリの見出し・地図の検索バー・表示範囲ボタンを隠す。

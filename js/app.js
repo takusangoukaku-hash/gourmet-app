@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v336'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v337'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -293,6 +293,7 @@ const App = (() => {
 
   function switchTab(name) {
     currentTab = name;
+    document.body.dataset.tab = name; // 検索・登録・地図ではアプリの見出しを隠す（CSS。v337〜）
     document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     $('#view-' + name).classList.add('active');

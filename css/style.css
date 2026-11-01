@@ -2284,3 +2284,56 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 
 /* 店シートが開いている間はアプリの見出しと地図の検索バーを隠す（v336〜） */
 body.msh-open .app-header, body.msh-open .map-search-row, body.msh-open .map-scope { visibility: hidden; }
+
+/* ---------- 登録の2段階（v337〜。モック: 1枚目「写真を選ぶ」→ 2枚目「記録」） ---------- */
+body[data-tab="register"] .app-header, body[data-tab="list"] .app-header, body[data-tab="map"] .app-header { display: none; } /* ロゴはホームとプロフィールだけ */
+body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"] main { padding-top: 8px; }
+.reg-title { display: flex; align-items: center; justify-content: center; position: relative; height: 44px; margin: 0 0 4px; font-weight: 700; font-size: 16px; }
+.reg-back { position: absolute; left: 0; top: 0; width: 44px; height: 44px; border: none; background: none; cursor: pointer; color: var(--text); display: none; align-items: center; justify-content: center; }
+.reg-back .ic { width: 22px; height: 22px; }
+#view-register.step2 .reg-back { display: flex; }
+#view-register .reg-title-2, #view-register.step2 .reg-title-1 { display: none; }
+#view-register.step2 .reg-title-2 { display: inline; }
+#view-register.step2 #reg-pick { display: none; }
+#view-register:not(.step2) #record-card, #view-register:not(.step2) .reg-sticky { display: none; }
+.reg-pick { display: flex; flex-direction: column; gap: 0; }
+.reg-pick-hero { height: 240px; border: none; border-radius: 14px; background: var(--field); color: var(--muted); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+.reg-pick-hero .ic { width: 40px; height: 40px; stroke-width: 1.5; }
+.reg-row { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 50px; border: none; border-top: 1px solid var(--border-lite); background: none; padding: 0 2px; cursor: pointer; font-family: inherit; font-size: 15px; color: var(--text); text-align: left; }
+.reg-row:first-of-type { border-top: none; }
+.reg-row .ri { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.reg-row .ri .ic { width: 20px; height: 20px; color: #4a4845; flex-shrink: 0; }
+.reg-row .chev { color: var(--muted); font-size: 18px; }
+.reg-row.open .chev { transform: rotate(90deg); display: inline-block; }
+#view-register #record-card { padding: 0 0 96px; background: transparent; border: none; box-shadow: none; }
+.reg-photo { position: relative; border-radius: 14px; overflow: hidden; background: var(--field); }
+.reg-photo:empty { display: none; }
+.reg-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.reg-photo-x { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.5); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.reg-photo-x .x-ic { width: 16px; height: 16px; }
+.reg-photo-chg { position: absolute; right: 10px; bottom: 10px; border: none; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; font-family: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.reg-photo-chg .ic { width: 14px; height: 14px; }
+#view-register .photo-previews { flex-direction: row; margin-top: 8px; gap: 6px; }
+#view-register .form-grid { gap: 0; margin-top: 12px; }
+.reg-namebox { gap: 0 !important; }
+.reg-name-row { align-items: center; }
+.reg-name-row input { border: none; background: none; padding: 0; font-size: 19px; font-weight: 700; color: var(--text); min-width: 0; }
+.reg-name-row input::placeholder { color: #b0aca4; font-weight: 700; }
+.reg-name-row input:focus { outline: none; box-shadow: none; }
+.btn.icon-only { padding: 6px; width: 36px; height: 36px; border-radius: 50%; justify-content: center; flex: 0 0 auto; }
+.btn.icon-only .ic { margin: 0; width: 18px; height: 18px; }
+.reg-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; color: var(--muted); min-height: 24px; }
+#reg-station:empty { display: none; }
+.genre-pill { border: none; border-radius: 999px; background: var(--field); color: var(--text); font-family: inherit; font-size: 12px; font-weight: 600; padding: 3px 10px; cursor: pointer; }
+.genre-pill.empty { color: var(--muted); }
+.reg-genres { margin: 8px 0 4px; }
+.reg-rating { margin: 16px 0 10px !important; }
+.reg-fold { padding: 4px 0 12px; }
+.reg-fold textarea { width: 100%; }
+#view-register .form-grid .reg-row { grid-column: 1 / -1; }
+.reg-sticky { position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 1100; padding: 10px 16px 8px; background: linear-gradient(to top, var(--bg) 70%, rgba(255,255,255,0)); pointer-events: none; }
+.reg-sticky .btn { pointer-events: auto; margin-top: 0; max-width: 560px; margin-left: auto; margin-right: auto; display: block; }
+@media (prefers-color-scheme: dark) { .reg-sticky { background: linear-gradient(to top, var(--bg) 70%, rgba(0,0,0,0)); } }
+
+/* 登録ではジャンルの選択肢の「選択中: …」は札と重複するので出さない（v337〜） */
+.reg-genres .sel-genres { display: none; }

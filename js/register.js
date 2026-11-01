@@ -53,6 +53,27 @@ const Register = (() => {
   }
 
   // ---------- 初期化 ----------
+  let forceStep2 = false; // 「写真なしで記録」で2枚目に進んだか（v337〜）
+
+  // 登録の2段階（v337〜）: 写真があるか、店名が入っているか、「写真なしで記録」を押したら2枚目（#view-register.step2）
+  function updateStep() {
+    const step2 = pendingPhotos.length > 0 || forceStep2 || !!$('#f-shop-name').value.trim() || !!selected;
+    $('#view-register').classList.toggle('step2', step2);
+  }
+  // 店名の下の1行: 最寄駅（自動入力の値）。無ければ何も出さない
+  function syncMeta() {
+    const st = $('#reg-station'); if (!st) return;
+    const v = ($('#f-station').value || '').trim();
+    if (st.textContent !== v) st.textContent = v;
+  }
+  // ジャンルの札: 選んだジャンル（AI判定で入った値も）を1つの札に。無ければ「ジャンルを選ぶ」
+  function updateGenrePill(text) {
+    const pill = $('#genre-pill'); if (!pill) return;
+    const g = [...selectedDishGenres];
+    pill.textContent = text != null ? text : (g.length ? g.join('・') : 'ジャンルを選ぶ');
+    pill.classList.toggle('empty', !g.length && text == null);
+  }
+
   function init() {
     $('#photo-input').addEventListener('change', (e) => addFiles(e.target.files));
     $('#camera-input').addEventListener('change', (e) => addFiles(e.target.files));
@@ -60,6 +81,22 @@ const Register = (() => {
     $('#cam-shutter').addEventListener('click', capturePhoto);
     $('#cam-library').addEventListener('click', () => { stopCamera(); $('#photo-input').click(); });
     $('#cam-close').addEventListener('click', () => { stopCamera(); App.switchTab('register'); }); // ✕で入力フォームへ戻る
+    // 1枚目「写真を選ぶ」(v337〜): 撮る／写真から選ぶ／写真なしで記録／行きたい店に入れる
+    $('#reg-pick-cam').addEventListener('click', openCamera);
+    $('#reg-back').addEventListener('click', () => { if (resetFormConfirmed()) { resetForm(); } });
+    $('#reg-pick-lib').addEventListener('click', () => $('#photo-input').click());
+    $('#reg-pick-text').addEventListener('click', () => { forceStep2 = true; updateStep(); setTimeout(() => $('#f-shop-name').focus(), 250); });
+    $('#reg-pick-wish').addEventListener('click', () => Views.openWishAdd());
+    // 2枚目「記録」: ジャンルの札 → 選択肢の開閉。「ひとこと」「住所・最寄駅」の行 → 折りたたみの開閉
+    $('#genre-pill').addEventListener('click', () => $('#reg-genres').classList.toggle('hidden'));
+    document.querySelectorAll('#record-card [data-reg-open]').forEach(b => b.addEventListener('click', () => {
+      const box = $('#reg-' + b.dataset.regOpen) || $('#detail-fields');
+      box.classList.toggle('hidden');
+      b.classList.toggle('open', !box.classList.contains('hidden'));
+      if (!box.classList.contains('hidden')) { const f = box.querySelector('textarea, input'); if (f) f.focus(); }
+    }));
+    $('#f-station').addEventListener('input', syncMeta);
+    setInterval(() => { if ($('#view-register').classList.contains('active')) syncMeta(); }, 500); // 自動入力の最寄駅を札に反映
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
@@ -83,6 +120,7 @@ const Register = (() => {
     // 料理ジャンル: カテゴリ→ジャンルの2段階選択
     dishPicker = Api.buildGenrePicker($('#f-dish-genres'), selectedDishGenres);
     // 手動操作を検知（capture指定でピッカー本体の処理より先に実行される）
+    $('#f-dish-genres').addEventListener('click', () => setTimeout(updateGenrePill, 0)); // 選んだジャンルを札に反映（v337〜）
     $('#f-dish-genres').addEventListener('click', (e) => {
       if (e.target.closest('.chip[data-g]')) {
         userTouchedGenres = true;
@@ -96,20 +134,11 @@ const Register = (() => {
       }
     }, true);
 
-    // 詳細欄（コメント・住所など）の開閉
-    $('#detail-toggle').addEventListener('click', () => {
-      const fields = $('#detail-fields');
-      const open = fields.classList.toggle('hidden'); // true = 閉じた
-      $('#detail-toggle').textContent = open
-        ? '▸ 詳細'
-        : '▾ 詳細';
-    });
-
     // 評価スター（味）＋ 店の評価3軸
     mountTasteStars();
     mountAxisStars();
     // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
-    $('#f-shop-name').addEventListener('input', updateSaveState);
+    $('#f-shop-name').addEventListener('input', () => { updateSaveState(); updateStep(); });
     updateSaveState();
 
     // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
@@ -241,7 +270,7 @@ const Register = (() => {
     if (d.lat != null && d.lon != null) lastGps = { lat: d.lat, lon: d.lon };
     if (d.address) $('#f-address').value = d.address;
     if (d.station) $('#f-station').value = d.station;
-    renderPreviews();
+    renderPreviews(); syncMeta();
     App.switchTab('register');
     window.scrollTo({ top: 0 });
     // 位置情報があれば周辺の店舗候補を出す（入力の手間を減らす）
@@ -387,9 +416,21 @@ const Register = (() => {
   }
 
   function renderPreviews() {
+    // 1枚目: 全幅の写真（右下に「写真を変更」、右上に✕）。2枚目以降: 下の帯に小さく。帯の最後は「＋」
+    const hero = $('#reg-photo');
+    hero.innerHTML = '';
+    if (pendingPhotos.length) {
+      const p = pendingPhotos[0];
+      hero.innerHTML = `<img src="${p.url}" alt="">
+        <button type="button" class="reg-photo-x remove" aria-label="この写真を外す">${Views.icons.x}</button>
+        <button type="button" class="reg-photo-chg">${Views.icons.camera} 写真を追加</button>`;
+      hero.querySelector('.remove').addEventListener('click', () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(0, 1); renderPreviews(); updateStep(); });
+      hero.querySelector('.reg-photo-chg').addEventListener('click', openCamera);
+    }
     const box = $('#photo-previews');
     box.innerHTML = '';
-    pendingPhotos.forEach((p, i) => {
+    pendingPhotos.slice(1).forEach((p, j) => {
+      const i = j + 1;
       const div = document.createElement('div');
       div.className = 'photo-preview';
       div.innerHTML = `
@@ -402,16 +443,18 @@ const Register = (() => {
       });
       box.appendChild(div);
     });
-    // 写真を追加するタイル（常に表示）: タップでカメラ／写真から選択を開く
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'photo-add';
-    add.title = '写真を追加';
-    add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>写真</span>';
-    add.addEventListener('click', openCamera);
-    box.appendChild(add);
+    if (pendingPhotos.length > 1) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'photo-add';
+      add.title = '写真を追加';
+      add.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+      add.addEventListener('click', openCamera);
+      box.appendChild(add);
+    }
     // 写真があるときだけ「あとで記録」を表示
     $('#save-later-btn').classList.toggle('hidden', !pendingPhotos.length);
+    updateStep();
   }
 
   async function analyzeExif() {
@@ -447,53 +490,43 @@ const Register = (() => {
   // AIによる料理ジャンル判定（仕様書v2 §5）。判定結果はすべて修正可能。
   async function classifyPhotos() {
     const ai = $('#ai-status');
+    ai.classList.add('hidden');
     const dishPhoto = pendingPhotos.find(p => p.type === 'dish') || pendingPhotos[0];
-    if (!dishPhoto) { ai.classList.add('hidden'); return; }
-
-    if (!Api.canClassify()) { ai.classList.add('hidden'); return; } // 自分のキーも開発者提供も無いときは案内を出さない
-
-    ai.classList.remove('hidden', 'warn');
-    ai.textContent = 'AIが料理ジャンルを判定しています…';
+    if (!dishPhoto) return;
+    if (!Api.canClassify()) return; // 自分のキーも開発者提供も無いときは何もしない
+    if (!userTouchedGenres) updateGenrePill('判定中…');
     try {
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (result && (result.dishGenres.length || result.shopGenre)) {
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         if (userTouchedGenres) {
-          // 手動選択を優先: AIの結果では上書きしない（参考として表示のみ）
-          ai.innerHTML = `AIの判定は <b>${result.dishGenres.map(esc).join('・') || '－'}</b> でした（手動で選択中のためそのままにしています）。`;
+          // 手動選択を優先: AIの結果では上書きしない
+          updateGenrePill();
         } else if (result.confident === false && result.dishGenres.length) {
-          // 自信なし: 勝手に入れず「参考」として出し、ボタンで入れられるようにする（v329〜）
-          ai.innerHTML = `AIの判定（自信なし）: <b>${result.dishGenres.map(esc).join('・')}</b>
-            <button type="button" class="btn small ai-apply">この内容にする</button>`;
-          ai.querySelector('.ai-apply').addEventListener('click', () => {
-            aiClassified = true; autoFilledGenres = true;
-            selectedDishGenres.clear();
-            result.dishGenres.forEach(g => selectedDishGenres.add(g));
-            dishPicker.reset();
-            ai.innerHTML = `AI判定: <b>${result.dishGenres.map(esc).join('・')}</b> — 違っていたら下のフォームで修正できます。`;
-          });
+          // 自信なし: 勝手に入れず、札に「？」付きで候補を見せて選択肢を開く（v337〜）
+          updateGenrePill(`${result.dishGenres[0]}？`);
+          $('#reg-genres').classList.remove('hidden');
         } else {
           aiClassified = true;
           autoFilledGenres = true;
           selectedDishGenres.clear();
           result.dishGenres.forEach(g => selectedDishGenres.add(g));
           dishPicker.reset();
-          ai.innerHTML = `AI判定: <b>${result.dishGenres.map(esc).join('・') || '－'}</b>`
-            + ' — 違っていたら下のフォームで修正できます。';
+          updateGenrePill();
         }
       } else {
-        ai.classList.add('warn');
-        ai.textContent = 'AIはこの写真からジャンルを特定できませんでした。下のフォームから選択してください。';
+        // 判定できず: 札は「ジャンルを選ぶ」のまま、選択肢を開いておく
+        updateGenrePill();
+        $('#reg-genres').classList.remove('hidden');
       }
     } catch (e) {
       console.error('AI classification failed:', e);
-      ai.classList.add('warn');
+      updateGenrePill();
       const relayMsg = /中継サーバー HTTP \d+ — (.+)$/.exec(e && e.message || ''); // Worker 経由の説明（上限など）
-      const msg = relayMsg ? relayMsg[1]
-        : (e && e.status === 401) ? 'APIキーが無効です。設定（右上のメニュー）から確認してください。'
-        : (e && e.status === 429) ? 'レート制限中です。しばらく待ってから再度お試しください。'
-        : '通信エラーのため判定できませんでした。';
-      ai.textContent = 'AI判定に失敗: ' + msg;
+      if (relayMsg || (e && e.status === 401)) { // 上限やキーの問題だけは1行で知らせる
+        ai.classList.remove('hidden'); ai.classList.add('warn');
+        ai.textContent = relayMsg ? relayMsg[1] : 'APIキーが無効です。設定から確認してください。';
+      }
     }
   }
 
@@ -732,6 +765,7 @@ const Register = (() => {
     mountAxisStars();
     $('#selected-shop-note').classList.add('hidden'); // 選択後は候補行が確認になるため案内は出さない（画面内に収める）
     updateSaveState(); // 店舗名がプログラムから入るためここでも更新
+    syncMeta(); updateStep();
     backfillMissing(shop);
   }
 
@@ -815,8 +849,10 @@ const Register = (() => {
         if (station && !selected.station) { stationInput.value = station; selected.station = station; }
       } finally {
         stationInput.placeholder = '自動入力されます';
+        syncMeta();
       }
     }
+    syncMeta(); updateStep();
   }
 
   // 店舗名・味の評価が埋まるまで保存ボタンを薄くする（案内文は出さない。v335〜。
@@ -955,18 +991,22 @@ const Register = (() => {
     derivedShopGenre = '';
     $('#f-fav').checked = false;
     updateFavStar();
-    // 詳細欄は閉じた状態に戻す
-    $('#detail-fields').classList.add('hidden');
-    $('#detail-toggle').textContent = '▸ 詳細';
+    // 折りたたみは閉じた状態に戻す
+    $('#detail-fields').classList.add('hidden'); $('#reg-comment').classList.add('hidden'); $('#reg-genres').classList.add('hidden');
+    document.querySelectorAll('#record-card [data-reg-open]').forEach(b => b.classList.remove('open'));
+    forceStep2 = false;
     visitDate = toLocalInput(new Date());
     selectedDishGenres.clear();
     userTouchedGenres = false;
     autoFilledGenres = false;
     dishPicker.reset();
+    updateGenrePill();
     mountTasteStars();
     shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
     mountAxisStars();
     updateSaveState();
+    syncMeta();
+    updateStep();
   }
 
   // 入力途中か（写真・店名・評価のどれかがある）
@@ -993,7 +1033,7 @@ const Register = (() => {
     if (m) { chooseExisting(m); return; } // すでに登録済みの店なら訪問の追加になる
     selected = { name: w.name, lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null };
     $('#f-shop-name').value = w.name || '';
-    note('行きたい店から入力しました。味の評価をつけて保存してください。');
+    forceStep2 = true; updateStep();
     backfillMissing(selected); // 最寄駅・住所を自動補完
   }
 
