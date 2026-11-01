@@ -422,14 +422,14 @@ const Views = (() => {
   }
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
   // 一致率と一緒に共通店舗数と信頼度を出す（v323〜）: 「82%」だけでは根拠が分からないため
-  //   共通5件未満 … 「共通2店・データ不足」（%は出さない） ／ 5〜19件 … 「一致 82%・共通7店」を薄く（参考）
+  //   共通5件未満 … 「共通2店」（%は出さない。v335〜「データ不足」の文字はやめた） ／ 5〜19件 … 「一致 82%・共通7店」を薄く（参考）
   //   20件以上   … 「一致 82%・共通24店」を通常表示
   function tasteBadge(username, small) {
     const m = tasteMatch(username);
     if (!m.common) return '';
     const sm = small ? ' small' : '';
     if (m.rate == null || m.conf === 'low') {
-      return `<span class="tm-badge low${sm}" title="共通して評価した店が5件未満のため、一致率はまだ出せません">共通${m.common}店・データ不足</span>`;
+      return `<span class="tm-badge low${sm}" title="共通して評価した店が5件未満のため、一致率はまだ出せません">共通${m.common}店</span>`;
     }
     const tip = m.conf === 'mid' ? `共通して評価した店が${m.common}件。20件以上で十分なデータになります` : `共通して評価した店が${m.common}件`;
     return `<span class="tm-badge${sm}${m.conf === 'mid' ? ' dim' : ''}" title="${tip}">味覚一致 ${m.rate}%<span class="tm-n">・共通${m.common}店${m.conf === 'mid' ? '・参考' : ''}</span></span>`;
@@ -438,17 +438,16 @@ const Views = (() => {
   function ratePairHtml(pair, opt) {
     const o = opt || {};
     if (!pair.raters) return '';
-    // 信頼度に応じて「あなた向け」の箱を変える（v323〜）: ok=数字 / ref=数字＋「参考」 / none=「データ不足」
-    const youBox = pair.conf === 'none'
-      ? `<div class="rp-box rp-you rp-none"><span class="rp-label">あなた向け評価</span>
-        <span class="rp-val rp-nd">データ不足</span><span class="rp-n">味覚の近い人の評価がまだありません</span></div>`
-      : `<div class="rp-box rp-you${pair.conf === 'ref' ? ' rp-ref' : ''}"><span class="rp-label">あなた向け評価${pair.conf === 'ref' ? '<em>参考</em>' : ''}</span>
+    // 信頼度に応じて「あなた向け」の箱を変える: ok=数字 / ref=数字＋「参考」 / none=箱を出さない
+    // （v335〜。「データ不足」の箱と説明文は廃止。一画面の情報は少ないほどよい）
+    const youBox = pair.conf === 'none' ? ''
+      : `<div class="rp-box rp-you${pair.conf === 'ref' ? ' rp-ref' : ''}"><span class="rp-label">あなた向け${pair.conf === 'ref' ? '<em>参考</em>' : ''}</span>
         <span class="rp-val">${starIc('full', o.compact ? 14 : 18)}${fmtR(pair.personal)}</span></div>`;
     return `<div class="rp-wrap${o.compact ? ' compact' : ''}">
       ${youBox}
-      <div class="rp-box"><span class="rp-label">全体評価</span>
+      <div class="rp-box"><span class="rp-label">みんな</span>
         <span class="rp-val muted">${starIc('full', o.compact ? 12 : 14)}${fmtR(pair.overall)}</span>
-        ${o.count ? `<span class="rp-n">（${pair.raters}人の評価）</span>` : ''}</div>
+        ${o.count ? `<span class="rp-n">${pair.raters}人</span>` : ''}</div>
     </div>`;
   }
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
@@ -5008,8 +5007,8 @@ const Views = (() => {
 
   function paintFeed(rawPosts) {
     const posts = orderFeed(rawPosts);
-    const note = $('#feed-note');
-    if (note) note.classList.toggle('hidden', feedSeg !== 'reco' || !posts.length);
+    const note = $('#feed-note'); // v335 で廃止（残っていれば隠す）
+    if (note) note.classList.add('hidden');
     const box = $('#feed-list');
     if (!posts.length) {
       box.className = 'feed-list';

@@ -20,9 +20,9 @@
 <link rel="preconnect" href="https://firebasestorage.googleapis.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Shippori+Mincho:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=334">
+<link rel="stylesheet" href="css/style.css?v=335">
 </head>
 <body>
 
@@ -58,7 +58,7 @@
         <div class="reg-top">
           <div id="photo-previews" class="photo-previews"></div>
           <div class="reg-top-main">
-            <div class="flabel-head">店舗名 <span class="req">必須</span></div>
+            <div class="flabel-head">店舗名</div>
             <div class="search-row">
               <input type="text" id="f-shop-name" placeholder="店舗名を入力して検索">
               <button type="button" id="shop-search-btn" class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg> 検索</button>
@@ -74,9 +74,8 @@
       <div class="full flabel">料理ジャンル（複数選択可）
         <div id="f-dish-genres" class="chips"></div>
       </div>
-      <div class="full flabel"><span class="flabel-head">味の評価 <span class="req">必須</span></span>
+      <div class="full flabel"><span class="flabel-head">味の評価</span>
         <div class="rating-row"><div id="f-rating" class="stars taste"></div><span id="f-rating-val" class="rating-val"></span></div>
-        <div class="rating-hint">星をなぞる／もう一度タップで 0.5 刻み</div>
       </div>
       <!-- 仕様書5: 評価の3軸は「最初は不要」のため入力欄を隠す（過去データの表示は維持） -->
       <div class="full axis-box hidden">
@@ -112,7 +111,7 @@
     <button type="button" id="save-wish-btn" class="btn full save-wish"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> 行きたい店として保存（店舗名だけでOK）</button>
   </div>
   <!-- 過去の写真のまとめて取り込み（v326〜。js/import.js） -->
-  <button type="button" class="import-entry" data-import-open><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/></svg> 過去の写真をまとめて取り込む <span>撮った日と場所ごとに訪問にまとめ、店名と★を付けるだけ</span></button>
+  <button type="button" class="import-entry" data-import-open><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M3 17l4-4 3 3 3-3 4 4"/></svg> 過去の写真をまとめて取り込む</button>
 </section>
 
 <!-- ========== ホーム／フィード（フォロー中の投稿） ========== -->
@@ -124,7 +123,6 @@
     <button type="button" class="feed-seg" data-seg="new">最新</button>
     <button type="button" class="feed-seg" data-seg="follow">フォロー中</button>
   </div>
-  <div id="feed-note" class="feed-note">味覚が近い人の投稿を優先的に表示しています</div>
   <div id="feed-list" class="feed-list"></div>
 </section>
 
@@ -375,7 +373,6 @@
     <div id="taste-traits" class="card hidden"></div>
     <div class="card"><h2>月別訪問件数</h2>
       <div class="chart-scroll"><div class="chart-wide"><canvas id="chart-monthly"></canvas></div></div>
-      <div class="chart-hint">← 横にスクロールすると過去の月も見られます</div>
     </div>
     <div class="card"><h2>味の評価の割合</h2><canvas id="chart-rating"></canvas></div>
     <div class="card"><h2>料理ジャンル別割合</h2><canvas id="chart-dish-genre"></canvas></div>
@@ -608,12 +605,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=334"></script>
-<script src="js/api.js?v=334"></script>
-<script src="js/cloud.js?v=334"></script>
-<script src="js/register.js?v=334"></script>
-<script src="js/import.js?v=334"></script>
-<script src="js/views.js?v=334"></script>
-<script src="js/app.js?v=334"></script>
+<script src="js/store.js?v=335"></script>
+<script src="js/api.js?v=335"></script>
+<script src="js/cloud.js?v=335"></script>
+<script src="js/register.js?v=335"></script>
+<script src="js/import.js?v=335"></script>
+<script src="js/views.js?v=335"></script>
+<script src="js/app.js?v=335"></script>
 </body>
 </html>

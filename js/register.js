@@ -819,18 +819,15 @@ const Register = (() => {
     }
   }
 
-  // 必須（店舗名・味の評価）が埋まるまで保存ボタンを薄くし、足りないものを下に案内する。
-  // ボタン自体は押せるままにして、押されたら save() のトーストで理由を伝える
+  // 店舗名・味の評価が埋まるまで保存ボタンを薄くする（案内文は出さない。v335〜。
+  // ボタン自体は押せるままにして、押されたら save() のトーストで理由を伝える）
   function updateSaveState() {
     const btn = $('#save-btn');
+    if (!btn) return;
+    const ok = !!$('#f-shop-name').value.trim() && !!currentRating;
+    btn.classList.toggle('is-disabled', !ok);
     const hint = $('#save-hint');
-    if (!btn || !hint) return;
-    const need = [];
-    if (!$('#f-shop-name').value.trim()) need.push('店舗名');
-    if (!currentRating) need.push('味の評価（★）');
-    btn.classList.toggle('is-disabled', !!need.length);
-    hint.classList.toggle('hidden', !need.length);
-    if (need.length) hint.textContent = `${need.join(' と ')}を入れると保存できます`;
+    if (hint) hint.classList.add('hidden');
   }
 
   function note(msg) {
