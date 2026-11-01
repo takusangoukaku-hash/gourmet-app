@@ -317,6 +317,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   height: calc(100dvh - 112px - env(safe-area-inset-bottom));
   min-height: 300px; border-radius: 0; overflow: hidden;
 }
+/* 地図タブではアプリの見出しを隠すぶん（52px）地図を伸ばす（v339〜） */
+body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-inset-bottom)); }
 /* 地図の上に重ねる検索バー＋絞り込みパネル */
 .map-overlay { position: absolute; top: 10px; left: 12px; right: 12px; z-index: 1050; }
 #map-search {
@@ -1833,7 +1835,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ---------- 地図: 検索バー横のしおり（行きたい店だけ表示） ---------- */
 .map-search-row { display: flex; gap: 8px; align-items: center; }
-.map-search-row .search-field { flex: 1; }
+.map-search-row .search-field { flex: 1; position: relative; min-height: 42px; }
 .map-wish-btn {
   flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
   background: #fff; border: 1px solid var(--border-lite);
@@ -2311,3 +2313,20 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 
 /* 登録ではジャンルの選択肢の「選択中: …」は札と重複するので出さない（v337〜） */
 .reg-genres .sel-genres { display: none; }
+
+/* ---------- v339: 写真カードの情報を減らす ---------- */
+.fpin-meta { padding-top: 6px; }
+/* ---------- v340: 地図の検索は丸いボタン、凡例は2回目から「?」だけ ---------- */
+.map-search-row { justify-content: flex-end; pointer-events: none; }
+.map-search-row > * { pointer-events: auto; }
+.map-search-field { flex: 1; transition: flex .15s; }
+.map-search-field.collapsed { flex: 0 0 42px; width: 42px; }
+.map-search-field.collapsed input { display: none; }
+.map-search-open { position: absolute; left: 0; top: 0; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border-lite); background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.14); cursor: pointer; display: none; align-items: center; justify-content: center; padding: 0; }
+.map-search-field.collapsed .map-search-open { display: flex; }
+.map-search-open .search-ico { position: static; transform: none; width: 20px; height: 20px; stroke: var(--text); }
+.map-search-field:not(.collapsed) .map-search-open { display: none; }
+@media (prefers-color-scheme: dark) { .map-search-open { background: var(--card); } }
+.map-legend-float.mini { padding: 0; border: none; background: none; box-shadow: none; font-size: 0; }
+.map-legend-float.mini .dot, .map-legend-float.mini i { display: none; }
+.map-legend-float.mini .legend-help { margin: 0; width: 34px; height: 34px; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.14); border-color: var(--border-lite); }

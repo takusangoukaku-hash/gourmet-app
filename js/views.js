@@ -899,6 +899,8 @@ const Views = (() => {
         if (!localStorage.getItem('gourmet.mapLegendSeen') && Store.shops().length) {
           localStorage.setItem('gourmet.mapLegendSeen', '1');
           setTimeout(showMapLegendHelp, 600);
+        } else {
+          $('.map-legend-float').classList.add('mini'); // 2回目からは色の凡例を畳み「?」だけ（v340〜）
         }
       } catch { /* noop */ }
       ensureNetworkLoaded(); // 初回の地図読み込み後にもフォロー中の記録を重ねる
@@ -944,6 +946,10 @@ const Views = (() => {
     });
 
     // 検索バー: タップで絞り込みパネルを開き、入力でピンをキーワード絞り込み
+    // 地図の検索欄は普段は丸いボタンだけ。タップで開き、空のまま離れたら閉じる（v340〜）
+    const msf = $('.map-search-field');
+    $('#map-search-open').addEventListener('click', () => { msf.classList.remove('collapsed'); setTimeout(() => $('#map-search').focus(), 50); });
+    $('#map-search').addEventListener('blur', () => { setTimeout(() => { if (!$('#map-search').value.trim()) msf.classList.add('collapsed'); }, 200); });
     $('#map-search').addEventListener('focus', () => {
       $('#map-filter-panel').classList.remove('hidden');
       $('.map-scope').classList.add('hidden'); // 詳細検索と重なるため、パネル表示中は隠す
@@ -2814,21 +2820,11 @@ const Views = (() => {
       <div class="ps-thumb" data-thumb="${s.id}">${IC_DISH}</div>
       <div class="ps-main">
         <div class="ps-name">${esc(s.name)}</div>
-        ${genre ? `<div class="ps-row">${IC_FORK} ${esc(genre)}</div>` : ''}
-        ${(s.station || s.city) ? `<div class="ps-row">${s.station ? IC_STATION + ' ' + esc(s.station) : ''}${s.city ? (s.station ? '　' : '') + IC_PIN + ' ' + esc(s.city) : ''}</div>` : ''}
+        ${(genre || s.station) ? `<div class="ps-row">${[genre, s.station].filter(Boolean).map(esc).join(' ・ ')}</div>` : ''}
         <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span>${(() => {
           // フォロワーの評価があるお店は「あなた向け評価」を並べて出す（一致率で重み付け）
           const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
           return pair.conf !== 'none' ? `<span class="ps-you${pair.conf === 'ref' ? ' ref' : ''}" title="${pair.conf === 'ref' ? '参考: 評価した人がまだ少なめです' : 'あなたと味覚が近い人の評価ほど重く数えた★'}">あなた向け <b>${fmtR(pair.personal)}</b>${pair.conf === 'ref' ? '<i>参考</i>' : ''}</span>` : '';
-        })()}</div>
-        <div class="ps-meta"><span class="ps-chip">平均評価</span><span>${Store.visitCount(s.id)}回訪問</span>${fiveChipHtml(fiveStarFans(s))}${(() => {
-          // 星絞り込み中: 平均で超えている店は金色、1回の記録だけで超えている店は白抜きのバッジで区別
-          const minR = +($('#flt-rating').value || 0);
-          if (!minR) return '';
-          const lbl = minR === 5 ? '★5' : `★${minR}以上`;
-          if (avg >= minR) return `<span class="ps-hit ps-hit-avg">平均で${lbl}</span>`;
-          const best = Math.max(0, ...Store.visitsOf(s.id).map(v => v.rating || 0));
-          return best >= minR ? `<span class="ps-hit ps-hit-once">${lbl}の記録あり</span>` : '';
         })()}</div>
       </div>`;
     // 写真タップはホームの投稿と同じ表示（上下スクロールで検索結果の前後の店の投稿へ）。
@@ -3146,7 +3142,6 @@ const Views = (() => {
       const card = mzItem({
         name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
         badge: avg ? '★' + fmtR(avg) : '',
-        meta: `${visits}回訪問${last ? '・前回 ' + relTime(last) : ''}`,
         onClick: () => showShopFeed(shown, idx), // 絞り込み中は、絞り込んだ店の中で前後へ送る
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
@@ -3546,10 +3541,8 @@ const Views = (() => {
       [fiveShops, '★5をつけた店'],
       [pg.total ? `${pg.done}<small>/${pg.total}</small>` : '－', '行きたい店の達成'],
     ].map(tile).join('');
+    // v340〜 上の4タイルと重なるもの（総訪問回数・今月の訪問・保存写真枚数）は出さない
     $('#stat-cards-more').innerHTML = [
-      [visits.length, '総訪問回数'],
-      [monthVisits, '今月の訪問'],
-      [photos.length, '保存写真枚数'],
       [allAvg || '－', '味の平均'],
       [`<span id="stat-pref-n">${prefCount}</span><small>/47</small>`, '訪れた都道府県'],
     ].map(tile).join('');
@@ -5018,7 +5011,6 @@ const Views = (() => {
           <img class="fcard-img" alt="" loading="lazy" decoding="async">
           <span class="fpin-ph" aria-hidden="true">${IC_DISH}</span>
           ${rating ? `<span class="mz-badge">★${fmtR(rating)}</span>` : ''}
-          <button type="button" class="fpin-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
           <span class="mz-cap">
             <span class="mz-name">${esc(p.shopName || '')}</span>
           </span>
@@ -5028,8 +5020,6 @@ const Views = (() => {
             <span class="fc-avatar">${av}</span>
             <span class="fpin-uname">${esc(p.displayName || (p.username ? '@' + p.username : 'BITEMAP'))}</span>
           </button>
-          ${isMine && p.datetime ? `<span class="fpin-time">${relTime(p.datetime)}</span>` : ''}
-          <button type="button" class="fa-like pd-like fpin-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
         </div>
         ${pair.conf === 'ok' ? `<div class="fpin-you">
           <span class="fy-l" title="あなたと味覚が近い人の評価ほど重く数えた★（${pair.raters}人の評価）">あなた向け</span>${starIc('full', 13)}<b class="fy-v">${fmtR(pair.personal)}</b>
@@ -5071,6 +5061,7 @@ const Views = (() => {
     // いいね数・行きたい保存（取得結果は feedStats に控え、描き直しでは再取得しない）
     const applyStats = (st) => {
       const lb = card.querySelector('.pd-like');
+      if (!lb) return; // v339〜 カードにいいねは無い（投稿詳細で見る）
       lb.querySelector('.fa-like-n').textContent = st.likes || '';
       lb.classList.toggle('liked', st.liked);
     };
@@ -5081,8 +5072,9 @@ const Views = (() => {
         .then(([info, n]) => { const st = { likes: info.count, liked: info.liked, comments: n || 0 }; feedStats.set(p.id, st); applyStats(st); })
         .catch(() => {});
     }
-    card.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(card.querySelector('.pd-like')));
-    card.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, card.querySelector('.pd-save')));
+    // v339〜 カードにいいね・しおりは無い（投稿詳細で操作）。残っていれば配線する
+    const likeBtn = card.querySelector('.pd-like'); if (likeBtn) likeBtn.addEventListener('click', () => toggleLikeUI(likeBtn));
+    const saveBtn = card.querySelector('.pd-save'); if (saveBtn) saveBtn.addEventListener('click', () => toggleWishForPost(p, saveBtn));
     return card;
   }
 
