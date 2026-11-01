@@ -661,19 +661,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .d-swipehint { text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0 8px; }
 
 /* ---------- プロフィールの店舗フィード（ページ内の連続スクロール・デザイン案準拠） ---------- */
-.pf-shopfeed { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
-.sfs { background: var(--card); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 6px rgba(0, 0, 0, .07); }
-.sfs-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 10px; }
-.sfs-titles { min-width: 0; flex: 1; }
-.sfs-name { font-weight: 700; font-size: 18px; line-height: 1.3; }
-.sfs-sub { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; margin-top: 4px; }
-.sfs-sub .ic { width: 14px; height: 14px; }
-.sfs-fav { border: none; background: none; padding: 2px; cursor: pointer; color: var(--muted); line-height: 0; flex-shrink: 0; }
-.sfs-fav .heart-ic { width: 22px; height: 22px; fill: none; }
-.sfs-fav.on { color: var(--accent); }
-.sfs-fav.on .heart-ic { fill: currentColor; }
-/* 大きな写真: 全写真を左右スワイプで見られるカルーセル（1枚ずつスナップ） */
+.pf-shopfeed { display: flex; flex-direction: column; gap: 0; padding: 0 0 24px; }
+/* v338〜 枠と影の無い縦の並び。店ごとに細い線で区切る */
+.sfs { background: var(--card); padding-bottom: 16px; }
+.sfs + .sfs { border-top: 1px solid var(--border-lite); padding-top: 4px; }
+.sfs-acts { display: flex; align-items: center; gap: 4px; padding: 6px 10px 0; }
+.sfs-act { width: 40px; height: 40px; border: none; background: none; cursor: pointer; color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; }
+.sfs-act .ic { width: 24px; height: 24px; }
+.sfs-sp { flex: 1; }
+.sfs-name { display: block; width: 100%; border: none; background: none; padding: 4px 16px 0; margin: 0; text-align: left; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.3; color: var(--text); }
+.sfs-meta { padding: 2px 16px 0; color: var(--muted); font-size: 12px; }
 .sfs-photos { position: relative; }
+.sfs-dots { position: absolute; left: 0; right: 0; bottom: 8px; padding: 0; }
+.sfs-dots .pd-dot { background: rgba(255,255,255,.55); }
+.sfs-dots .pd-dot.on { background: #fff; }
 .sfs-carousel {
   display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
@@ -687,62 +688,35 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 縦長写真でも枠が伸びないように（上の .ppc-ph と同じ理由） */
 .sfs-slide, .msh-fph, .msh-mycard, .dvt-ph, .explore-cell, .photo-cell img { min-width: 0; min-height: 0; }
 /* 縦向き写真(.portrait は views.js が読み込み時に付与): 横長・正方形の枠で
+   （お店の記録の大きな写真・訪問の写真・店シートの写真は v338〜 切り抜く＝額縁にしない）
    切り抜かず、横は短くなってよいので全体が入るように収める（余白は淡色で埋める）。
    ホーム・地図・プロフィール・店舗詳細・検索など写真の表示枠すべてが対象。
    アバターやアイコンは対象にしない */
-.sfs-slide img.portrait, .msh-mycard img.portrait, .msh-thumb img.portrait,
+.msh-thumb img.portrait,
 .msh-fph img.portrait, .fcard-img.portrait, .ppc-ph img.portrait,
-.dvt-ph img.portrait, .explore-cell img.portrait, .photo-cell img.portrait,
+.explore-cell img.portrait, .photo-cell img.portrait,
 .pp-wrap img.portrait, .ps-thumb img.portrait, .visit-block .v-cover img.portrait,
 .pd-photo.portrait {
   object-fit: contain; background: var(--field);
 }
-.sfs-count {
-  position: absolute; right: 10px; bottom: 10px;
-  background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 700;
-  padding: 4px 10px; border-radius: 999px;
-}
 /* 写真の左下: どの訪問の何枚目か（例: 2026/7/3の訪問・2/3枚） */
-.sfs-visitlabel {
-  position: absolute; left: 10px; bottom: 10px; pointer-events: none;
-  background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; font-weight: 600;
-  padding: 4px 8px; border-radius: 999px; max-width: 60%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 /* ドットの訪問ごとの区切り（隙間） */
 .pd-gap { width: 8px; flex-shrink: 0; }
-.sfs-starrow { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; }
-.sfs-avg { color: var(--accent); font-size: 22px; font-weight: 800; line-height: 1; }
-.sfs-last { margin-left: auto; color: var(--muted); font-size: 12px; }
-.sfs-visits { display: flex; gap: 10px; overflow-x: auto; padding: 12px 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sfs-visits { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .sfs-visits::-webkit-scrollbar { display: none; }
-.dvt-all {
-  flex: 0 0 92px; border: none; cursor: pointer; font-family: inherit;
-  background: var(--field); border-radius: 14px; color: var(--muted);
-  font-size: 12px; font-weight: 600; line-height: 1.6;
-}
-.sfs-actions { display: flex; align-items: center; gap: 8px; padding: 0 14px 14px; }
-.sfs-actions .sfs-map, .sfs-actions .sfs-nav {
   flex: 1; padding: 12px 8px; border-radius: 14px; font-size: 14px;
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
 }
-.sfs-actions .sfs-menu { flex-shrink: 0; }
 
 /* ---------- 店舗詳細の訪問履歴（訪問ごとのサムネイル・横スクロール） ---------- */
 .d-vh { padding: 4px 16px 14px; }
 .d-vh-title { font-weight: 700; font-size: 16px; margin: 10px 0 8px; }
 .d-visit-thumbs { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .d-visit-thumbs::-webkit-scrollbar { display: none; }
-.dvt {
-  flex: 0 0 118px; border: none; padding: 0 0 8px; cursor: pointer; font-family: inherit;
-  background: var(--card); border-radius: 14px; overflow: hidden;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, .07); text-align: center;
-}
-.dvt-ph { position: relative; display: block; aspect-ratio: 1; background: var(--field); }
+.dvt { flex: 0 0 72px; width: 72px; border: none; background: none; padding: 0; cursor: pointer; }
+.dvt-ph { position: relative; display: block; aspect-ratio: 1; background: var(--field); border-radius: 10px; overflow: hidden; }
 .dvt-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .dvt .pd-photo-star { top: 6px; right: 6px; height: auto; padding: 1px 8px; font-size: 11px; }
-.dvt-date { display: block; font-size: 11px; font-weight: 600; color: var(--text); margin-top: 6px; }
-.dvt-stars { display: block; margin-top: 2px; line-height: 1; }
 
 /* 下部バーの「地図で見る」（ここへ行くの隣・白いピル） */
 .d-mainrow .d-map-btn {
@@ -1044,8 +1018,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
    この画面の方を一段下(z-index)にして「フィード → 店舗詳細」の順に重なるようにする */
 .modal.shopfeed-modal { z-index: 1990; background: var(--bg); }
 .modal.shopfeed-modal .modal-box { background: var(--bg); }
-.shopfeed-modal .vl-body { padding: 0 12px; }
-.shopfeed-modal .pf-shopfeed { padding: 12px 0 28px; }
+.shopfeed-modal .vl-body { padding: 0; }
+.shopfeed-modal .pf-shopfeed { padding: 0 0 28px; }
 
 /* 地図で自分の店をタップしたときの店舗シート（デザイン案準拠）。
    上部は透過で後ろの地図（ピン）が見えたまま、下からシートが上がる。

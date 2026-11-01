@@ -152,6 +152,8 @@ const Views = (() => {
   const IC_CAR = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l1.6-4.2A2 2 0 0 1 7.5 6.5h9A2 2 0 0 1 18.4 7.8L20 12"/><rect x="3" y="12" width="18" height="5" rx="1.6"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>';
   const IC_TRAIN = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 11h12"/><circle cx="9" cy="13.5" r="0.6"/><circle cx="15" cy="13.5" r="0.6"/><path d="M9 20l1.5-3"/><path d="M15 20l-1.5-3"/></svg>';
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
+  // 「11月1日」（今年以外は「2025年11月1日」）。一覧の日付用（v338〜）
+  function fmtDateJa(iso) { const d = new Date(iso); if (isNaN(d)) return ''; const y = d.getFullYear() !== new Date().getFullYear() ? `${d.getFullYear()}年` : ''; return `${y}${d.getMonth() + 1}月${d.getDate()}日`; }
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
   // 評価の数値表示は全て小数第一位まで（3 → 3.0）。値なしは呼び出し側で分岐する
   const fmtR = (r) => (Math.round((+r || 0) * 10) / 10).toFixed(1);
@@ -3267,66 +3269,40 @@ const Views = (() => {
     if (above > 0) ioTop.observe(topSentinel);
   }
 
-  // 店舗セクション1つぶん（デザイン案準拠）:
-  //  店名・ジャンル・駅（右上に♥） / 大きな代表写真＋N回訪問 /
-  //  ★平均＋最終訪問日 / 訪問履歴サムネイル＋すべての訪問履歴 /
-  //  地図で見る・ここへ行く・⋯
+  // 店舗セクション1つぶん（v338〜。モック: 写真（★1つ）→ 操作行（また来た・経路・共有・…）→ 店名 → 駅 ・ 日付 → 訪問の写真）
+  // 枠や影は無し。「N回訪問」「最終訪問」「すべての訪問履歴」の文字と店ごとの大きなボタンは廃止
   function buildShopFeedSection(g) {
     const s = Store.getShop(g.shopId) || {};
-    const avg = Store.avgRating(g.shopId);
     const vs = Store.visitsOf(g.shopId);
-    const genre = shopLabelGenre(s) || '';
     const last = Store.lastVisitDate(g.shopId);
     const hasPos = s.lat != null && s.lon != null;
     const el = document.createElement('div');
     el.className = 'sfs';
     el.innerHTML = `
-      <div class="sfs-head">
-        <div class="sfs-titles">
-          <div class="sfs-name">${esc(s.name || '')}</div>
-          ${genre ? `<div class="sfs-sub">${IC_FORK} ${esc(genre)}</div>` : ''}
-          ${s.station ? `<div class="sfs-sub">${IC_PIN} ${esc(s.station)}</div>` : ''}
-        </div>
+      <div class="sfs-photos"><div class="sfs-carousel"></div></div>
+      <div class="sfs-acts">
+        <button type="button" class="sfs-act sfs-revisit" aria-label="また来た">${IC_PLUS}</button>
+        ${hasPos ? `<button type="button" class="sfs-act sfs-nav" aria-label="ここへ行く">${IC_NAV}</button>` : ''}
+        <button type="button" class="sfs-act sfs-share" aria-label="共有">${IC_SHARE_S}</button>
+        <span class="sfs-sp"></span>
+        <button type="button" class="sfs-act sfs-menu" aria-label="メニュー">${IC_MORE}</button>
       </div>
-      <div class="sfs-photos">
-        <div class="sfs-carousel"></div>
-        <span class="sfs-count">${vs.length}回訪問</span>
-      </div>
-      <div class="sfs-starrow">${starSvg(avg, 18)}<span class="sfs-avg">${avg ? fmtR(avg) : '－'}</span>
-        ${last ? `<span class="sfs-last">最終訪問: ${fmtDate(last)}</span>` : ''}</div>
-      <div class="sfs-visits"></div>
-      <div class="sfs-actions">
-        ${hasPos ? `
-        <button type="button" class="btn sfs-map"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
-        <button type="button" class="btn primary sfs-nav">${IC_NAV} ここへ行く</button>` : ''}
-        <button type="button" class="pd-menu-btn sfs-menu" title="メニュー" aria-label="メニュー">${IC_MORE}</button>
-      </div>`;
+      <button type="button" class="sfs-name">${esc(s.name || '')}</button>
+      <div class="sfs-meta">${[s.station, last ? fmtDateJa(last) : ''].filter(Boolean).map(esc).join(' ・ ')}</div>
+      <div class="sfs-visits"></div>`;
     // 大きな写真はその店の全写真を左右スワイプで見られるカルーセル（新しい順）。
     // 全幅表示なのでサムネではなくフル解像度で（サムネ→即差し替え）。ただし全枚数を
     // いきなりフルで読むと重いので、フル化は先頭と「スワイプで近づいた写真」だけ
     const vByIdSec = new Map(vs.map(v => [v.id, v]));
     const car = el.querySelector('.sfs-carousel');
-    // 同じ訪問の写真をまとめる（写真は訪問日順に並んでいるので同じ訪問は連続する）。
-    // 各写真に「7/3の訪問・2/3枚」のラベルを重ね、1回の訪問に複数枚あることを分かるようにする
-    const byVisit = new Map();
-    g.photos.forEach(ph => {
-      const a = byVisit.get(ph.visitId) || [];
-      a.push(ph);
-      byVisit.set(ph.visitId, a);
-    });
     const slides = g.photos.map((ph, i) => {
       const vv = vByIdSec.get(ph.visitId) || {};
       const r = vv.rating || 0;
-      const grp = byVisit.get(ph.visitId) || [];
-      const k = grp.indexOf(ph) + 1;
-      const label = vv.datetime
-        ? `${fmtDate(vv.datetime)}の訪問${grp.length > 1 ? `・${k}/${grp.length}枚` : ''}`
-        : (grp.length > 1 ? `${k}/${grp.length}枚` : '');
       const slide = document.createElement('button');
       slide.type = 'button';
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
-      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}${label ? `<span class="sfs-visitlabel">${esc(label)}</span>` : ''}`;
+      slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
       if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
@@ -3334,25 +3310,17 @@ const Views = (() => {
       return slide;
     });
     const upgrade = (i) => {
-      const s = slides[i];
-      if (!s || s.dataset.full) return;
-      s.dataset.full = '1';
-      setFullPhoto(s.querySelector('img'), g.photos[i]);
+      const sl = slides[i];
+      if (!sl || sl.dataset.full) return;
+      sl.dataset.full = '1';
+      setFullPhoto(sl.querySelector('img'), g.photos[i]);
     };
     if (g.photos.length > 1) {
-      // 何枚目かを示すドット。訪問ごとに小さな隙間で区切り、
-      // 「どこからどこまでが同じ訪問か」を点の並びでも分かるようにする
+      // 何枚目かを示すドット（写真の上に重ねる）
       const dots = document.createElement('div');
-      dots.className = 'pd-dots';
-      let dotsHtml = '';
-      let lastVid = null;
-      g.photos.forEach((p2, i) => {
-        if (i && p2.visitId !== lastVid) dotsHtml += '<span class="pd-gap"></span>';
-        lastVid = p2.visitId;
-        dotsHtml += `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`;
-      });
-      dots.innerHTML = dotsHtml;
-      el.querySelector('.sfs-photos').after(dots);
+      dots.className = 'pd-dots sfs-dots';
+      dots.innerHTML = g.photos.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+      el.querySelector('.sfs-photos').appendChild(dots);
       const dotEls = [...dots.querySelectorAll('.pd-dot')];
       car.addEventListener('scroll', () => {
         const i = Math.round(car.scrollLeft / car.clientWidth);
@@ -3360,39 +3328,39 @@ const Views = (() => {
         upgrade(i); upgrade(i + 1);
       }, { passive: true });
     }
-    // 訪問履歴: 訪問ごとの代表写真（★バッジ＋日付）。最後に「すべての訪問履歴」
+    // 訪問の写真: 訪問が2回以上のときだけ、訪問ごとの代表写真を小さく並べる（タップで訪問の一覧）
     const row = el.querySelector('.sfs-visits');
-    const withPhoto = vs.map(v => ({ v, ph: g.photos.find(p => p.visitId === v.id) }))
-      .filter(x => x.ph).slice(0, 6);
-    withPhoto.forEach(({ v, ph }) => {
-      const t = document.createElement('button');
-      t.type = 'button';
-      t.className = 'dvt';
-      t.innerHTML = `
-        <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
-          ${v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : ''}</span>
-        <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
-        <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
-      setThumb(t.querySelector('img'), ph);
-      t.addEventListener('click', () => showVisitList(g.shopId));
-      row.appendChild(t);
-    });
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'dvt-all';
-    allBtn.innerHTML = 'すべての<br>訪問履歴 ›';
-    allBtn.addEventListener('click', () => showVisitList(g.shopId));
-    row.appendChild(allBtn);
+    const withPhoto = vs.map(x => ({ v: x, ph: g.photos.find(p => p.visitId === x.id) })).filter(x => x.ph).slice(0, 8);
+    if (vs.length >= 2 && withPhoto.length) {
+      withPhoto.forEach(({ ph }) => {
+        const t = document.createElement('button');
+        t.type = 'button';
+        t.className = 'dvt';
+        t.innerHTML = `<span class="dvt-ph"><img alt="" loading="lazy" decoding="async"></span>`;
+        setThumb(t.querySelector('img'), ph);
+        t.addEventListener('click', () => showVisitList(g.shopId));
+        row.appendChild(t);
+      });
+    } else {
+      row.remove();
+    }
     // 操作
-    const mapBtn = el.querySelector('.sfs-map');
-    if (mapBtn) mapBtn.addEventListener('click', () => focusMapAt(s.lat, s.lon));
+    el.querySelector('.sfs-name').addEventListener('click', () => showShop(g.shopId));
+    el.querySelector('.sfs-revisit').addEventListener('click', () => quickRevisit(g.shopId));
     const navBtn = el.querySelector('.sfs-nav');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
+    el.querySelector('.sfs-share').addEventListener('click', async () => {
+      const text = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
+      if (navigator.share) { navigator.share({ title: s.name || '', text }).catch(() => {}); return; }
+      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+    });
     el.querySelector('.sfs-menu').addEventListener('click', () => {
       const latest = vs[0];
       openActionSheet([
         { label: '店舗の詳細を見る', onClick: () => showShop(g.shopId) },
+        { label: '訪問の一覧', onClick: () => showVisitList(g.shopId) },
         ...(latest ? [{ label: '最新の記録を編集', onClick: () => showShop(g.shopId, false, latest.id) }] : []),
+        ...(hasPos ? [{ label: '地図で見る', onClick: () => focusMapAt(s.lat, s.lon) }] : []),
       ]);
     });
     return el;
