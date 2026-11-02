@@ -3272,6 +3272,13 @@ const Views = (() => {
   }
 
   // ---------- 投稿詳細とお店の記録で共通の部品（v343〜） ----------
+  // ＋（記録を追加）: 開いている画面を閉じ、その店を選んだ状態で登録画面へ（v346〜。写真なしの「また来た」ではない）
+  function openRegisterFor(shopId) {
+    document.querySelectorAll('.modal.shopfeed-modal, .modal.visitlist-modal, .modal.postdetail-modal, .modal.action-sheet').forEach(m => m.remove());
+    closeModal();
+    App.switchTab('register');
+    Register.preselectShop(shopId);
+  }
   // いいね・コメントはログインしたことのある端末だけ取りに行く（Firebase SDK を読み込ませないため）
   function socialReady() {
     if (typeof Cloud === 'undefined' || !Cloud.getLikeInfo) return false;
@@ -3361,7 +3368,7 @@ const Views = (() => {
     });
   }
 
-  // 店舗セクション1つぶん（v338〜。v343〜 投稿詳細と同じ並び: 写真（★1つ）→ 操作行（♥・コメント・経路・共有 … また来た・…）→ 店名 → 駅 ・ 県 市 → 日付 → 訪問の写真）
+  // 店舗セクション1つぶん（v338〜。v343〜 投稿詳細と同じ並び: 写真（★1つ）→ 操作行（♥・コメント・経路・共有 … 記録を追加・…）→ 店名 → 駅 ・ 県 市 → 日付 → 訪問の写真）
   // 枠や影は無し。「N回訪問」「最終訪問」「すべての訪問履歴」の文字と店ごとの大きなボタンは廃止。
   // いいね・コメントは最新の写真の訪問（＝公開投稿の id）に付く
   function buildShopFeedSection(g) {
@@ -3376,7 +3383,7 @@ const Views = (() => {
     el.innerHTML = `
       <div class="sfs-photos"><div class="sfs-carousel"></div></div>
       ${actRowHtml({ postId, hasPos, right: `
-        <button type="button" class="act-btn sfs-revisit" aria-label="また来た">${IC_PLUS}</button>
+        <button type="button" class="act-btn sfs-revisit" aria-label="記録を追加">${IC_PLUS}</button>
         <button type="button" class="act-btn sfs-menu" aria-label="メニュー">${IC_MORE}</button>` })}
       <div class="sfs-body">
         <button type="button" class="pd-shop sfs-name">${esc(s.name || '')}</button>
@@ -3441,7 +3448,7 @@ const Views = (() => {
     }
     // 操作
     el.querySelector('.sfs-name').addEventListener('click', () => showShop(g.shopId));
-    el.querySelector('.sfs-revisit').addEventListener('click', () => quickRevisit(g.shopId));
+    el.querySelector('.sfs-revisit').addEventListener('click', () => openRegisterFor(g.shopId));
     wireSocial(el, postId, {
       nav: () => openNav(s),
       shareTitle: s.name || '',
@@ -4632,7 +4639,6 @@ const Views = (() => {
       App.refreshCurrent();
       render();
     };
-    const addWithPhoto = () => { close(); App.switchTab('register'); Register.preselectShop(shopId); };
     const shareText = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
 
     // 訪問1件（お店の記録と同じ部品）。いいね・コメントはこの訪問（＝公開投稿の id）に付く
@@ -4643,7 +4649,7 @@ const Views = (() => {
       card.innerHTML = `
         <div class="sfs-photos"><div class="sfs-carousel"></div></div>
         ${actRowHtml({ postId: v.id, hasPos, right: `
-          <button type="button" class="act-btn vl-revisit" aria-label="また来た">${IC_PLUS}</button>
+          <button type="button" class="act-btn vl-revisit" aria-label="記録を追加">${IC_PLUS}</button>
           <button type="button" class="act-btn vl-menu" aria-label="メニュー">${IC_MORE}</button>` })}
         <div class="sfs-body">
           <div class="pd-shop">${esc(fmtDate(v.datetime))}</div>
@@ -4687,9 +4693,8 @@ const Views = (() => {
         const hidden = card.querySelector('.pd-morebox').classList.toggle('hidden');
         moreBtn.classList.toggle('open', !hidden);
       });
-      card.querySelector('.vl-revisit').addEventListener('click', () => quickRevisit(shopId, render));
+      card.querySelector('.vl-revisit').addEventListener('click', () => openRegisterFor(shopId));
       card.querySelector('.vl-menu').addEventListener('click', () => openActionSheet([
-        { label: '写真つきで訪問を追加', onClick: addWithPhoto },
         { label: 'この記録を編集', onClick: () => editVisit(v) },
         { label: 'この記録を削除', danger: true, onClick: () => delVisit(v) },
       ]));
@@ -5288,7 +5293,7 @@ const Views = (() => {
           <div class="pd-photos"></div>
         </div>
         ${actRowHtml({ postId: p.id, hasPos, right: mv
-          ? `<button type="button" class="act-btn pd-revisit" aria-label="また来た">${IC_PLUS}</button>`
+          ? `<button type="button" class="act-btn pd-revisit" aria-label="記録を追加">${IC_PLUS}</button>`
           : `<button type="button" class="act-btn fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>` })}
         <div class="pd-body">
           <div class="pd-shop">${esc(p.shopName || '')}</div>
@@ -5370,7 +5375,7 @@ const Views = (() => {
       ]);
     });
     const rv = sect.querySelector('.pd-revisit');
-    if (rv) rv.addEventListener('click', () => { if (mv) quickRevisit(mv.shopId); });
+    if (rv) rv.addEventListener('click', () => { if (mv) openRegisterFor(mv.shopId); });
     const sb = sect.querySelector('.pd-save');
     if (sb) sb.addEventListener('click', () => toggleWishForPost(p, sb));
     // いいね・コメント・経路・共有（お店の記録と共通）
