@@ -419,6 +419,16 @@ const Register = (() => {
     // 1枚目: 全幅の写真（右下に「写真を変更」、右上に✕）。2枚目以降: 下の帯に小さく。帯の最後は「＋」
     const hero = $('#reg-photo');
     hero.innerHTML = '';
+    hero.classList.toggle('no-photo', !pendingPhotos.length);
+    if (!pendingPhotos.length) {
+      // 写真が無い2枚目（店を選んで来たとき・写真なしで記録）: 写真を足す入口を置く（v348〜）
+      hero.innerHTML = `<div class="reg-photo-empty">
+          <button type="button" class="reg-photo-cam">${Views.icons.camera}<span>写真を撮る</span></button>
+          <button type="button" class="reg-photo-lib">${Views.icons.images}<span>写真から選ぶ</span></button>
+        </div>`;
+      hero.querySelector('.reg-photo-cam').addEventListener('click', openCamera);
+      hero.querySelector('.reg-photo-lib').addEventListener('click', () => $('#photo-input').click());
+    }
     if (pendingPhotos.length) {
       const p = pendingPhotos[0];
       hero.innerHTML = `<img src="${p.url}" alt="">

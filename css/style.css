@@ -274,7 +274,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .map-axis-filter .taste-select { border-color: var(--accent); color: var(--accent); font-weight: bold; }
 .stars button { border: none; background: none; cursor: pointer; padding: 0 2px; }
 .stars button svg { width: 26px; height: 26px; display: block; }
-.stars button svg path { fill: #e8e0d0; stroke: #e8e0d0; stroke-width: 3; stroke-linejoin: round; }
+.stars button svg path { fill: #DBDBDB; stroke: #DBDBDB; stroke-width: 3; stroke-linejoin: round; } /* 空の星は薄い灰（v347〜 白黒） */
 .stars button.on svg path { fill: url(#star-grad); stroke: #f5a300; }
 /* 0.5刻み入力の半星: 灰色の星の上に、左半分だけ金色の星(.sb-fill)を重ねる */
 .stars button svg .sb-fill { display: none; fill: url(#star-grad); stroke: #f5a300; }
@@ -2241,12 +2241,17 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 .reg-row:first-of-type { border-top: none; }
 .row-toggle { border-top: 1px solid var(--border-lite); border-bottom: 1px solid var(--border-lite); margin-top: 14px; }
 .reg-row .ri, .row-toggle .ri { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.reg-row .ri .ic, .row-toggle .ri .ic { width: 20px; height: 20px; color: #4a4845; flex-shrink: 0; }
+.reg-row .ri .ic, .row-toggle .ri .ic { width: 20px; height: 20px; color: var(--text); flex-shrink: 0; }
 .reg-row .chev, .row-toggle .chev { color: var(--muted); font-size: 18px; transition: transform .15s; }
 .reg-row.open .chev, .row-toggle.open .chev { transform: rotate(90deg); display: inline-block; }
 #view-register #record-card { padding: 0 0 96px; background: transparent; border: none; box-shadow: none; }
 .reg-photo { position: relative; border-radius: 14px; overflow: hidden; background: var(--field); }
 .reg-photo:empty { display: none; }
+/* 写真が無いときの2枚目: 「写真を撮る／写真から選ぶ」の2タイル（v348〜） */
+.reg-photo.no-photo { background: none; overflow: visible; margin-bottom: 12px; } /* 汎用の .empty と名前を分ける */
+.reg-photo-empty { display: flex; gap: 8px; }
+.reg-photo-empty button { flex: 1; height: 120px; border: none; border-radius: 14px; background: var(--field); color: var(--muted); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.reg-photo-empty button .ic { width: 32px; height: 32px; stroke-width: 1.5; }
 .reg-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
 .reg-photo-x { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.5); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .reg-photo-x .x-ic { width: 16px; height: 16px; }
