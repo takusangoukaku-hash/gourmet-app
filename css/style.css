@@ -973,28 +973,10 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 .vl-sub { color: var(--muted); font-size: 11px; }
 .vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ */ }
 .vl-body .empty { padding: 28px 16px; }
-/* 下部の固定「＋ 新しい記録を追加」 */
-.vl-addbar {
-  flex-shrink: 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-  background: var(--card); border-top: 1px solid var(--border-lite);
-}
-.vl-add {
-  width: 100%; justify-content: center; padding: 12px; border-radius: 999px;
-  font-size: 15px; font-weight: 700;
-}
-/* ヘッダーの統計（訪問回数・平均評価・最終訪問）と絞り込み・表示切り替え */
-.vl-head { padding: 14px 16px 12px; }
-.vl-stats { display: flex; gap: 8px; }
-.vl-stat {
-  flex: 1; background: var(--field); border-radius: 14px; padding: 10px 4px;
-  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
-}
-.vl-stat b { font-size: 15px; font-weight: 800; white-space: nowrap; }
-.vl-stat b small { font-size: 11px; font-weight: 600; }
-.vl-stat .vl-avg { color: var(--star); }
-.vl-stat span { font-size: 11px; color: var(--muted); }
+/* 上: ジャンル絞り込み・表示切り替え（v344〜 統計タイルと下の固定ボタンは廃止） */
+.vl-head { padding: 10px 16px 6px; }
 /* 1行目: 表示切り替え（右寄せ）／2行目: ジャンル絞り込み（横スクロール） */
-.vl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.vl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .vl-chips { order: 2; flex: 1 1 100%; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .vl-chips::-webkit-scrollbar { display: none; }
 .vl-chip {
@@ -1102,41 +1084,10 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 }
 .msh-chev { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--muted); padding: 4px; }
 .msh-chev .ic { width: 18px; height: 18px; }
-/* 訪問記録カード（写真主役）: 左スワイプで 編集/削除 が現れる */
-.vl-card2 { position: relative; overflow: hidden; }
-.vl-card2 + .vl-card2 { border-top: 1px solid var(--border-lite); }
-.vlc-actions { position: absolute; top: 0; right: 0; bottom: 0; width: 132px; display: flex; }
-.vlc-act {
-  flex: 1; border: none; cursor: pointer; font-family: inherit; color: #fff;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  font-size: 12px; font-weight: 700;
-}
-.vlc-act .ic { width: 18px; height: 18px; }
-.vlc-a-edit { background: #4A90D9; }
-.vlc-a-del { background: #E0554D; }
-.vlc-main { position: relative; background: var(--card); padding: 16px 0 20px; }
-/* 角丸写真。バッジ・日付・ジャンルを写真の上に重ねる */
-.vlc-photobox { position: relative; margin: 0 16px; border-radius: 14px; overflow: hidden; background: var(--field); }
-.vlc-star.pd-photo-star { top: 10px; right: 10px; }
-.vlc-date {
-  position: absolute; left: 10px; bottom: 10px; pointer-events: none;
-  background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 600;
-  border-radius: 999px; padding: 4px 10px;
-}
-.vlc-genre {
-  position: absolute; right: 10px; bottom: 10px; pointer-events: none;
-  background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px;
-  border-radius: 999px; padding: 4px 10px; max-width: 55%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.vlc-noph { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; font-size: 40px; }
-.vlc-info { padding: 10px 20px 0; }
-.vlc-raterow { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.vlc-raterow .v-stars { line-height: 1; flex-shrink: 0; }
-.vlc-num { font-size: 15px; font-weight: 800; }
-.vlc-gtxt { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vlc-raterow .ve-edit { margin-left: auto; flex-shrink: 0; }
-.vlc-comment { margin-top: 6px; font-size: 14px; white-space: pre-wrap; }
+/* 訪問の一覧（v344〜）はお店の記録と同じ .sfs。写真の無い訪問は淡い地に器の印 */
+.vl-visit:first-of-type { border-top: 1px solid var(--border-lite); padding-top: 4px; }
+.sfs-slide.vlc-noph { display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.vlc-noph .ic { width: 40px; height: 40px; }
 
 /* タイムライン表示: 左の縦線と点で時系列に */
 .vl-tl { padding: 2px 16px 20px; }
