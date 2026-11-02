@@ -3271,27 +3271,120 @@ const Views = (() => {
     if (above > 0) ioTop.observe(topSentinel);
   }
 
-  // 店舗セクション1つぶん（v338〜。モック: 写真（★1つ）→ 操作行（また来た・経路・共有・…）→ 店名 → 駅 ・ 日付 → 訪問の写真）
-  // 枠や影は無し。「N回訪問」「最終訪問」「すべての訪問履歴」の文字と店ごとの大きなボタンは廃止
+  // ---------- 投稿詳細とお店の記録で共通の部品（v343〜） ----------
+  // いいね・コメントはログインしたことのある端末だけ取りに行く（Firebase SDK を読み込ませないため）
+  function socialReady() {
+    if (typeof Cloud === 'undefined' || !Cloud.getLikeInfo) return false;
+    try { return !!(Cloud.getUser() || localStorage.getItem('gourmet.lastUid')); } catch { return false; }
+  }
+  // 場所の行: 駅 ・ 県 市（無いものは出さない）
+  function locHtml(station, pref, city) {
+    return [station ? IC_STATION + ' ' + esc(station) : '', esc([pref, city].filter(Boolean).join(' '))].filter(Boolean).join('　');
+  }
+  // 操作行: ♥（数）・コメント（数）・経路・共有 … 右端（o.right: 保存／また来た／…）
+  function actRowHtml(o) {
+    return `<div class="act-row">
+        <button type="button" class="act-btn fa-like pd-like" data-post="${esc(o.postId || '')}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n"></span></button>
+        <button type="button" class="act-btn pd-cmt-btn" aria-label="コメント">${IC_COMMENT}<span class="fa-n pd-cmt-n"></span></button>
+        ${o.hasPos ? `<button type="button" class="act-btn pd-nav" aria-label="ここへ行く">${IC_NAV}</button>` : ''}
+        <button type="button" class="act-btn pd-share" aria-label="共有">${IC_SHARE_S}</button>
+        <span class="act-sp"></span>${o.right || ''}
+      </div>`;
+  }
+  function cmtBoxHtml() {
+    return `<div class="pd-cmtbox hidden">
+        <div class="pd-comments"></div>
+        <div class="pd-cadd">
+          <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
+          <button type="button" class="btn small primary pd-csend">送信</button>
+        </div>
+      </div>`;
+  }
+  // 操作行とコメント欄の配線。いいね数・コメント数は feedStats に控える。コメント一覧は欄を開いたときに読む
+  function wireSocial(root, postId, o) {
+    const likeBtn = root.querySelector('.pd-like');
+    const cmtBtn = root.querySelector('.pd-cmt-btn');
+    const applyStats = (st) => {
+      likeBtn.querySelector('.fa-like-n').textContent = st.likes || '';
+      likeBtn.classList.toggle('liked', !!st.liked);
+      cmtBtn.querySelector('.pd-cmt-n').textContent = st.comments || '';
+    };
+    const cached = feedStats.get(postId);
+    if (cached) applyStats(cached);
+    else if (postId && socialReady()) {
+      Promise.all([Cloud.getLikeInfo(postId), Cloud.commentCount(postId).catch(() => 0)])
+        .then(([info, n]) => { const st = { likes: info.count, liked: info.liked, comments: n || 0 }; feedStats.set(postId, st); applyStats(st); })
+        .catch(() => {});
+    }
+    likeBtn.addEventListener('click', () => toggleLikeUI(likeBtn));
+    const box = root.querySelector('.pd-cmtbox');
+    const list = root.querySelector('.pd-comments');
+    const loadComments = async () => {
+      let arr = [];
+      try { arr = await Cloud.getComments(postId); } catch { arr = []; }
+      const me = Cloud.getUser();
+      list.innerHTML = arr.length ? arr.map(c => {
+        const av2 = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : IC_BOWL;
+        return `<div class="pd-crow">
+            <span class="pd-cav">${av2}</span>
+            <div class="pd-cmain"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>
+            ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">${IC_X}</button>` : ''}
+          </div>`;
+      }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
+      const st = feedStats.get(postId); if (st) { st.comments = arr.length; applyStats(st); }
+      list.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
+        await Cloud.deleteComment(postId, b.dataset.cid); loadComments();
+      }));
+    };
+    let loaded = false;
+    cmtBtn.addEventListener('click', () => {
+      const hidden = box.classList.toggle('hidden');
+      if (!hidden && !loaded) { loaded = true; if (socialReady()) loadComments(); else list.innerHTML = '<div class="pd-cempty">まだコメントはありません</div>'; }
+    });
+    const sendComment = async () => {
+      const input = root.querySelector('.pd-cinput');
+      const t = input.value.trim();
+      if (!t) return;
+      if (typeof Cloud === 'undefined' || !Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
+      input.value = '';
+      try { await Cloud.addComment(postId, t); await loadComments(); }
+      catch (e) { App.toast('' + (e && e.message || e)); }
+    };
+    root.querySelector('.pd-csend').addEventListener('click', sendComment);
+    root.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
+    const nav = root.querySelector('.pd-nav');
+    if (nav && o.nav) nav.addEventListener('click', o.nav);
+    root.querySelector('.pd-share').addEventListener('click', async () => {
+      const text = o.shareText || '';
+      if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
+      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+    });
+  }
+
+  // 店舗セクション1つぶん（v338〜。v343〜 投稿詳細と同じ並び: 写真（★1つ）→ 操作行（♥・コメント・経路・共有 … また来た・…）→ 店名 → 駅 ・ 県 市 → 日付 → 訪問の写真）
+  // 枠や影は無し。「N回訪問」「最終訪問」「すべての訪問履歴」の文字と店ごとの大きなボタンは廃止。
+  // いいね・コメントは最新の写真の訪問（＝公開投稿の id）に付く
   function buildShopFeedSection(g) {
     const s = Store.getShop(g.shopId) || {};
     const vs = Store.visitsOf(g.shopId);
     const last = Store.lastVisitDate(g.shopId);
     const hasPos = s.lat != null && s.lon != null;
+    const postId = (g.photos[0] || {}).visitId || '';
+    const loc = locHtml(s.station, s.pref, s.city);
     const el = document.createElement('div');
     el.className = 'sfs';
     el.innerHTML = `
       <div class="sfs-photos"><div class="sfs-carousel"></div></div>
-      <div class="sfs-acts">
-        <button type="button" class="sfs-act sfs-revisit" aria-label="また来た">${IC_PLUS}</button>
-        ${hasPos ? `<button type="button" class="sfs-act sfs-nav" aria-label="ここへ行く">${IC_NAV}</button>` : ''}
-        <button type="button" class="sfs-act sfs-share" aria-label="共有">${IC_SHARE_S}</button>
-        <span class="sfs-sp"></span>
-        <button type="button" class="sfs-act sfs-menu" aria-label="メニュー">${IC_MORE}</button>
-      </div>
-      <button type="button" class="sfs-name">${esc(s.name || '')}</button>
-      <div class="sfs-meta">${[s.station, last ? fmtDateJa(last) : ''].filter(Boolean).map(esc).join(' ・ ')}</div>
-      <div class="sfs-visits"></div>`;
+      ${actRowHtml({ postId, hasPos, right: `
+        <button type="button" class="act-btn sfs-revisit" aria-label="また来た">${IC_PLUS}</button>
+        <button type="button" class="act-btn sfs-menu" aria-label="メニュー">${IC_MORE}</button>` })}
+      <div class="sfs-body">
+        <button type="button" class="pd-shop sfs-name">${esc(s.name || '')}</button>
+        ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
+        ${last ? `<div class="pd-sub">${esc(fmtDateJa(last))}</div>` : ''}
+        <div class="sfs-visits"></div>
+        ${cmtBoxHtml()}
+      </div>`;
     // 大きな写真はその店の全写真を左右スワイプで見られるカルーセル（新しい順）。
     // 全幅表示なのでサムネではなくフル解像度で（サムネ→即差し替え）。ただし全枚数を
     // いきなりフルで読むと重いので、フル化は先頭と「スワイプで近づいた写真」だけ
@@ -3349,12 +3442,10 @@ const Views = (() => {
     // 操作
     el.querySelector('.sfs-name').addEventListener('click', () => showShop(g.shopId));
     el.querySelector('.sfs-revisit').addEventListener('click', () => quickRevisit(g.shopId));
-    const navBtn = el.querySelector('.sfs-nav');
-    if (navBtn) navBtn.addEventListener('click', () => openNav(s));
-    el.querySelector('.sfs-share').addEventListener('click', async () => {
-      const text = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
-      if (navigator.share) { navigator.share({ title: s.name || '', text }).catch(() => {}); return; }
-      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+    wireSocial(el, postId, {
+      nav: () => openNav(s),
+      shareTitle: s.name || '',
+      shareText: `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`,
     });
     el.querySelector('.sfs-menu').addEventListener('click', () => {
       const latest = vs[0];
@@ -5214,10 +5305,13 @@ const Views = (() => {
     const AX = { casual: '気軽さ', atmosphere: '雰囲気', speed: '提供の早さ' };
     const axes = ['casual', 'atmosphere', 'speed'].filter(k => p[k])
       .map(k => `<div class="pd-axis"><span>${AX[k]}</span><span class="pd-axstar">${starSvg(p[k], 13)}</span></div>`).join('');
-    const loc = [p.station ? IC_STATION + ' ' + esc(p.station) : '', esc([p.pref, p.city].filter(Boolean).join(' '))]
-      .filter(Boolean).join('　');
+    const loc = locHtml(p.station, p.pref, p.city);
+    const mv = isMine ? Store.visits().find(v => v.id === p.id) : null;
+    const hasPos = p.lat != null && p.lon != null;
     const sect = document.createElement('div');
     sect.className = 'pd-sect';
+    // v343〜 お店の記録と同じ並び: 写真 → 操作行（♥・コメント・経路・共有 … 保存／また来た）→ 店名 → 駅 ・ 県 市 → ジャンル ・ 詳細 ›
+    // 星の行と大きな「ここへ行く」は廃止（★は写真のバッジ、経路は操作行）
     sect.innerHTML = `
         <div class="pd-sect-head">
           <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
@@ -5230,31 +5324,21 @@ const Views = (() => {
         <div class="pd-phwrap">
           <div class="pd-photos"></div>
         </div>
+        ${actRowHtml({ postId: p.id, hasPos, right: mv
+          ? `<button type="button" class="act-btn pd-revisit" aria-label="また来た">${IC_PLUS}</button>`
+          : `<button type="button" class="act-btn fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>` })}
         <div class="pd-body">
-          <div class="pd-toprow">
-            ${starSvg(p.rating, 21)}
-            <button type="button" class="fa-like pd-like" data-post="${esc(p.id)}" aria-label="いいね">${IC_HEART}<span class="fa-n fa-like-n">·</span></button>
-            <button type="button" class="pd-cmt-btn" aria-label="コメント">${IC_COMMENT}</button>
-            <button type="button" class="fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>
-          </div>
           <div class="pd-shop">${esc(p.shopName || '')}</div>
           ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
           <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
             <button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button></div>
-          ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav pd-nav-main">' + IC_NAV + ' ここへ行く</button>' : ''}
           <div class="pd-morebox hidden">
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
             ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
             ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
             ${isMine && p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : ''}
           </div>
-          <div class="pd-cmtbox hidden">
-            <div class="pd-comments"></div>
-            <div class="pd-cadd">
-              <input type="text" class="pd-cinput" placeholder="コメントを追加…" maxlength="300" autocomplete="off">
-              <button type="button" class="btn small primary pd-csend">送信</button>
-            </div>
-          </div>
+          ${cmtBoxHtml()}
         </div>`;
     sect.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
     // 「▸ 詳細」で住所・お店の評価・感想・日付・ナビ・編集を開閉
@@ -5262,10 +5346,6 @@ const Views = (() => {
     moreBtn.addEventListener('click', () => {
       const hidden = sect.querySelector('.pd-morebox').classList.toggle('hidden');
       moreBtn.classList.toggle('open', !hidden);
-    });
-    // 星の横の「コメント」でコメント欄を開閉
-    sect.querySelector('.pd-cmt-btn').addEventListener('click', () => {
-      sect.querySelector('.pd-cmtbox').classList.toggle('hidden');
     });
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
     const cap = `${p.shopName || ''}${isMine && p.datetime ? '　' + fmtDate(p.datetime) : ''}`;
@@ -5316,59 +5396,26 @@ const Views = (() => {
         : new Promise(res => { im.addEventListener('load', res, { once: true }); im.addEventListener('error', res, { once: true }); })));
     })().then(() => { if (sect.__readyResolve) sect.__readyResolve(); });
     sect.__ready = new Promise(r => { sect.__readyResolve = r; });
-    const nav = sect.querySelector('.pd-nav');
-    if (nav) nav.addEventListener('click', () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }));
     // 自分の投稿は「⋯」からメニューを開き、「編集」を選ぶと記録の編集画面へ
     // （Instagramと同じく、⋯でいきなり編集にせずワンクッション挟む）
     const eb = sect.querySelector('.pd-edit');
     if (eb) eb.addEventListener('click', () => {
-      const mv = Store.visits().find(v => v.id === p.id);
       if (!mv) return;
       openActionSheet([
         { label: '店舗の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
         { label: '編集', onClick: () => { close(); showShop(mv.shopId, false, mv.id); } },
       ]);
     });
-
-    // いいね（写真右上のハート）
-    Cloud.getLikeInfo(p.id).then(info => {
-      const lb = sect.querySelector('.pd-like');
-      lb.querySelector('.fa-like-n').textContent = info.count;
-      lb.classList.toggle('liked', info.liked);
-    }).catch(() => {});
-    sect.querySelector('.pd-like').addEventListener('click', () => toggleLikeUI(sect.querySelector('.pd-like')));
-    sect.querySelector('.pd-save').addEventListener('click', () => toggleWishForPost(p, sect.querySelector('.pd-save')));
-
-    // コメント一覧の読み込み・描画
-    const loadComments = async () => {
-      const box = sect.querySelector('.pd-comments');
-      let list = [];
-      try { list = await Cloud.getComments(p.id); } catch { list = []; }
-      const me = Cloud.getUser();
-      box.innerHTML = list.length ? list.map(c => {
-        const av2 = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : IC_BOWL;
-        return `<div class="pd-crow">
-            <span class="pd-cav">${av2}</span>
-            <div class="pd-cmain"><b>${esc(c.displayName || 'BITEMAP')}</b> ${esc(c.text)}</div>
-            ${me && c.uid === me.uid ? `<button type="button" class="pd-cdel" data-cid="${esc(c.cid)}" aria-label="削除">${IC_X}</button>` : ''}
-          </div>`;
-      }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
-      box.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
-        await Cloud.deleteComment(p.id, b.dataset.cid); feedStats.delete(p.id); loadComments();
-      }));
-    };
-    loadComments();
-    const sendComment = async () => {
-      const input = sect.querySelector('.pd-cinput');
-      const t = input.value.trim();
-      if (!t) return;
-      if (!Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
-      input.value = '';
-      try { await Cloud.addComment(p.id, t); feedStats.delete(p.id); await loadComments(); }
-      catch (e) { App.toast('' + (e && e.message || e)); }
-    };
-    sect.querySelector('.pd-csend').addEventListener('click', sendComment);
-    sect.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
+    const rv = sect.querySelector('.pd-revisit');
+    if (rv) rv.addEventListener('click', () => { if (mv) quickRevisit(mv.shopId); });
+    const sb = sect.querySelector('.pd-save');
+    if (sb) sb.addEventListener('click', () => toggleWishForPost(p, sb));
+    // いいね・コメント・経路・共有（お店の記録と共通）
+    wireSocial(sect, p.id, {
+      nav: () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }),
+      shareTitle: p.shopName || '',
+      shareText: `${p.shopName || ''}${p.station ? ` / ${p.station}` : ''} - BITEMAP`,
+    });
     return sect;
   }
 

@@ -666,12 +666,9 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 /* v338〜 枠と影の無い縦の並び。店ごとに細い線で区切る */
 .sfs { background: var(--card); padding-bottom: 16px; }
 .sfs + .sfs { border-top: 1px solid var(--border-lite); padding-top: 4px; }
-.sfs-acts { display: flex; align-items: center; gap: 4px; padding: 6px 10px 0; }
-.sfs-act { width: 40px; height: 40px; border: none; background: none; cursor: pointer; color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; }
-.sfs-act .ic { width: 24px; height: 24px; }
-.sfs-sp { flex: 1; }
-.sfs-name { display: block; width: 100%; border: none; background: none; padding: 4px 16px 0; margin: 0; text-align: left; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.3; color: var(--text); }
-.sfs-meta { padding: 2px 16px 0; color: var(--muted); font-size: 12px; }
+/* v343〜 操作行（♥・コメント・経路・共有 … また来た・…）は投稿詳細と共通の .act-row。店名・場所・日付は .pd-shop / .pd-sub */
+.sfs-body { padding: 0 16px; }
+.sfs-name { display: block; width: 100%; border: none; background: none; padding: 0; margin: 0; text-align: left; cursor: pointer; font-family: inherit; color: var(--text); }
 .sfs-photos { position: relative; }
 .sfs-dots { position: absolute; left: 0; right: 0; bottom: 8px; padding: 0; }
 .sfs-dots .pd-dot { background: rgba(255,255,255,.55); }
@@ -1215,19 +1212,8 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
   border-radius: 14px; background: rgba(0, 0, 0, .6); color: #ffd75e;
   font-weight: 700; font-size: 14px;
 }
-/* 星の行: 星の横にコメント、右端に保存 */
-.pd-toprow { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.pd-toprow .stars-svg { line-height: 1; }
-.pd-cmt-btn {
-  display: inline-flex; align-items: center; border: none; background: none;
-  cursor: pointer; color: var(--text); padding: 4px 2px;
-}
-.pd-cmt-btn .ic { width: 22px; height: 22px; }
-.pd-toprow .pd-save { margin-left: auto; }
 /* 詳細・コメントの折りたたみ。詳細はジャンルと同じ段の右端に枠なしで置く */
 .pd-genrow { display: flex; align-items: center; gap: 8px; }
-/* 「ここへ行く」はジャンル・詳細の段より下に、詰まって見えないよう間隔を空けて置く */
-.pd-nav-main { display: block; width: 100%; margin-top: 14px; }
 .pd-more {
   margin-left: auto; border: none; background: none; cursor: pointer;
   font-size: 13px; color: var(--muted); padding: 2px 0; flex-shrink: 0;
@@ -1263,8 +1249,8 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 .pd-dots { display: flex; justify-content: center; gap: 4px; padding: 8px 0 0; }
 .pd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-lite); transition: background .15s; }
 .pd-dot.on { background: var(--accent); }
-.pd-body { padding: 12px 16px 28px; }
-.pd-shop { font-weight: 700; font-size: 18px; margin-top: 2px; }
+.pd-body { padding: 4px 16px 28px; }
+.pd-shop { font-weight: 700; font-size: 16px; line-height: 1.3; margin-top: 0; }
 .pd-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .pd-axes { background: var(--field); border-radius: 14px; padding: 10px 12px; margin: 10px 0; }
 .pd-axtitle { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
@@ -1272,7 +1258,6 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 .pd-axstar { color: var(--star); }
 .pd-comment { font-size: 14px; margin: 10px 0; white-space: pre-wrap; }
 .pd-date { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
-.pd-nav { width: 100%; }
 
 /* ---------- お知らせ（通知） ---------- */
 .notif-btn { position: relative; }
@@ -1530,6 +1515,19 @@ body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-in
 .pd-like.liked { color: var(--accent); }
 .pd-like.liked .heart-ic { fill: currentColor; }
 .pd-cmt-label { color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+/* v343〜 投稿詳細とお店の記録で共通の操作行: ♥（数）・コメント（数）・経路・共有 … 右端（保存／また来た／…）。
+   Instagram と同じく写真の直下・40px の正方形のボタン。数が 0 のときは出さない */
+.act-row { display: flex; align-items: center; gap: 0; padding: 4px 8px 0; }
+.act-row .act-btn {
+  min-width: 40px; height: 40px; padding: 0 6px; margin: 0; border: none; background: none; cursor: pointer;
+  color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-family: inherit;
+}
+.act-row .act-btn .ic, .act-row .act-btn .heart-ic, .act-row .act-btn .bm-ic { width: 24px; height: 24px; }
+.act-row .act-btn .fa-n { font-size: 13px; font-weight: 700; color: var(--text); }
+.act-row .act-btn .fa-n:empty { display: none; }
+.act-row .act-btn.liked, .act-row .act-btn.liked .fa-n { color: var(--accent); }
+.act-row .act-btn.fa-save.on { color: #8B5CF6; }
+.act-sp { flex: 1; }
 .pd-comments { margin: 4px 0 10px; }
 .pd-cempty { color: var(--muted); font-size: 13px; padding: 6px 0; }
 .pd-crow { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
