@@ -9,7 +9,9 @@ const Views = (() => {
   // 文字の「★」ベタ塗りをやめ、丸みのある星形にグラデーションで立体感を出す。
   // 平均値は 0.5 刻みに丸めて半星で表現する（例: 4.3 → ★4.5相当の半星）
   const STAR_PATH = 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z';
-  const STAR_EMPTY = '#e8e0d0';
+  const STAR_EMPTY = '#DBDBDB'; // 空の星は薄い灰（v347〜 白黒）
+  // CSS 変数の色（グラフなど JS から色を使うとき。ダークモードにも追従）
+  const uiColor = (name) => (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || '#262626';
   const starIc = (kind, size) => {
     const p = `d="${STAR_PATH}" stroke-width="3" stroke-linejoin="round"`;
     let body;
@@ -2272,7 +2274,9 @@ const Views = (() => {
   // ========== カテゴリー/ジャンルの手描き風イラスト（線画SVG） ==========
   // デザイン案準拠: 温かい線画（茶色の輪郭＋クリーム系の塗り）。外部画像は使わず
   // インラインSVGで描く（オフラインでも表示され、Retinaでも滲まない）
-  const GI = (body) => `<svg class="gi" viewBox="0 0 48 48" fill="none" stroke="#6E4F38" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  // v347〜 線画は白黒: 塗りは --ill（薄い灰）、線は文字色（元の色指定は描いた時のまま残し、ここで置き換える）
+  const GI = (body) => `<svg class="gi" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+    body.replace(/fill="#[0-9A-Fa-f]{3,6}"/g, 'fill="var(--ill)"').replace(/stroke="#[0-9A-Fa-f]{3,6}"/g, 'stroke="currentColor"')}</svg>`;
   // 湯気（2本）。x は中心
   const gSteam = (x, y = 6) => `<path d="M${x - 4} ${y + 2}c-1.6 2 1.6 3.2 0 5.4M${x + 3} ${y}c-1.6 2 1.6 3.2 0 5.4" stroke-opacity=".55"/>`;
   // 茶碗/丼の器（下半分）
@@ -3690,7 +3694,7 @@ const Views = (() => {
     if (hint) hint.classList.toggle('hidden', months.length <= 12);
     chart('chart-monthly', {
       type: 'bar',
-      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: '#C6613F', borderRadius: 6 }] },
+      data: { labels: months, datasets: [{ label: '訪問件数', data: counts, backgroundColor: uiColor('--accent'), borderRadius: 6 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
@@ -3767,7 +3771,7 @@ const Views = (() => {
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
     chart('chart-pref', {
       type: 'bar',
-      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#D97757', borderRadius: 6 }] },
+      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: uiColor('--accent'), borderRadius: 6 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
