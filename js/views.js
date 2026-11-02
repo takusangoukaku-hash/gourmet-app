@@ -1467,7 +1467,7 @@ const Views = (() => {
     ov.querySelector('.msh-mapbtn').addEventListener('click', close); // 地図はこの画面の後ろに出ている
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
-    ov.querySelector('.msh-revisit').addEventListener('click', () => quickRevisit(shopId, () => { close(); showMapShopSheet(shopId); }));
+    ov.querySelector('.msh-revisit').addEventListener('click', () => { close(); openRegisterFor(shopId); }); // v350〜 店を選んだ状態の登録画面へ
 
     // あなたの写真: 角丸のタイルを横に並べる。左上に日付だけ（見出し・枚数・★は出さない。v336〜）
     const myrow = ov.querySelector('.msh-myrow');
@@ -3798,28 +3798,7 @@ const Views = (() => {
 
   // ========== 記録を楽しむ機能（v303）: また来た・よく行く店・制覇マップ・行きたい達成度・記録カード ==========
 
-  // ---- 写真なしの「また来た」: 登録済みの店に、今日の来店をワンタップで足す ----
-  // 評価は付けない（星0＝評価なし。平均には入らない）。あとから訪問の編集で星や料理を足せる
-  function quickRevisit(shopId, after) {
-    const s = Store.getShop(shopId);
-    if (!s) return null;
-    const last = Store.visitsOf(shopId)[0];
-    const today = new Date();
-    if (last && new Date(last.datetime).toDateString() === today.toDateString()
-      && !confirm(`「${s.name}」は今日すでに記録があります。もう1回記録しますか？`)) return null;
-    let v;
-    try { v = Store.addVisit({ shopId, datetime: today.toISOString(), rating: 0, dishGenres: [], comment: '', quick: true }); }
-    catch { return null; } // 保存できないときは Store 側で案内済み
-    const n = Store.visitCount(shopId);
-    App.toast(`「${s.name}」${n}回目の来店を記録しました`);
-    if (after) { try { after(v); } catch { /* noop */ } }
-    // 後ろの画面も新しい回数に。プロフィールは描き直すと「写真」に戻ってしまうので、統計の部分だけ描き直す
-    try {
-      if (App.currentTab && App.currentTab() === 'profile') { if (!$('#ptab-stats').classList.contains('hidden')) renderRecordCards(); }
-      else App.refreshCurrent();
-    } catch { /* noop */ }
-    return v;
-  }
+  // 「また来た」は v350〜 すべて openRegisterFor()（店を選んだ状態の登録画面）。写真なしのワンタップ記録 quickRevisit は廃止
 
   // ---- 都道府県 ----
   const PREFS47 = ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県',
@@ -3919,7 +3898,7 @@ const Views = (() => {
     box.querySelectorAll('.rg-row').forEach(li => {
       const id = li.dataset.id;
       li.querySelector('.rg-main').addEventListener('click', () => showShop(id));
-      li.querySelector('.rg-again').addEventListener('click', () => quickRevisit(id));
+      li.querySelector('.rg-again').addEventListener('click', () => openRegisterFor(id));
     });
   }
 
@@ -4370,7 +4349,7 @@ const Views = (() => {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
-      $('#d-revisit').addEventListener('click', () => quickRevisit(shopId, () => showShop(shopId, false, null, nav)));
+      $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
       $('#d-share').addEventListener('click', async () => {
         const text = `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
         if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }

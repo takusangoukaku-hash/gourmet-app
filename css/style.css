@@ -2021,14 +2021,6 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 /* =====================================================
    v303: また来た・よく行く店・制覇マップ・行きたい達成度・記録カード
    ===================================================== */
-/* 店舗詳細・地図のお店シートの「また来た」 */
-.d-revisit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 12px; }
-.d-revisit { border-radius: 999px; padding: 8px 20px; font-weight: 700; border-color: var(--accent); color: var(--accent); }
-.d-revisit-note { font-size: 12px; color: var(--muted); min-width: 0; }
-.msh-revisit { width: 100%; margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 8px 14px; border-radius: 14px; font-size: 14px; font-weight: 700; line-height: 1.25;
-  border-color: var(--accent); color: var(--accent); white-space: normal; }
-.msh-revisit small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin: 0; }
 
 /* 統計の主役4タイル（v323〜）と「もっと見る」 */
 .stat-cards-main { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 10px; }
