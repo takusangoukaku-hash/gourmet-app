@@ -9,16 +9,18 @@ const Views = (() => {
   // 文字の「★」ベタ塗りをやめ、丸みのある星形にグラデーションで立体感を出す。
   // 平均値は 0.5 刻みに丸めて半星で表現する（例: 4.3 → ★4.5相当の半星）
   const STAR_PATH = 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z';
-  const STAR_EMPTY = '#DBDBDB'; // 空の星は薄い灰（v347〜 白黒）
+  // 星の色は CSS 変数（v349〜 白黒: 塗りは文字色、空は --star-empty）。インラインの style なら var() が使える
+  const ST_FULL = 'style="fill:currentColor;stroke:currentColor"';
+  const ST_EMPTY = 'style="fill:var(--star-empty);stroke:var(--star-empty)"';
   // CSS 変数の色（グラフなど JS から色を使うとき。ダークモードにも追従）
   const uiColor = (name) => (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || '#262626';
   const starIc = (kind, size) => {
     const p = `d="${STAR_PATH}" stroke-width="3" stroke-linejoin="round"`;
     let body;
-    if (kind === 'full') body = `<path ${p} fill="url(#star-grad)" stroke="#f5a300"/>`;
-    else if (kind === 'half') body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>` +
-      `<path ${p} clip-path="url(#star-half)" fill="url(#star-grad)" stroke="#f5a300"/>`;
-    else body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>`;
+    if (kind === 'full') body = `<path ${p} ${ST_FULL}/>`;
+    else if (kind === 'half') body = `<path ${p} ${ST_EMPTY}/>` +
+      `<path ${p} clip-path="url(#star-half)" ${ST_FULL}/>`;
+    else body = `<path ${p} ${ST_EMPTY}/>`;
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
   };
   // 星5個の並び。size は星1個の1辺(px)
@@ -101,8 +103,7 @@ const Views = (() => {
   (function () {
     const d = document.createElement('div');
     d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-    d.innerHTML = '<svg><defs><linearGradient id="star-grad" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#ffd75e"/><stop offset="1" stop-color="#f5a300"/></linearGradient>' +
+    d.innerHTML = '<svg><defs>' +
       '<clipPath id="star-half"><rect x="0" y="0" width="12" height="24"/></clipPath></defs></svg>';
     document.body.appendChild(d);
   })();
@@ -487,21 +488,19 @@ const Views = (() => {
 
   function baseMapStyle(dark) {
     // Apple Maps参考の配色（ライト/ダーク）
+    // v349〜 地図も白黒（灰の濃淡）。海はやや濃い灰、陸は明るい灰、道路は白、高速は少し濃い灰
     const c = dark ? {
-      bg: '#212227', water: '#17344d', park: '#26372a', wood: '#223125',
-      building: '#2a2b31', roadMinor: '#33353b', roadMain: '#4a4d56',
-      roadCasing: '#1b1c20', highway: '#8d7439', rail: '#50525a',
-      boundary: '#4a4658', text: '#c9c7c2', halo: '#1a1b1f',
-      station: '#8fb0e8', poi: '#98938a',
+      bg: '#1c1c1c', water: '#0f0f0f', park: '#232323', wood: '#202020',
+      building: '#262626', roadMinor: '#303030', roadMain: '#3e3e3e',
+      roadCasing: '#141414', highway: '#5a5a5a', rail: '#4a4a4a',
+      boundary: '#4a4a4a', text: '#c9c9c9', halo: '#141414',
+      station: '#e6e6e6', poi: '#9a9a9a',
     } : {
-      // iPhone のマップ（標準）の配色: 明るい生成りの陸・澄んだ水色の海・やわらかい緑の公園・
-      // 白い道路に淡い縁・黄色い高速道路・薄いグレーの建物
-      bg: '#f6f4ef', water: '#9fd2f3', park: '#c4e6af', wood: '#b7dea0',
-      // v323: 幹線道路の縁・鉄道・駅名を少し強くし、位置関係をつかみやすくする（全体の薄さは保つ）
-      building: '#e6e3dd', roadMinor: '#ffffff', roadMain: '#ffffff',
-      roadCasing: '#d6d0c4', highway: '#fdd56a', rail: '#b9b4aa',
-      boundary: '#b7aec9', text: '#4a4844', halo: '#ffffff',
-      station: '#2457b8', poi: '#7d796f',
+      bg: '#f4f4f4', water: '#dcdcdc', park: '#e9e9e9', wood: '#e4e4e4',
+      building: '#e6e6e6', roadMinor: '#ffffff', roadMain: '#ffffff',
+      roadCasing: '#cfcfcf', highway: '#c8c8c8', rail: '#b5b5b5',
+      boundary: '#b8b8b8', text: '#4a4a4a', halo: '#ffffff',
+      station: '#1a1a1a', poi: '#7a7a7a',
     };
     const label = (id, layer, filter, minzoom, size, color, haloW) => ({
       id, type: 'symbol', source: 'omt', 'source-layer': layer, minzoom,
@@ -518,10 +517,8 @@ const Views = (() => {
     // 周辺施設（POI）: Google/Apple地図のように拡大すると店舗・コンビニ等を表示
     //  種別で色分け（飲食=オレンジ / 買い物・コンビニ=青 / その他=緑）
     const POI_COLOR = ['match', ['get', 'class'],
-      ['restaurant', 'fast_food', 'cafe', 'bar', 'beer', 'pub', 'ice_cream', 'food_court'], '#ef6c34',
-      ['convenience', 'grocery', 'supermarket', 'shop', 'clothing_store', 'bakery',
-        'books', 'gift', 'florist', 'butcher', 'bicycle', 'car', 'laundry', 'department_store'], '#3478f6',
-      '#12a56b'];
+      ['restaurant', 'fast_food', 'cafe', 'bar', 'beer', 'pub', 'ice_cream', 'food_court'], dark ? '#d0d0d0' : '#2a2a2a',
+      dark ? '#8a8a8a' : '#8a8a8a']; // v349〜 飲食は濃い灰、それ以外は薄い灰
     // 名前があり、かつ別途表示している種別（駅・大学・公園など）を除いたPOIのみ
     const POI_FILTER = ['all',
       ['has', 'name'],
@@ -645,9 +642,9 @@ const Views = (() => {
   }
 
   // 味の評価(0〜5)→ピンの色（凡例のr1〜r5と同じ）
-  // 評価の色（色相を大きく離してくっきり）: ★1灰→★2青→★3緑→★4橙→★5赤。[0]=評価なし（薄灰）
-  const PIN_COLORS = ['#CBD5E1', '#94A3B8', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444'];
-  const WISH_COLOR = '#8B5CF6'; // 行きたい店のピン（評価色と混ざらない紫）
+  // 評価の色（v349〜 白黒）: ★1 薄い灰 → ★5 黒の濃淡（CSS の --r1〜--r5 と同じ）。[0]=評価なし（いちばん薄い）
+  const PIN_COLORS = ['#D9D9D9', '#BDBDBD', '#9E9E9E', '#757575', '#4A4A4A', '#1A1A1A'];
+  const WISH_COLOR = '#FFFFFF'; // 行きたい店のピン（白地に黒の縁。評価の灰と混ざらない）
   // ピンの拡大率（地図の倍率 → 何倍で描くか）。拡大したとき小さすぎないよう、z15で1.4倍・z18で1.75倍（v310〜）
   const PIN_SCALE_STOPS = [[4, 0.85], [12, 1], [15, 1.4], [18, 1.75]];
   const pinScaleAt = (z) => {
@@ -700,7 +697,7 @@ const Views = (() => {
   // ピンの見方（v323〜）: 色・頭の印・まとまりの意味。凡例の ? から開け、地図を初めて開いたときに一度だけ出す
   function showMapLegendHelp() {
     const body = $('#modal-body');
-    const pin = (color, mark) => `<span class="lg-pin" style="--c:${color}"><i class="lg-head ${mark}"></i></span>`;
+    const pin = (color, mark) => `<span class="lg-pin${color === WISH_COLOR ? ' wish' : ''}" style="--c:${color}"><i class="lg-head ${mark}"></i></span>`;
     body.innerHTML = `<h2>ピンの見方</h2>
       <div class="lg-sec">色＝味の平均</div>
       <div class="lg-row">${[1, 2, 3, 4, 5].map(r => pin(PIN_COLORS[r], 'dot')).join('')}${pin(WISH_COLOR, 'dot')}
@@ -708,7 +705,7 @@ const Views = (() => {
       <div class="lg-sec">頭の印</div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'dot')}<span class="lg-txt"><b>白丸</b>　ふつう（平均 ○.0〜○.4）</span></div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'half')}<span class="lg-txt"><b>白の半月</b>　平均 ○.5 以上</span></div>
-      <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>金の★</b>　あなたか味覚の近い人が ★5 を付けた店</span></div>
+      <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>白の★</b>　あなたか味覚の近い人が ★5 を付けた店</span></div>
       <div class="lg-sec">引いたとき</div>
       <div class="lg-row"><span class="lg-cluster"><i></i><b>12</b></span><span class="lg-txt">近い店は丸にまとまり、中に件数。色はその中で一番評価が高い店の色</span></div>
       <p class="hint" style="margin:12px 0 0">この説明は地図の左下の「?」からいつでも開けます。</p>`;
@@ -760,7 +757,7 @@ const Views = (() => {
       // 色は凡例（★1〜★5・行きたい紫）と同じ。地図に沈まないよう足元に薄い影だけ付ける
       const DROP_ZOOM = 13; // 店名ラベルを出し始める倍率
       const MK_W = 32, MK_H = 31; // 画像の大きさ（1倍）。ピン本体は左寄せの幅19・高さ30、先端は (10, 30)、右側は影（v311〜幅15→19）
-      const PIN_STAR = '#ffcf40'; // ★5 の印の金
+      const PIN_STAR = '#ffffff'; // ★5 の印（v349〜 白の★。頭の印は 白丸／白の半月／白の★ の3種類）
       const PIN_PX = 4; // 最大1.75倍に拡大しても粗くならないよう4倍の解像度で描く
       const makeMarker = (color, mark) => { // mark: 'dot' | 'half' | 'star'
         const PX = PIN_PX;
@@ -783,6 +780,9 @@ const Views = (() => {
         g.bezierCurveTo(19.3, 17, 11.3, 24.8, 10, 30);
         g.closePath();
         g.fillStyle = color; g.fill();
+        const onWhite = color === WISH_COLOR; // 行きたい店: 白い本体に黒の縁、頭の印も黒
+        if (onWhite) { g.lineWidth = 1.4; g.strokeStyle = '#1A1A1A'; g.stroke(); }
+        const markColor = onWhite ? '#1A1A1A' : '#ffffff';
         g.beginPath();
         if (mark === 'star') {
           // 頭の中の小さな金の★（外半径5.4・内半径2.3、角を少し丸める）
@@ -792,11 +792,11 @@ const Views = (() => {
           }
           g.closePath();
           // 橙（★4）のピンでも金が沈まないよう、細い白の縁を下に敷いてから金で塗る
-          g.lineJoin = 'round'; g.lineWidth = 2.2; g.strokeStyle = '#ffffff'; g.stroke();
+          g.lineJoin = 'round'; g.lineWidth = 2.2; g.strokeStyle = '#1A1A1A'; g.stroke();
           g.fillStyle = PIN_STAR; g.fill();
           g.lineWidth = 0.6; g.strokeStyle = PIN_STAR; g.stroke();
         } else {
-          g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill();
+          g.arc(10, 9.5, 3.8, 0, Math.PI * 2); g.fillStyle = markColor; g.fill();
           if (mark === 'half') {
             // 白の半月（◐）: 左半分をピンの色でくり抜き、細い白の縁だけ残す
             g.beginPath(); g.arc(10, 9.5, 2.7, Math.PI / 2, Math.PI * 3 / 2); g.closePath();
@@ -873,7 +873,7 @@ const Views = (() => {
       map.addLayer({ id: 'wish-labels-hi', type: 'symbol', source: 'wishes', minzoom: DROP_ZOOM,
         layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 10,
           'text-anchor': 'bottom', 'text-offset': PIN_LABEL_OFFSET, 'text-max-width': 12 },
-        paint: { 'text-color': WISH_COLOR,
+        paint: { 'text-color': dark ? '#c9c7c2' : '#4a4a4a',
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
       // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
@@ -3536,7 +3536,7 @@ const Views = (() => {
   const legendOpt = () => ({ position: window.innerWidth < 560 ? 'bottom' : 'right',
     labels: { font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 10 } });
   // Instagram風パレット（CSSのアクセントと統一）
-  const PALETTE = ['#C6613F', '#D97757', '#8B6FA8', '#5B84A8', '#D9B36B', '#B04A3D', '#96658F', '#A56A32', '#B65C77', '#4E8E7F', '#E0C98F', '#C9705E', '#7C8F3F', '#A6A49B', '#6E8B54'];
+  const PALETTE = ['#1A1A1A', '#4A4A4A', '#757575', '#9E9E9E', '#BDBDBD', '#2E2E2E', '#5E5E5E', '#8A8A8A', '#B0B0B0', '#D0D0D0', '#3A3A3A', '#6A6A6A', '#949494', '#C4C4C4', '#E0E0E0']; // v349〜 灰の濃淡
 
   // 味覚が近いユーザー TOP5 と、自分の味覚の傾向（統計タブ）
   function renderTasteSections() {
@@ -3711,7 +3711,7 @@ const Views = (() => {
 
     // 味の評価（★1〜5）の割合。★1から右回り（時計回り）に★5まで並べる。
     // 色は星の値ごとに固定（★5→★1で濃い順）
-    const RATING_COLORS = ['#C6613F', '#D97757', '#D9A23C', '#6E8B54', '#A6A49B'];
+    const RATING_COLORS = ['#1A1A1A', '#4A4A4A', '#757575', '#9E9E9E', '#BDBDBD']; // ★5→★1（v349〜 灰の濃淡）
     const ratingEntries = [1, 2, 3, 4, 5]
       .map(r => [r, visits.filter(v => Math.round(v.rating || 0) === r).length])
       .filter(e => e[1] > 0);

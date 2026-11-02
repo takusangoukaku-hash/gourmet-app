@@ -17,15 +17,16 @@
   --border-lite: #EFEFEF;   /* さらに薄い区切り線 */
   --field: #F5F5F5;         /* 入力欄・仮表示の下地 */
   --ill: #EBEBEB;           /* 発見タイルの線画の塗り */
-  --star: #ffb400;
+  --star: #262626;          /* ★は文字色（v349〜 白黒） */
+  --star-empty: #DBDBDB;    /* 空の星 */
   --serif: -apple-system, BlinkMacSystemFont, sans-serif; /* 未使用（v335〜 明朝は廃止） */
   /* 評価の色（色相を大きく離してくっきり）: ★1灰→★2青→★3緑→★4橙→★5赤。データの色なので残す */
-  --r1: #94A3B8; --r2: #3B82F6; --r3: #22C55E; --r4: #F59E0B; --r5: #EF4444;
+  --r1: #BDBDBD; --r2: #9E9E9E; --r3: #757575; --r4: #4A4A4A; --r5: #1A1A1A; /* v349〜 灰の濃淡（JS の PIN_COLORS と同じ） */
   /* 制覇マップの塗り（行った店の数: 0 / 1〜2 / 3〜9 / 10〜29 / 30〜）。灰の濃淡。県境は地の色で抜く */
   --cq0: #EDEDED; --cq1: #CFCFCF; --cq2: #A6A6A6; --cq3: #6E6E6E; --cq4: #262626; --cq-line: #FFFFFF;
   /* よく行く店の順位の印（1位が濃い） */
   --gold: #262626; --silver: #8E8E8E; --bronze: #C7C7C7;
-  --like: #ED4956;          /* いいねの赤（Instagram と同じ） */
+  --like: #262626;          /* いいねは黒の塗り（v349〜） */
   --danger: #ED4956;        /* 削除 */
 }
 
@@ -274,10 +275,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .map-axis-filter .taste-select { border-color: var(--accent); color: var(--accent); font-weight: bold; }
 .stars button { border: none; background: none; cursor: pointer; padding: 0 2px; }
 .stars button svg { width: 26px; height: 26px; display: block; }
-.stars button svg path { fill: #DBDBDB; stroke: #DBDBDB; stroke-width: 3; stroke-linejoin: round; } /* 空の星は薄い灰（v347〜 白黒） */
-.stars button.on svg path { fill: url(#star-grad); stroke: #f5a300; }
+.stars button svg path { fill: var(--star-empty); stroke: var(--star-empty); stroke-width: 3; stroke-linejoin: round; } /* 空の星は薄い灰（v347〜 白黒） */
+.stars button.on svg path { fill: var(--star); stroke: var(--star); }
 /* 0.5刻み入力の半星: 灰色の星の上に、左半分だけ金色の星(.sb-fill)を重ねる */
-.stars button svg .sb-fill { display: none; fill: url(#star-grad); stroke: #f5a300; }
+.stars button svg .sb-fill { display: none; fill: var(--star); stroke: var(--star); }
 .stars button.half svg .sb-fill { display: block; }
 .stars button.on svg .sb-fill { display: none; }
 .stars.small button svg { width: 17px; height: 17px; }
@@ -439,7 +440,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .user-loc { position: relative; width: 22px; height: 22px; }
 .user-loc-dot {
   position: absolute; inset: 0; margin: auto; width: 16px; height: 16px; border-radius: 50%;
-  background: #007AFF; border: 3px solid #fff;
+  background: #1A1A1A; border: 3px solid #fff;
   box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 2px 6px rgba(0, 0, 0, .3);
 }
 .user-loc-pulse {
@@ -655,7 +656,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .ppc-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ppc-badge {
   position: absolute; top: 6px; left: 6px;
-  background: rgba(0, 0, 0, .6); color: #ffd75e; font-weight: 700; font-size: 11px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-weight: 700; font-size: 11px;
   padding: 1px 8px; border-radius: 999px;
 }
 .ppc-count {
@@ -776,7 +777,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 /* 星絞り込みの通過理由バッジ: 平均で超えている店（金色）／1回の記録だけで超えている店（白抜き）
    検索タブのカードと地図の店舗シートで共用 */
 .ps-hit { font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.ps-hit-avg { background: var(--star); color: #fff; }
+.ps-hit-avg { background: var(--text); color: var(--bg); }
 .ps-hit-once { background: var(--card); color: var(--star); border: 1.5px solid var(--star); }
 .msh-hitrow { display: flex; }
 
@@ -932,7 +933,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .visit-block .v-cover-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 40px; }
 .visit-block .v-badge {
   position: absolute; top: 8px; right: 8px; z-index: 1;
-  background: rgba(0, 0, 0, .6); color: #ffd75e; font-weight: bold; font-size: 13px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-weight: bold; font-size: 13px;
   padding: 2px 8px; border-radius: 999px; line-height: 1.5;
 }
 .visit-block .v-caption { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: bold; color: var(--text); margin: 6px 0 2px; }
@@ -1170,7 +1171,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .pd-photo-star {
   position: absolute; top: 10px; right: 10px; z-index: 2;
   display: inline-flex; align-items: center; height: 30px; padding: 0 12px;
-  border-radius: 14px; background: rgba(0, 0, 0, .6); color: #ffd75e;
+  border-radius: 14px; background: rgba(0, 0, 0, .6); color: #fff;
   font-weight: 700; font-size: 14px;
 }
 /* 詳細・コメントの折りたたみ。詳細はジャンルと同じ段の右端に枠なしで置く */
@@ -1680,7 +1681,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .fa-save.on { color: var(--text); }
 .fa-save.on .bm-ic { fill: currentColor; }
 .pd-save { margin-left: auto; }
-.dot.wish { background: #8B5CF6; }
+.dot.wish { background: #fff; border: 1.5px solid #1A1A1A; box-sizing: border-box; }
 .popup .popup-wish.on-wish { color: var(--accent); border-color: var(--accent); }
 /* 一覧の検索バー横のボタン */
 .filter-row .search-field { flex: 1; }
@@ -1776,11 +1777,13 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   clip-path: path('M9.5 30C8.2 24.8 0.2 17 0.2 9.5a9.3 9.3 0 0 1 18.6 0c0 7.5-8 15.3-9.3 20.5z'); }
 .lg-head { position: absolute; left: 50%; top: 9.5px; width: 7.6px; height: 7.6px; margin-left: -3.8px; margin-top: -3.8px; border-radius: 50%; background: #fff; }
 .lg-head.half { background: linear-gradient(90deg, transparent 50%, #fff 50%); box-shadow: inset 0 0 0 1.1px #fff; }
-.lg-head.star { width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; border-radius: 0; background: #ffcf40;
+.lg-head.star { width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; border-radius: 0; background: #fff;
   clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
 .lg-cluster { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: 0 0 auto; }
 .lg-cluster i { position: absolute; inset: 0; border-radius: 50%; background: var(--r5); opacity: .35; }
-.lg-cluster b { position: relative; width: 27px; height: 27px; border-radius: 50%; background: var(--r5); opacity: .85; color: #222; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.lg-cluster b { position: relative; width: 27px; height: 27px; border-radius: 50%; background: var(--r5); opacity: .85; color: #fff; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.lg-pin.wish { --c: #fff; box-shadow: inset 0 0 0 1.4px #1A1A1A; }
+.lg-pin.wish .lg-head { background: #1A1A1A; }
 /* 地図の絞り込みの「詳細」も右寄せ・枠なしのテキストに（✕はその右に残す） */
 .map-toolbar .btn#map-detail-toggle { margin-left: auto; border: none; background: none; color: var(--muted); }
 .map-toolbar .map-close { margin-left: 0; }
@@ -1991,6 +1994,8 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
     --ill: #2A2A2A;
     --cq0: #262626; --cq1: #444444; --cq2: #6E6E6E; --cq3: #A6A6A6; --cq4: #E6E6E6; --cq-line: #000000;
     --gold: #F5F5F5; --silver: #A8A8A8; --bronze: #5A5A5A;
+    --star: #F5F5F5; --star-empty: #363636; --like: #F5F5F5;
+    --r1: #4A4A4A; --r2: #6E6E6E; --r3: #9E9E9E; --r4: #C8C8C8; --r5: #F5F5F5;
   }
   .app-header { background: rgba(0, 0, 0, .95); }
   /* ジャンルの絵（白地の画像）: 暗色では反転して白地を黒に溶かす（v347〜） */
@@ -2144,7 +2149,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mz-sub { font-size: 11px; font-weight: 600; opacity: .92; text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mz-badge { position: absolute; top: 8px; left: 8px; background: rgba(0, 0, 0, .58); color: #ffd75e;
+.mz-badge { position: absolute; top: 8px; left: 8px; background: rgba(0, 0, 0, .58); color: #fff;
   font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
 .mz-count { position: absolute; top: 8px; right: 9px; color: #fff; font-size: 12px; font-weight: 800;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
