@@ -701,7 +701,7 @@ const Views = (() => {
     body.innerHTML = `<h2>ピンの見方</h2>
       <div class="lg-sec">色＝味の平均</div>
       <div class="lg-row">${[1, 2, 3, 4, 5].map(r => pin(PIN_COLORS[r], 'dot')).join('')}${pin(WISH_COLOR, 'dot')}
-        <span class="lg-txt">★1 → ★5。紫は「行きたい店」</span></div>
+        <span class="lg-txt">★1 → ★5。白は「行きたい店」</span></div>
       <div class="lg-sec">頭の印</div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'dot')}<span class="lg-txt"><b>白丸</b>　ふつう（平均 ○.0〜○.4）</span></div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'half')}<span class="lg-txt"><b>白の半月</b>　平均 ○.5 以上</span></div>
