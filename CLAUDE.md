@@ -140,9 +140,9 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   テラコッタ・紫（行きたい）・緑（一致率）・黄（案内の箱）・青（設定の印）の UI 色はすべて廃止した。戻さない。
   v349〜 ★も文字色（`--star`＝文字色、空は `--star-empty`。`starSvg` はインラインの style で `currentColor`。金のグラデーション `#star-grad` は廃止）、写真の ★バッジは黒地に白文字。
   評価の色 `--r1`〜`--r5` と JS の `PIN_COLORS` は ★1 薄い灰 → ★5 黒の濃淡（暗色では反転）。地図のピンの頭の印は 白丸／白の半月／白の★（金は廃止）。行きたい店のピン `WISH_COLOR` は白い本体に黒の縁（`makeMarker` の `onWhite`）、凡例は `.lg-pin.wish`。
-  地図 `baseMapStyle()` も灰の濃淡（海はやや濃い灰・道路は白・POI は灰）。グラフの `RATING_COLORS`／`PALETTE` も灰の濃淡。いいねの塗りは黒 `--like`。現在地の点は黒。
-  残っている色は 削除の赤 `--danger` だけ（誤操作を防ぐ慣習）。発見のジャンルの絵（`icons/genre/*.png`）は `filter: grayscale(1)`（暗色では反転して白地を溶かす）、線画の `GI()` は塗り `--ill`・線は文字色。
-  グラフの色は JS の `uiColor('--accent')`（CSS 変数を読む）。新しい色を足すときは灰か削除の赤かを先に確認する。
+  地図 `baseMapStyle()` も灰の濃淡（海はやや濃い灰・道路は白・POI は灰）。グラフの `RATING_COLORS`／`PALETTE` も灰の濃淡。現在地の点は黒。
+  残っている色は いいねのピンク `--like`（#FF4D8D。v351〜 利用者の希望）と 削除の赤 `--danger`（誤操作を防ぐ慣習）だけ。発見のジャンルの絵（`icons/genre/*.png`）は `filter: grayscale(1)`（暗色では反転して白地を溶かす）、線画の `GI()` は塗り `--ill`・線は文字色。
+  グラフの色は JS の `uiColor('--accent')`（CSS 変数を読む）。新しい色を足すときは灰か上の2つの例外かを先に確認する。
 - 見た目の決めごと（v332〜。heydamir の unslop の手順を手で当てた）: 絵文字を UI のアイコンに使わない。線画 SVG は `views.js` の `IC_*`（`Views.icons` で register.js / import.js / app.js からも使う）1組で、
   `.ic` 14px（`.btn` 内 16px）・太さ 1.75、閉じるは `.x-ic` 18px、写真の仮表示は `.ph-ic`、プロフィール写真の仮表示は `.av-ic`（お椀）。トーストや状態の文には印を付けず文だけ。
   文字サイズは 11/12/13/14/15/16/18/20/22/24/28/32/40/48px の尺から選ぶ（11px 未満は地図の凡例・ピンのラベル・出典だけ）。余白は 4px 刻み（2px・6px・10px・14px の半歩は可）。

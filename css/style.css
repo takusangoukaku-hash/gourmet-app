@@ -26,7 +26,7 @@
   --cq0: #EDEDED; --cq1: #CFCFCF; --cq2: #A6A6A6; --cq3: #6E6E6E; --cq4: #262626; --cq-line: #FFFFFF;
   /* よく行く店の順位の印（1位が濃い） */
   --gold: #262626; --silver: #8E8E8E; --bronze: #C7C7C7;
-  --like: #262626;          /* いいねは黒の塗り（v349〜） */
+  --like: #FF4D8D;          /* いいねはピンク（v351〜。白黒の例外。利用者の希望） */
   --danger: #ED4956;        /* 削除 */
 }
 
@@ -1994,7 +1994,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
     --ill: #2A2A2A;
     --cq0: #262626; --cq1: #444444; --cq2: #6E6E6E; --cq3: #A6A6A6; --cq4: #E6E6E6; --cq-line: #000000;
     --gold: #F5F5F5; --silver: #A8A8A8; --bronze: #5A5A5A;
-    --star: #F5F5F5; --star-empty: #363636; --like: #F5F5F5;
+    --star: #F5F5F5; --star-empty: #363636; --like: #FF4D8D;
     --r1: #4A4A4A; --r2: #6E6E6E; --r3: #9E9E9E; --r4: #C8C8C8; --r5: #F5F5F5;
   }
   .app-header { background: rgba(0, 0, 0, .95); }
