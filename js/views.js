@@ -154,7 +154,7 @@ const Views = (() => {
   const IC_WALK = '<svg class="nm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.2" r="1.6"/><path d="M13 8l-1.5 3.5L14 14l1 6"/><path d="M11.5 11.5L8.5 13"/><path d="M14 12.5l3 1"/><path d="M11.5 13.5L9 20"/></svg>';
   // 「11月1日」（今年以外は「2025年11月1日」）。一覧の日付用（v338〜）
   function fmtDateJa(iso) { const d = new Date(iso); if (isNaN(d)) return ''; const y = d.getFullYear() !== new Date().getFullYear() ? `${d.getFullYear()}年` : ''; return `${y}${d.getMonth() + 1}月${d.getDate()}日`; }
-  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('ja-JP') : '－';
+  const fmtDate = (iso) => iso ? (fmtDateJa(iso) || '－') : '－'; // v341〜 「11月1日」（今年以外は「2025年11月1日」）で統一
   // 評価の数値表示は全て小数第一位まで（3 → 3.0）。値なしは呼び出し側で分岐する
   const fmtR = (r) => (Math.round((+r || 0) * 10) / 10).toFixed(1);
   // 「2時間前」「3日前」のような相対表記（フォロワーの写真の撮影時期表示用）
@@ -4135,8 +4135,6 @@ const Views = (() => {
       </div>` : `
       <div class="detail-head">
         <h2>${esc(s.name)}</h2>
-        <div class="d-stars">${starSvg(avg, 16)}${avg ? ` <span class="d-avg">味 ${avg.toFixed(1)}</span>` : ''} <span style="color:var(--muted);font-size:13px">訪問${vs.length}回${fps.length ? '＋フォロー中' + fps.length + '件' : ''}</span></div>
-        ${(() => { const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon }); return pair.raters > 1 ? ratePairHtml(pair, { count: true }) : ''; })()}
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
         <div class="d-sub">${s.station ? IC_STATION + ' ' + esc(s.station) + '　' : ''}${esc([s.pref, s.city].filter(Boolean).join(' '))}</div>
         <div class="d-sub">${esc(s.address || '')}</div>
@@ -4174,7 +4172,7 @@ const Views = (() => {
     // 「詳細」の中身: お店の評価（3軸）＋店舗の操作（訪問を追加・店舗情報・閉店・削除）。
     // よく使う「ここへ行く」とお気に入り♥だけを外に出し、残りはここへ畳む
     const axisHtml = `
-      <button type="button" class="btn small d-detail-toggle" id="d-detail-toggle">▸ 詳細</button>
+      <button type="button" class="row-toggle" id="d-detail-toggle"><span class="ri">${starIc('full', 16)} お店の評価</span><span class="chev">›</span></button>
       <div class="axis-box hidden" id="d-detail-box">
         <div class="axis-title">お店の評価（タップで変更・その場で保存されます）</div>
         ${['casual', 'atmosphere', 'speed'].map(k => `
@@ -4183,21 +4181,33 @@ const Views = (() => {
               ${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${(s[k] || 0) >= i ? 'on' : ''}">${starBtn()}</button>`).join('')}
             </div>
           </div>`).join('')}
-        <div class="detail-actions d-sub-actions">
-          <button class="btn small" id="d-add-visit">＋ 訪問を追加</button>
-          <button class="btn small" id="d-edit">${IC_EDIT} 店舗情報</button>
-          <button class="btn small" id="d-closed">${s.status === 'closed' ? '営業中に戻す' : '閉店にする'}</button>
-          <button class="btn small danger" id="d-delete">店舗を削除</button>
-        </div>
       </div>`;
+    // タイル（店シートと同じ）と要点行（v341〜）。操作の残りは「その他」の一覧へ
+    const hasPos0 = s.lat != null && s.lon != null;
+    const mins0 = hasPos0 ? walkMinutes(s.lat, s.lon) : 0;
+    const pair0 = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+    const myAvg0 = Store.avgRating(shopId) || 0;
+    const facts0 = [
+      myAvg0 ? { k: 'あなた', v: fmtR(myAvg0), star: true } : null,
+      pair0.raters ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : null,
+      vs.length >= 2 ? { k: '訪問', v: `${vs.length}回` } : null,
+    ].filter(Boolean);
+    const tilesHtml = `
+      <div class="msh-tiles d-tiles">
+        ${hasPos0 ? `<button type="button" class="msh-tile pri" id="d-nav">${IC_NAV}<span>${mins0 ? `${mins0}分` : '経路'}</span></button>` : ''}
+        <button type="button" class="msh-tile" id="d-revisit">${IC_PLUS}<span>また来た</span></button>
+        <button type="button" class="msh-tile" id="d-share">${IC_SHARE_S}<span>共有</span></button>
+        <button type="button" class="msh-tile" id="d-more">${IC_MORE}<span>その他</span></button>
+      </div>
+      ${facts0.length ? `<div class="msh-facts">${facts0.map(f => `<div class="msh-fact"><div class="k">${esc(f.k)}</div><div class="v">${f.star ? starIc('full', 13) : ''}${esc(f.v)}</div></div>`).join('')}</div>` : ''}`;
 
     const actionsHtml = editMode ? `
       <div class="detail-actions">
         <button class="btn primary" id="d-save-all">保存</button>
         <button class="btn" id="d-cancel">キャンセル</button>
       </div>` : `
-      <div class="d-mainrow">
-        ${s.lat != null && s.lon != null ? `
+      <div class="d-mainrow hidden">
+        ${false ? `
         <button class="btn d-map-btn" id="d-showmap"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
         <button class="btn primary d-nav-btn" id="d-nav">${IC_NAV} ここへ行く</button>` : ''}
       </div>`;
@@ -4216,10 +4226,7 @@ const Views = (() => {
       ${actionsHtml}` : `
       ${navPrev ? `<div class="d-swipehint">︿ 下に引っ張って前の店舗: ${esc(navPrev)}</div>` : ''}
       ${headHtml}
-      <div class="d-revisit-row">
-        <button type="button" class="btn d-revisit" id="d-revisit">＋ また来た</button>
-        <span class="d-revisit-note">写真なしで今日の来店を記録（${vs.length + 1}回目）</span>
-      </div>
+      ${tilesHtml}
       ${axisHtml}
       <div class="d-visits-head">
         <h3>訪問記録</h3>
@@ -4235,8 +4242,8 @@ const Views = (() => {
     if (detailToggle) {
       detailToggle.addEventListener('click', () => {
         const box = $('#d-detail-box');
-        const open = box.classList.toggle('hidden'); // true = 閉じた
-        detailToggle.textContent = open ? '▸ 詳細' : '▾ 詳細';
+        const closed = box.classList.toggle('hidden'); // true = 閉じた
+        detailToggle.classList.toggle('open', !closed);
       });
     }
 
@@ -4260,29 +4267,29 @@ const Views = (() => {
     } else {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
-      const mapBtn2 = $('#d-showmap');
-      if (mapBtn2) mapBtn2.addEventListener('click', () => { closeModal(); focusMapAt(s.lat, s.lon); });
       $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
       $('#d-revisit').addEventListener('click', () => quickRevisit(shopId, () => showShop(shopId, false, null, nav)));
-      $('#d-edit').addEventListener('click', () => showShop(shopId, true));
+      $('#d-share').addEventListener('click', async () => {
+        const text = `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
+        if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
+        try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+      });
       const posFix = $('#d-posfix');
       if (posFix) posFix.addEventListener('click', () => showShop(shopId, true));
-      $('#d-add-visit').addEventListener('click', () => {
-        closeModal();
-        App.switchTab('register');
-        Register.preselectShop(shopId);
-      });
-      $('#d-closed').addEventListener('click', () => {
-        Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' });
-        showShop(shopId);
-      });
-      $('#d-delete').addEventListener('click', async () => {
-        if (!confirm(`「${s.name}」と訪問記録・写真をすべて削除します。よろしいですか？`)) return;
-        await Store.deleteShop(shopId);
-        closeModal();
-        App.refreshCurrent();
-        App.toast('削除しました');
-      });
+      // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
+      $('#d-more').addEventListener('click', () => openActionSheet([
+        ...(hasPos0 ? [{ label: '地図で見る', onClick: () => { closeModal(); focusMapAt(s.lat, s.lon); } }] : []),
+        { label: '写真つきで訪問を追加', onClick: () => { closeModal(); App.switchTab('register'); Register.preselectShop(shopId); } },
+        { label: '店舗情報を編集', onClick: () => showShop(shopId, true) },
+        { label: s.status === 'closed' ? '営業中に戻す' : '閉店にする', onClick: () => { Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' }); showShop(shopId); } },
+        { label: '店舗を削除', onClick: async () => {
+          if (!confirm(`「${s.name}」と訪問記録・写真をすべて削除します。よろしいですか？`)) return;
+          await Store.deleteShop(shopId);
+          closeModal();
+          App.refreshCurrent();
+          App.toast('削除しました');
+        } },
+      ]));
     }
 
     if (editMode) {
@@ -4381,7 +4388,7 @@ const Views = (() => {
               el.innerHTML = `
                 <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
                   ${v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : ''}</span>
-                <span class="dvt-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
+                <span class="dvt-date">${fmtDate(v.datetime)}</span>
                 <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
               setThumb(el.querySelector('img'), ph);
               el.addEventListener('click', () => showVisitList(shopId));
@@ -4401,7 +4408,7 @@ const Views = (() => {
           // どの記録か分かるよう、見出しにその訪問の日付、下に写真を出したまま編集する
           block.classList.add('ve-editing');
           block.innerHTML = `
-            <div class="ve-title">${IC_EDIT} 記録を編集中 <span class="ve-title-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span></div>
+            <div class="ve-title">${IC_EDIT} 記録を編集中 <span class="ve-title-date">${fmtDate(v.datetime)}</span></div>
             <div class="v-photos ve-photos"></div>
             <div class="ve-row">味の評価 <span class="stars small ve-stars" data-rating="${v.rating}"></span></div>
             <div class="ve-sub">料理ジャンル</div>
@@ -4457,7 +4464,7 @@ const Views = (() => {
           });
         } else {
           // ---- 読み取り表示: 写真＋左上に星の数＋下に日付・編集ボタン。写真タップで訪問一覧ページへ ----
-          const dateStr = new Date(v.datetime).toLocaleDateString('ja-JP');
+          const dateStr = fmtDate(v.datetime);
           block.innerHTML = `
             <button type="button" class="v-cover">
               <span class="v-cover-ph">${IC_DISH}</span>
@@ -4592,7 +4599,7 @@ const Views = (() => {
           <div class="vlc-photobox">
             <div class="pd-photos vl-photos"></div>
             ${v.rating ? `<span class="pd-photo-star vlc-star">★${fmtR(v.rating)}</span>` : ''}
-            <span class="vlc-date">${new Date(v.datetime).toLocaleDateString('ja-JP')}</span>
+            <span class="vlc-date">${fmtDate(v.datetime)}</span>
             ${gtxt ? `<span class="vlc-genre">${esc(gtxt)}</span>` : ''}
           </div>
           <div class="vlc-info">
@@ -5233,7 +5240,7 @@ const Views = (() => {
           <div class="pd-shop">${esc(p.shopName || '')}</div>
           ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
           <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
-            <button type="button" class="pd-more">▸ 詳細</button></div>
+            <button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button></div>
           ${(p.lat != null && p.lon != null) ? '<button type="button" class="btn primary pd-nav pd-nav-main">' + IC_NAV + ' ここへ行く</button>' : ''}
           <div class="pd-morebox hidden">
             ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
@@ -5254,7 +5261,7 @@ const Views = (() => {
     const moreBtn = sect.querySelector('.pd-more');
     moreBtn.addEventListener('click', () => {
       const hidden = sect.querySelector('.pd-morebox').classList.toggle('hidden');
-      moreBtn.textContent = hidden ? '▸ 詳細' : '▾ 詳細';
+      moreBtn.classList.toggle('open', !hidden);
     });
     // 星の横の「コメント」でコメント欄を開閉
     sect.querySelector('.pd-cmt-btn').addEventListener('click', () => {

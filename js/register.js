@@ -376,7 +376,7 @@ const Register = (() => {
         if (dup) {
           const shop = Store.getShop(dup.shopId);
           const visit = Store.visits().find(v => v.id === dup.visitId);
-          const when = visit ? new Date(visit.datetime).toLocaleDateString('ja-JP') : '';
+          const when = visit ? ((d) => { const y = d.getFullYear() !== new Date().getFullYear() ? `${d.getFullYear()}年` : ''; return `${y}${d.getMonth() + 1}月${d.getDate()}日`; })(new Date(visit.datetime)) : '';
           const where = shop ? `（「${shop.name}」${when ? ` ${when}` : ''}）` : '';
           dupMsgs.push(`この写真は登録されています。${where}`);
           continue;
