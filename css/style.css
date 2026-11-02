@@ -73,6 +73,7 @@ body {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 1200;
   display: flex; background: var(--card); border-top: 1px solid var(--border-lite);
   padding-bottom: env(safe-area-inset-bottom);
+  height: calc(57px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; /* 地図タブの下端と揃える（v345〜） */
 }
 .tab {
   flex: 1; border: none; background: none; cursor: pointer;
@@ -317,8 +318,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   height: calc(100dvh - 112px - env(safe-area-inset-bottom));
   min-height: 300px; border-radius: 0; overflow: hidden;
 }
-/* 地図タブではアプリの見出しを隠すぶん（52px）地図を伸ばす（v339〜） */
-body[data-tab="map"] #map-canvas { height: calc(100dvh - 60px - env(safe-area-inset-bottom)); }
+/* 地図タブ（v345〜）: 地図を画面に固定し、上端から下のタブまで隙間なく埋める
+   （v339 の高さ計算では上が 8px 切れ、下に 11px の白い隙間が残っていた）。タブの高さ 57px は .tabs と揃える */
+body[data-tab="map"] { overflow: hidden; }
+body[data-tab="map"] #view-map {
+  position: fixed; top: 0; left: 0; right: 0; bottom: calc(57px + env(safe-area-inset-bottom, 0px));
+  margin: 0; z-index: 1;
+}
+body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 /* 地図の上に重ねる検索バー＋絞り込みパネル */
 .map-overlay { position: absolute; top: 10px; left: 12px; right: 12px; z-index: 1050; }
 #map-search {

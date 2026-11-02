@@ -106,7 +106,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   「ごちゃつく」ため v306 で戻した。ピンは平らな一色の涙型（幅19×高さ30px、v311〜）で、頭の印は白丸（平均 .0〜.4・行きたい店）、白の半月◐（平均 .5 以上。v322〜。v309〜v321 の金丸は★と紛らわしいため廃止）、
   白縁の金の★（自分か味覚一致率70%以上の人が ★5 を付けた店＝`fiveStarFans()`、v320〜。半月より優先）の3種類。金色は ★5 の印だけに使う。
   拡大率は `PIN_SCALE_STOPS`（ラベル・吹き出しの位置もこれに連動）。地図の凡例は評価の色だけ出し、頭の印の説明は凡例の「?」→`showMapLegendHelp()`（v323〜。初めて地図を開いたとき一度だけ自動で出す。`gourmet.mapLegendSeen`）。
-  v339〜 2回目からは凡例を畳んで「?」だけ（`.map-legend-float.mini`）。地図の検索欄は丸いボタン `#map-search-open` で、タップで開き空のまま離れると閉じる（`.map-search-field.collapsed`）。地図タブでは見出しを隠すぶん `#map-canvas` を伸ばす。
+  v339〜 2回目からは凡例を畳んで「?」だけ（`.map-legend-float.mini`）。地図の検索欄は丸いボタン `#map-search-open` で、タップで開き空のまま離れると閉じる（`.map-search-field.collapsed`）。地図タブでは見出しを隠し、`#view-map` を `position: fixed` で上端から下のタブ（`.tabs` の高さ 57px＋safe-area）まで隙間なく埋める（v345〜。高さ計算で伸ばす方式は上下に隙間が出た）。iOS の PWA は `apple-mobile-web-app-status-bar-style` が `default` のため、ステータスバー（時計の帯）の下までは描けない（`black-translucent` にすると時計が白文字になり白い画面で読めなくなるので採らない）。
   地図の駅名・幹線道路の縁・鉄道は v323 で少し強くした（位置関係をつかむため。全体の薄さは保つ）。
   まとまり（クラスター）は Leaflet.markercluster 風の丸＋淡い輪で、丸も輪も中で一番評価の高い店の評価色（`maxR`、v321〜）。
   件数での色分けと、乗せたときに範囲を囲む表示は利用者の希望で廃止（v321）。戻さない。
