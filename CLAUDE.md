@@ -165,3 +165,9 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - Anthropic SDK は `diet/js/vendor/anthropic-sdk.js` に本体と同じものをコピーして使う（本体の更新に巻き込まれないよう独立）。
 - Service Worker のキャッシュ名は本体 `gourmet-*`、diet `diet-*`。**更新時に消してよいのは自分の接頭辞のキャッシュだけ**（v298 で本体側を修正済み）。
 - 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/diet/
+
+## サブアプリ: ラボ片付け（`lab/`）
+- 研究室の後片付け（曜日で繰り返し・完了はその日だけ）と依頼事項（依頼者・期限）をトグルで管理する別 PWA。詳細は `lab/README.md`。
+- 本体・diet とはコード・Service Worker・localStorage キー（`lab.*`）・キャッシュ名（`lab-*`）を分ける。本体の `APP_VERSION` は変更しない。
+- バージョン: `lab/js/app.js` の `APP_VERSION`、`lab/sw.js` の `VERSION` と `SHELL` の `?v=`、`lab/index.html` の `?v=`（2箇所）を揃える。
+- 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/lab/
