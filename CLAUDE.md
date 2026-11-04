@@ -140,6 +140,10 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   `--accent` はテラコッタ（#C6613F、暗色では #D97757）、`--accent-soft` は淡いテラコッタ、★は金のグラデーション `#star-grad`、評価の色は ★1灰→★2青→★3緑→★4橙→★5赤（`--r1`〜`--r5`＝JS の `PIN_COLORS`）、
   行きたい店は紫（`WISH_COLOR` #8B5CF6）、地図は iPhone のマップ風の配色（`baseMapStyle()`）、発見のジャンルの絵は色つき。v347〜v353 の機能の変更（登録2枚目の写真タイル・「また来た」→登録画面・店シートのタイル揃え）は残っている。
   CSS は v346 の `css/style.css` を土台に v348・v350 の規則だけ再適用した（v347 で足した `--on-accent`／`--like`／`--danger`／`--ill` は無い）。色を変える要望が来たら、まず「どの範囲か（UI だけか・データの色もか）」を確かめてから着手する。
+- Edge-to-Edge（v355〜。@miyayu_jp の「背景は端まで、操作 UI と文字は安全な領域に」を当てた）:
+  下: 下のタブは `padding-bottom: env(safe-area-inset-bottom)` で背景がホームインジケータの裏まで伸びる。全画面の一覧（`.vl-body`）・投稿（`.pd-scroll`）・店舗詳細（`.modal-full #modal-body`）・店シート（`.msh-sheet`）・アクションシート（`.as-box`）・取り込みの足（`.im-foot`）・カメラの操作列は下に safe-area の余白を持つ。新しい全画面・シートを足すときも同じにする。
+  キーボード（IME）: `app.js` の `watchKeyboard()` が visualViewport からキーボードの高さを `--kb` に入れる。`position: fixed` の下固定（登録の「記録する」`.reg-sticky`・トースト）は `bottom: max(通常の位置, var(--kb))` でキーボードの上に出る。iOS はキーボードが出ても fixed の基準が縮まないため。
+  上（ステータスバー）: iOS の PWA は `apple-mobile-web-app-status-bar-style` が `default`（白地に黒の時計）のため、ステータスバーの裏までは描けない。`black-translucent` は時計が白文字固定で白い画面で読めなくなるので採らない（Edge-to-Edge の「上」は iOS の Web アプリでは諦める）。
 - 見た目の決めごと（v332〜。heydamir の unslop の手順を手で当てた）: 絵文字を UI のアイコンに使わない。線画 SVG は `views.js` の `IC_*`（`Views.icons` で register.js / import.js / app.js からも使う）1組で、
   `.ic` 14px（`.btn` 内 16px）・太さ 1.75、閉じるは `.x-ic` 18px、写真の仮表示は `.ph-ic`、プロフィール写真の仮表示は `.av-ic`（お椀）。トーストや状態の文には印を付けず文だけ。
   文字サイズは 11/12/13/14/15/16/18/20/22/24/28/32/40/48px の尺から選ぶ（11px 未満は地図の凡例・ピンのラベル・出典だけ）。余白は 4px 刻み（2px・6px・10px・14px の半歩は可）。

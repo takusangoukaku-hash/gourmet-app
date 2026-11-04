@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v354'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v355'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -42,8 +42,23 @@ const App = (() => {
     return libLoads[name];
   }
 
+  // キーボード（IME）の高さを CSS 変数 --kb に（v355〜 Edge-to-Edge の作法: 下に固定した「記録する」やトーストをキーボードの上に出す）。
+  // iOS はキーボードが出ても position: fixed の基準（レイアウトビューポート）が縮まないので、visualViewport との差で求める
+  function watchKeyboard() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty('--kb', kb > 40 ? kb + 'px' : '0px'); // 40px 未満はアドレスバー等の揺れとみなす
+    };
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    apply();
+  }
+
   function init() {
     const params = new URLSearchParams(location.search);
+    watchKeyboard();
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
     Views.initList();

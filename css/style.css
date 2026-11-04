@@ -978,7 +978,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .vl-sub { color: var(--muted); font-size: 11px; }
-.vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ */ }
+.vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; padding-bottom: env(safe-area-inset-bottom, 0px); /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ。下はホームインジケータを避ける（v355〜） */ }
 .vl-body .empty { padding: 28px 16px; }
 /* 上: ジャンル絞り込み・表示切り替え（v344〜 統計タイルと下の固定ボタンは廃止） */
 .vl-head { padding: 10px 16px 6px; }
@@ -1019,7 +1019,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .msh-sheet {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative;
   background: var(--card); border-radius: 18px 18px 0 0;
-  box-shadow: 0 -6px 24px rgba(0,0,0,.18); padding: 8px 16px 28px;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.18); padding: 8px 16px calc(28px + env(safe-area-inset-bottom, 0px)); /* 下はホームインジケータを避ける（v355〜） */
   display: flex; flex-direction: column; gap: 0;
 }
 /* v336〜 モックどおり: つまみ → 写真 → 店名 → 駅 → タイル4つ → 要点行 → 写真のタイル */
@@ -1159,7 +1159,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   padding: 8px 12px; border-bottom: 1px solid var(--border-lite); background: var(--card);
 }
 .pd-topbar .pd-close { position: static; margin: 0; flex-shrink: 0; }
-.pd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ */ }
+.pd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; padding-bottom: env(safe-area-inset-bottom, 0px); /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ。下はホームインジケータを避ける（v355〜） */ }
 .pd-top-title { font-weight: 700; font-size: 16px; }
 .pd-phwrap { position: relative; }
 /* 各写真の右上に、その訪問の星の数（★4）。地図の写真バッジ(.v-badge)と同じ黒背景・金文字 */
@@ -1625,7 +1625,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 
 /* ---------- トースト（下タブの直上に控えめに。タップを妨げない） ---------- */
 .toast {
-  position: fixed; bottom: calc(72px + env(safe-area-inset-bottom)); left: 50%;
+  position: fixed; bottom: max(calc(72px + env(safe-area-inset-bottom)), calc(var(--kb, 0px) + 12px)); left: 50%; /* キーボードの上にも出す（v355〜） */
   transform: translateX(-50%);
   background: rgba(38, 38, 38, .94); color: #fff; padding: 12px 20px; border-radius: 14px;
   font-size: 14px; line-height: 1.5; z-index: 3000; box-shadow: 0 4px 14px rgba(0,0,0,.25);
@@ -1914,7 +1914,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 }
 /* 記録が少なく画面が埋まらないときも、ここへ行く＋♥のバーを画面の一番下へ寄せる */
 .modal.modal-full .modal-box { display: flex; flex-direction: column; }
-.modal.modal-full #modal-body { flex: 1; display: flex; flex-direction: column; }
+.modal.modal-full #modal-body { flex: 1; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); /* 下はホームインジケータを避ける（v355〜） */ }
 .modal.modal-full #modal-body > * { flex-shrink: 0; }
 .modal.modal-full #modal-body > .d-mainrow { margin-top: auto; }
 /* flex化で「▸ 詳細」ボタンが全幅に伸びないよう、内容ぶんの幅で右端に置く */
@@ -2260,7 +2260,7 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 .reg-fold { padding: 4px 0 12px; }
 .reg-fold textarea { width: 100%; }
 #view-register .form-grid .reg-row { grid-column: 1 / -1; }
-.reg-sticky { position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 1100; padding: 10px 16px 8px; background: linear-gradient(to top, var(--bg) 70%, rgba(255,255,255,0)); pointer-events: none; }
+.reg-sticky { position: fixed; left: 0; right: 0; bottom: max(calc(56px + env(safe-area-inset-bottom, 0px)), var(--kb, 0px)); /* キーボードが出ているときはその上に（v355〜） */ z-index: 1100; padding: 10px 16px 8px; background: linear-gradient(to top, var(--bg) 70%, rgba(255,255,255,0)); pointer-events: none; }
 .reg-sticky .btn { pointer-events: auto; margin-top: 0; max-width: 560px; margin-left: auto; margin-right: auto; display: block; }
 @media (prefers-color-scheme: dark) { .reg-sticky { background: linear-gradient(to top, var(--bg) 70%, rgba(0,0,0,0)); } }
 
