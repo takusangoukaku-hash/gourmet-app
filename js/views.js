@@ -1439,7 +1439,6 @@ const Views = (() => {
           tiles: [
             hasPos ? { cls: 'msh-navbtn', icon: IC_NAV, label: mins ? `${mins}分` : '経路', primary: true } : null,
             { cls: 'msh-revisit', icon: IC_PLUS, label: 'また来た' },
-            { cls: 'msh-mapbtn', icon: IC_MAP, label: '地図' },
             { cls: 'msh-share', icon: IC_SHARE_S, label: '共有' },
           ],
           facts: [
@@ -1468,7 +1467,6 @@ const Views = (() => {
     if (photos.length) setFullPhoto(ov.querySelector('.msh-hero img'), photos[0]);
     ov.querySelector('.msh-hero').addEventListener('click', () => showShop(shopId));
     ov.querySelector('.msh-name').addEventListener('click', () => showShop(shopId));
-    ov.querySelector('.msh-mapbtn').addEventListener('click', close); // 地図はこの画面の後ろに出ている
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
     ov.querySelector('.msh-revisit').addEventListener('click', () => { close(); openRegisterFor(shopId); }); // v350〜 店を選んだ状態の登録画面へ
@@ -1583,7 +1581,6 @@ const Views = (() => {
           tiles: [
             hasPos ? { cls: 'msh-navbtn', icon: IC_NAV, label: mins ? `${mins}分` : '経路', primary: true } : null,
             { cls: 'msh-wishbtn' + (wishOn ? ' on' : ''), icon: IC_BOOKMARK, label: '行きたい' },
-            { cls: 'msh-mapbtn', icon: IC_MAP, label: '地図' },
             { cls: 'msh-share', icon: IC_SHARE_S, label: '共有' },
           ],
           facts: [
@@ -1615,7 +1612,6 @@ const Views = (() => {
     if (latest.photoUrl) ov.querySelector('.msh-hero img').src = latest.photoUrl;
     ov.querySelector('.msh-hero').addEventListener('click', openLatest);
     ov.querySelector('.msh-name').addEventListener('click', openLatest);
-    ov.querySelector('.msh-mapbtn').addEventListener('click', close); // 地図はこの画面の後ろに出ている
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav({ name: g.name, lat: g.lat, lon: g.lon }));
     // フォロワーの写真（相対時刻なし）。並び替えも共通部品で
