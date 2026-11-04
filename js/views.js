@@ -402,14 +402,15 @@ const Views = (() => {
   // 「★5 を付けた人」の数（v318〜）。平均は人数が増えるほど 4 点台に寄り ★5 の店が見分けにくくなるため、平均とは別に数える。
   // 数えるのは自分と、味覚一致率 FIVE_MATCH_MIN% 以上（共通5件以上）の人だけ。誰でも数えると、ほとんどの店に付いて意味が薄れる
   const FIVE_MATCH_MIN = 70;
+  const FIVE_MIN_RATING = 4.5; // v356〜 ★5 だけでなく ★4.5 以上を「最高評価」として数える（利用者の希望）
   function fiveStarFans(shopLike) {
     const users = new Set();
     let mine = false;
     const my = Store.matchShop({ name: shopLike.name, lat: shopLike.lat, lon: shopLike.lon });
-    if (my && Store.visitsOf(my.id).some(v => (Number(v.rating) || 0) >= 5)) mine = true;
+    if (my && Store.visitsOf(my.id).some(v => (Number(v.rating) || 0) >= FIVE_MIN_RATING)) mine = true;
     const meName = (Store.getProfile() || {}).username;
     for (const p of networkPosts) {
-      if ((Number(p.rating) || 0) < 5 || !p.username || p.username === meName || !postMatchesShop(p, shopLike)) continue;
+      if ((Number(p.rating) || 0) < FIVE_MIN_RATING || !p.username || p.username === meName || !postMatchesShop(p, shopLike)) continue;
       const m = tasteMatch(p.username);
       if (m.rate != null && m.conf !== 'low' && m.rate >= FIVE_MATCH_MIN) users.add(p.username);
     }
@@ -418,8 +419,8 @@ const Views = (() => {
   // 「★5 ×N人」の印（0人なら空）
   function fiveChipHtml(f) {
     if (!f || !f.n) return '';
-    const label = f.mine && f.n === 1 ? 'あなたが★5' : `★5 ×${f.n}人`;
-    const tip = `あなた${f.mine ? '' : '以外'}と、味覚一致率${FIVE_MATCH_MIN}%以上の人のうち ★5 を付けた人数${f.mine && f.n > 1 ? '（あなたを含む）' : ''}`;
+    const label = f.mine && f.n === 1 ? 'あなたが★4.5以上' : `★4.5以上 ×${f.n}人`;
+    const tip = `あなた${f.mine ? '' : '以外'}と、味覚一致率${FIVE_MATCH_MIN}%以上の人のうち ★4.5 以上を付けた人数${f.mine && f.n > 1 ? '（あなたを含む）' : ''}`;
     return `<span class="five-chip" title="${esc(tip)}">${esc(label)}</span>`;
   }
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
@@ -706,7 +707,7 @@ const Views = (() => {
       <div class="lg-sec">頭の印</div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'dot')}<span class="lg-txt"><b>白丸</b>　ふつう（平均 ○.0〜○.4）</span></div>
       <div class="lg-row">${pin(PIN_COLORS[4], 'half')}<span class="lg-txt"><b>白の半月</b>　平均 ○.5 以上</span></div>
-      <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>金の★</b>　あなたか味覚の近い人が ★5 を付けた店</span></div>
+      <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>金の★</b>　あなたか味覚の近い人が ★4.5 以上を付けた店</span></div>
       <div class="lg-sec">引いたとき</div>
       <div class="lg-row"><span class="lg-cluster"><i></i><b>12</b></span><span class="lg-txt">近い店は丸にまとまり、中に件数。色はその中で一番評価が高い店の色</span></div>
       <p class="hint" style="margin:12px 0 0">この説明は地図の左下の「?」からいつでも開けます。</p>`;
