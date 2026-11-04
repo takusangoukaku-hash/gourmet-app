@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v363'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v364'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -238,6 +238,7 @@ const App = (() => {
       } finally { btn.disabled = false; }
     });
     $('#backup-import').addEventListener('click', () => $('#backup-file').click());
+    $('#merge-shops').addEventListener('click', () => Views.openMergeShops()); // 重複した店の統合（v364〜）
     $('#backup-file').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       e.target.value = '';

@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=363">
+<link rel="stylesheet" href="css/style.css?v=364">
 </head>
 <body>
 
@@ -384,6 +384,7 @@
     <button type="button" id="stat-more-btn" class="stat-more-btn" aria-expanded="false" aria-controls="stat-more">もっと見る</button>
     <div id="stat-more" class="stat-more hidden">
     <div id="stat-cards-more" class="stat-cards"></div>
+    <div id="stat-year" class="card hidden"></div><!-- 今年のまとめ（v364〜）。今年の訪問が無ければ出さない -->
     <div class="stat-actions">
       <button type="button" id="stat-share-card" class="btn stat-share"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 記録カードを画像で共有</button>
     </div>
@@ -536,6 +537,10 @@
         <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg></span>
         <span class="set-label">バックアップを読み込む</span><span class="set-arrow">›</span>
       </button>
+      <button id="merge-shops" class="set-row">
+        <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="4.5"/><circle cx="16" cy="12" r="4.5"/></svg></span>
+        <span class="set-label">重複した店をまとめる</span><span class="set-arrow">›</span>
+      </button>
     </div>
     <input type="file" id="backup-file" accept=".json,application/json" hidden>
 
@@ -624,12 +629,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=363"></script>
-<script src="js/api.js?v=363"></script>
-<script src="js/cloud.js?v=363"></script>
-<script src="js/register.js?v=363"></script>
-<script src="js/import.js?v=363"></script>
-<script src="js/views.js?v=363"></script>
-<script src="js/app.js?v=363"></script>
+<script src="js/store.js?v=364"></script>
+<script src="js/api.js?v=364"></script>
+<script src="js/cloud.js?v=364"></script>
+<script src="js/register.js?v=364"></script>
+<script src="js/import.js?v=364"></script>
+<script src="js/views.js?v=364"></script>
+<script src="js/app.js?v=364"></script>
 </body>
 </html>

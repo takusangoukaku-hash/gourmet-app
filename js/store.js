@@ -226,6 +226,16 @@ const Store = (() => {
       tx.onerror = () => reject(tx.error);
     });
   }
+  // 写真の店・訪問の付け替え（v364〜 店の統合がクラウド経由で届いたとき。通知は出さない）
+  async function relinkPhoto(id, shopId, visitId) {
+    const rec = await getPhotoRec(id).catch(() => null);
+    if (!rec || (rec.shopId === shopId && (!visitId || rec.visitId === visitId))) return false;
+    rec.shopId = shopId;
+    if (visitId) rec.visitId = visitId;
+    await writePhoto(rec, false);
+    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash].shopId = shopId; try { persistHashes(); } catch { /* noop */ } }
+    return true;
+  }
   // サムネイル1枚（{ blob, v } か null）
   async function getThumb(id) {
     const d = await db();
@@ -381,6 +391,38 @@ const Store = (() => {
     await deletePhotosWhere(p => p.shopId === id);
   }
   const getShop = (id) => shops.find(s => s.id === id) || null;
+
+  // 重複した店の統合（v364〜）: drop の訪問・写真を keep へ移し、keep の空いている項目を drop で補い、drop を削除する。
+  // 写真はクラウドにはメタ情報（店の id）だけ更新する（本体は上げ直さない）
+  async function getPhotoRec(id) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('photos').objectStore('photos').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function mergeShops(keepId, dropId) {
+    const keep = getShop(keepId), drop = getShop(dropId);
+    if (!keep || !drop || keepId === dropId) return null;
+    const patch = {};
+    for (const k of ['address', 'station', 'pref', 'city', 'osmId', 'country']) if (!keep[k] && drop[k]) patch[k] = drop[k];
+    if ((!keep.shopGenre || keep.shopGenre === 'その他') && drop.shopGenre && drop.shopGenre !== 'その他') patch.shopGenre = drop.shopGenre;
+    if (keep.lat == null && drop.lat != null) { patch.lat = drop.lat; patch.lon = drop.lon; if (drop.posLevel) patch.posLevel = drop.posLevel; }
+    for (const k of ['casual', 'atmosphere', 'speed']) if (!keep[k] && drop[k]) patch[k] = drop[k];
+    if (drop.favorite && !keep.favorite) patch.favorite = true;
+    if (Object.keys(patch).length) updateShop(keepId, patch);
+    for (const v of visits.filter(x => x.shopId === dropId)) updateVisit(v.id, { shopId: keepId });
+    const metas = (await allPhotos()).filter(m => m.shopId === dropId);
+    for (const m of metas) {
+      const rec = await getPhotoRec(m.id).catch(() => null);
+      if (rec) { rec.shopId = keepId; await writePhoto(rec, false); emit('photo', 'meta', metaOf(rec)); }
+      if (m.hash && photoHashes[m.hash]) photoHashes[m.hash].shopId = keepId;
+    }
+    if (metas.length) { try { persistHashes(); } catch { /* noop */ } }
+    await deleteShop(dropId); // 訪問・写真は移した後なので店だけ消える
+    return getShop(keepId);
+  }
 
   // 既存店舗との照合（外部ID → 名前＋距離50m以内）
   function matchShop({ osmId, name, lat, lon }) {
@@ -598,10 +640,10 @@ const Store = (() => {
 
   return {
     shops: () => shops.slice(), visits: () => visits.slice(),
-    addShop, updateShop, deleteShop, getShop, matchShop, distMeters,
+    addShop, updateShop, deleteShop, getShop, matchShop, distMeters, mergeShops,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, getThumb, getPhotoBlob,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, relinkPhoto, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),

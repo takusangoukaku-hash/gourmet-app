@@ -1975,6 +1975,17 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .stat-more { padding-top: 4px; }
 /* 統計タブ上部: 記録カードの共有（全幅の輪郭ボタン。v322〜） */
 .stat-actions { display: flex; margin: 0 0 12px; }
+/* 今年のまとめ（v364〜） */
+#stat-year { margin: 0 0 12px; }
+.yc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.yc-head b { font-size: 16px; font-weight: 700; }
+.yc-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+.yc-nums div { display: flex; flex-direction: column; align-items: center; background: var(--field); border-radius: 10px; padding: 8px 2px; }
+.yc-nums b { font-size: 22px; font-weight: 800; color: var(--accent); line-height: 1.1; }
+.yc-nums span { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.yc-row { display: flex; gap: 10px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--border-lite); }
+.yc-row span { flex: 0 0 76px; color: var(--muted); }
+.yc-row b { font-weight: 600; min-width: 0; }
 .stat-share { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border-radius: 999px; padding: 10px 16px; border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .stat-share .ic { width: 16px; height: 16px; }
@@ -2274,4 +2285,17 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 .mz-more { grid-column: 1 / -1; grid-row: auto; height: 1px; }
 /* 店シートのフォロワーの投稿（v359〜 投稿詳細と同じ並び）: シートの余白を打ち消して写真を端まで */
 .msh-frows .pd-sect { margin: 0 -16px; }
+/* 店舗の詳細の訪問（v364〜 訪問の一覧と同じ部品）。モーダルの余白 20px の外まで写真を広げる */
+#d-visits .d-visitfeed { margin: 0 -20px; }
+#d-visits .d-visitfeed .sfs + .sfs { border-top: 8px solid var(--field); }
+/* 重複した店の統合（v364〜） */
+.mg-list { padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+.mg-pair { padding: 14px 0; border-bottom: 1px solid var(--border-lite); }
+.mg-shop { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mg-shop b { font-size: 15px; font-weight: 700; }
+.mg-shop span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.mg-shop span:empty { display: none; }
+.mg-arrow { font-size: 11px; color: var(--muted); padding: 6px 0 6px 2px; }
+.mg-arrow::before { content: '↕ '; }
+.mg-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .msh-frows .pd-sect + .pd-sect { border-top: 8px solid var(--field); }

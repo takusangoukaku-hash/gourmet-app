@@ -4094,33 +4094,22 @@ const Views = (() => {
     if (geo) { g.textAlign = 'right'; g.font = F(400, 18); g.fillText('地図: 国土数値情報を加工', W - 72, H - 40); g.textAlign = 'left'; }
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
-  function roundRect(g, x, y, w, h, r) {
-    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-  }
-  async function shareRecordCard() {
-    App.toast('記録カードを作成中…', 1500);
-    let blob;
-    try { blob = await buildRecordCard(); } catch (e) { App.toast('' + (e && e.message || '画像を作れませんでした')); return; }
-    const file = new File([blob], 'bitemap-card.png', { type: 'image/png' });
-    const text = '私のグルメ記録 #BITEMAP';
-    // 端末の共有シート（X・LINE・写真へ保存）に画像ごと渡す。非対応なら画像を表示して保存してもらう
+  // 共有シートへ画像を渡す（非対応なら表示して保存してもらう）。記録カードと今年のまとめで共用（v364〜）
+  async function shareImageBlob(blob, filename, text, title) {
+    const file = new File([blob], filename, { type: 'image/png' });
     try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text });
-        return;
-      }
-    } catch (e) { if (e && e.name === 'AbortError') return; /* それ以外は下の表示へ */ }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
     const url = URL.createObjectURL(blob);
     const ov = document.createElement('div');
     ov.className = 'modal share-modal';
     ov.innerHTML = `<div class="modal-box rc-box">
         <button type="button" class="modal-close" aria-label="閉じる">${IC_X}</button>
-        <h2 class="sh-title">記録カード</h2>
-        <img class="rc-img" alt="記録カード" src="${url}">
+        <h2 class="sh-title">${esc(title)}</h2>
+        <img class="rc-img" alt="${esc(title)}" src="${url}">
         <p class="sh-note">画像を長押し（パソコンは右クリック）で保存できます。</p>
         <div class="sh-actions">
-          <a class="btn primary small" href="${url}" download="bitemap-card.png">画像を保存</a>
+          <a class="btn primary small" href="${url}" download="${esc(filename)}">画像を保存</a>
           <a class="btn small" href="https://x.com/intent/post?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Xに投稿（画像は保存して添付）</a>
         </div>
       </div>`;
@@ -4130,8 +4119,106 @@ const Views = (() => {
     document.body.appendChild(ov);
   }
 
+  // ---- 今年のまとめ（v364〜）: 統計の「もっと見る」に出すカードと、共有用の画像 ----
+  function yearSummary(year) {
+    const y = year || new Date().getFullYear();
+    const visits = Store.visits().filter(v => new Date(v.datetime).getFullYear() === y);
+    const allVisits = Store.visits();
+    const byShop = new Map();
+    for (const v of visits) byShop.set(v.shopId, (byShop.get(v.shopId) || 0) + 1);
+    const shops = [...byShop.keys()].map(id => Store.getShop(id)).filter(Boolean);
+    const firstYear = new Map(); // 店ごとの初訪問の年
+    for (const v of allVisits) { const fy = new Date(v.datetime).getFullYear(); if (!firstYear.has(v.shopId) || fy < firstYear.get(v.shopId)) firstYear.set(v.shopId, fy); }
+    const newShops = shops.filter(s => firstYear.get(s.id) === y).length;
+    const top = shops.map(s => ({ s, n: byShop.get(s.id) })).sort((a, b) => b.n - a.n).slice(0, 3);
+    const rated = shops.map(s => { const rs = visits.filter(v => v.shopId === s.id && (v.rating || 0) > 0).map(v => v.rating); return { s, avg: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0, n: rs.length }; })
+      .filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg || b.n - a.n).slice(0, 3);
+    const gCount = new Map();
+    for (const v of visits) for (const g of (v.dishGenres || [])) gCount.set(g, (gCount.get(g) || 0) + 1);
+    const genres = [...gCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const prefs = new Set(shops.map(s => shopPref(prefGeoCache, s) || s.pref).filter(Boolean));
+    return { year: y, visits: visits.length, shops: shops.length, newShops, top, rated, genres, prefs: prefs.size };
+  }
+  function renderYearCard() {
+    const box = $('#stat-year');
+    if (!box) return;
+    const d = yearSummary();
+    if (!d.visits) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const li = (t, v) => `<div class="yc-row"><span>${t}</span><b>${v}</b></div>`;
+    box.innerHTML = `
+      <div class="yc-head"><b>${d.year}年のまとめ</b><button type="button" class="btn small yc-share">${IC_SHARE_S} 画像で共有</button></div>
+      <div class="yc-nums">
+        <div><b>${d.shops}</b><span>店</span></div><div><b>${d.visits}</b><span>回</span></div><div><b>${d.newShops}</b><span>新しい店</span></div><div><b>${d.prefs}</b><span>都道府県</span></div>
+      </div>
+      ${d.top.length ? li('よく行った', esc(d.top.map(x => `${x.s.name}（${x.n}回）`).join('、'))) : ''}
+      ${d.rated.length ? li('★が高かった', esc(d.rated.map(x => `${x.s.name} ${fmtR(x.avg)}`).join('、'))) : ''}
+      ${d.genres.length ? li('よく食べた', esc(d.genres.map(([g, n]) => `${g} ${n}回`).join('、'))) : ''}`;
+    box.querySelector('.yc-share').addEventListener('click', async () => {
+      App.toast('画像を作成中…', 1500);
+      let blob;
+      try { blob = await buildYearCard(d); } catch (e) { App.toast('' + (e && e.message || '画像を作れませんでした')); return; }
+      shareImageBlob(blob, `bitemap-${d.year}.png`, `${d.year}年は ${d.shops}店・${d.visits}回 #BITEMAP`, `${d.year}年のまとめ`);
+    });
+  }
+  async function buildYearCard(d) {
+    const W = 1080, H = 1350;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
+    const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
+    const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
+    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
+    const grad = g.createLinearGradient(0, 0, W, 300);
+    grad.addColorStop(0, '#D97757'); grad.addColorStop(1, '#B4552F');
+    g.fillStyle = grad; g.fillRect(0, 0, W, 300);
+    g.fillStyle = '#FFFFFF'; g.font = F(800, 96); g.fillText(String(d.year), 72, 150);
+    g.font = F(600, 34); g.globalAlpha = 0.85; g.fillText('BITEMAP　今年のまとめ', 72, 215); g.globalAlpha = 1;
+    const p = Store.getProfile();
+    g.fillStyle = '#1F1E1D'; g.font = F(800, 44); g.fillText(fit(p.name || 'BITEMAP', 936, 800, 44), 72, 380);
+    const stats = [[String(d.shops), '店'], [String(d.visits), '回 来店'], [String(d.newShops), '新しい店'], [String(d.prefs), '都道府県']];
+    const cw = (W - 144) / 4;
+    stats.forEach(([v, l], i) => {
+      const x = 72 + cw * i;
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 430, cw - 12, 170, 26); g.fill();
+      g.strokeStyle = '#EAE3D8'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#C6613F'; g.textAlign = 'center';
+      g.font = F(800, v.length > 4 ? 46 : 60); g.fillText(v, x + cw / 2, 530);
+      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
+      g.textAlign = 'left';
+    });
+    const section = (title, rows, x, y, w) => {
+      g.fillStyle = '#1F1E1D'; g.font = F(800, 32); g.fillText(title, x, y);
+      if (!rows.length) { g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText('－', x, y + 54); return; }
+      rows.forEach((r, i) => {
+        const yy = y + 52 + i * 52; // 行の基線（3行で 1 区画 ≒ 210px に収める）
+        g.fillStyle = ['#E2B33C', '#B9BCC2', '#C98A55'][i] || '#DDD'; g.beginPath(); g.arc(x + 17, yy - 9, 17, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#FFFFFF'; g.font = F(800, 20); g.textAlign = 'center'; g.fillText(String(i + 1), x + 17, yy - 2); g.textAlign = 'left';
+        g.fillStyle = '#1F1E1D'; g.fillText(fit(r[0], w - 180, 700, 28), x + 50, yy - 2);
+        g.fillStyle = '#87867F'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(r[1], x + w, yy - 2); g.textAlign = 'left';
+      });
+    };
+    section('よく行った店', d.top.map(x => [x.s.name, `${x.n}回`]), 72, 690, 936);
+    section('★が高かった店', d.rated.map(x => [x.s.name, `★${fmtR(x.avg)}`]), 72, 905, 936);
+    section('よく食べた', d.genres.map(([gn, n]) => [gn, `${n}回`]), 72, 1120, 936);
+    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
+  }
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  async function shareRecordCard() {
+    App.toast('記録カードを作成中…', 1500);
+    let blob;
+    try { blob = await buildRecordCard(); } catch (e) { App.toast('' + (e && e.message || '画像を作れませんでした')); return; }
+    await shareImageBlob(blob, 'bitemap-card.png', '私のグルメ記録 #BITEMAP', '記録カード');
+  }
+
   // 統計タブの上部（グラフの読み込みを待たずに出す）
   function renderRecordCards() {
+    renderYearCard();
     renderRegulars();
     renderWishCard();
     renderConquest().catch(() => {});
@@ -4319,11 +4406,6 @@ const Views = (() => {
       ${headHtml}
       ${tilesHtml}
       ${axisHtml}
-      <div class="d-visits-head">
-        <h3>訪問記録</h3>
-        <button type="button" class="v-edit-link icon-only" id="d-visitlist"
-          title="記録を見る" aria-label="記録を見る">${IC_EDIT}</button>
-      </div>
       <div id="d-visits"></div>
       ${navNext ? `<div class="d-swipehint">さらにスクロールで次の店舗: ${esc(navNext)} ﹀</div>` : ''}
       ${actionsHtml}`;
@@ -4358,7 +4440,6 @@ const Views = (() => {
     } else {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
-      $('#d-visitlist').addEventListener('click', () => showVisitList(shopId));
       $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
       $('#d-share').addEventListener('click', async () => {
         const text = `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
@@ -4427,81 +4508,20 @@ const Views = (() => {
       // 同じ店の写真は1つにまとめ、画面の横幅いっぱいで左右スワイプして見られるようにする
       // （投稿詳細と同じカルーセル）。写真をタップすると投稿として詳細を開く
       if (!editVid) {
-        const block = document.createElement('div');
-        block.className = 'visit-block d-photoblock';
-        const avg = Store.avgRating(shopId);
-        block.innerHTML = `
-          <div class="pd-photos d-swipe">
-            <button type="button" class="pd-slide d-noph">
-              <span class="v-cover-ph">${IC_DISH}</span>
-              <span class="pd-photo-star">★${avg ? fmtR(avg) : '－'}</span>
-            </button>
-          </div>`;
-        const box = block.querySelector('.d-swipe');
-        // 写真が無いときは${IC_DISH}のまま。タップで訪問記録の一覧へ
-        // （各訪問の編集は「訪問記録」見出し横の✎＝訪問一覧から行う）
-        block.querySelector('.d-noph').addEventListener('click', () => showVisitList(shopId));
-        vbox.appendChild(block);
-        Store.allPhotos().then(all => {
-          const vMap = new Map(vs.map(v => [v.id, v]));
-          const shot = (p) => {
-            const v = vMap.get(p.visitId);
-            return (v && v.datetime ? new Date(v.datetime).getTime() : 0) || p.createdAt || 0;
-          };
-          const photos = all.filter(p => p.shopId === shopId)
-            .sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
-          if (!photos.length) return;
-          const post = buildOwnShopPost({ shopId, photos });
-          // 各写真にその訪問の星の数バッジ（投稿詳細と同じ黒背景・金文字）。
-          // サムネイルを先に出し、元画像が読めたら差し替える（本体を一度に全部読まない）
-          const items = post.photoItems;
-          box.innerHTML = '';
-          for (const it of items) {
-            const slide = document.createElement('div'); slide.className = 'pd-slide';
-            slide.appendChild(fullImg(it.ph, 'pd-photo'));
-            if (it.rating) slide.insertAdjacentHTML('beforeend', `<span class="pd-photo-star">★${fmtR(it.rating)}</span>`);
-            box.appendChild(slide);
-          }
-          if (items.length > 1) {
-            // 複数枚は左右スワイプで切り替え。下の点で何枚目かを示す
-            box.classList.add('pd-carousel');
-            const dots = document.createElement('div');
-            dots.className = 'pd-dots';
-            dots.innerHTML = items.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
-            box.after(dots);
-            box.addEventListener('scroll', () => {
-              const i = Math.round(box.scrollLeft / box.clientWidth);
-              [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
-            }, { passive: true });
-          }
-          box.querySelectorAll('.pd-photo').forEach(img =>
-            img.addEventListener('click', () => showPostDetail(post)));
-
-          // 訪問履歴: 訪問ごとの代表写真のサムネイル（横スクロール）。
-          // 各サムネに★バッジ・日付・星の並び。タップで訪問記録の一覧へ
-          const withPhoto = vs.map(v => ({ v, ph: photos.find(p => p.visitId === v.id) }))
-            .filter(x => x.ph);
-          if (withPhoto.length > 1) {
-            const vh = document.createElement('div');
-            vh.className = 'd-vh';
-            vh.innerHTML = '<div class="d-vh-title">訪問履歴</div><div class="d-visit-thumbs"></div>';
-            const row = vh.querySelector('.d-visit-thumbs');
-            withPhoto.forEach(({ v, ph }) => {
-              const el = document.createElement('button');
-              el.type = 'button';
-              el.className = 'dvt';
-              el.innerHTML = `
-                <span class="dvt-ph"><img alt="" loading="lazy" decoding="async">
-                  ${v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : ''}</span>
-                <span class="dvt-date">${fmtDate(v.datetime)}</span>
-                <span class="dvt-stars">${starSvg(v.rating, 11)}</span>`;
-              setThumb(el.querySelector('img'), ph);
-              el.addEventListener('click', () => showVisitList(shopId));
-              row.appendChild(el);
-            });
-            block.appendChild(vh);
-          }
-        });
+        // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
+        const feed = document.createElement('div');
+        feed.className = 'pf-shopfeed d-visitfeed';
+        const ctx = {
+          editVisit: (v) => showShop(shopId, false, v.id),
+          delVisit: async (v) => {
+            if (!confirm('この記録を削除しますか？')) return;
+            await Store.deleteVisit(v.id);
+            App.refreshCurrent();
+            if (Store.visitsOf(shopId).length) showShop(shopId, false); else closeModal();
+          },
+        };
+        for (const v of vs) feed.appendChild(buildVisitSection(shopId, v, ctx));
+        vbox.appendChild(feed);
       }
       // 個別の訪問カードは、ある訪問をインライン編集しているときだけ並べる
       if (editVid) for (const v of vs) {
@@ -4614,6 +4634,172 @@ const Views = (() => {
 
   // その店の訪問記録を一覧で見るページ（日付・評価・ジャンル・コメント・写真・編集/削除）
   // 写真は投稿詳細と同じ見せ方: 画面の横幅いっぱい＋複数枚は左右スワイプ（Instagram風）
+  // ---------- 重複した店の統合（v364〜） ----------
+  // 同じ店が名前違い・位置違いで二重に登録されているものを探す。
+  //  候補: 正規化した名前が同じ ／ 80m 以内で名前の似た店（二文字の一致率 0.5 以上）／ 名前がかなり似ていて（0.8 以上）500m 以内か位置なし
+  const MERGE_IGN_KEY = 'gourmet.mergeIgnored';
+  const mergeNorm = (n) => String(n || '').normalize('NFKC').toLowerCase()
+    .replace(/[\s　・･\-ー－—–~〜/／()（）「」『』【】\[\]'’"”!！?？.。,、&＆]/g, '');
+  function bigramDice(a, b) {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.length < 2 || b.length < 2) return 0;
+    const grams = (x) => { const m = new Map(); for (let i = 0; i < x.length - 1; i++) { const g = x.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+    const ga = grams(a), gb = grams(b);
+    let hit = 0;
+    for (const [g, n] of ga) hit += Math.min(n, gb.get(g) || 0);
+    return (2 * hit) / ((a.length - 1) + (b.length - 1));
+  }
+  function findDuplicateShops() {
+    let ignored = [];
+    try { ignored = JSON.parse(localStorage.getItem(MERGE_IGN_KEY) || '[]'); } catch { ignored = []; }
+    const ign = new Set(ignored);
+    const shops = Store.shops();
+    const out = [];
+    for (let i = 0; i < shops.length; i++) {
+      for (let j = i + 1; j < shops.length; j++) {
+        const a = shops[i], b = shops[j];
+        const key = [a.id, b.id].sort().join('|');
+        if (ign.has(key)) continue;
+        const na = mergeNorm(a.name), nb = mergeNorm(b.name);
+        const sim = bigramDice(na, nb);
+        const hasPos = a.lat != null && a.lon != null && b.lat != null && b.lon != null;
+        const dist = hasPos ? Store.distMeters(a.lat, a.lon, b.lat, b.lon) : null;
+        const same = na && na === nb;
+        const near = dist != null && dist < 80 && sim >= 0.5;
+        const alike = sim >= 0.8 && (dist == null || dist < 500);
+        if (same || near || alike) out.push({ a, b, key, dist, sim });
+      }
+    }
+    // 訪問の多い方を「残す側」に
+    return out.map(c => {
+      const na = Store.visitCount(c.a.id), nb = Store.visitCount(c.b.id);
+      return na >= nb ? { keep: c.a, drop: c.b, key: c.key, dist: c.dist } : { keep: c.b, drop: c.a, key: c.key, dist: c.dist };
+    });
+  }
+  async function openMergeShops() {
+    const cands = findDuplicateShops();
+    if (!cands.length) { App.toast('重複した店は見つかりませんでした'); return; }
+    const ov = document.createElement('div');
+    ov.className = 'modal modal-full visitlist-modal merge-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <div class="vl-topbar">
+          <button type="button" class="modal-close mg-close" aria-label="閉じる">${IC_X}</button>
+          <span class="vl-title">重複した店</span>
+        </div>
+        <div class="vl-body"><div class="mg-list"></div></div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.querySelector('.mg-close').addEventListener('click', close);
+    const list = ov.querySelector('.mg-list');
+    const all = await Store.allPhotos().catch(() => []);
+    const photoN = (id) => all.filter(p => p.shopId === id).length;
+    const shopLine = (sh) => `<div class="mg-shop"><b>${esc(sh.name)}</b><span>${esc([sh.station, [sh.pref, sh.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ '))}</span><span>${Store.visitCount(sh.id)}回 ・ 写真${photoN(sh.id)}枚${sh.address ? ' ・ ' + esc(sh.address) : ''}</span></div>`;
+    const render = () => {
+      const cs = findDuplicateShops();
+      if (!cs.length) { list.innerHTML = '<div class="empty"><p>重複した店はありません。</p></div>'; return; }
+      list.innerHTML = '';
+      cs.forEach((c) => {
+        const row = document.createElement('div');
+        row.className = 'mg-pair';
+        row.innerHTML = `
+          ${shopLine(c.keep)}
+          <div class="mg-arrow">${c.dist != null ? `${Math.round(c.dist)}m` : ''}</div>
+          ${shopLine(c.drop)}
+          <div class="mg-btns">
+            <button type="button" class="btn small primary mg-merge">「${esc(c.keep.name)}」にまとめる</button>
+            <button type="button" class="btn small mg-swap">逆にまとめる</button>
+            <button type="button" class="btn small mg-ignore">別の店</button>
+          </div>`;
+        const doMerge = async (keep, drop) => {
+          if (!confirm(`「${drop.name}」の記録と写真を「${keep.name}」へ移して、「${drop.name}」を消します。よろしいですか？`)) return;
+          App.toast('まとめています…');
+          try { await Store.mergeShops(keep.id, drop.id); } catch (e) { App.toast('まとめられませんでした: ' + (e && e.message || e)); return; }
+          App.toast(`「${keep.name}」にまとめました`);
+          App.refreshCurrent();
+          render();
+        };
+        row.querySelector('.mg-merge').addEventListener('click', () => doMerge(c.keep, c.drop));
+        row.querySelector('.mg-swap').addEventListener('click', () => doMerge(c.drop, c.keep));
+        row.querySelector('.mg-ignore').addEventListener('click', () => {
+          let ignored = [];
+          try { ignored = JSON.parse(localStorage.getItem(MERGE_IGN_KEY) || '[]'); } catch { ignored = []; }
+          ignored.push(c.key);
+          try { localStorage.setItem(MERGE_IGN_KEY, JSON.stringify(ignored)); } catch { /* noop */ }
+          render();
+        });
+        list.appendChild(row);
+      });
+    };
+    render();
+    document.body.appendChild(ov);
+  }
+
+  // 訪問1件の部品（v364〜 訪問の一覧と店舗の詳細で共用。v344 の並び: 写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›）
+  // ctx = { editVisit(v), delVisit(v) }
+  function buildVisitSection(shopId, v, ctx) {
+    const s = Store.getShop(shopId) || {};
+    const hasPos = s.lat != null && s.lon != null;
+    const shareText = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
+    const card = document.createElement('div');
+    card.className = 'sfs vl-visit';
+    const gtxt = (v.dishGenres || []).join('・');
+    card.innerHTML = `
+      <div class="sfs-photos"><div class="sfs-carousel"></div></div>
+      ${actRowHtml({ postId: v.id, hasPos, right: `
+        <button type="button" class="act-btn vl-revisit" aria-label="記録を追加">${IC_PLUS}</button>
+        <button type="button" class="act-btn vl-menu" aria-label="メニュー">${IC_MORE}</button>` })}
+      <div class="sfs-body">
+        <div class="pd-shop">${esc(fmtDate(v.datetime))}</div>
+        ${(gtxt || v.comment) ? `<div class="pd-sub pd-genrow"><span>${esc(gtxt)}</span>
+          ${v.comment ? `<button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button>` : ''}</div>` : ''}
+        ${v.comment ? `<div class="pd-morebox hidden"><div class="pd-comment">${esc(v.comment)}</div></div>` : ''}
+        ${cmtBoxHtml()}
+      </div>`;
+    const car = card.querySelector('.sfs-carousel');
+    const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
+    Store.photosOfVisit(v.id).then(ps => {
+      if (!ps.length) { car.innerHTML = `<div class="sfs-slide vlc-noph">${IC_DISH}${badge}</div>`; return; }
+      const slides = ps.map((ph, i) => {
+        const slide = document.createElement('button');
+        slide.type = 'button';
+        slide.className = 'sfs-slide';
+        slide.setAttribute('aria-label', '写真を拡大');
+        slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${badge}`;
+        if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
+        else setThumb(slide.querySelector('img'), ph);
+        slide.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name || ''}　${fmtDate(v.datetime)}`)));
+        car.appendChild(slide);
+        return slide;
+      });
+      if (ps.length > 1) {
+        const dots = document.createElement('div');
+        dots.className = 'pd-dots sfs-dots';
+        dots.innerHTML = ps.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+        card.querySelector('.sfs-photos').appendChild(dots);
+        const dotEls = [...dots.querySelectorAll('.pd-dot')];
+        const upgrade = (i) => { const sl = slides[i]; if (!sl || sl.dataset.full) return; sl.dataset.full = '1'; setFullPhoto(sl.querySelector('img'), ps[i]); };
+        car.addEventListener('scroll', () => {
+          const i = Math.round(car.scrollLeft / car.clientWidth);
+          dotEls.forEach((d, j) => d.classList.toggle('on', j === i));
+          upgrade(i); upgrade(i + 1);
+        }, { passive: true });
+      }
+    });
+    const moreBtn = card.querySelector('.pd-more');
+    if (moreBtn) moreBtn.addEventListener('click', () => {
+      const hidden = card.querySelector('.pd-morebox').classList.toggle('hidden');
+      moreBtn.classList.toggle('open', !hidden);
+    });
+    card.querySelector('.vl-revisit').addEventListener('click', () => openRegisterFor(shopId));
+    card.querySelector('.vl-menu').addEventListener('click', () => openActionSheet([
+      { label: 'この記録を編集', onClick: () => ctx.editVisit(v) },
+      { label: 'この記録を削除', danger: true, onClick: () => ctx.delVisit(v) },
+    ]));
+    wireSocial(card, v.id, { nav: () => openNav(s), shareTitle: s.name || '', shareText });
+    return card;
+  }
+
   // 訪問の一覧（v344〜 投稿詳細・お店の記録と同じ並び: 写真（★）→ 操作行（♥・コメント・経路・共有 … また来た・…）→ 日付 → ジャンル ・ 詳細 ›）
   // 上の統計タイル・下の「＋ 新しい記録を追加」・左スワイプの編集/削除は廃止（編集・削除は「…」）
   function showVisitList(shopId) {
@@ -4649,65 +4835,7 @@ const Views = (() => {
     const shareText = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
 
     // 訪問1件（お店の記録と同じ部品）。いいね・コメントはこの訪問（＝公開投稿の id）に付く
-    function buildCard(v) {
-      const card = document.createElement('div');
-      card.className = 'sfs vl-visit';
-      const gtxt = (v.dishGenres || []).join('・');
-      card.innerHTML = `
-        <div class="sfs-photos"><div class="sfs-carousel"></div></div>
-        ${actRowHtml({ postId: v.id, hasPos, right: `
-          <button type="button" class="act-btn vl-revisit" aria-label="記録を追加">${IC_PLUS}</button>
-          <button type="button" class="act-btn vl-menu" aria-label="メニュー">${IC_MORE}</button>` })}
-        <div class="sfs-body">
-          <div class="pd-shop">${esc(fmtDate(v.datetime))}</div>
-          ${(gtxt || v.comment) ? `<div class="pd-sub pd-genrow"><span>${esc(gtxt)}</span>
-            ${v.comment ? `<button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button>` : ''}</div>` : ''}
-          ${v.comment ? `<div class="pd-morebox hidden"><div class="pd-comment">${esc(v.comment)}</div></div>` : ''}
-          ${cmtBoxHtml()}
-        </div>`;
-      const car = card.querySelector('.sfs-carousel');
-      const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
-      Store.photosOfVisit(v.id).then(ps => {
-        if (!ps.length) { car.innerHTML = `<div class="sfs-slide vlc-noph">${IC_DISH}${badge}</div>`; return; }
-        const slides = ps.map((ph, i) => {
-          const slide = document.createElement('button');
-          slide.type = 'button';
-          slide.className = 'sfs-slide';
-          slide.setAttribute('aria-label', '写真を拡大');
-          slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${badge}`;
-          if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
-          else setThumb(slide.querySelector('img'), ph);
-          slide.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
-          car.appendChild(slide);
-          return slide;
-        });
-        if (ps.length > 1) {
-          const dots = document.createElement('div');
-          dots.className = 'pd-dots sfs-dots';
-          dots.innerHTML = ps.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
-          card.querySelector('.sfs-photos').appendChild(dots);
-          const dotEls = [...dots.querySelectorAll('.pd-dot')];
-          const upgrade = (i) => { const sl = slides[i]; if (!sl || sl.dataset.full) return; sl.dataset.full = '1'; setFullPhoto(sl.querySelector('img'), ps[i]); };
-          car.addEventListener('scroll', () => {
-            const i = Math.round(car.scrollLeft / car.clientWidth);
-            dotEls.forEach((d, j) => d.classList.toggle('on', j === i));
-            upgrade(i); upgrade(i + 1);
-          }, { passive: true });
-        }
-      });
-      const moreBtn = card.querySelector('.pd-more');
-      if (moreBtn) moreBtn.addEventListener('click', () => {
-        const hidden = card.querySelector('.pd-morebox').classList.toggle('hidden');
-        moreBtn.classList.toggle('open', !hidden);
-      });
-      card.querySelector('.vl-revisit').addEventListener('click', () => openRegisterFor(shopId));
-      card.querySelector('.vl-menu').addEventListener('click', () => openActionSheet([
-        { label: 'この記録を編集', onClick: () => editVisit(v) },
-        { label: 'この記録を削除', danger: true, onClick: () => delVisit(v) },
-      ]));
-      wireSocial(card, v.id, { nav: () => openNav(s), shareTitle: s.name || '', shareText });
-      return card;
-    }
+    const buildCard = (v) => buildVisitSection(shopId, v, { editVisit, delVisit }); // v364〜 店舗の詳細と共通
 
     // タイムライン表示: 縦の線と点で時系列に並べる
     function renderTimeline(list) {
@@ -5795,7 +5923,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, openMergeShops, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）

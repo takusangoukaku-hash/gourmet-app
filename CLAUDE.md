@@ -59,6 +59,11 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   別端末で付けた記録・写真は再起動なしで届く。`syncPhotos()` は 60 枚ごとに区切って最後まで取り込み、区切りごとに画面を描き直す（以前は 60 枚で打ち切り）。
   `pullCollection()` は updatedAt が新しいものだけ取り込んで件数を返す（同じ時刻は触らない）。
 - 引っ張って更新（v363〜）: ホーム・検索・プロフィールで上端から下に引っ張ると `App.refreshAll()`＝`Cloud.syncNow()`（記録と写真の同期）→ `App.checkUpdate()`（新版があればその場で切り替え）→ 画面の描き直し。地図は引っ張ると地図が動くので対象外（地図は開くたびに Store から作り直す）。
+- 重複した店の統合（v364〜）: 設定→データ「重複した店をまとめる」`#merge-shops` → `Views.openMergeShops()`。候補は `findDuplicateShops()`（正規化した名前 `mergeNorm` が同じ／80m 以内で二文字一致率 `bigramDice` 0.5 以上／一致率 0.8 以上で 500m 以内か位置なし）。訪問の多い方を残す側にし、「逆にまとめる」で入れ替え、「別の店」は `gourmet.mergeIgnored`（id の組）に覚えて二度と出さない。
+  本体は `Store.mergeShops(keepId, dropId)`: drop の訪問を `updateVisit` で keep へ、写真は本体の `shopId` を書き換えて `emit('photo','meta')`（cloud.js は `setDoc(..., {merge:true})` でメタだけ更新し本体は上げ直さない）、keep の空いている項目（住所・駅・県市・ジャンル・位置）を drop で補い、最後に `deleteShop(dropId)`（墓標に残る）。
+  別端末には訪問の付け替えは同期で届き、写真は `syncPhotos()` がクラウドのメタの店 id が違うものを `Store.relinkPhoto()` で付け替える。ただし削除はもともと端末をまたいで伝わらない（クラウドから消え、他端末は墓標が無いので残る）ため、別端末では drop の店が空のまま残ることがある（そこで「重複した店をまとめる」を開けば訪問 0 の方が drop として出る）。
+- 店舗の詳細の訪問（v364〜）: `showShop` の `#d-visits` は、訪問の一覧 `showVisitList` と同じ部品 `buildVisitSection(shopId, v, {editVisit, delVisit})` を `.pf-shopfeed.d-visitfeed`（モーダルの余白 20px の外まで広げる）に新しい順で縦に並べる。写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›。「訪問記録」の見出しと ✎（`#d-visitlist`）は廃止。…の「編集」は従来のインライン編集（`showShop(shopId, false, v.id)`）。v338 までの店の写真カルーセル＋訪問履歴のサムネ（`.visit-block.d-photoblock`）は無くなった。
+- 今年のまとめ（v364〜）: 統計の「もっと見る」の先頭 `#stat-year`（`renderYearCard()`、`renderRecordCards()` の最初）。`yearSummary(year)` が今年の訪問から 店数・回数・新しい店（初訪問が今年）・都道府県数・よく行った店3・★が高かった店3（評価ありのみ）・よく食べたジャンル3 を出す。今年の訪問が無ければカードごと出さない。「画像で共有」は `buildYearCard(d)`（canvas 1080×1350）→ `shareImageBlob(blob, filename, text, title)`（Web Share → 無ければ保存モーダル。記録カード `shareRecordCard` も同じ関数）。
 - 新しい版（v359〜）: sw.js は install で skipWaiting しない。app.js が 起動時・前面復帰時・30分ごとに `reg.update()` し、新版が待機に入ったら
   起動 20 秒以内なら黙って切り替え（SKIP_WAITING → controllerchange → 再読み込み）、使用中なら下の帯 `.update-bar`「新しい版があります ・ 更新」を出してタップで切り替える。記録の入力中は保存後に切り替える。
 - Service Worker: `?v=` 付きのファイルはキャッシュ優先（内容は版ごとに固定）。index.html だけネットワーク優先。

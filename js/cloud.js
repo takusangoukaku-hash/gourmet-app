@@ -285,6 +285,13 @@ const Cloud = (() => {
     const gonePhotos = Store.deletedIds('photo');
     const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
     const hydrTargets = localPhotos.filter(p => !p.hasBlob && cloudIds.has(p.id));
+    // 別端末で店を統合した写真（クラウドのメタの店 id が違う）は、こちらでも付け替える（v364〜）
+    for (const p of localPhotos) {
+      const m = metaById.get(p.id);
+      if (m && m.shopId && m.shopId !== p.shopId && Store.getShop(m.shopId)) {
+        try { if (await Store.relinkPhoto(p.id, m.shopId, m.visitId)) changed++; } catch { /* noop */ }
+      }
+    }
     const allTargets = [...newTargets.map(m => ({ kind: 'new', m })),
       ...hydrTargets.map(p => ({ kind: 'hydrate', p }))];
     // v359〜 60 枚ごとに区切って最後まで取り込む（以前は 60 枚で打ち切り、残りは次の起動に回していた）。
@@ -654,6 +661,7 @@ const Cloud = (() => {
         await fb.st.deleteObject(fb.st.ref(storage, `users/${user.uid}/photos/${obj.id}.jpg`)).catch(() => {});
         return;
       }
+      if (action === 'meta') return fb.fs.setDoc(dref('photos', obj.id), clean(obj), { merge: true }); // 店の統合など、メタ情報だけの変更（v364〜）
       return uploadPhoto(obj);
     }
   }
