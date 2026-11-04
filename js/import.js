@@ -288,7 +288,8 @@ const Import = (() => {
         const visit = Store.addVisit({ shopId: shop.id, datetime: new Date(g.start).toISOString(), dishGenres: g.genres || [], rating: g.rating, comment: '', visitType: '店内飲食' });
         for (const p of g.photos) {
           const blob = await Api.compressImage(p.file);
-          await Store.addPhoto(shop.id, visit.id, 'dish', blob, p.hash);
+          const pid = await Store.addPhoto(shop.id, visit.id, 'dish', blob, p.hash);
+          Views.warmThumb(pid, blob); // 一覧用のサムネを今のうちに作る（v358〜）
           photosN++;
         }
         g.state = 'saved';

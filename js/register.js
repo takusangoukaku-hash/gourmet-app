@@ -966,7 +966,8 @@ const Register = (() => {
       // --- 写真（圧縮して保存 — §9.1） ---
       for (const p of pendingPhotos) {
         const blob = await Api.compressImage(p.file);
-        await Store.addPhoto(shop.id, visit.id, p.type, blob, p.hash);
+        const pid = await Store.addPhoto(shop.id, visit.id, p.type, blob, p.hash);
+        Views.warmThumb(pid, blob); // 一覧用のサムネを今のうちに作る（v358〜）
       }
       createdVisitId = null; createdShopId = null; // ここまで来れば取り消し不要
 

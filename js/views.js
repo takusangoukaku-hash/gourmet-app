@@ -237,6 +237,11 @@ const Views = (() => {
     thumbCache.set(rec.id, p);
     return p;
   }
+  // 保存した直後にサムネイルを作っておく（v358〜。最初にアルバムを開いたときに全部まとめて作らずに済む）。失敗しても表示時に作り直す
+  function warmThumb(id, blob, ar) {
+    if (!id || !blob) return;
+    thumbUrl({ id, blob, hasBlob: true, ar: Number(ar) || Number(blob.aspect) || 0 }).catch(() => {});
+  }
   // <img> にサムネイルを非同期で差し込む
   function setThumb(img, rec) {
     thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
@@ -2570,12 +2575,23 @@ const Views = (() => {
   // 写真が読み込まれて高さが決まったら「何行ぶん使うか」を合わせる（並び順は左上から右へ）。
   // 極端に細長い写真は 縦/横 = 0.75〜1.5 に収めて切り抜く（一覧が間延びしないように）
   const MZ_ROW = 4, MZ_GAP = 10;
+  // v358〜 高さの読み取りと行数の書き込みを分けて一度にまとめる（写真1枚ごとに getBoundingClientRect で
+  // レイアウトをやり直していたのを、1フレームに1回に。300枚で約170ms→数ms）
+  const mzApply = (item, h) => { if (item && h) item.style.gridRowEnd = 'span ' + Math.ceil((h + MZ_GAP) / MZ_ROW); };
   const mzRO = (typeof ResizeObserver !== 'undefined')
-    ? new ResizeObserver(entries => { for (const e of entries) mzFit(e.target.parentElement); }) : null;
+    ? new ResizeObserver(entries => { for (const e of entries) mzApply(e.target.parentElement, e.contentRect.height); }) : null;
+  const mzQueue = new Set();
+  let mzRaf = 0;
   function mzFit(item) {
     if (!item || !item.firstElementChild) return;
-    const h = item.firstElementChild.getBoundingClientRect().height;
-    if (h) item.style.gridRowEnd = 'span ' + Math.ceil((h + MZ_GAP) / MZ_ROW);
+    mzQueue.add(item);
+    if (mzRaf) return;
+    mzRaf = requestAnimationFrame(() => {
+      mzRaf = 0;
+      const items = [...mzQueue]; mzQueue.clear();
+      const hs = items.map(it => it.firstElementChild ? it.firstElementChild.getBoundingClientRect().height : 0); // 読む
+      items.forEach((it, i) => mzApply(it, hs[i])); // 書く
+    });
   }
   // 写真カード1枚。o = { name, sub, badge, count, meta, onClick, rec }。img は呼び出し側で setThumb / src。
   // meta を渡すと写真の下に1行（訪問回数など）を出す。rec（自分の写真のメタ）を渡すと読み込み時に縦横比を後追いで保存する
@@ -2754,10 +2770,10 @@ const Views = (() => {
       const photos = (byShop.get(sh.id) || []).slice().sort((a, b) => t(b) - t(a) || (b.createdAt || 0) - (a.createdAt || 0));
       return buildShopFeedSection({ shopId: sh.id, photos }, { lite: true });
     };
-    const wrap = document.createElement('div');
-    wrap.className = 'pf-shopfeed list-feed';
+    // 見出しと店を1列に並べ、画面に近い先頭 12 件だけ先に描く。残りはスクロールで近づいたら足す（v358〜。150 店を一度に描くと 0.6 秒かかった）
+    const items = [];
     if (!groupFn) {
-      shops.forEach(sh => wrap.appendChild(section(sh)));
+      shops.forEach(sh => items.push({ shop: sh }));
     } else {
       const groups = new Map();
       for (const sh of shops) {
@@ -2767,15 +2783,38 @@ const Views = (() => {
         }
       }
       [...groups.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([key, list]) => {
-        const h = document.createElement('div');
-        h.className = 'group-header';
-        h.innerHTML = `${esc(key)} <span class="count">${list.length}件</span>`;
-        wrap.appendChild(h);
-        list.forEach(sh => wrap.appendChild(section(sh)));
+        items.push({ header: `${esc(key)} <span class="count">${list.length}件</span>` });
+        list.forEach(sh => items.push({ shop: sh }));
       });
     }
+    const wrap = document.createElement('div');
+    wrap.className = 'pf-shopfeed list-feed';
+    const sentinel = document.createElement('div');
+    wrap.appendChild(sentinel);
+    let pos = 0;
+    const CHUNK = 12;
+    const appendChunk = () => {
+      const frag = document.createDocumentFragment();
+      for (let n = 0; n < CHUNK && pos < items.length; n++, pos++) {
+        const it = items[pos];
+        if (it.header) { const h = document.createElement('div'); h.className = 'group-header'; h.innerHTML = it.header; frag.appendChild(h); }
+        else frag.appendChild(section(it.shop));
+      }
+      wrap.insertBefore(frag, sentinel);
+    };
+    appendChunk();
     box.innerHTML = '';
     box.appendChild(wrap);
+    if (pos < items.length) {
+      const io = new IntersectionObserver((es) => {
+        if (!es.some(en => en.isIntersecting)) return;
+        if (seq !== listSeq || !wrap.isConnected) { io.disconnect(); return; }
+        appendChunk();
+        io.unobserve(sentinel); io.observe(sentinel);
+        if (pos >= items.length) io.disconnect();
+      }, { rootMargin: '1200px 0px' });
+      io.observe(sentinel);
+    }
   }
 
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
@@ -5730,7 +5769,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）
