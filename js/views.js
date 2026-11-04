@@ -2942,6 +2942,7 @@ const Views = (() => {
 
   // ========== プロフィール（インスタ風・将来の共有機能の土台） ==========
   function initProfile() {
+    setupPullToRefresh(); // 検索・プロフィールでも引っ張って更新できるよう起動時に用意（v363〜）
     // カウントのタップ: 画面移動（店舗）／フォロー・フォロワーは一覧を表示
     document.querySelectorAll('.pstat').forEach(b =>
       b.addEventListener('click', () => {
@@ -4409,15 +4410,12 @@ const Views = (() => {
       if (!addrChanged) { App.toast('保存しました'); return; }
       App.toast('保存しました。住所から位置を探しています…');
       let hit = null;
-      try {
-        const list = await Api.searchPlaces(address);
-        hit = (list || []).find(x => x && x.lat != null && x.lon != null) || null;
-      } catch { hit = null; }
+      try { hit = (await Api.geocodeAddress(address))[0] || null; } catch { hit = null; } // 国土地理院 → Nominatim（v363〜）
       if (hit) {
-        Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: 'geocode' });
+        Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: hit.level || 'geocode' });
         if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); // 地図が開いていれば今すぐ描き直す（開くときは Store から作り直す）
         if (!$('#modal').classList.contains('hidden')) showShop(shopId, false);
-        App.toast('住所から位置を更新しました');
+        App.toast(`位置を更新しました（${hit.name || '住所から'}）`);
       } else {
         App.toast('住所から位置が見つかりませんでした。店舗情報の「住所から探す」か「地図で指定」で直してください');
       }
@@ -4897,20 +4895,28 @@ const Views = (() => {
   }
 
   // ---------- 下に引っ張って更新（プルリフレッシュ） ----------
+  // v363〜 ホームだけでなく 検索・プロフィール でも使える。引っ張ると App.refreshAll()＝クラウドと同期 → 新しい版の確認 → 画面の描き直し
+  // （地図は引っ張ると地図が動くので対象外。地図は開くたびに作り直している）
   let ptrSetup = false;
   function setupPullToRefresh() {
     if (ptrSetup) return;
     ptrSetup = true;
     initFeedSegs();
-    const view = $('#view-feed');
-    const bar = document.createElement('div');
-    bar.className = 'ptr';
-    bar.innerHTML = '<span class="ptr-spin"></span>';
-    view.insertBefore(bar, view.firstChild);
-    let startY = 0, pulling = false, busy = false;
+    const views = ['#view-feed', '#view-list', '#view-profile'].map(id => $(id)).filter(Boolean);
+    const bars = new Map();
+    views.forEach(v => {
+      const b = document.createElement('div');
+      b.className = 'ptr';
+      b.innerHTML = '<span class="ptr-spin"></span>';
+      v.insertBefore(b, v.firstChild);
+      bars.set(v, b);
+    });
+    let startY = 0, pulling = false, busy = false, bar = null;
     const atTop = () => (document.scrollingElement.scrollTop <= 0);
     document.addEventListener('touchstart', (e) => {
-      if (busy || !view.classList.contains('active') || !atTop()) { pulling = false; return; }
+      const view = views.find(v => v.classList.contains('active'));
+      if (busy || !view || !atTop()) { pulling = false; return; }
+      bar = bars.get(view);
       startY = e.touches[0].clientY;
       pulling = true;
     }, { passive: true });
@@ -4929,7 +4935,7 @@ const Views = (() => {
         busy = true;
         bar.classList.add('loading');
         bar.style.height = '48px';
-        Promise.resolve(renderFeed(true)).catch(() => {}).finally(() => {
+        Promise.resolve(App.refreshAll()).catch(() => {}).finally(() => {
           busy = false;
           bar.classList.remove('ready', 'loading');
           bar.style.height = '0px';
@@ -5108,12 +5114,12 @@ const Views = (() => {
     if (!s || !s.address) { App.toast('住所が入っていません'); return; }
     App.toast('住所から探しています…');
     let list = [];
-    try { list = await Api.searchPlaces(s.address); } catch { list = []; }
+    try { list = await Api.geocodeAddress(s.address); } catch { list = []; } // 国土地理院 → Nominatim（v363〜）
     list = (list || []).filter(x => x && x.lat != null && x.lon != null).slice(0, 5);
     if (!list.length) { App.toast('住所から位置が見つかりませんでした。「地図で指定」をお試しください'); return; }
     openActionSheet(list.map(x => ({
-      label: `${x.name || x.display_name || '候補'}${s.lat != null ? `　今の位置から ${Math.round(haversine({ lat: s.lat, lon: s.lon }, { lat: x.lat, lon: x.lon }))}m` : ''}`,
-      onClick: () => { Store.updateShop(shopId, { lat: +x.lat, lon: +x.lon, posLevel: 'geocode' }); App.toast('位置を直しました'); showShop(shopId); if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); App.refreshCurrent(); },
+      label: `${x.name || '候補'}${s.lat != null ? `　今の位置から ${Math.round(haversine({ lat: s.lat, lon: s.lon }, { lat: x.lat, lon: x.lon }))}m` : ''}`,
+      onClick: () => { Store.updateShop(shopId, { lat: +x.lat, lon: +x.lon, posLevel: x.level || 'geocode' }); App.toast('位置を直しました'); showShop(shopId); if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); App.refreshCurrent(); },
     })));
   }
   const POS_LEVEL_LABEL = { town: '町名までのおおよその位置', gps: '写真の位置', manual: '地図で指定した位置', geocode: '住所から求めた位置', block: '' };

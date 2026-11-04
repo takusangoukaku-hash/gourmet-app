@@ -488,6 +488,33 @@ out center 25;`;
     }));
   }
 
+  // 住所 → 位置（v363〜）。国土地理院の住所検索（無料・キー不要・日本の丁目・番地に強い）を先に使い、
+  // 駄目なら Nominatim。返すのは { name, lat, lon, level('geocode'=番地まで／'town'=丁目まで), source } の配列（近い順ではなく API の順）
+  async function geocodeAddress(address) {
+    const q = String(address || '').trim();
+    if (!q) return [];
+    let out = [];
+    try {
+      const res = await fetchT(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const j = await res.json();
+        out = (Array.isArray(j) ? j : []).filter(f => f && f.geometry && Array.isArray(f.geometry.coordinates)).map(f => {
+          const title = String((f.properties || {}).title || '');
+          const after = title.split('丁目')[1] || '';
+          // 丁目のあとに数字（番地）があれば番地まで、無ければ丁目（町名）まで
+          const level = (title.includes('丁目') ? /[0-9０-９]/.test(after) : /[0-9０-９]/.test(title)) ? 'geocode' : 'town';
+          return { name: title, lat: +f.geometry.coordinates[1], lon: +f.geometry.coordinates[0], level, source: 'gsi' };
+        }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+      }
+    } catch { out = []; }
+    if (out.length) return out.slice(0, 5);
+    try {
+      const list = await searchPlaces(q);
+      return (list || []).filter(x => x && x.lat != null && x.lon != null).slice(0, 5)
+        .map(x => ({ name: x.address || x.name || '', lat: +x.lat, lon: +x.lon, level: 'geocode', source: 'nominatim' }));
+    } catch { return []; }
+  }
+
   // ---------- Claude APIキー管理（localStorageにのみ保存） ----------
   const API_KEY_STORAGE = 'gourmet.anthropicKey';
   const getApiKey = () => localStorage.getItem(API_KEY_STORAGE) || '';
@@ -934,9 +961,9 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v362',
+    FILE_VERSION: 'v363',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
-    reverseGeocode, searchPlaces, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
+    reverseGeocode, searchPlaces, geocodeAddress, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,
     classifyDishPhoto, getApiKey, setApiKey, hasApiKey, resetAnthropicClient,
     getGoogleKey, setGoogleKey, hasGoogleKey, googleSearchStatus, searchSourcesStatus,

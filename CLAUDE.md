@@ -58,6 +58,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   記録（店・訪問・行きたい）の取り込み＋押し上げ（`syncRecords()`、前回から2分以内は間引く）と写真の差分（`syncPhotos()`）を行う。
   別端末で付けた記録・写真は再起動なしで届く。`syncPhotos()` は 60 枚ごとに区切って最後まで取り込み、区切りごとに画面を描き直す（以前は 60 枚で打ち切り）。
   `pullCollection()` は updatedAt が新しいものだけ取り込んで件数を返す（同じ時刻は触らない）。
+- 引っ張って更新（v363〜）: ホーム・検索・プロフィールで上端から下に引っ張ると `App.refreshAll()`＝`Cloud.syncNow()`（記録と写真の同期）→ `App.checkUpdate()`（新版があればその場で切り替え）→ 画面の描き直し。地図は引っ張ると地図が動くので対象外（地図は開くたびに Store から作り直す）。
 - 新しい版（v359〜）: sw.js は install で skipWaiting しない。app.js が 起動時・前面復帰時・30分ごとに `reg.update()` し、新版が待機に入ったら
   起動 20 秒以内なら黙って切り替え（SKIP_WAITING → controllerchange → 再読み込み）、使用中なら下の帯 `.update-bar`「新しい版があります ・ 更新」を出してタップで切り替える。記録の入力中は保存後に切り替える。
 - Service Worker: `?v=` 付きのファイルはキャッシュ優先（内容は版ごとに固定）。index.html だけネットワーク優先。
@@ -112,7 +113,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   `openPoiToCandidate()` が `coarse` / `posLevel`（town／block）を付け、`mergeCandidates()` は粗い候補に同じ店の正確な位置（OSM など）があればそちらを使う。
   保存時は `Register.pickBestPos(selected, lastGps)`: 粗い候補で写真・現在地が 600m 以内ならその位置（`posLevel: 'gps'`）。店には `posLevel`（gps／block／town／manual／geocode）を保存（`sanitizeRecord` も通す）。
   店舗の詳細は `posLevel === 'town'` のとき「ピンの位置は町名までのおおよそです ・ 直す」を出し、店舗情報（編集）に「住所から探す」（`fixPosByAddress` → Nominatim）と「地図で指定」（`pickOnMap` → 地図の中央の印 `#map-pick`）がある。
-  店舗情報の保存 `saveShopInfo()` で住所が変わったら、保存後に `Api.searchPlaces(住所)` の先頭で位置を更新する（`posLevel: 'geocode'`。v362〜。以前は文字だけ変わりピンが動かなかった）。見つからなければトーストで「住所から探す／地図で指定」を案内。地図が開いていれば `refreshMapData()`、閉じていれば次に開くとき Store から作り直す。
+  店舗情報の保存 `saveShopInfo()` で住所が変わったら、保存後に `Api.geocodeAddress(住所)` の先頭で位置を更新する（v362〜、v363 で地理院に）。`geocodeAddress()` は国土地理院の住所検索（`msearch.gsi.go.jp`、無料・キー不要・丁目番地に強い）→ 駄目なら Nominatim の順で、`level` は番地まで一致なら geocode、丁目までなら town（店の `posLevel` に写す）。見つからなければトーストで「住所から探す／地図で指定」を案内。地図が開いていれば `refreshMapData()`、閉じていれば次に開くとき Store から作り直す。「住所から探す」`fixPosByAddress` も同じ関数の候補から選ぶ。
 - 星0の訪問は「評価なし」（写真なしの「また来た」）。平均や評価の集計では `rating > 0` だけを使う。
 - 制覇マップの境界データ `data/japan-prefs.json` は国土数値情報（CC BY 4.0）の加工。画面と記録カードの出典表示を消さない。
 - 地図の見た目は `views.js` の `baseMapStyle(dark)`（iPhone のマップ風の自前スタイル）。v305 で試した OpenFreeMap Liberty は

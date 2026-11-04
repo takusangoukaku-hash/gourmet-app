@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v362'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v363'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -64,6 +64,23 @@ const App = (() => {
     bar.innerHTML = '<span>新しい版があります</span><button type="button" class="btn small primary">更新</button>';
     bar.querySelector('button').addEventListener('click', () => { bar.querySelector('button').disabled = true; bar.querySelector('span').textContent = '切り替えています…'; onUpdate(); });
     document.body.appendChild(bar);
+  }
+
+  // 引っ張って更新（v363〜）: クラウドと同期 → 新しい版があればその場で切り替え → いまの画面を描き直す
+  let swReg = null, swActivate = null;
+  async function checkUpdate() {
+    if (!swReg) return false;
+    try { await swReg.update(); } catch { /* noop */ }
+    if (swReg.waiting && navigator.serviceWorker.controller && swActivate) { swActivate(swReg.waiting); return true; }
+    return false;
+  }
+  async function refreshAll() {
+    if (typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser() && Cloud.syncNow) {
+      try { await Cloud.syncNow(); } catch { /* 同期失敗は描き直しに影響させない */ }
+    }
+    const updating = await checkUpdate(); // 新版があれば controllerchange → 再読み込み
+    if (updating) return;
+    if (currentTab === 'feed') await Views.renderFeed(true); else refreshCurrent();
   }
 
   function init() {
@@ -262,6 +279,7 @@ const App = (() => {
     // ※ https または localhost でのみ有効。LANのhttpでは無視される
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then(reg => {
+        swReg = reg;
         // 起動のたびに新バージョンを確認（PWAはこれをしないと古いSWが残り続ける）。
         // v359〜 開いたまま使っている間も、前面に戻ったとき・30分ごとに確認する
         const check = () => reg.update().catch(() => {});
@@ -286,6 +304,7 @@ const App = (() => {
         // 待機中の新版を切り替える（SW に合図 → controllerchange → 再読み込み）
         const activate = (sw) => { try { sw.postMessage({ type: 'SKIP_WAITING' }); } catch { /* noop */ } };
         // 新版が「待機」に入ったとき: 起動直後（20秒以内）なら黙って切り替え、使用中なら下の帯で知らせてタップで切り替え
+        swActivate = activate;
         const onWaiting = (sw) => {
           if (!sw) return;
           if (Date.now() - startedAt < 20000 && !(typeof Register !== 'undefined' && Register.isDirty && Register.isDirty())) { activate(sw); return; }
@@ -642,5 +661,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, toast, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
+  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
 })();

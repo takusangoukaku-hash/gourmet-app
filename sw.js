@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v362'; // 店舗情報で住所を変えて保存したら、住所から位置を求め直して地図に反映（以前は文字だけ変わりピンが動かなかった）
+const VERSION = 'v363'; // 住所→位置を国土地理院の住所検索に（丁目・番地に強い）。ホーム・検索・プロフィールで引っ張って更新（同期＋新版の確認＋描き直し）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -23,7 +23,7 @@ const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'tiles.openfreemap.org', 'ma
 const TILE_HOSTS = ['tiles.openfreemap.org', 'maps.gsi.go.jp'];
 const TILE_CACHE_MAX = 1500;
 // Firebase（認証・DB・写真保存）は常にネットワークへ（キャッシュしない）
-const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com', 'map.yahooapis.jp', 'webservice.recruit.co.jp', 'api.openpoiapi.com', 'workers.dev',
+const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'msearch.gsi.go.jp', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com', 'map.yahooapis.jp', 'webservice.recruit.co.jp', 'api.openpoiapi.com', 'workers.dev',
   'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];
 
 self.addEventListener('install', (e) => {

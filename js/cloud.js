@@ -846,5 +846,6 @@ const Cloud = (() => {
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
     fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
-    publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep };
+    publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep,
+    syncNow: () => autoBackupSweep(true) }; // 引っ張って更新（v363〜）
 })();
