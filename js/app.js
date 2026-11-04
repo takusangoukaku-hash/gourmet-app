@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v358'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v359'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -54,6 +54,16 @@ const App = (() => {
     vv.addEventListener('resize', apply);
     vv.addEventListener('scroll', apply);
     apply();
+  }
+
+  // 新しい版の帯（v359〜）: 下のタブの上に「新しい版があります ・ 更新」。更新でその場で切り替わる
+  function showUpdateBar(onUpdate) {
+    if (document.querySelector('.update-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'update-bar';
+    bar.innerHTML = '<span>新しい版があります</span><button type="button" class="btn small primary">更新</button>';
+    bar.querySelector('button').addEventListener('click', () => { bar.querySelector('button').disabled = true; bar.querySelector('span').textContent = '切り替えています…'; onUpdate(); });
+    document.body.appendChild(bar);
   }
 
   function init() {
@@ -252,9 +262,14 @@ const App = (() => {
     // ※ https または localhost でのみ有効。LANのhttpでは無視される
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then(reg => {
-        // 起動のたびに新バージョンを確認（PWAはこれをしないと古いSWが残り続ける）
-        reg.update().catch(() => {});
-        // 新しいSWに切り替わったら一度だけ自動リロードして、全ファイルを最新に揃える
+        // 起動のたびに新バージョンを確認（PWAはこれをしないと古いSWが残り続ける）。
+        // v359〜 開いたまま使っている間も、前面に戻ったとき・30分ごとに確認する
+        const check = () => reg.update().catch(() => {});
+        check();
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+        setInterval(check, 30 * 60 * 1000);
+        const startedAt = Date.now();
+        // 新しいSWに切り替わったら一度だけ再読み込みして、全ファイルを最新に揃える
         let reloaded = false, reloadPending = false;
         const tryReload = () => {
           if (reloaded) return;
@@ -268,6 +283,22 @@ const App = (() => {
         };
         navigator.serviceWorker.addEventListener('controllerchange', tryReload);
         document.addEventListener('bitemap:saved', () => { if (reloadPending) tryReload(); });
+        // 待機中の新版を切り替える（SW に合図 → controllerchange → 再読み込み）
+        const activate = (sw) => { try { sw.postMessage({ type: 'SKIP_WAITING' }); } catch { /* noop */ } };
+        // 新版が「待機」に入ったとき: 起動直後（20秒以内）なら黙って切り替え、使用中なら下の帯で知らせてタップで切り替え
+        const onWaiting = (sw) => {
+          if (!sw) return;
+          if (Date.now() - startedAt < 20000 && !(typeof Register !== 'undefined' && Register.isDirty && Register.isDirty())) { activate(sw); return; }
+          showUpdateBar(() => activate(sw));
+        };
+        if (reg.waiting && navigator.serviceWorker.controller) onWaiting(reg.waiting);
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) onWaiting(nw);
+          });
+        });
       }).catch(() => { /* 非対応環境では何もしない */ });
     }
 

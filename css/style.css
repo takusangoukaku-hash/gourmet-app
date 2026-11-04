@@ -2264,3 +2264,17 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 .pd-genrow > span { min-width: 0; }
 .pd-more.row-toggle { width: auto; flex: 0 0 auto; height: 32px; margin: 0 0 0 auto; border: none; padding: 0 2px; font-size: 13px; color: var(--muted); }
 .pd-more.row-toggle .chev { font-size: 16px; }
+
+/* 新しい版の帯（v359〜）: 下のタブのすぐ上。キーボードが出ていればその上 */
+.update-bar {
+  position: fixed; left: 12px; right: 12px; bottom: max(calc(66px + env(safe-area-inset-bottom, 0px)), calc(var(--kb, 0px) + 10px)); z-index: 1150;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--border-lite);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .16); font-size: 14px; font-weight: 700;
+}
+.update-bar .btn { flex-shrink: 0; }
+/* 遅延描画の番兵（v359〜）: 列をまたいで高さ1px */
+.mz-more { grid-column: 1 / -1; grid-row: auto; height: 1px; }
+/* 店シートのフォロワーの投稿（v359〜 投稿詳細と同じ並び）: シートの余白を打ち消して写真を端まで */
+.msh-frows .pd-sect { margin: 0 -16px; }
+.msh-frows .pd-sect + .pd-sect { border-top: 8px solid var(--field); }

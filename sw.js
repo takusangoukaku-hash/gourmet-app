@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v358'; // 速さ: 写真の並びの高さ合わせを1フレームにまとめる、検索の一覧を12件ずつ描く、保存時にサムネを作る
+const VERSION = 'v359'; // 同期: 開いている間も別端末の記録と写真を取り込む（5分おき・前面復帰時、写真は最後まで）。新しい版の帯と更新。店シートのフォロワーの投稿を投稿詳細と同じ形に。写真一覧は画面外を遅延描画
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -27,9 +27,12 @@ const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.ope
   'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())
-  );
+  // v359〜 ここでは skipWaiting しない。新版は「待機」にとどめ、ページ側が起動直後なら即切り替え、使用中なら帯を出して
+  // タップされたら SKIP_WAITING を受けて切り替える（読んでいる最中に勝手に再読み込みしない）
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
+});
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

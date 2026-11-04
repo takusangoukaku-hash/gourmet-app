@@ -54,11 +54,18 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 地図(MapLibre)・グラフ(Chart.js)・EXIF(exifr) は `App.loadLib(name)` で必要になった画面で読み込む。
   index.html に `<script>` を戻さない。ライブラリを足すときは `app.js` の `LIBS` に integrity 付きで追加する。
 - Firebase SDK は最初の描画後（アイドル時）に読み込む。この端末でログインしたことがなければ、ログインを押すまで読まない。
+- 同期（v359〜）: 起動時の全同期に加え、開いている間も `autoBackupSweep()` が 5分おき・前面に戻ったとき・オンライン復帰時に
+  記録（店・訪問・行きたい）の取り込み＋押し上げ（`syncRecords()`、前回から2分以内は間引く）と写真の差分（`syncPhotos()`）を行う。
+  別端末で付けた記録・写真は再起動なしで届く。`syncPhotos()` は 60 枚ごとに区切って最後まで取り込み、区切りごとに画面を描き直す（以前は 60 枚で打ち切り）。
+  `pullCollection()` は updatedAt が新しいものだけ取り込んで件数を返す（同じ時刻は触らない）。
+- 新しい版（v359〜）: sw.js は install で skipWaiting しない。app.js が 起動時・前面復帰時・30分ごとに `reg.update()` し、新版が待機に入ったら
+  起動 20 秒以内なら黙って切り替え（SKIP_WAITING → controllerchange → 再読み込み）、使用中なら下の帯 `.update-bar`「新しい版があります ・ 更新」を出してタップで切り替える。記録の入力中は保存後に切り替える。
 - Service Worker: `?v=` 付きのファイルはキャッシュ優先（内容は版ごとに固定）。index.html だけネットワーク優先。
 - 速さの計測（v358〜）: 店150・写真300 を入れて CPU 4倍遅で測る台本がある（scratchpad の `perf-scale.js`／`perf-prof.js`。CDP の Profiler で関数ごとの時間を出す）。
   直した所: ①写真の並び `mzFit()` は読み取り（高さ）と書き込み（行数）を rAF 1回にまとめる（1枚ごとに getBoundingClientRect でレイアウトを強制しない。ResizeObserver は `contentRect.height` を使う）。
   ②検索の「お店」一覧 `renderListSections()` は 12 件ずつ描き、残りはスクロールで近づいたら足す（IntersectionObserver）。③写真の保存直後に `Views.warmThumb(id, blob)` でサムネを作る（登録・取り込み）。
   効果（店150・写真300・CPU4倍遅）: 検索の写真 592→224ms、検索の一覧の初回表示 587→327ms、プロフィールの写真（2回目）84→70ms。
+  v359〜 写真の一覧（プロフィールのアルバム `.pf-mz`・検索の写真・発見・ホーム・`#photo-grid`）は `appendChunked(grid, total, make)` で先頭 40 件だけ描き、番兵 `.mz-more` が近づいたら 40 件ずつ足す（並び順 `mzOrder` は先に全件で計算）。
   一覧に N 件を一度に描く・画像1枚ごとにレイアウトを読む、の2つを新しく書かない。計測は `performance.clearMarks` してから mark する（累積しない）。
 
 ## セキュリティの決めごと（v296〜）
@@ -141,6 +148,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 地図の店シート（v336〜）: `showMapShopSheet` / `showNetShopSheet` は共通の `sheetHeadHtml()` で「つまみ → 写真（全幅）→ 店名 → 駅 → タイル4つ → 要点行」を描く。
   タイルは「N分（現在地の控えからの徒歩。`walkMinutes()`。無ければ「経路」）／また来た（他人の店は「行きたい」）／地図／共有」。要点行は「あなた／みんな／訪問」で無いものは列ごと出さない。
   ジャンル・★バッジ・「あなたの写真」の見出しと枚数は出さない。開いている間は `body.msh-open` でアプリの見出し・地図の検索バー・表示範囲ボタンを隠す。
+  「フォロワーの写真」（`renderFollowSection`）は v359〜 投稿詳細と同じ `buildPostSection(p, close, {inShop:true})` を1投稿ずつ縦に並べる（店名・場所は出さない）。並び順（一致率順／新しい順／古い順）の切り替えは残す。
 - 配色（v354〜）: v347〜v353 で試した白黒基調（テラコッタの廃止・灰のピンと地図・黒い★）は、利用者の希望で v354 に v346 以前の配色へ戻した。
   `--accent` はテラコッタ（#C6613F、暗色では #D97757）、`--accent-soft` は淡いテラコッタ、★は金のグラデーション `#star-grad`、評価の色は ★1灰→★2青→★3緑→★4橙→★5赤（`--r1`〜`--r5`＝JS の `PIN_COLORS`）、
   行きたい店は紫（`WISH_COLOR` #8B5CF6）、地図は iPhone のマップ風の配色（`baseMapStyle()`）、発見のジャンルの絵は色つき。v347〜v353 の機能の変更（登録2枚目の写真タイル・「また来た」→登録画面・店シートのタイル揃え）は残っている。

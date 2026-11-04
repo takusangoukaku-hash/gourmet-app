@@ -50,7 +50,7 @@ const Cloud = (() => {
       // リダイレクト方式ログインの戻り（インストール済みPWA等）を回収
       authM.getRedirectResult(auth).catch(() => { /* 未使用時は無視 */ });
       // 自動バックアップの起動タイミングを仕込む（登録は1回だけ。実行はログイン中のみ）
-      setInterval(() => autoBackupSweep(false), 15 * 60 * 1000);
+      setInterval(() => autoBackupSweep(false), 5 * 60 * 1000); // v359〜 5分おき（前は15分）
       document.addEventListener('visibilitychange', () => { if (!document.hidden) autoBackupSweep(false); });
       window.addEventListener('online', () => autoBackupSweep(false));
       authM.onAuthStateChanged(auth, async (u) => {
@@ -147,12 +147,14 @@ const Cloud = (() => {
 
   // ---------- 記録（店・訪問・プロフィール）の双方向同期 ----------
   async function syncRecords() {
-    await pullCollection('shops', 'shop');
-    await pullCollection('visits', 'visit');
-    await pullWishes();
+    let n = 0;
+    n += await pullCollection('shops', 'shop');
+    n += await pullCollection('visits', 'visit');
+    n += await pullWishes();
     await pullProfile();
     await syncApiKeys();
     await pushAllRecords();
+    return n; // 別端末から取り込んだ記録の数
   }
 
   // APIキー（Anthropic/Google）を自分のアカウントにも保存して、消えたら自動復元する
@@ -187,6 +189,7 @@ const Cloud = (() => {
 
   // 行きたい店リスト: クラウド → ローカル（新しい方を採用）
   async function pullWishes() {
+    let n = 0;
     try {
       const snap = await fb.fs.getDocs(cref('wishes'));
       const localMap = new Map(Store.rawWishes().map(w => [w.id, w]));
@@ -195,9 +198,10 @@ const Cloud = (() => {
         const remote = docSnap.data();
         if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
         const local = localMap.get(remote.id);
-        if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote('wish', remote);
+        if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) { Store.applyRemote('wish', remote); n++; }
       });
     } catch (e) { console.warn('行きたい店の同期に失敗:', e); }
+    return n;
   }
 
   // クラウド → ローカル（新しい方を採用）
@@ -205,12 +209,15 @@ const Cloud = (() => {
     const snap = await fb.fs.getDocs(cref(name));
     const localMap = new Map((kind === 'shop' ? Store.rawShops() : Store.rawVisits()).map(x => [x.id, x]));
     const gone = Store.deletedIds(kind);
+    let n = 0;
     snap.forEach(docSnap => {
       const remote = docSnap.data();
       if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
       const local = localMap.get(remote.id);
-      if (!local || (remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote(kind, remote);
+      // 新しい方を採用。同じ時刻は同じ内容とみなして触らない（毎回の書き戻しを避ける）
+      if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) { Store.applyRemote(kind, remote); n++; }
     });
+    return n;
   }
   async function pullProfile() {
     const snap = await fb.fs.getDoc(dref('meta', 'profile'));
@@ -278,10 +285,14 @@ const Cloud = (() => {
     const gonePhotos = Store.deletedIds('photo');
     const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
     const hydrTargets = localPhotos.filter(p => !p.hasBlob && cloudIds.has(p.id));
-    const targets = [...newTargets.map(m => ({ kind: 'new', m })),
-      ...hydrTargets.map(p => ({ kind: 'hydrate', p }))].slice(0, MAX_PULL);
-    await runPool(targets, 5, async (t) => {
-      if (fails >= MAX_FAIL) return;
+    const allTargets = [...newTargets.map(m => ({ kind: 'new', m })),
+      ...hydrTargets.map(p => ({ kind: 'hydrate', p }))];
+    // v359〜 60 枚ごとに区切って最後まで取り込む（以前は 60 枚で打ち切り、残りは次の起動に回していた）。
+    // 区切りごとに画面を描き直し、届いた写真から順に見えるようにする
+    for (let i = 0; i < allTargets.length && fails < MAX_FAIL; i += MAX_PULL) {
+      const before = changed;
+      await runPool(allTargets.slice(i, i + MAX_PULL), 5, async (t) => {
+        if (fails >= MAX_FAIL) return;
       try {
         if (t.kind === 'new') {
           const m = t.m;
@@ -306,7 +317,9 @@ const Cloud = (() => {
         }
         changed++;
       } catch (e) { fails++; console.warn('写真取り込み失敗:', e); }
-    });
+      });
+      if (changed > before && i + MAX_PULL < allTargets.length) { try { App.refreshCurrent(); } catch { /* noop */ } }
+    }
 
     // ローカルにあってクラウドに無い写真 → 並列アップロード。
     // 投稿の公開は1枚ごとに行わず、アップロード後に訪問単位でまとめて行う（重複した通信を削減）
@@ -581,15 +594,18 @@ const Cloud = (() => {
   // 変更時のプッシュが電波状況などで失敗しても、次回起動まで放置せず、
   // アプリを開いている間に全件の差分バックアップで拾い直す。
   //  実行タイミング: 15分おき / アプリを前面に戻したとき / オフライン→オンライン復帰時
-  //  （前回から5分以内なら間引く。ログイン中のみ）
+  //  （前回から2分以内なら間引く。ログイン中のみ）
+  //  v359〜 記録（店・訪問・行きたい）もクラウドから取り込む。以前は押し上げだけで、別端末で付けた記録は
+  //  再起動するまで届かなかった。写真は差分を最後まで取り込む
   let sweepRunning = false, lastSweepAt = 0;
   async function autoBackupSweep(force) {
     if (!user || sweepRunning) return;
-    if (!force && Date.now() - lastSweepAt < 5 * 60 * 1000) return;
+    if (!force && Date.now() - lastSweepAt < 2 * 60 * 1000) return;
     sweepRunning = true;
     try {
       await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
-      await pushAllRecords();  // 店・訪問・行きたい・プロフィール（差分ではなく全件上書き＝確実）
+      const recs = await syncRecords(); // 取り込み＋全件の押し上げ（差分ではなく全件上書き＝確実）
+      if (recs) App.refreshCurrent(); // 別端末からの記録をすぐ画面に
       const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
       lastSweepAt = Date.now();
       setStatus('synced');

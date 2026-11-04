@@ -1546,35 +1546,14 @@ const Views = (() => {
     ov.querySelector('.msh-sort').textContent = ({ match: '一致率順', new: '新しい順', old: '古い順' })[mode] + ' ⇅';
     const rows = ov.querySelector('.msh-frows');
     rows.innerHTML = '';
-    for (const u of rowsData) {
-      const total = networkPosts.filter(p => p.username === u.username).length; // その人の投稿数（全店）
-      const row = document.createElement('div');
-      row.className = 'msh-frow';
-      row.innerHTML = `
-        <button type="button" class="msh-fuser">
-          <span class="msh-favatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : IC_BOWL}</span>
-          <span class="msh-fname">${esc(u.name || u.username)}さん</span>
-          ${tasteBadge(u.username, true)}
-          <span class="msh-fhandle">@${esc(u.username)}</span>
-          <span class="msh-fposts">${total}投稿</span>
-        </button>
-        <div class="msh-fphotos"></div>
-        <button type="button" class="msh-chev" aria-label="プロフィールを見る"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>`;
-      const ph = row.querySelector('.msh-fphotos');
-      for (const p of u.posts.filter(x => x.photoUrl).slice(0, 3)) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'msh-fph';
-        b.innerHTML = `<img src="${esc(p.photoUrl)}" alt="" loading="lazy" decoding="async">
-          ${p.rating ? `<span class="pd-photo-star">★${fmtR(p.rating)}</span>` : ''}`;
-        b.addEventListener('click', () => showPostDetail(p));
-        ph.appendChild(b);
-      }
-      const toProfile = () => showPublicProfile(u.username);
-      row.querySelector('.msh-fuser').addEventListener('click', toProfile);
-      row.querySelector('.msh-chev').addEventListener('click', toProfile);
-      rows.appendChild(row);
-    }
+    // v359〜 人ごとの小さな行ではなく、投稿詳細と同じ並び（投稿者 → 写真（★）→ ♥・コメント・経路・共有・保存 → ジャンル ・ 詳細 ›）で
+    // 1投稿ずつ縦に並べる。店名と場所はシートの上にあるので出さない（inShop）
+    const close = () => { ov.remove(); document.body.classList.remove('msh-open'); };
+    const ordered = [];
+    for (const u of rowsData) for (const p of u.posts) ordered.push(p);
+    const frag = document.createDocumentFragment();
+    for (const p of ordered) frag.appendChild(buildPostSection(p, close, { inShop: true }));
+    rows.appendChild(frag);
   }
 
   // 地図でフォロワーだけが行っている店をタップしたときの画面。
@@ -2593,6 +2572,31 @@ const Views = (() => {
       items.forEach((it, i) => mzApply(it, hs[i])); // 書く
     });
   }
+  // 画面外の項目は後から描く（v359〜）: 先頭 CHUNK 件だけ作り、末尾の番兵が近づいたら次の CHUNK 件を足す。
+  // grid に番兵（全列ぶん）を置く。make(i) が i 番目の要素を返す。並び順の計算は呼び出し側で先に済ませる
+  function appendChunked(grid, total, make, chunk) {
+    const CH = chunk || 40;
+    let pos = 0;
+    const sentinel = document.createElement('div');
+    sentinel.className = 'mz-more';
+    grid.appendChild(sentinel);
+    const fill = () => {
+      const frag = document.createDocumentFragment();
+      for (let n = 0; n < CH && pos < total; n++, pos++) frag.appendChild(make(pos));
+      grid.insertBefore(frag, sentinel);
+      if (pos >= total) sentinel.remove();
+    };
+    fill();
+    if (pos >= total) return;
+    const io = new IntersectionObserver((es) => {
+      if (!es.some(en => en.isIntersecting)) return;
+      if (!grid.isConnected) { io.disconnect(); return; }
+      fill();
+      if (pos >= total) { io.disconnect(); return; }
+      io.unobserve(sentinel); io.observe(sentinel);
+    }, { rootMargin: '1200px 0px' });
+    io.observe(sentinel);
+  }
   // 写真カード1枚。o = { name, sub, badge, count, meta, onClick, rec }。img は呼び出し側で setThumb / src。
   // meta を渡すと写真の下に1行（訪問回数など）を出す。rec（自分の写真のメタ）を渡すと読み込み時に縦横比を後追いで保存する
   function mzItem(o) {
@@ -2712,11 +2716,12 @@ const Views = (() => {
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     const grid = document.createElement('div');
     grid.className = 'mz-grid';
-    ordered.forEach((it, i) => {
+    appendChunked(grid, ordered.length, (i) => {
+      const it = ordered[i];
       const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }), rec: it.kind === 'mine' ? it.ph : null }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
-      grid.appendChild(cell);
+      return cell;
     });
     box.appendChild(grid);
   }
@@ -2864,11 +2869,12 @@ const Views = (() => {
     const ordered = mzOrder(list, mzArOfItem, mzCols(box)); // 見た目が整う順（v331〜）
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
     const posts = ordered.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
-    ordered.forEach((it, i) => {
+    appendChunked(grid, ordered.length, (i) => {
+      const it = ordered[i];
       const cell = mzItem(Object.assign(mzLabelFor(it, vById), { onClick: () => showPostDetail(posts[i], { list: posts, index: i }), rec: it.kind === 'mine' ? it.ph : null }));
       if (it.kind === 'mine') setThumb(cell.querySelector('img'), it.ph);
       else cell.querySelector('img').src = it.p.photoUrl;
-      grid.appendChild(cell);
+      return cell;
     });
     box.innerHTML = '';
     box.appendChild(grid);
@@ -2919,7 +2925,8 @@ const Views = (() => {
       return;
     }
     box.innerHTML = '';
-    for (const { p, shop, visit } of cells) {
+    appendChunked(box, cells.length, (i) => {
+      const { p, shop, visit } = cells[i];
       // 拡大表示は店名＋日付、写真の下のキャプションは店名のみ
       const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
       const div = document.createElement('div');
@@ -2927,8 +2934,8 @@ const Views = (() => {
       div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
       setThumb(div.querySelector('img'), p);
       div.addEventListener('click', () => fullPhotoUrl(p).then(u => openLightbox(u || '', cap))); // 拡大表示は元画像
-      box.appendChild(div);
-    }
+      return div;
+    });
   }
 
   function openLightbox(url, caption) {
@@ -3141,18 +3148,17 @@ const Views = (() => {
     // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」、下に訪問回数と前回）
     box.className = 'mz-grid pf-mz';
     box.innerHTML = '';
-    shown.forEach((g, idx) => {
+    appendChunked(box, shown.length, (idx) => {
+      const g = shown[idx];
       const shop = Store.getShop(g.shopId) || {};
       const avg = Store.avgRating(g.shopId);
-      const visits = Store.visitCount(g.shopId);
-      const last = Store.lastVisitDate(g.shopId);
       const card = mzItem({
         name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
         badge: avg ? '★' + fmtR(avg) : '',
         onClick: () => showShopFeed(shown, idx), // 絞り込み中は、絞り込んだ店の中で前後へ送る
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
-      box.appendChild(card);
+      return card;
     });
   }
 
@@ -5053,7 +5059,7 @@ const Views = (() => {
     box.innerHTML = '';
     // 見た目が整う順（v331〜）: おすすめ／新着の順を土台に、直近4件の中から列が揃う写真を選ぶ。カードの下の段ぶん（投稿者といいね）は extra で見込む
     const shown = mzOrder(posts, p => Number(p.ar) || 0, mzCols(box), 0.28);
-    shown.forEach((p, i) => box.appendChild(buildFeedCard(p, shown, i)));
+    appendChunked(box, shown.length, (i) => buildFeedCard(shown[i], shown, i));
   }
 
   // ジャンル名 → 発見タイルと同じカテゴリ色（チップの背景に使う）
@@ -5256,7 +5262,8 @@ const Views = (() => {
 
   // 投稿1件ぶんのセクションを組み立てて返す（写真・評価・お店の情報・いいね・コメント）
   // ホームの一覧と、投稿タップで開く詳細の両方で使う共通の描画関数
-  function buildPostSection(p, close) {
+  function buildPostSection(p, close, opt) {
+    const o = opt || {}; // inShop: 店シートの中（店名・場所は上にあるので出さない。v359〜）
     // 自分の記録かどうか（端末内の訪問に一致）。他人の投稿では日付・編集は出さない
     const isMine = Store.visits().some(v => v.id === p.id);
     const av = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : IC_BOWL;
@@ -5286,8 +5293,8 @@ const Views = (() => {
           ? `<button type="button" class="act-btn pd-revisit" aria-label="記録を追加">${IC_PLUS}</button>`
           : `<button type="button" class="act-btn fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>` })}
         <div class="pd-body">
-          <div class="pd-shop">${esc(p.shopName || '')}</div>
-          ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
+          ${o.inShop ? '' : `<div class="pd-shop">${esc(p.shopName || '')}</div>`}
+          ${loc && !o.inShop ? `<div class="pd-sub">${loc}</div>` : ''}
           <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
             <button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button></div>
           <div class="pd-morebox hidden">
