@@ -146,11 +146,33 @@ const Cloud = (() => {
   }
 
   // ---------- 記録（店・訪問・プロフィール）の双方向同期 ----------
+  // 削除の控え（v365〜）: 消した記録の id を users/{uid}/deleted/{kind_id} にも残し、別端末はそれを見て同じ記録を消す。
+  // 90 日たった控えは取り込むときに掃除する
+  const TOMB_KEEP = 90 * 24 * 3600 * 1000;
+  function putTombstone(kind, id) {
+    return fb.fs.setDoc(dref('deleted', `${kind}_${id}`), { kind, id, at: Date.now() }).catch(() => {});
+  }
+  async function pullDeleted() {
+    let snap;
+    try { snap = await fb.fs.getDocs(cref('deleted')); } catch { return 0; }
+    const tombs = [];
+    snap.forEach(d => tombs.push({ docId: d.id, ...d.data() }));
+    const now = Date.now(), old = [];
+    let n = 0;
+    for (const t of tombs) {
+      if (typeof t.id !== 'string' || !['shop', 'visit', 'wish', 'photo'].includes(t.kind)) continue;
+      if (!(Number(t.at) > now - TOMB_KEEP)) { old.push(t.docId); continue; }
+      try { if (await Store.applyRemoteDelete(t.kind, t.id, Number(t.at) || 0)) n++; } catch { /* noop */ }
+    }
+    if (old.length) runPool(old.slice(0, 50), 4, (id) => fb.fs.deleteDoc(dref('deleted', id)).catch(() => {}));
+    return n;
+  }
   async function syncRecords() {
     let n = 0;
     n += await pullCollection('shops', 'shop');
     n += await pullCollection('visits', 'visit');
     n += await pullWishes();
+    n += await pullDeleted(); // 別端末で消した記録（店・訪問・行きたい・写真）をこちらでも消す（v365〜）
     await pullProfile();
     await syncApiKeys();
     await pushAllRecords();
@@ -636,9 +658,13 @@ const Cloud = (() => {
     });
   }
   async function applyOneToCloud({ kind, action, obj }) {
-    if (kind === 'shop') return action === 'del' ? fb.fs.deleteDoc(dref('shops', obj.id)) : fb.fs.setDoc(dref('shops', obj.id), clean(obj));
+    if (kind === 'shop') {
+      if (action === 'del') { await putTombstone('shop', obj.id); return fb.fs.deleteDoc(dref('shops', obj.id)); }
+      return fb.fs.setDoc(dref('shops', obj.id), clean(obj));
+    }
     if (kind === 'visit') {
       if (action === 'del') {
+        await putTombstone('visit', obj.id);
         await fb.fs.deleteDoc(dref('visits', obj.id)).catch(() => {});
         await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', obj.id)).catch(() => {}); // フィード投稿も削除
         return;
@@ -652,11 +678,13 @@ const Cloud = (() => {
       // 行きたい店は公開プロフィールにも載せているため、変更が落ち着いたら公開側も更新する
       clearTimeout(wishPubTimer);
       wishPubTimer = setTimeout(() => publishPublicProfile().catch(() => {}), 3000);
-      return action === 'del' ? fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}) : fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
+      if (action === 'del') { await putTombstone('wish', obj.id); return fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}); }
+      return fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
     }
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
       if (action === 'del') {
+        await putTombstone('photo', obj.id);
         await fb.fs.deleteDoc(dref('photos', obj.id)).catch(() => {});
         await fb.st.deleteObject(fb.st.ref(storage, `users/${user.uid}/photos/${obj.id}.jpg`)).catch(() => {});
         return;

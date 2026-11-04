@@ -4139,21 +4139,30 @@ const Views = (() => {
     const prefs = new Set(shops.map(s => shopPref(prefGeoCache, s) || s.pref).filter(Boolean));
     return { year: y, visits: visits.length, shops: shops.length, newShops, top, rated, genres, prefs: prefs.size };
   }
+  let yearSel = 0; // まとめで見ている年（訪問のある年だけ ‹ › で切り替え。v365〜）
   function renderYearCard() {
     const box = $('#stat-year');
     if (!box) return;
-    const d = yearSummary();
-    if (!d.visits) { box.classList.add('hidden'); return; }
+    const years = [...new Set(Store.visits().map(v => new Date(v.datetime).getFullYear()).filter(y => y > 1970))].sort((a, b) => b - a);
+    if (!years.length) { box.classList.add('hidden'); return; }
+    const thisYear = new Date().getFullYear();
+    if (!years.includes(yearSel)) yearSel = years.includes(thisYear) ? thisYear : years[0];
+    const d = yearSummary(yearSel);
+    const i = years.indexOf(yearSel);
     box.classList.remove('hidden');
     const li = (t, v) => `<div class="yc-row"><span>${t}</span><b>${v}</b></div>`;
+    const nav = (cls, label, on) => years.length > 1 ? `<button type="button" class="yc-nav ${cls}" aria-label="${label}"${on ? '' : ' disabled'}>${cls === 'yc-prev' ? '‹' : '›'}</button>` : '';
     box.innerHTML = `
-      <div class="yc-head"><b>${d.year}年のまとめ</b><button type="button" class="btn small yc-share">${IC_SHARE_S} 画像で共有</button></div>
+      <div class="yc-head"><div class="yc-title">${nav('yc-prev', '前の年', i < years.length - 1)}<b>${d.year}年のまとめ</b>${nav('yc-next', '次の年', i > 0)}</div><button type="button" class="btn small yc-share">${IC_SHARE_S} 画像で共有</button></div>
       <div class="yc-nums">
         <div><b>${d.shops}</b><span>店</span></div><div><b>${d.visits}</b><span>回</span></div><div><b>${d.newShops}</b><span>新しい店</span></div><div><b>${d.prefs}</b><span>都道府県</span></div>
       </div>
       ${d.top.length ? li('よく行った', esc(d.top.map(x => `${x.s.name}（${x.n}回）`).join('、'))) : ''}
       ${d.rated.length ? li('★が高かった', esc(d.rated.map(x => `${x.s.name} ${fmtR(x.avg)}`).join('、'))) : ''}
       ${d.genres.length ? li('よく食べた', esc(d.genres.map(([g, n]) => `${g} ${n}回`).join('、'))) : ''}`;
+    const prev = box.querySelector('.yc-prev'), next = box.querySelector('.yc-next');
+    if (prev) prev.addEventListener('click', () => { yearSel = years[i + 1]; renderYearCard(); });
+    if (next) next.addEventListener('click', () => { yearSel = years[i - 1]; renderYearCard(); });
     box.querySelector('.yc-share').addEventListener('click', async () => {
       App.toast('画像を作成中…', 1500);
       let blob;
@@ -4173,7 +4182,7 @@ const Views = (() => {
     grad.addColorStop(0, '#D97757'); grad.addColorStop(1, '#B4552F');
     g.fillStyle = grad; g.fillRect(0, 0, W, 300);
     g.fillStyle = '#FFFFFF'; g.font = F(800, 96); g.fillText(String(d.year), 72, 150);
-    g.font = F(600, 34); g.globalAlpha = 0.85; g.fillText('BITEMAP　今年のまとめ', 72, 215); g.globalAlpha = 1;
+    g.font = F(600, 34); g.globalAlpha = 0.85; g.fillText(`BITEMAP　${d.year === new Date().getFullYear() ? '今年' : d.year + '年'}のまとめ`, 72, 215); g.globalAlpha = 1;
     const p = Store.getProfile();
     g.fillStyle = '#1F1E1D'; g.font = F(800, 44); g.fillText(fit(p.name || 'BITEMAP', 936, 800, 44), 72, 380);
     const stats = [[String(d.shops), '店'], [String(d.visits), '回 来店'], [String(d.newShops), '新しい店'], [String(d.prefs), '都道府県']];
@@ -4508,6 +4517,39 @@ const Views = (() => {
       // 同じ店の写真は1つにまとめ、画面の横幅いっぱいで左右スワイプして見られるようにする
       // （投稿詳細と同じカルーセル）。写真をタップすると投稿として詳細を開く
       if (!editVid) {
+        // v365〜 店の写真を横にスワイプで見る帯を先頭に戻した（v338〜v363 と同じ。写真が無ければ出さない。タップで投稿として開く）
+        const strip = document.createElement('div');
+        strip.className = 'visit-block d-photoblock hidden';
+        strip.innerHTML = '<div class="pd-photos d-swipe"></div>';
+        vbox.appendChild(strip);
+        Store.allPhotos().then(all => {
+          const vMap = new Map(vs.map(v => [v.id, v]));
+          const shot = (p) => { const v = vMap.get(p.visitId); return (v && v.datetime ? new Date(v.datetime).getTime() : 0) || p.createdAt || 0; };
+          const photos = all.filter(p => p.shopId === shopId).sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
+          if (!photos.length || !strip.isConnected) return;
+          const post = buildOwnShopPost({ shopId, photos });
+          const box = strip.querySelector('.d-swipe');
+          const items = post.photoItems;
+          for (const it of items) {
+            const slide = document.createElement('div'); slide.className = 'pd-slide';
+            slide.appendChild(fullImg(it.ph, 'pd-photo'));
+            if (it.rating) slide.insertAdjacentHTML('beforeend', `<span class="pd-photo-star">★${fmtR(it.rating)}</span>`);
+            box.appendChild(slide);
+          }
+          if (items.length > 1) {
+            box.classList.add('pd-carousel');
+            const dots = document.createElement('div');
+            dots.className = 'pd-dots';
+            dots.innerHTML = items.map((_, i) => `<span class="pd-dot${i === 0 ? ' on' : ''}"></span>`).join('');
+            box.after(dots);
+            box.addEventListener('scroll', () => {
+              const i = Math.round(box.scrollLeft / box.clientWidth);
+              [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+            }, { passive: true });
+          }
+          box.querySelectorAll('.pd-photo').forEach(img => img.addEventListener('click', () => showPostDetail(post)));
+          strip.classList.remove('hidden');
+        });
         // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
         const feed = document.createElement('div');
         feed.className = 'pf-shopfeed d-visitfeed';
@@ -4650,6 +4692,28 @@ const Views = (() => {
     for (const [g, n] of ga) hit += Math.min(n, gb.get(g) || 0);
     return (2 * hit) / ((a.length - 1) + (b.length - 1));
   }
+  // 2店が同じ店らしいか（統合の候補・登録時の重複の確認で共用。v365〜）
+  function isSimilarShop(na, nb, dist) {
+    const sim = bigramDice(na, nb);
+    const same = !!na && na === nb;
+    const near = dist != null && dist < 80 && sim >= 0.5;
+    const alike = sim >= 0.8 && (dist == null || dist < 500);
+    return (same || near || alike) ? sim : 0;
+  }
+  // 登録しようとしている店名・位置に似た登録済みの店（register.js が使う。似ている順）
+  function similarShops(name, lat, lon, excludeId) {
+    const nn = mergeNorm(name);
+    if (!nn) return [];
+    const out = [];
+    for (const s of Store.shops()) {
+      if (s.id === excludeId) continue;
+      const hasPos = lat != null && lon != null && s.lat != null && s.lon != null;
+      const dist = hasPos ? Store.distMeters(lat, lon, s.lat, s.lon) : null;
+      const sim = isSimilarShop(nn, mergeNorm(s.name), dist);
+      if (sim) out.push({ shop: s, dist, sim });
+    }
+    return out.sort((a, b) => b.sim - a.sim || ((a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist)));
+  }
   function findDuplicateShops() {
     let ignored = [];
     try { ignored = JSON.parse(localStorage.getItem(MERGE_IGN_KEY) || '[]'); } catch { ignored = []; }
@@ -4661,14 +4725,10 @@ const Views = (() => {
         const a = shops[i], b = shops[j];
         const key = [a.id, b.id].sort().join('|');
         if (ign.has(key)) continue;
-        const na = mergeNorm(a.name), nb = mergeNorm(b.name);
-        const sim = bigramDice(na, nb);
         const hasPos = a.lat != null && a.lon != null && b.lat != null && b.lon != null;
         const dist = hasPos ? Store.distMeters(a.lat, a.lon, b.lat, b.lon) : null;
-        const same = na && na === nb;
-        const near = dist != null && dist < 80 && sim >= 0.5;
-        const alike = sim >= 0.8 && (dist == null || dist < 500);
-        if (same || near || alike) out.push({ a, b, key, dist, sim });
+        const sim = isSimilarShop(mergeNorm(a.name), mergeNorm(b.name), dist);
+        if (sim) out.push({ a, b, key, dist, sim });
       }
     }
     // 訪問の多い方を「残す側」に
@@ -5369,7 +5429,7 @@ const Views = (() => {
 
   // Instagram風のアクションシート（画面下から出るメニュー）。
   // actions = [{ label, onClick, danger }]。外側タップ・キャンセルで閉じる
-  function openActionSheet(actions) {
+  function openActionSheet(actions, onCancel) {
     const ov = document.createElement('div');
     ov.className = 'modal action-sheet';
     ov.innerHTML = `<div class="as-box">
@@ -5380,11 +5440,11 @@ const Views = (() => {
         </div>
         <button type="button" class="as-item as-cancel">キャンセル</button>
       </div>`;
-    const close = () => ov.remove();
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    ov.querySelector('.as-cancel').addEventListener('click', close);
+    const close = (chosen) => { ov.remove(); if (!chosen && onCancel) onCancel(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(false); });
+    ov.querySelector('.as-cancel').addEventListener('click', () => close(false));
     ov.querySelectorAll('.as-item[data-i]').forEach(b =>
-      b.addEventListener('click', () => { close(); actions[+b.dataset.i].onClick(); }));
+      b.addEventListener('click', () => { close(true); actions[+b.dataset.i].onClick(); }));
     document.body.appendChild(ov);
   }
 
@@ -5923,7 +5983,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, openMergeShops, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, openMergeShops, similarShops, openActionSheet, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）

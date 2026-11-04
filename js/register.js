@@ -138,7 +138,7 @@ const Register = (() => {
     mountTasteStars();
     mountAxisStars();
     // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
-    $('#f-shop-name').addEventListener('input', () => { updateSaveState(); updateStep(); });
+    $('#f-shop-name').addEventListener('input', () => { updateSaveState(); updateStep(); updateDupHint(); });
     updateSaveState();
 
     // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
@@ -152,6 +152,32 @@ const Register = (() => {
     $('#drafts-btn').addEventListener('click', openDrafts);
     refreshDraftsBanner();
     renderPreviews(); // 初期表示から「＋写真」タイルを出す
+  }
+
+  // ---------- 登録済みの店との重複（v365〜） ----------
+  // 店名（と位置）が登録済みの店と同じ店らしいとき、店名の下に「登録済み: ○○」を出す。タップでその店への記録にする
+  function updateDupHint() {
+    const box = $('#reg-dup');
+    if (!box) return;
+    const name = $('#f-shop-name').value.trim();
+    const hide = () => { box.classList.add('hidden'); box.innerHTML = ''; };
+    if (!name || (selected && selected.existingShopId)) { hide(); return; }
+    const pos = selected && selected.lat != null ? selected : (lastGps || {});
+    const hits = Views.similarShops(name, pos.lat != null ? pos.lat : null, pos.lon != null ? pos.lon : null);
+    if (!hits.length) { hide(); return; }
+    const s = hits[0].shop;
+    box.innerHTML = `<span>登録済み: <b>${esc(s.name)}</b>${s.station ? ' ・ ' + esc(s.station) : ''} ・ ${Store.visitCount(s.id)}回</span><button type="button" class="btn small reg-dup-use">この店にする</button>`;
+    box.classList.remove('hidden');
+    box.querySelector('.reg-dup-use').addEventListener('click', () => { autoPicked = false; chooseExisting(s); $('#shop-candidates').innerHTML = ''; });
+  }
+  // 保存のとき、照合で見つからなくても似た店があれば確かめる → 既存の店 ／ null（別の店として登録） ／ undefined（やめる）
+  function askSameShop(shop) {
+    return new Promise((resolve) => {
+      Views.openActionSheet([
+        { label: `「${shop.name}」に記録する（同じ店）`, onClick: () => resolve(shop) },
+        { label: '別の店として登録する', onClick: () => resolve(null) },
+      ], () => resolve(undefined));
+    });
   }
 
   // ---------- あとで記録（下書き） ----------
@@ -768,6 +794,7 @@ const Register = (() => {
     $('#f-pref').value = shop.pref || '';
     $('#f-city').value = shop.city || '';
     derivedShopGenre = ''; // 既存店舗のジャンルはそのまま維持
+    updateDupHint(); // 登録済みの店を選んだので「登録済み: …」は消す（v365〜）
     $('#f-fav').checked = !!shop.favorite;
     updateFavStar();
     // 店の評価は既存の値を引き継ぐ（再訪時は入力不要）
@@ -842,6 +869,7 @@ const Register = (() => {
     if (c.city) { $('#f-city').value = c.city; selected.city = c.city; }
     // 検索源（Yahoo!／ホットペッパー）が最寄駅を持っていれば先に入れておく（通信待ちなしで確定）
     if (c.station) { const st = c.station.endsWith('駅') ? c.station : c.station + '駅'; $('#f-station').value = st; selected.station = st; }
+    updateDupHint(); // 候補の名前・位置で登録済みの店と照らす（v365〜）
 
     if (c.lat != null && c.lon != null) {
       // 逆ジオコーディング＋最寄駅（店舗確定時に1回のみ — §15.1）
@@ -916,6 +944,15 @@ const Register = (() => {
           lon: selected ? selected.lon : null,
         });
       }
+      if (!shop) {
+        // 照合（同じ名前＋50m）に掛からなくても、名前がよく似た登録済みの店があれば確かめる（二重登録を防ぐ。v365〜）
+        const sim = Views.similarShops(name, selected ? selected.lat : null, selected ? selected.lon : null);
+        if (sim.length) {
+          const ans = await askSameShop(sim[0].shop);
+          if (ans === undefined) return; // やめた
+          if (ans) shop = ans;
+        }
+      }
       const shopData = {
         name,
         address: $('#f-address').value.trim(),
@@ -930,6 +967,12 @@ const Register = (() => {
       for (const k of AXES) if (shopRatings[k] > 0) shopData[k] = shopRatings[k];
       const pos = pickBestPos(selected, lastGps);
       if (shop) {
+        // 候補から選ばずに既存の店へ記録するとき（名前の照合・「同じ店」の確認）は、店名はそのまま・空の欄で既存の値を消さない（v365〜）
+        if (!(selected && selected.existingShopId)) {
+          shopData.name = shop.name;
+          for (const k of ['address', 'station', 'pref', 'city']) if (!shopData[k]) shopData[k] = shop[k] || '';
+          if (!$('#f-fav').checked) shopData.favorite = !!shop.favorite;
+        }
         // 既存の店の位置が町丁目までの粗さで、今回より良い位置が分かったら直す
         if (shop.posLevel === 'town' && pos.lat != null && pos.posLevel !== 'town') Object.assign(shopData, { lat: pos.lat, lon: pos.lon, posLevel: pos.posLevel });
         Store.updateShop(shop.id, shopData);
@@ -995,6 +1038,7 @@ const Register = (() => {
   }
 
   function resetForm() {
+    updateDupHint(); // 店名が空になるので隠れる（v365〜）
     pendingPhotos.forEach(p => URL.revokeObjectURL(p.url));
     pendingPhotos = [];
     activeDraftId = null;

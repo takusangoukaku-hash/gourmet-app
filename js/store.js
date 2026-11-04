@@ -576,6 +576,32 @@ const Store = (() => {
     } finally { remoteApply = false; }
   }
 
+  // 別端末での削除をこちらにも反映する（v365〜）。通知も墓標も出さず、他の記録へ波及させない
+  // （店を消したときの訪問・写真は、それぞれの削除の控えで消える）。削除より後に直した記録は残す
+  async function applyRemoteDelete(kind, id, at) {
+    if (kind === 'photo') return removePhotoLocal(id);
+    remoteApply = true;
+    try {
+      const newer = (r) => at && (r.updatedAt || 0) > at;
+      if (kind === 'shop') { const s = shops.find(x => x.id === id); if (!s || newer(s)) return false; shops = shops.filter(x => x.id !== id); persist(); return true; }
+      if (kind === 'visit') { const v = visits.find(x => x.id === id); if (!v || newer(v)) return false; visits = visits.filter(x => x.id !== id); persist(); return true; }
+      if (kind === 'wish') { const w = wishes.find(x => x.id === id); if (!w || newer(w)) return false; wishes = wishes.filter(x => x.id !== id); persistWishes(); return true; }
+      return false;
+    } finally { remoteApply = false; }
+  }
+  async function removePhotoLocal(id) {
+    const p = (await allPhotos()).find(x => x.id === id);
+    if (!p) return false;
+    const d = await db();
+    await new Promise((resolve) => {
+      const tx = d.transaction(['photos', 'meta', 'thumbs'], 'readwrite');
+      for (const n of ['photos', 'meta', 'thumbs']) tx.objectStore(n).delete(id);
+      tx.oncomplete = resolve; tx.onerror = () => resolve();
+    });
+    if (p.hash && photoHashes[p.hash]) { delete photoHashes[p.hash]; try { persistHashes(); } catch { /* noop */ } }
+    return true;
+  }
+
   // ---------- 検索ヒットの記録 ----------
   // entry = { t, flow('nearby'|'suggest'|'search'|'search-nearby'|'map'), source('openpoi'|'osm'|'yahoo'|…|'existing'),
   //           name, query, rank, auto(自動選択か), shopId? }。最新1,000件を端末に残す（情報源の有用性を後から比べるため）
@@ -649,7 +675,7 @@ const Store = (() => {
     wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
     addWish, removeWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
-    setSyncHook, applyRemote, putPhotoRaw, photoIds,
+    setSyncHook, applyRemote, applyRemoteDelete, putPhotoRaw, photoIds,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
     deletedIds, clearDeleted, wipeLocal, rev: () => rev,
     addHit, hitLog, hitSummary, mergeHits,

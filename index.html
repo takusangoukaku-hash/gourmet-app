@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=364">
+<link rel="stylesheet" href="css/style.css?v=365">
 </head>
 <body>
 
@@ -79,6 +79,7 @@
           <button type="button" id="shop-search-btn" class="btn icon-only" aria-label="店舗名で検索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
         </div>
         <div class="reg-meta"><span id="reg-station"></span><button type="button" id="genre-pill" class="genre-pill">ジャンルを選ぶ</button></div>
+        <div id="reg-dup" class="reg-dup hidden"></div><!-- 登録済みの店と同じ店らしいときの案内（v365〜） -->
         <input type="checkbox" id="f-fav" hidden>
         <div id="shop-candidates" class="candidate-list"></div>
         <div id="selected-shop-note" class="selected-note hidden"></div>
@@ -629,12 +630,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=364"></script>
-<script src="js/api.js?v=364"></script>
-<script src="js/cloud.js?v=364"></script>
-<script src="js/register.js?v=364"></script>
-<script src="js/import.js?v=364"></script>
-<script src="js/views.js?v=364"></script>
-<script src="js/app.js?v=364"></script>
+<script src="js/store.js?v=365"></script>
+<script src="js/api.js?v=365"></script>
+<script src="js/cloud.js?v=365"></script>
+<script src="js/register.js?v=365"></script>
+<script src="js/import.js?v=365"></script>
+<script src="js/views.js?v=365"></script>
+<script src="js/app.js?v=365"></script>
 </body>
 </html>
