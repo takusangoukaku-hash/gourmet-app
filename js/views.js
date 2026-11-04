@@ -4391,19 +4391,36 @@ const Views = (() => {
       }));
     }
     // 店舗情報のみ保存（店名・住所など。各訪問は訪問カードから個別に編集）
-    function saveShopInfo() {
+    // v362〜 住所が変わったら住所から位置を求め直す（以前は文字だけ変わり、地図のピンが動かなかった）
+    async function saveShopInfo() {
       const name = $('#de-name').value.trim();
       if (!name) { App.toast('店舗名は空にできません'); return; }
+      const address = $('#de-address').value.trim();
+      const addrChanged = address && address !== (s.address || '');
       Store.updateShop(shopId, {
         name,
         station: $('#de-station').value.trim(),
         pref: $('#de-pref').value.trim(),
         city: $('#de-city').value.trim(),
-        address: $('#de-address').value.trim(),
+        address,
       });
-      App.toast('保存しました');
       showShop(shopId, false);
       App.refreshCurrent();
+      if (!addrChanged) { App.toast('保存しました'); return; }
+      App.toast('保存しました。住所から位置を探しています…');
+      let hit = null;
+      try {
+        const list = await Api.searchPlaces(address);
+        hit = (list || []).find(x => x && x.lat != null && x.lon != null) || null;
+      } catch { hit = null; }
+      if (hit) {
+        Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: 'geocode' });
+        if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); // 地図が開いていれば今すぐ描き直す（開くときは Store から作り直す）
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId, false);
+        App.toast('住所から位置を更新しました');
+      } else {
+        App.toast('住所から位置が見つかりませんでした。店舗情報の「住所から探す」か「地図で指定」で直してください');
+      }
     }
 
     // 訪問記録の一覧表示（訪問ごとに個別編集できる）
@@ -5096,7 +5113,7 @@ const Views = (() => {
     if (!list.length) { App.toast('住所から位置が見つかりませんでした。「地図で指定」をお試しください'); return; }
     openActionSheet(list.map(x => ({
       label: `${x.name || x.display_name || '候補'}${s.lat != null ? `　今の位置から ${Math.round(haversine({ lat: s.lat, lon: s.lon }, { lat: x.lat, lon: x.lon }))}m` : ''}`,
-      onClick: () => { Store.updateShop(shopId, { lat: +x.lat, lon: +x.lon, posLevel: 'geocode' }); App.toast('位置を直しました'); showShop(shopId); App.refreshCurrent(); },
+      onClick: () => { Store.updateShop(shopId, { lat: +x.lat, lon: +x.lon, posLevel: 'geocode' }); App.toast('位置を直しました'); showShop(shopId); if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); App.refreshCurrent(); },
     })));
   }
   const POS_LEVEL_LABEL = { town: '町名までのおおよその位置', gps: '写真の位置', manual: '地図で指定した位置', geocode: '住所から求めた位置', block: '' };
