@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=366">
+<link rel="stylesheet" href="css/style.css?v=367">
 </head>
 <body>
 
@@ -255,7 +255,7 @@
     </div>
     <!-- 「詳細」を押したときだけ出る絞り込み（星チップ・ジャンルチップ・並び替え） -->
     <div id="list-detail-filters" class="hidden">
-    <div class="fl-label">絞り込み</div>
+    <div class="fl-label">絞り込み<button type="button" id="flt-clear" class="btn small flt-clear hidden">条件を外す</button></div>
     <div id="list-genre-chips" class="map-filter"></div>
     <div class="filter-row lf-stars">
       <button type="button" class="chip star-chip" data-r="3">★3以上</button>
@@ -631,12 +631,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=366"></script>
-<script src="js/api.js?v=366"></script>
-<script src="js/cloud.js?v=366"></script>
-<script src="js/register.js?v=366"></script>
-<script src="js/import.js?v=366"></script>
-<script src="js/views.js?v=366"></script>
-<script src="js/app.js?v=366"></script>
+<script src="js/store.js?v=367"></script>
+<script src="js/api.js?v=367"></script>
+<script src="js/cloud.js?v=367"></script>
+<script src="js/register.js?v=367"></script>
+<script src="js/import.js?v=367"></script>
+<script src="js/views.js?v=367"></script>
+<script src="js/app.js?v=367"></script>
 </body>
 </html>

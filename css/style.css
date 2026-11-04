@@ -2306,6 +2306,30 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 .mg-arrow { font-size: 11px; color: var(--muted); padding: 6px 0 6px 2px; }
 .mg-arrow::before { content: '↕ '; }
 .mg-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+/* 記録の編集シート（v367〜） */
+.ve-box { position: relative; }
+.ve-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; padding: 8px 0 0 40px; } /* ✕（左上・40px）の右に見出し */
+.ve-head b { font-size: 18px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ve-head span { font-size: 13px; color: var(--muted); flex-shrink: 0; }
+.ve-box .ve-comment { width: 100%; box-sizing: border-box; margin-top: 8px; }
+.ve-btns { display: flex; gap: 8px; margin-top: 12px; }
+.ve-btns .btn { flex: 1; }
+/* 写真をまとめて選ぶ（v367〜） */
+.mz-grid .mz-card img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.mz-grid.mz-selecting .mz-card::after { content: ''; position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: rgba(0, 0, 0, .25); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.mz-grid.mz-selecting .mz-item.mz-sel .mz-card::after { background: var(--accent); border-color: #fff; }
+.mz-grid.mz-selecting .mz-item.mz-sel .mz-card img { opacity: .72; }
+.mz-selbar { position: fixed; left: 12px; right: 12px; bottom: calc(57px + 10px + env(safe-area-inset-bottom, 0px)); z-index: 1150; display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 14px; background: var(--card); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); font-size: 13px; }
+.mz-seln { flex: 1; font-weight: 700; }
+/* 絞り込みの数と「条件を外す」（v367〜） */
+.flt-n { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; }
+#list-detail-toggle.has-flt { color: var(--accent); }
+.flt-clear { margin-left: auto; }
+.fl-label { display: flex; align-items: center; }
+/* 行きたい店の一覧（v367〜） */
+.wish-tools { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; }
+.wish-tools .list-segs { margin: 0; }
+.wish-tools select { margin-left: auto; width: auto; padding: 6px 28px 6px 10px; font-size: 13px; }
 /* 写真の付け替え（v366〜） */
 .pk-body { padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
 .pk-filter { width: 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--field); color: var(--text); font-size: 15px; }

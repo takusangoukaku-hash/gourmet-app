@@ -1950,6 +1950,12 @@ const Views = (() => {
       $('#list-detail-filters').classList.toggle('hidden');
       $('#list-detail-toggle').classList.toggle('on', !$('#list-detail-filters').classList.contains('hidden'));
     });
+    // 条件を外す（v367〜。ジャンル・★・都道府県をまとめて外す。並び替え・まとめては残す）
+    $('#flt-clear').addEventListener('click', () => {
+      $('#flt-dish-genre').value = ''; $('#flt-rating').value = ''; $('#flt-pref').value = '';
+      document.querySelectorAll('#list-genre-chips .chip, .star-chip').forEach(x => x.classList.remove('on'));
+      renderList();
+    });
     // 料理ジャンルのチップ（1つ選択。もう一度押すと解除）— 値は内部のセレクトへ書き込む
     // 全ジャンル(70種以上)ではなく、自分が記録したことのあるジャンルだけを出す
     const gbar = $('#list-genre-chips');
@@ -2104,52 +2110,81 @@ const Views = (() => {
     if (prefill) { ta.value = prefill; cur = parseWishInput(prefill); paint(); if (cur.name && cur.lat == null) searchBtn.click(); }
   }
 
+  let wishTab = 'todo', wishSort = 'added'; // 行きたい店の一覧の表示（v367〜。行きたい／行けた、追加順／近い順／名前順）
   function openWishlist() {
     const all = Store.allWishes();
-    const wishes = all.filter(w => !w.doneAt).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const pos = lastKnownPos;
+    const dist = (w) => (pos && w.lat != null && w.lon != null) ? Store.distMeters(pos.lat, pos.lon, w.lat, w.lon) : null;
+    const fmtDist = (d) => d == null ? '' : (d < 1000 ? `${Math.round(d)}m` : `${(d / 1000).toFixed(1)}km`);
+    let wishes = all.filter(w => !w.doneAt);
+    if (wishSort === 'near' && pos) wishes.sort((a, b) => (dist(a) == null ? 1e12 : dist(a)) - (dist(b) == null ? 1e12 : dist(b)));
+    else if (wishSort === 'name') wishes.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
+    else wishes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const done = all.filter(w => w.doneAt).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
     const pg = Store.wishProgress();
     const body = $('#modal-body');
+    const seg = (k, label) => `<button type="button" class="vl-seg${wishTab === k ? ' on' : ''}" data-wt="${k}">${label}</button>`;
     body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>
       <button type="button" class="btn small wish-add" id="wish-add">＋ 店名やリンクを貼って追加</button>`
       + (pg.total ? `<div class="wish-pg"><div class="wish-pg-l">達成度</div>${wishProgressHtml(pg)}</div>` : '')
-      + (wishes.length ? wishes.map(w => `
+      + `<div class="wish-tools"><div class="vl-segs list-segs">${seg('todo', `行きたい ${wishes.length}`)}${seg('done', `行けた ${done.length}`)}</div>
+          ${wishTab === 'todo' && wishes.length > 1 ? `<select id="wish-sort"><option value="added"${wishSort === 'added' ? ' selected' : ''}>追加順</option><option value="near"${wishSort === 'near' ? ' selected' : ''}>近い順</option><option value="name"${wishSort === 'name' ? ' selected' : ''}>名前順</option></select>` : ''}</div>`
+      + (wishTab === 'todo'
+        ? (wishes.length ? wishes.map(w => `
         <div class="wish-row">
           <div class="wish-main">
             <div class="wish-name">${esc(w.name || '')}</div>
-            <div class="wish-sub">${esc(w.genre || '')}${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
+            <div class="wish-sub">${esc([w.genre, fmtDist(dist(w)), w.fromUsername ? '@' + w.fromUsername + ' さんの投稿から' : ''].filter(Boolean).join(' ・ '))}</div>
           </div>
-          ${w.lat != null ? `<button class="btn small wish-map" data-id="${esc(w.id)}">地図</button>` : ''}
-          <button class="btn small wish-del" data-id="${esc(w.id)}">外す</button>
+          <button class="btn small primary wish-rec" data-id="${esc(w.id)}">記録する</button>
+          <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
         </div>`).join('')
-      : (done.length ? '<p class="hint">まだ行っていない店はありません。</p>' : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。')))
-      + (done.length ? `<h3 class="wish-h3">行けた店（${done.length}）</h3>` + done.map(w => `
+          : (done.length ? '<p class="hint">まだ行っていない店はありません。</p>' : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。')))
+        : (done.length ? done.map(w => `
         <div class="wish-row wish-done">
           <div class="wish-main">
             <div class="wish-name">${IC_CHECK} ${esc(w.name || '')}</div>
             <div class="wish-sub">${esc(fmtDate(new Date(w.doneAt).toISOString()))} に達成${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
           </div>
           ${w.doneShopId && Store.getShop(w.doneShopId) ? `<button class="btn small wish-shop" data-id="${esc(w.doneShopId)}">記録</button>` : ''}
-          <button class="btn small wish-del" data-id="${esc(w.id)}" title="達成の記録から外す">外す</button>
-        </div>`).join('') : '');
+          <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
+        </div>`).join('') : '<p class="hint">まだ達成した店はありません。</p>'));
     $('#modal').classList.remove('modal-full'); // 行きたいリストはカード表示に戻す
     $('#modal').classList.remove('hidden');
     $('#wish-add').addEventListener('click', () => openWishAdd());
-    body.querySelectorAll('.wish-del').forEach(b => b.addEventListener('click', () => {
-      Store.removeWish(b.dataset.id);
-      refreshWishData();
-      openWishlist(); // 一覧を描き直す
+    body.querySelectorAll('.vl-seg[data-wt]').forEach(b => b.addEventListener('click', () => { wishTab = b.dataset.wt; openWishlist(); }));
+    const sortSel = body.querySelector('#wish-sort');
+    if (sortSel) sortSel.addEventListener('change', () => { wishSort = sortSel.value; if (wishSort === 'near' && !pos) App.toast('現在地がまだ分かりません。地図かホームを開くと取れます'); openWishlist(); });
+    body.querySelectorAll('.wish-rec').forEach(b => b.addEventListener('click', () => {
+      const w = all.find(x => x.id === b.dataset.id);
+      if (!w) return;
+      closeModal();
+      Register.prefillWish(w);
+      App.switchTab('register');
     }));
     body.querySelectorAll('.wish-shop').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
-    body.querySelectorAll('.wish-map').forEach(b => b.addEventListener('click', () => {
-      const w = Store.wishes().find(x => x.id === b.dataset.id);
+    body.querySelectorAll('.wish-more').forEach(b => b.addEventListener('click', () => {
+      const w = all.find(x => x.id === b.dataset.id);
       if (!w) return;
-      $('#modal').classList.add('hidden');
-      focusMap(w.lon, w.lat, 15);
-      App.switchTab('map');
+      const acts = [];
+      if (!w.doneAt && w.lat != null) acts.push({ label: '地図で見る', onClick: () => { $('#modal').classList.add('hidden'); focusMap(w.lon, w.lat, 15); App.switchTab('map'); } });
+      if (!w.doneAt && w.lat != null) acts.push({ label: 'ここへ行く', onClick: () => openNav({ name: w.name, lat: w.lat, lon: w.lon }) });
+      if (w.doneAt) acts.push({ label: '達成を取り消す（行きたいに戻す）', onClick: () => { Store.undoWish(w.id); refreshWishData(); App.toast('行きたい店に戻しました'); openWishlist(); } });
+      acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => { Store.removeWish(w.id); refreshWishData(); openWishlist(); } });
+      openActionSheet(acts);
     }));
   }
 
+  // 付いている絞り込みの数を「詳細」ボタンに出し、「条件を外す」を出し入れする（v367〜）
+  function updateFilterBadge() {
+    const n = [$('#flt-dish-genre').value, $('#flt-rating').value, $('#flt-pref').value].filter(Boolean).length;
+    const b = $('#list-detail-toggle');
+    let badge = b.querySelector('.flt-n');
+    if (n) { if (!badge) { badge = document.createElement('span'); badge.className = 'flt-n'; b.appendChild(badge); } badge.textContent = n; }
+    else if (badge) badge.remove();
+    b.classList.toggle('has-flt', n > 0);
+    $('#flt-clear').classList.toggle('hidden', !n);
+  }
   function refreshPrefOptions() {
     const cur = $('#flt-pref').value;
     const prefs = [...new Set(Store.shops().map(s => s.pref).filter(Boolean))].sort();
@@ -2610,8 +2645,62 @@ const Views = (() => {
         </span>
       </span>${o.meta != null ? `<span class="mz-meta">${esc(o.meta)}</span></span>` : ''}`;
     mzWatch(item, item.querySelector('img'), o.rec);
-    if (o.onClick) item.addEventListener('click', o.onClick);
+    if (o.onClick) item.addEventListener('click', (e) => { if (mzSelActive(item)) { mzSelToggle(item, o.rec); return; } o.onClick(e); });
+    if (o.rec && o.rec.id) mzSelWatch(item, o.rec); // 自分の写真は長押しで選択モード（v367〜）
     return item;
+  }
+  // ---------- 写真をまとめて選ぶ（v367〜。検索の写真モード・発見の格子で自分の写真を長押し → 複数選んで 移す／削除） ----------
+  const mzSel = { grid: null, items: new Map(), bar: null };
+  const mzSelActive = (item) => !!(mzSel.grid && item.closest('.mz-grid') === mzSel.grid);
+  function mzSelWatch(item, rec) {
+    let timer = 0, sx = 0, sy = 0;
+    const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+    item.addEventListener('pointerdown', (e) => {
+      if (mzSel.grid) return;
+      sx = e.clientX; sy = e.clientY; clear();
+      timer = setTimeout(() => { timer = 0; mzSelStart(item.closest('.mz-grid')); mzSelToggle(item, rec); item.classList.add('mz-pressed'); setTimeout(() => item.classList.remove('mz-pressed'), 300); }, 450);
+    });
+    item.addEventListener('pointermove', (e) => { if (timer && (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8)) clear(); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) item.addEventListener(ev, clear);
+    item.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    // 長押しのあと指を離したときの click は選択の切り替えにしない（長押しで既に選んでいる）
+    item.addEventListener('click', (e) => { if (item.classList.contains('mz-pressed')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  }
+  function mzSelStart(grid) {
+    if (!grid || mzSel.grid) return;
+    mzSel.grid = grid; mzSel.items = new Map();
+    grid.classList.add('mz-selecting');
+    const bar = document.createElement('div');
+    bar.className = 'mz-selbar';
+    bar.innerHTML = `<span class="mz-seln">0枚を選択</span><button type="button" class="btn small mz-sel-move">移す</button><button type="button" class="btn small mz-sel-del">削除</button><button type="button" class="btn small mz-sel-cancel">キャンセル</button>`;
+    bar.querySelector('.mz-sel-cancel').addEventListener('click', () => mzSelEnd());
+    bar.querySelector('.mz-sel-move').addEventListener('click', () => {
+      const recs = [...mzSel.items.values()];
+      if (!recs.length) { App.toast('写真を選んでください'); return; }
+      openPhotoMove(recs, 'shop', () => { mzSelEnd(); App.refreshCurrent(); });
+    });
+    bar.querySelector('.mz-sel-del').addEventListener('click', async () => {
+      const recs = [...mzSel.items.values()];
+      if (!recs.length) { App.toast('写真を選んでください'); return; }
+      if (!confirm(`${recs.length}枚の写真を削除しますか？（記録は残ります）`)) return;
+      for (const r of recs) await Store.deletePhoto(r.id).catch(() => {});
+      App.toast(`${recs.length}枚を削除しました`);
+      mzSelEnd(); App.refreshCurrent();
+    });
+    document.body.appendChild(bar);
+    mzSel.bar = bar;
+  }
+  function mzSelToggle(item, rec) {
+    if (!rec || !rec.id) return;
+    if (mzSel.items.has(rec.id)) { mzSel.items.delete(rec.id); item.classList.remove('mz-sel'); }
+    else { mzSel.items.set(rec.id, rec); item.classList.add('mz-sel'); }
+    const n = mzSel.bar && mzSel.bar.querySelector('.mz-seln');
+    if (n) n.textContent = `${mzSel.items.size}枚を選択`;
+  }
+  function mzSelEnd() {
+    if (mzSel.grid) { mzSel.grid.classList.remove('mz-selecting'); mzSel.grid.querySelectorAll('.mz-sel').forEach(x => x.classList.remove('mz-sel')); }
+    if (mzSel.bar) mzSel.bar.remove();
+    mzSel.grid = null; mzSel.items = new Map(); mzSel.bar = null;
   }
   // 写真が読み込まれたら縦横比（0.75〜1.5に収める）を決め、カードの高さに合わせて行数を取り直す。
   // rec（自分の写真のメタ）があり縦横比が未保存なら、ここで覚えて次回の並び替えに使う（v331〜）
@@ -2723,6 +2812,7 @@ const Views = (() => {
   }
 
   function renderList() {
+    mzSelEnd(); // 描き直すときは選択モードを解く（v367〜）
     if (exploreMode) {
       // 同期完了などの再描画(App.refreshCurrent)で呼ばれても、開いている画面
       //（写真グリッド・ジャンル一覧）からカテゴリー一覧へ勝手に戻らないよう、
@@ -2735,6 +2825,7 @@ const Views = (() => {
     }
     hideExplore();
     refreshPrefOptions();
+    updateFilterBadge(); // 「詳細」に付いている条件の数（v367〜）
     if (listResultMode === 'photo') { exploreItems = null; renderSearchPhotos(); return; } // 写真の付け替え・削除・同期を拾い直す（v366〜）
     const box = $('#shop-list');
     const shops = sortShops(filteredShops());
@@ -3078,7 +3169,10 @@ const Views = (() => {
       b.addEventListener('click', () => showProfileTab(b.dataset.ptab)));
   }
 
+  let pfTab = 'photos'; // いま開いている小タブ（写真／統計）。同期の描き直しで勝手に写真へ戻さない（v367〜）
+  function enterProfileTab() { pfTab = 'photos'; renderProfile(); }
   function showProfileTab(name) {
+    pfTab = name;
     document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
     $('#ptab-photos').classList.toggle('hidden', name !== 'photos');
     $('#ptab-stats').classList.toggle('hidden', name !== 'stats');
@@ -3532,8 +3626,8 @@ const Views = (() => {
         $('#pf-followers').textContent = c.followers;
       }).catch(() => {});
     }
-    // プロフィールを開いたときは「写真」を表示（要望）。統計は統計タブで表示
-    showProfileTab('photos');
+    // タブで開いたときは「写真」（enterProfileTab）。同期などの描き直しでは今の小タブのまま（v367〜）
+    showProfileTab(pfTab);
   }
 
   // ========== 統計・ランキング ==========
@@ -4555,7 +4649,7 @@ const Views = (() => {
         const feed = document.createElement('div');
         feed.className = 'pf-shopfeed d-visitfeed';
         const ctx = {
-          editVisit: (v) => showShop(shopId, false, v.id),
+          editVisit: (v) => openVisitEdit(v.id, (how) => { App.refreshCurrent(); if (how === 'deleted' && !Store.visitsOf(shopId).length) closeModal(); else showShop(shopId, false); }), // v367〜 その場のシート
           delVisit: async (v) => {
             if (!confirm('この記録を削除しますか？')) return;
             await Store.deleteVisit(v.id);
@@ -4796,15 +4890,69 @@ const Views = (() => {
     document.body.appendChild(ov);
   }
 
+  // ---------- 記録の編集シート（v367〜。投稿詳細・訪問の一覧・店舗の詳細から、その場で ★・ジャンル・日付・ひとことを直す） ----------
+  function openVisitEdit(visitId, onDone) {
+    const v = Store.visits().find(x => x.id === visitId);
+    if (!v) return;
+    const s = Store.getShop(v.shopId) || {};
+    const ov = document.createElement('div');
+    ov.className = 'modal ve-modal';
+    ov.innerHTML = `<div class="modal-box ve-box">
+        <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
+        <div class="ve-head"><b>${esc(s.name || '記録')}</b><span>${esc(fmtDate(v.datetime))}</span></div>
+        <div class="ve-row">味の評価 <span class="stars small ve-stars"></span></div>
+        <div class="ve-sub">料理ジャンル</div>
+        <div class="ve-genres"></div>
+        <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
+        <textarea rows="2" class="ve-comment" placeholder="ひとこと">${esc(v.comment || '')}</textarea>
+        <div class="v-btns ve-btns">
+          <button type="button" class="btn primary ve-save">保存</button>
+          <button type="button" class="btn ve-del">削除</button>
+        </div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.ve-close').addEventListener('click', close);
+    let rating = v.rating || 0;
+    mountRatingStars(ov.querySelector('.ve-stars'), rating, (val) => { rating = val; });
+    const set = new Set(v.dishGenres || []);
+    Api.buildGenrePicker(ov.querySelector('.ve-genres'), set);
+    ov.querySelector('.ve-save').addEventListener('click', () => {
+      const dateVal = ov.querySelector('.ve-date').value;
+      if (!dateVal) { App.toast('訪問日を入力してください'); return; }
+      Store.updateVisit(v.id, {
+        datetime: new Date(dateVal + 'T12:00:00').toISOString(),
+        rating: rating || 3,
+        dishGenres: [...set],
+        comment: ov.querySelector('.ve-comment').value.trim(),
+      });
+      if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.publishPostForVisit(v.id).catch(() => {});
+      App.toast('保存しました');
+      close();
+      if (onDone) onDone('saved');
+    });
+    ov.querySelector('.ve-del').addEventListener('click', async () => {
+      if (!confirm('この記録を削除しますか？写真も一緒に削除されます。')) return;
+      await Store.deleteVisit(v.id);
+      App.toast('記録を削除しました');
+      close();
+      if (onDone) onDone('deleted');
+    });
+    document.body.appendChild(ov);
+  }
+
   // ---------- 写真の付け替え（v366〜） ----------
   // mode = 'visit': 同じ店の別の訪問を選ぶ ／ 'shop': 店を選んでからその店の訪問を選ぶ（訪問が1つならそのまま）
-  function openPhotoMove(ph, mode, done) {
+  function openPhotoMove(phOrList, mode, done) {
+    const phs = Array.isArray(phOrList) ? phOrList : [phOrList]; // v367〜 まとめて選んだ写真も同じ画面で移す
+    const ph = phs[0];
+    if (!ph) return;
     const ov = document.createElement('div');
     ov.className = 'modal modal-full visitlist-modal pk-modal';
     ov.innerHTML = `<div class="modal-box">
         <div class="vl-topbar">
           <button type="button" class="modal-close pk-close" aria-label="閉じる">${IC_X}</button>
-          <span class="vl-title">${mode === 'shop' ? '移す先の店' : '移す先の訪問'}</span>
+          <span class="vl-title">${phs.length > 1 ? `${phs.length}枚を` : ''}${mode === 'shop' ? '移す先の店' : '移す先の訪問'}</span>
         </div>
         <div class="vl-body"><div class="pk-body"></div></div>
       </div>`;
@@ -4812,11 +4960,12 @@ const Views = (() => {
     ov.querySelector('.pk-close').addEventListener('click', close);
     const body = ov.querySelector('.pk-body');
     const move = async (shopId, visitId) => {
-      const ok = await Store.movePhoto(ph.id, shopId, visitId).catch(() => false);
+      let n = 0;
+      for (const p of phs) { if (await Store.movePhoto(p.id, shopId, visitId).catch(() => false)) n++; }
       close();
-      if (!ok) { App.toast('移せませんでした'); return; }
+      if (!n) { App.toast('移せませんでした'); return; }
       const s = Store.getShop(shopId) || {};
-      App.toast(`「${s.name || ''}」の記録へ移しました`);
+      App.toast(phs.length > 1 ? `${n}枚を「${s.name || ''}」の記録へ移しました` : `「${s.name || ''}」の記録へ移しました`);
       if (done) done();
     };
     const row = (main, sub, onClick) => {
@@ -4994,7 +5143,7 @@ const Views = (() => {
     let mode = 'list';   // 'list'（写真主役） | 'tl'（タイムライン）
     let genreSel = '';   // ジャンル絞り込み（'' = すべて）
 
-    const editVisit = (v) => { close(); showShop(shopId, false, v.id); };
+    const editVisit = (v) => openVisitEdit(v.id, (how) => { App.refreshCurrent(); if (how === 'deleted' && !Store.visitsOf(shopId).length) { close(); return; } render(); }); // v367〜 その場のシート
     const delVisit = async (v) => {
       if (!confirm('この記録を削除しますか？')) return;
       await Store.deleteVisit(v.id);
@@ -5687,7 +5836,7 @@ const Views = (() => {
       if (!mv) return;
       const acts = [
         { label: '店舗の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
-        { label: '編集', onClick: () => { close(); showShop(mv.shopId, false, mv.id); } },
+        { label: '編集', onClick: () => openVisitEdit(mv.id, () => { close(); App.refreshCurrent(); }) }, // その場のシートで直す（v367〜）
       ];
       // いま見えている写真の付け替え・削除（v366〜。端末内の写真のときだけ）
       const it = itemsRef[curIdx];
@@ -6110,7 +6259,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, openMergeShops, similarShops, openActionSheet, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）

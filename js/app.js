@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v366'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v367'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -288,6 +288,11 @@ const App = (() => {
         document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
         setInterval(check, 30 * 60 * 1000);
         const startedAt = Date.now();
+        // v367〜 利用者が一度でも触ったら（タップ・キー入力）、起動直後でも黙って切り替えない（画面が戻って見えるため）
+        let userActed = false;
+        const acted = () => { userActed = true; };
+        document.addEventListener('pointerdown', acted, { capture: true, passive: true });
+        document.addEventListener('keydown', acted, { capture: true });
         // 新しいSWに切り替わったら一度だけ再読み込みして、全ファイルを最新に揃える
         let reloaded = false, reloadPending = false;
         const tryReload = () => {
@@ -298,6 +303,7 @@ const App = (() => {
             return;
           }
           reloaded = true;
+          try { sessionStorage.setItem('bitemap.resumeTab', currentTab); } catch { /* noop */ } // 再読み込み後に同じタブへ戻る（v367〜）
           location.reload();
         };
         navigator.serviceWorker.addEventListener('controllerchange', tryReload);
@@ -308,7 +314,7 @@ const App = (() => {
         swActivate = activate;
         const onWaiting = (sw) => {
           if (!sw) return;
-          if (Date.now() - startedAt < 20000 && !(typeof Register !== 'undefined' && Register.isDirty && Register.isDirty())) { activate(sw); return; }
+          if (!userActed && Date.now() - startedAt < 20000 && !(typeof Register !== 'undefined' && Register.isDirty && Register.isDirty())) { activate(sw); return; }
           showUpdateBar(() => activate(sw));
         };
         if (reg.waiting && navigator.serviceWorker.controller) onWaiting(reg.waiting);
@@ -324,8 +330,12 @@ const App = (() => {
 
     // 起動時: URLの?tab=指定 → データがあれば一覧 → なければ登録タブ
     const urlTab = params.get('tab');
-    switchTab(urlTab && document.querySelector('#view-' + urlTab)
-      ? urlTab : (Store.shops().length ? 'list' : 'register'));
+    let resumeTab = '';
+    try { resumeTab = sessionStorage.getItem('bitemap.resumeTab') || ''; sessionStorage.removeItem('bitemap.resumeTab'); } catch { /* noop */ }
+    const firstTab = (urlTab && document.querySelector('#view-' + urlTab)) ? urlTab
+      : (resumeTab && document.querySelector('#view-' + resumeTab)) ? resumeTab // 新版への切り替えで再読み込みしたときは元のタブへ（v367〜）
+      : (Store.shops().length ? 'list' : 'register');
+    switchTab(firstTab);
 
     // 共有リンク(?u=ユーザー名)で開かれた場合は、その人の公開プロフィールを表示
     const shareUser = params.get('u');
@@ -366,6 +376,7 @@ const App = (() => {
     // 検索タブは開くたびに最初の画面（発見グリッド）へ戻す
     if (name === 'list') Views.enterListTab();
     else if (name === 'map') Views.enterMapTab(); // 地図は毎回「自分」から
+    else if (name === 'profile') Views.enterProfileTab(); // 開いたときは「写真」から。描き直しでは今の小タブを保つ（v367〜）
     else refreshCurrent();
   }
 

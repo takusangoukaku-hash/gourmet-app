@@ -517,6 +517,16 @@ const Store = (() => {
     const done = list.filter(isDone).length, total = list.length;
     return { done, total, rate: total ? Math.round(done / total * 100) : 0 };
   }
+  // 達成を取り消して「行きたい」に戻す（v367〜）
+  function undoWish(id) {
+    const w = wishes.find(x => x.id === id);
+    if (!w || !w.doneAt) return false;
+    delete w.doneAt; delete w.doneShopId; delete w.doneVisitId;
+    w.updatedAt = Date.now();
+    persistWishes();
+    emit('wish', 'put', w);
+    return true;
+  }
   function removeWish(id) {
     const w = wishes.find(x => x.id === id);
     if (!w) return;
@@ -686,7 +696,7 @@ const Store = (() => {
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
-    addWish, removeWish, findWish, wishProgress, undoWishForVisit,
+    addWish, removeWish, undoWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
     setSyncHook, applyRemote, applyRemoteDelete, putPhotoRaw, photoIds,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
