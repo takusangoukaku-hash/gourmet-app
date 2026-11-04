@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v367'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v368'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -83,13 +83,34 @@ const App = (() => {
     if (currentTab === 'feed') await Views.renderFeed(true); else refreshCurrent();
   }
 
+  // ---------- 接続なし・同期中の帯（v368〜。見出しの下。普段は出さない） ----------
+  //  接続なし: すぐ出す（記録は端末に残り、つながると同期される）。同期中: 2秒以上続いたときだけ出す（ちらつかせない）
+  let netSyncTimer = 0, netSyncing = false;
+  function updateNetBar() {
+    const bar = $('#net-bar');
+    if (!bar) return;
+    if (!navigator.onLine) { bar.textContent = '接続なし ・ 記録は端末に保存され、つながると同期します'; bar.classList.remove('hidden'); return; }
+    if (netSyncing) { bar.textContent = '同期しています…'; bar.classList.remove('hidden'); return; }
+    bar.classList.add('hidden');
+  }
+  function watchNet() {
+    window.addEventListener('online', updateNetBar);
+    window.addEventListener('offline', updateNetBar);
+    if (typeof Cloud !== 'undefined' && Cloud.onStatus) Cloud.onStatus((s) => {
+      clearTimeout(netSyncTimer);
+      if (s === 'syncing') { netSyncTimer = setTimeout(() => { netSyncing = true; updateNetBar(); }, 2000); }
+      else { netSyncing = false; updateNetBar(); }
+    });
+    updateNetBar();
+  }
+
   function init() {
     const params = new URLSearchParams(location.search);
     watchKeyboard();
+    watchNet();
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
     Views.initList();
-    Views.initPhotos();
     Views.initProfile();
 
     // タブ切り替え
@@ -384,7 +405,6 @@ const App = (() => {
     if (currentTab === 'feed') Views.renderFeed();
     else if (currentTab === 'map') Views.refreshMap();
     else if (currentTab === 'list') Views.renderList();
-    else if (currentTab === 'photos') Views.renderPhotos();
     else if (currentTab === 'profile') Views.renderProfile(); // 統計もプロフィール内で描画
   }
 

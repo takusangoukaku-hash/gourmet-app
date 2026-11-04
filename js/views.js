@@ -421,13 +421,7 @@ const Views = (() => {
     }
     return { n: users.size + (mine ? 1 : 0), mine };
   }
-  // 「★5 ×N人」の印（0人なら空）
-  function fiveChipHtml(f) {
-    if (!f || !f.n) return '';
-    const label = f.mine && f.n === 1 ? 'あなたが★4.5以上' : `★4.5以上 ×${f.n}人`;
-    const tip = `あなた${f.mine ? '' : '以外'}と、味覚一致率${FIVE_MATCH_MIN}%以上の人のうち ★4.5 以上を付けた人数${f.mine && f.n > 1 ? '（あなたを含む）' : ''}`;
-    return `<span class="five-chip" title="${esc(tip)}">${esc(label)}</span>`;
-  }
+
   // 一致率バッジ（緑）: 一致率が計算できる人にだけ出す
   // 一致率と一緒に共通店舗数と信頼度を出す（v323〜）: 「82%」だけでは根拠が分からないため
   //   共通5件未満 … 「共通2店」（%は出さない。v335〜「データ不足」の文字はやめた） ／ 5〜19件 … 「一致 82%・共通7店」を薄く（参考）
@@ -442,22 +436,7 @@ const Views = (() => {
     const tip = m.conf === 'mid' ? `共通して評価した店が${m.common}件。20件以上で十分なデータになります` : `共通して評価した店が${m.common}件`;
     return `<span class="tm-badge${sm}${m.conf === 'mid' ? ' dim' : ''}" title="${tip}">味覚一致 ${m.rate}%<span class="tm-n">・共通${m.common}店${m.conf === 'mid' ? '・参考' : ''}</span></span>`;
   }
-  // あなた向け評価と全体評価を並べる共通部品（デザイン案の2枚の箱）
-  function ratePairHtml(pair, opt) {
-    const o = opt || {};
-    if (!pair.raters) return '';
-    // 信頼度に応じて「あなた向け」の箱を変える: ok=数字 / ref=数字＋「参考」 / none=箱を出さない
-    // （v335〜。「データ不足」の箱と説明文は廃止。一画面の情報は少ないほどよい）
-    const youBox = pair.conf === 'none' ? ''
-      : `<div class="rp-box rp-you${pair.conf === 'ref' ? ' rp-ref' : ''}"><span class="rp-label">あなた向け${pair.conf === 'ref' ? '<em>参考</em>' : ''}</span>
-        <span class="rp-val">${starIc('full', o.compact ? 14 : 18)}${fmtR(pair.personal)}</span></div>`;
-    return `<div class="rp-wrap${o.compact ? ' compact' : ''}">
-      ${youBox}
-      <div class="rp-box"><span class="rp-label">みんな</span>
-        <span class="rp-val muted">${starIc('full', o.compact ? 12 : 14)}${fmtR(pair.overall)}</span>
-        ${o.count ? `<span class="rp-n">${pair.raters}人</span>` : ''}</div>
-    </div>`;
-  }
+
   const networkById = new Map(); // ピンfeature id → 投稿データ（他人のピンのポップアップ用）
   // ピンfeature id → 本人＋フォロワーの評価プール（味＝各評価、店の3軸＝人ごとの値）
   //  { taste:[], casual:[], atmosphere:[], speed:[] }。ポップアップで平均を出すのに使う
@@ -471,16 +450,7 @@ const Views = (() => {
     a = half ? Math.round(a * 2) / 2 : Math.round(a * 10) / 10;
     return a.toFixed(1);
   }
-  // 味＋店の3軸の平均をポップアップ用のHTMLにする（本人＋フォロワーを合わせた評価）
-  function mapStatsLine(st) {
-    if (!st) return '';
-    const t = fmtStatAvg(st.taste, false);
-    const axes = [['気軽さ', 'casual'], ['雰囲気', 'atmosphere'], ['早さ', 'speed']]
-      .map(([label, k]) => { const v = fmtStatAvg(st[k], true); return v ? `${label} ${v}` : null; })
-      .filter(Boolean);
-    return `<div class="p-sub">${t ? starSvg(+t, 12) : ''} 味 ${t || '－'}</div>`
-      + (axes.length ? `<div class="p-sub">${axes.join('　')}</div>` : '');
-  }
+
 
   // ベクトル地図（MapLibre GL）: iPhone の「マップ」（Apple Maps）を手本にした自前スタイル
   //  - ラベルは「都市名（広域のみ）・駅名（ズーム12以上）・主要施設」だけに限定
@@ -1350,20 +1320,8 @@ const Views = (() => {
     return top ? top[0] : (s.shopGenre || '');
   }
 
-  // フォロワーのアイコン（写真の右上に小さく重ねる）。タップでその人のプロフィールへ
-  function contribAvatarsHtml(users) {
-    if (!users || !users.length) return '';
-    return `<span class="pp-avatars">` + users.slice(0, 3).map(u =>
-      `<button type="button" class="pp-av" data-u="${esc(u.username)}" aria-label="@${esc(u.username)} のプロフィール">`
-      + (u.avatar ? `<img src="${esc(u.avatar)}" alt="">` : IC_BOWL) + `</button>`).join('') + `</span>`;
-  }
-  function wireContribAvatars(node) {
-    node.querySelectorAll('.pp-av').forEach(b => b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (mapPopup) mapPopup.remove();
-      showPublicProfile(b.dataset.u);
-    }));
-  }
+
+
 
 
   // ピンをタップ → 自分の店はデザイン案準拠の店舗シート（上に地図が見えたまま）
@@ -2533,13 +2491,29 @@ const Views = (() => {
     }
     const count = genreCounts(items);
     const catCount = (c) => c.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
+    // v368〜 記録の多いくくりを先に、0件は後ろに薄く（色はくくりごとに固定）
+    const cats = Api.DISH_CATEGORIES.map((c, i) => ({ c, i, n: catCount(c) })).sort((a, b) => b.n - a.n || a.i - b.i);
     box.innerHTML = catTile('', 'すべて', items.length, CAT_COLORS[0], { wide: true }) +
-      Api.DISH_CATEGORIES.map((c, i) =>
-        catTile('', c.name, catCount(c), CAT_COLORS[(i + 1) % CAT_COLORS.length], { sub: c.name })).join('');
+      cats.map(({ c, i, n }) => catTile('', c.name, n, CAT_COLORS[(i + 1) % CAT_COLORS.length], { sub: c.name })).join('') +
+      stationRowHtml();
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.sub) openExploreSub(b.dataset.sub);   // 大きなくくり → 詳しいジャンル一覧へ
       else openExploreCat('', 'すべて');                   // すべて → 写真グリッドへ
     }));
+    box.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => {
+      // 駅の入口: その駅名で検索モードへ（v368〜）
+      setListMode(false);
+      $('#flt-keyword').value = b.dataset.st;
+      renderList();
+    }));
+  }
+  // よく行く駅（訪問の多い順に8つ）。駅の無い記録ばかりなら出さない
+  function stationRowHtml() {
+    const byStation = new Map();
+    for (const v of Store.visits()) { const s = Store.getShop(v.shopId); const st = s && s.station; if (st) byStation.set(st, (byStation.get(st) || 0) + 1); }
+    const top = [...byStation.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (!top.length) return '';
+    return `<div class="ex-stations"><div class="fl-label">駅から</div><div class="ex-station-row">${top.map(([st, n]) => `<button type="button" class="chip ex-station" data-st="${esc(st)}">${esc(st)}<span>${n}</span></button>`).join('')}</div></div>`;
   }
 
   // 大きなくくりを開く → 中の詳しいジャンル（ラーメン・うどん…）。0件のジャンルも表示
@@ -2559,8 +2533,9 @@ const Views = (() => {
     const items = await loadExploreItems();
     const count = genreCounts(items);
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
+    const gs = cat.genres.map((g, i) => ({ g, i, n: count.get(g) || 0 })).sort((a, b) => b.n - a.n || a.i - b.i); // v368〜 多い順・0件は後ろ
     box.innerHTML = catTile(cat.genres.join(GKEY_SEP), catName + 'すべて', total, CAT_COLORS[0], { wide: true }) +
-      cat.genres.map((g, i) => catTile(g, g, count.get(g) || 0, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('');
+      gs.map(({ g, i, n }) => catTile(g, g, n, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('');
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
   }
@@ -2972,59 +2947,6 @@ const Views = (() => {
   // 検索の店カード shopCard() / openShopPostFeed() / loadThumbs() は v357 で廃止（一覧は renderListSections の .sfs）
 
   // ========== 写真ギャラリー ==========
-  function initPhotos() {
-    $('#ph-dish-genre').innerHTML = '<option value="">ジャンル</option>' + Api.DISH_GENRES.map(g => `<option>${g}</option>`).join('');
-    $('#ph-dish-genre').addEventListener('change', renderPhotos);
-  }
-
-  const TYPE_LABEL = { dish: '料理', exterior: '外観', interior: '店内', menu: 'メニュー' };
-
-  async function renderPhotos() {
-    const box = $('#photo-grid');
-    const type = ''; // 種別フィルタは廃止（すべての写真を表示）
-    const dg = $('#ph-dish-genre').value;
-    box.innerHTML = SKEL_GRID;
-    let photos = await Store.allPhotos();
-    // 味の評価が高い順。同点は 雰囲気→カジュアル度→提供の早さ の順に星の高い方を上へ
-    const vById = new Map(Store.visits().map(v => [v.id, v]));
-    photos.sort((a, b) => {
-      const va = vById.get(a.visitId) || {}, vb = vById.get(b.visitId) || {};
-      const sa = Store.getShop(a.shopId) || {}, sb = Store.getShop(b.shopId) || {};
-      return (vb.rating || 0) - (va.rating || 0)
-          || (sb.atmosphere || 0) - (sa.atmosphere || 0)
-          || (sb.casual || 0) - (sa.casual || 0)
-          || (sb.speed || 0) - (sa.speed || 0)
-          || b.createdAt - a.createdAt;
-    });
-
-    const cells = [];
-    for (const p of photos) {
-      if (type && p.type !== type) continue;
-      const visit = Store.visits().find(v => v.id === p.visitId);
-      if (dg && !(visit && (visit.dishGenres || []).includes(dg))) continue;
-      const shop = Store.getShop(p.shopId);
-      cells.push({ p, shop, visit });
-    }
-    if (!cells.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '写真がありません。',
-        '<button class="btn primary empty-add">写真を登録する</button>');
-      box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
-      return;
-    }
-    box.innerHTML = '';
-    appendChunked(box, cells.length, (i) => {
-      const { p, shop, visit } = cells[i];
-      // 拡大表示は店名＋日付、写真の下のキャプションは店名のみ
-      const cap = `${shop ? shop.name : ''}　${visit ? fmtDate(visit.datetime) : ''}`;
-      const div = document.createElement('div');
-      div.className = 'photo-cell';
-      div.innerHTML = `<img alt="" loading="lazy" decoding="async"><div class="cap">${esc(shop ? shop.name : '')}</div>`;
-      setThumb(div.querySelector('img'), p);
-      div.addEventListener('click', () => fullPhotoUrl(p).then(u => openLightbox(u || '', cap))); // 拡大表示は元画像
-      return div;
-    });
-  }
-
   function openLightbox(url, caption) {
     $('#lightbox-img').src = url;
     $('#lightbox-caption').textContent = caption || '';
@@ -4383,23 +4305,23 @@ const Views = (() => {
   }
 
   let shopModalToken = 0;
-  async function showShop(shopId, editMode = false, editVid = null, nav = null) {
+  async function showShop(shopId, _editMode = false, _editVid = null, nav = null) { // v368〜 第2・第3引数は使わない（店舗情報は openShopEdit、記録は openVisitEdit）
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
     const body = $('#modal-body');
     // 上下スクロールでの店舗送り（プロフィールの写真カードから開いたとき）。
     // 編集中は誤って切り替わらないよう無効にする
-    shopNavState = (nav && !editMode && !editVid) ? nav : null;
+    shopNavState = nav || null;
     bindShopNavOnce();
     const myToken = ++shopModalToken; // 別の店を開いたり編集に入ったりしたら、この描画は古いものとして扱う
 
     // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
-    if (!editMode && !editVid && !networkLoaded) {
+    if (!networkLoaded) {
       ensureNetworkLoaded(() => {
         // 読み込み中に編集画面へ移った・別の店へ移った・閉じた場合は描き直さない（入力中の内容を消さないため）
         if (shopModalToken !== myToken) return;
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId, editMode, editVid, nav);
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId, false, null, nav);
       });
     }
     // 店舗詳細は「店」が主役: 地図の表示切替に関係なく、この店に行った
@@ -4411,10 +4333,7 @@ const Views = (() => {
     const avg = allRatings.length ? Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length * 10) / 10 : 0;
 
     // ヘッダー
-    const headHtml = editMode ? `
-      <div class="detail-head"><h2>${IC_EDIT} 店舗情報の編集</h2>
-        <div class="d-sub">店名・住所などを変更して「保存」を押してください。</div>
-      </div>` : `
+    const headHtml = `
       <div class="detail-head">
         <h2>${esc(s.name)}</h2>
         <div class="d-sub">${esc(shopLabelGenre(s) || '')}${s.status === 'closed' ? '<span class="badge gray">閉店</span>' : ''}</div>
@@ -4422,34 +4341,6 @@ const Views = (() => {
         <div class="d-sub">${esc(s.address || '')}</div>
         ${s.posLevel === 'town' ? `<button type="button" class="d-posfix" id="d-posfix">ピンの位置は町名までのおおよそです ・ 直す</button>` : ''}
       </div>`;
-
-    // 店舗情報の入力フォーム（編集モードのみ・一番下に配置）
-    const shopFormHtml = editMode ? `
-      <div class="axis-box">
-        <div class="axis-title">店舗情報</div>
-        <div class="form-grid">
-          <label>店舗名
-            <input type="text" id="de-name" value="${esc(s.name)}">
-          </label>
-          <label>最寄駅
-            <input type="text" id="de-station" value="${esc(s.station || '')}">
-          </label>
-          <label>都道府県
-            <input type="text" id="de-pref" value="${esc(s.pref || '')}">
-          </label>
-          <label>市区町村
-            <input type="text" id="de-city" value="${esc(s.city || '')}">
-          </label>
-          <label class="full">住所
-            <input type="text" id="de-address" value="${esc(s.address || '')}">
-          </label>
-          <div class="full de-pos">
-            <span class="de-pos-l">位置${POS_LEVEL_LABEL[s.posLevel] ? `: ${POS_LEVEL_LABEL[s.posLevel]}` : (s.lat != null ? '' : ': 未設定')}</span>
-            <button type="button" class="btn small" id="de-pos-addr">住所から探す</button>
-            <button type="button" class="btn small" id="de-pos-map">地図で指定</button>
-          </div>
-        </div>
-      </div>` : '';
 
     // 「詳細」の中身: お店の評価（3軸）＋店舗の操作（訪問を追加・店舗情報・閉店・削除）。
     // よく使う「ここへ行く」とお気に入り♥だけを外に出し、残りはここへ畳む
@@ -4483,11 +4374,7 @@ const Views = (() => {
       </div>
       ${facts0.length ? `<div class="msh-facts">${facts0.map(f => `<div class="msh-fact"><div class="k">${esc(f.k)}</div><div class="v">${f.star ? starIc('full', 13) : ''}${esc(f.v)}</div></div>`).join('')}</div>` : ''}`;
 
-    const actionsHtml = editMode ? `
-      <div class="detail-actions">
-        <button class="btn primary" id="d-save-all">保存</button>
-        <button class="btn" id="d-cancel">キャンセル</button>
-      </div>` : `
+    const actionsHtml = `
       <div class="d-mainrow hidden">
         ${false ? `
         <button class="btn d-map-btn" id="d-showmap"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
@@ -4502,10 +4389,7 @@ const Views = (() => {
       ? (Store.getShop(shopNavState.list[shopNavState.index - 1]) || {}).name : '';
     const navNext = shopNavState && shopNavState.index < shopNavState.list.length - 1
       ? (Store.getShop(shopNavState.list[shopNavState.index + 1]) || {}).name : '';
-    body.innerHTML = editMode ? `
-      ${headHtml}
-      ${shopFormHtml}
-      ${actionsHtml}` : `
+    body.innerHTML = `
       ${navPrev ? `<div class="d-swipehint">︿ 下に引っ張って前の店舗: ${esc(navPrev)}</div>` : ''}
       ${headHtml}
       ${tilesHtml}
@@ -4538,10 +4422,7 @@ const Views = (() => {
       });
     });
 
-    if (editMode) {
-      $('#d-save-all').addEventListener('click', saveShopInfo);
-      $('#d-cancel').addEventListener('click', () => showShop(shopId, false));
-    } else {
+    {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
@@ -4551,12 +4432,12 @@ const Views = (() => {
         try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
       });
       const posFix = $('#d-posfix');
-      if (posFix) posFix.addEventListener('click', () => showShop(shopId, true));
+      if (posFix) posFix.addEventListener('click', () => openShopEdit(shopId, () => showShop(shopId)));
       // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
       $('#d-more').addEventListener('click', () => openActionSheet([
         ...(hasPos0 ? [{ label: '地図で見る', onClick: () => { closeModal(); focusMapAt(s.lat, s.lon); } }] : []),
         { label: '写真つきで訪問を追加', onClick: () => { closeModal(); App.switchTab('register'); Register.preselectShop(shopId); } },
-        { label: '店舗情報を編集', onClick: () => showShop(shopId, true) },
+        { label: '店舗情報を編集', onClick: () => openShopEdit(shopId, () => showShop(shopId)) },
         { label: s.status === 'closed' ? '営業中に戻す' : '閉店にする', onClick: () => { Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' }); showShop(shopId); } },
         { label: '店舗を削除', onClick: async () => {
           if (!confirm(`「${s.name}」と訪問記録・写真をすべて削除します。よろしいですか？`)) return;
@@ -4568,50 +4449,10 @@ const Views = (() => {
       ]));
     }
 
-    if (editMode) {
-      $('#de-pos-addr').addEventListener('click', () => fixPosByAddress(shopId));
-      $('#de-pos-map').addEventListener('click', () => pickOnMap({ lat: s.lat, lon: s.lon }, (c) => {
-        Store.updateShop(shopId, { lat: c.lat, lon: c.lon, posLevel: 'manual' });
-        App.toast('位置を直しました');
-        refreshMap();
-      }));
-    }
-    // 店舗情報のみ保存（店名・住所など。各訪問は訪問カードから個別に編集）
-    // v362〜 住所が変わったら住所から位置を求め直す（以前は文字だけ変わり、地図のピンが動かなかった）
-    async function saveShopInfo() {
-      const name = $('#de-name').value.trim();
-      if (!name) { App.toast('店舗名は空にできません'); return; }
-      const address = $('#de-address').value.trim();
-      const addrChanged = address && address !== (s.address || '');
-      Store.updateShop(shopId, {
-        name,
-        station: $('#de-station').value.trim(),
-        pref: $('#de-pref').value.trim(),
-        city: $('#de-city').value.trim(),
-        address,
-      });
-      showShop(shopId, false);
-      App.refreshCurrent();
-      if (!addrChanged) { App.toast('保存しました'); return; }
-      App.toast('保存しました。住所から位置を探しています…');
-      let hit = null;
-      try { hit = (await Api.geocodeAddress(address))[0] || null; } catch { hit = null; } // 国土地理院 → Nominatim（v363〜）
-      if (hit) {
-        Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: hit.level || 'geocode' });
-        if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData(); // 地図が開いていれば今すぐ描き直す（開くときは Store から作り直す）
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId, false);
-        App.toast(`位置を更新しました（${hit.name || '住所から'}）`);
-      } else {
-        App.toast('住所から位置が見つかりませんでした。店舗情報の「住所から探す」か「地図で指定」で直してください');
-      }
-    }
-
-    // 訪問記録の一覧表示（訪問ごとに個別編集できる）
-    if (!editMode) {
+    // 訪問の一覧（v364〜 訪問の一覧と同じ部品。v367〜 編集はシート）
+    {
       const vbox = $('#d-visits');
-      // 同じ店の写真は1つにまとめ、画面の横幅いっぱいで左右スワイプして見られるようにする
-      // （投稿詳細と同じカルーセル）。写真をタップすると投稿として詳細を開く
-      if (!editVid) {
+      {
         // v365〜 店の写真を横にスワイプで見る帯を先頭に戻した（v338〜v363 と同じ。写真が無ければ出さない。タップで投稿として開く）
         const strip = document.createElement('div');
         strip.className = 'visit-block d-photoblock hidden';
@@ -4660,93 +4501,6 @@ const Views = (() => {
         for (const v of vs) feed.appendChild(buildVisitSection(shopId, v, ctx));
         vbox.appendChild(feed);
       }
-      // 個別の訪問カードは、ある訪問をインライン編集しているときだけ並べる
-      if (editVid) for (const v of vs) {
-        const block = document.createElement('div');
-        block.className = 'visit-block';
-        block.dataset.vid = v.id;
-        if (editVid === v.id) {
-          // ---- この訪問だけをインライン編集 ----
-          // どの記録か分かるよう、見出しにその訪問の日付、下に写真を出したまま編集する
-          block.classList.add('ve-editing');
-          block.innerHTML = `
-            <div class="ve-title">${IC_EDIT} 記録を編集中 <span class="ve-title-date">${fmtDate(v.datetime)}</span></div>
-            <div class="v-photos ve-photos"></div>
-            <div class="ve-row">味の評価 <span class="stars small ve-stars" data-rating="${v.rating}"></span></div>
-            <div class="ve-sub">料理ジャンル</div>
-            <div class="ve-genres"></div>
-            <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
-            <textarea rows="2" class="ve-comment" placeholder="コメント・感想">${esc(v.comment || '')}</textarea>
-            <div class="v-btns">
-              <button type="button" class="btn small primary ve-save">保存</button>
-              <button type="button" class="btn small ve-cancel">キャンセル</button>
-              <button type="button" class="btn small danger ve-del">削除</button>
-            </div>`;
-          vbox.appendChild(block);
-          // 編集対象の写真（タップで拡大）。写真がない訪問では行ごと消す
-          Store.photosOfVisit(v.id).then(ps => {
-            const row = block.querySelector('.ve-photos');
-            if (!ps.length) { row.remove(); return; }
-            ps.forEach(ph => {
-              const img = fullImg(ph);
-              img.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
-              row.appendChild(img);
-            });
-          });
-          // 0.5刻みで入力できる共通の星入力（左半分タップ＝◯.5）
-          let veRating = v.rating || 0;
-          mountRatingStars(block.querySelector('.ve-stars'), veRating, (val) => { veRating = val; });
-          const set = new Set(v.dishGenres || []);
-          Api.buildGenrePicker(block.querySelector('.ve-genres'), set);
-          block.querySelector('.ve-cancel').addEventListener('click', () => showShop(shopId, false, null));
-          // 編集中の記録をその場で削除できる（訪問一覧の削除と同じ処理。写真も一緒に消える）
-          block.querySelector('.ve-del').addEventListener('click', async () => {
-            if (!confirm('この記録を削除しますか？写真も一緒に削除されます。')) return;
-            await Store.deleteVisit(v.id);
-            App.toast('記録を削除しました');
-            showShop(shopId, false, null);
-            App.refreshCurrent();
-          });
-          block.querySelector('.ve-save').addEventListener('click', () => {
-            const dateVal = block.querySelector('.ve-date').value;
-            if (!dateVal) { App.toast('訪問日を入力してください'); return; }
-            Store.updateVisit(v.id, {
-              datetime: new Date(dateVal + 'T12:00:00').toISOString(),
-              rating: veRating || 3,
-              dishGenres: [...set],
-              comment: block.querySelector('.ve-comment').value.trim(),
-            });
-            // フィードの公開投稿も新しい内容で更新（ログイン中のみ）
-            if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
-              Cloud.publishPostForVisit(v.id).catch(() => {});
-            }
-            App.toast('保存しました');
-            showShop(shopId, false, null);
-            App.refreshCurrent();
-          });
-        } else {
-          // ---- 読み取り表示: 写真＋左上に星の数＋下に日付・編集ボタン。写真タップで訪問一覧ページへ ----
-          const dateStr = fmtDate(v.datetime);
-          block.innerHTML = `
-            <button type="button" class="v-cover">
-              <span class="v-cover-ph">${IC_DISH}</span>
-              <span class="v-badge">★${v.rating ? fmtR(v.rating) : '－'}</span>
-            </button>
-            <div class="v-caption">
-              <span>${dateStr}</span>
-              <button type="button" class="v-edit-link">${IC_EDIT} 編集</button>
-            </div>`;
-          const cover = block.querySelector('.v-cover');
-          cover.addEventListener('click', () => showVisitList(shopId));
-          // 地図や店舗詳細から、その場で記録を編集できる（インライン編集を開く）
-          block.querySelector('.v-edit-link').addEventListener('click', () => showShop(shopId, false, v.id));
-          Store.photosOfVisit(v.id).then(ps => {
-            if (ps.length) cover.querySelector('.v-cover-ph').replaceWith(fullImg(ps[0]));
-          });
-          vbox.appendChild(block);
-        }
-      }
-
       // フォロー中の人のこの店の記録（写真＋★＋アカウントアイコン。タップで投稿を表示）
       // 他人の記録なので日付は出さず、@ユーザー名のみ表示する。味覚一致率の高い人を先に
       fps.sort((a, b) => (tasteMatch(b.username).rate ?? -1) - (tasteMatch(a.username).rate ?? -1));
@@ -4887,6 +4641,74 @@ const Views = (() => {
       });
     };
     render();
+    document.body.appendChild(ov);
+  }
+
+  // ---------- 店舗情報の編集シート（v368〜。記録の編集と同じ形。店名・駅・県市・住所・位置） ----------
+  function openShopEdit(shopId, onDone) {
+    const s = Store.getShop(shopId);
+    if (!s) return;
+    const ov = document.createElement('div');
+    ov.className = 'modal ve-modal se-modal';
+    ov.innerHTML = `<div class="modal-box ve-box">
+        <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
+        <div class="ve-head"><b>店舗情報</b></div>
+        <div class="form-grid se-grid">
+          <label class="full">店舗名<input type="text" id="de-name" value="${esc(s.name)}"></label>
+          <label>最寄駅<input type="text" id="de-station" value="${esc(s.station || '')}"></label>
+          <label>都道府県<input type="text" id="de-pref" value="${esc(s.pref || '')}"></label>
+          <label>市区町村<input type="text" id="de-city" value="${esc(s.city || '')}"></label>
+          <label class="full">住所<input type="text" id="de-address" value="${esc(s.address || '')}"></label>
+          <div class="full de-pos">
+            <span class="de-pos-l">位置${POS_LEVEL_LABEL[s.posLevel] ? `: ${POS_LEVEL_LABEL[s.posLevel]}` : (s.lat != null ? '' : ': 未設定')}</span>
+            <button type="button" class="btn small" id="de-pos-addr">住所から探す</button>
+            <button type="button" class="btn small" id="de-pos-map">地図で指定</button>
+          </div>
+        </div>
+        <div class="v-btns ve-btns">
+          <button type="button" class="btn primary" id="d-save-all">保存</button>
+          <button type="button" class="btn" id="d-cancel">キャンセル</button>
+        </div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.ve-close').addEventListener('click', close);
+    ov.querySelector('#d-cancel').addEventListener('click', close);
+    ov.querySelector('#de-pos-addr').addEventListener('click', () => { close(); fixPosByAddress(shopId); });
+    ov.querySelector('#de-pos-map').addEventListener('click', () => { close(); pickOnMap({ lat: s.lat, lon: s.lon }, (c) => {
+      Store.updateShop(shopId, { lat: c.lat, lon: c.lon, posLevel: 'manual' });
+      App.toast('位置を直しました');
+      refreshMap();
+    }); });
+    // 保存（v362〜 住所が変わったら住所から位置を求め直す。v363〜 国土地理院 → Nominatim）
+    ov.querySelector('#d-save-all').addEventListener('click', async () => {
+      const name = ov.querySelector('#de-name').value.trim();
+      if (!name) { App.toast('店舗名は空にできません'); return; }
+      const address = ov.querySelector('#de-address').value.trim();
+      const addrChanged = address && address !== (s.address || '');
+      Store.updateShop(shopId, {
+        name,
+        station: ov.querySelector('#de-station').value.trim(),
+        pref: ov.querySelector('#de-pref').value.trim(),
+        city: ov.querySelector('#de-city').value.trim(),
+        address,
+      });
+      close();
+      if (onDone) onDone();
+      App.refreshCurrent();
+      if (!addrChanged) { App.toast('保存しました'); return; }
+      App.toast('保存しました。住所から位置を探しています…');
+      let hit = null;
+      try { hit = (await Api.geocodeAddress(address))[0] || null; } catch { hit = null; }
+      if (hit) {
+        Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: hit.level || 'geocode' });
+        if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData();
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId);
+        App.toast(`位置を更新しました（${hit.name || '住所から'}）`);
+      } else {
+        App.toast('住所から位置が見つかりませんでした。店舗情報の「住所から探す」か「地図で指定」で直してください');
+      }
+    });
     document.body.appendChild(ov);
   }
 
@@ -5527,11 +5349,7 @@ const Views = (() => {
     appendChunked(box, shown.length, (i) => buildFeedCard(shown[i], shown, i));
   }
 
-  // ジャンル名 → 発見タイルと同じカテゴリ色（チップの背景に使う）
-  function catColorForGenre(g) {
-    const i = Api.DISH_CATEGORIES.findIndex(c => c.name === g || c.genres.includes(g));
-    return i >= 0 ? CAT_COLORS[(i + 1) % CAT_COLORS.length] : 'var(--accent)';
-  }
+
 
   // 地図タブへ切り替えて指定の場所を表示（ホームカードのミニ地図から）
   // 店の位置を地図で指定する（v340〜）。地図タブへ移り、中央の印に合わせて「この位置にする」で cb({lat, lon})
@@ -6259,7 +6077,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, initPhotos, renderPhotos, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）

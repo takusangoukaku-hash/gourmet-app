@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=367">
+<link rel="stylesheet" href="css/style.css?v=368">
 </head>
 <body>
 
@@ -40,6 +40,7 @@
     </svg>
   </button>
 </header>
+<div id="net-bar" class="net-bar hidden" role="status"></div><!-- 接続なし・同期中の帯（v368〜） -->
 
 <main>
 
@@ -311,15 +312,6 @@
   <div id="shop-list" class="shop-list hidden"></div>
 </section>
 
-<!-- ========== 写真 ========== -->
-<section id="view-photos" class="view">
-  <div class="card filters frameless">
-    <div class="filter-row">
-      <select id="ph-dish-genre"><option value="">ジャンル</option></select>
-    </div>
-  </div>
-  <div id="photo-grid" class="photo-grid"></div>
-</section>
 
 <!-- ========== プロフィール（インスタ風・将来の共有機能の土台） ========== -->
 <section id="view-profile" class="view">
@@ -631,12 +623,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=367"></script>
-<script src="js/api.js?v=367"></script>
-<script src="js/cloud.js?v=367"></script>
-<script src="js/register.js?v=367"></script>
-<script src="js/import.js?v=367"></script>
-<script src="js/views.js?v=367"></script>
-<script src="js/app.js?v=367"></script>
+<script src="js/store.js?v=368"></script>
+<script src="js/api.js?v=368"></script>
+<script src="js/cloud.js?v=368"></script>
+<script src="js/register.js?v=368"></script>
+<script src="js/import.js?v=368"></script>
+<script src="js/views.js?v=368"></script>
+<script src="js/app.js?v=368"></script>
 </body>
 </html>

@@ -81,6 +81,10 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 行きたい店の一覧（v367〜）: `openWishlist()` は「行きたい N／行けた M」の切り替え（`wishTab`）と、行きたいの並び替え `#wish-sort`（追加順／近い順＝`lastKnownPos` から／名前順。`wishSort`）。行は「記録する」（`Register.prefillWish` → 登録タブ）と …（地図で見る・ここへ行く・外す。行けた側は 記録・達成を取り消す `Store.undoWish(id)`・一覧から外す）。
 - 写真をまとめて選ぶ（v367〜）: `mzItem()` に `rec`（自分の写真）があるものは長押し（450ms、8px 動いたら取り消し）で `mzSelStart(grid)`＝その格子 `.mz-grid.mz-selecting` が選択モード（検索の写真モード・発見のジャンルの格子。プロフィールの写真は店ごとのカードなので対象外）。タップで `.mz-sel` を切り替え、下の帯 `.mz-selbar`（N枚を選択・移す・削除・キャンセル）。「移す」は `openPhotoMove(配列, 'shop', done)`（v367〜 配列も受ける）。`renderList()` の先頭で `mzSelEnd()`。
 - 絞り込みの数（v367〜）: `updateFilterBadge()`（`renderList()` の検索モードで毎回）がジャンル・★・都道府県の付いている数を「詳細」ボタンの `.flt-n` に出し、`#flt-clear`「条件を外す」を出し入れする（並び替え・まとめては数えない・外さない）。
+- 店舗情報の編集シート（v368〜）: `openShopEdit(shopId, onDone)`（記録の編集と同じ `.ve-modal` の中央カード `.se-modal`。店名・最寄駅・都道府県・市区町村・住所と、位置の「住所から探す」`fixPosByAddress`／「地図で指定」`pickOnMap`（どちらもシートを閉じてから））。保存は v362〜 の住所→位置の求め直しを含む。入口は店舗の詳細の「その他 → 店舗情報を編集」と「ピンの位置は町名まで…直す」。`showShop(shopId, true)` の編集モードは廃止（第2・第3引数は無視される）。
+- 使われなくなった部品の整理（v368）: 店舗の詳細のインライン編集（`.ve-editing`）と古い訪問カード（`.v-cover`）、写真タブ（`#view-photos`／`initPhotos`／`renderPhotos`）、`catColorForGenre`・`contribAvatarsHtml`・`fiveChipHtml`・`mapStatsLine`・`ratePairHtml`・`wireContribAvatars`、画面から参照されない CSS 約 200 規則（`.shop-card`・`.feed-card`・`.fcard-*`・`.rp-*`・`.ppc-*` など）を削除（139KB → 120KB）。消す前の判定は「js と index.html に文字列として現れない」＋数字を除いた接頭辞（`cq-l` など）が文字列として現れない、で行った。
+- 接続なし・同期中の帯（v368〜）: 見出しの下 `#net-bar`（`app.js` の `watchNet()`／`updateNetBar()`）。オフラインは即「接続なし ・ 記録は端末に保存され、つながると同期します」、同期は `Cloud.onStatus` の syncing が 2 秒以上続いたときだけ「同期しています…」。普段は出さない。見出しを隠すタブ（検索・登録・地図）では出さない。
+- 発見の格子（v368〜）: くくりとジャンルは記録の多い順、0件は後ろ（`.off` で薄く。色はくくりごとに固定）。くくりの下に「駅から」`.ex-stations`（訪問の多い駅 8 つ `stationRowHtml()`。タップで検索モードにしてその駅名で検索）。
 - 店舗の詳細の写真の帯（v365〜）: `#d-visits` の先頭に `.visit-block.d-photoblock`（店の写真を新しい順に全幅・左右スワイプ・点。`buildOwnShopPost` → タップで `showPostDetail`）を戻した（v338〜v363 と同じ。写真が無ければ出さない）。その下に v364 の訪問ごとの `.sfs`。
 - 店舗の詳細の訪問（v364〜）: `showShop` の `#d-visits` は、訪問の一覧 `showVisitList` と同じ部品 `buildVisitSection(shopId, v, {editVisit, delVisit})` を `.pf-shopfeed.d-visitfeed`（モーダルの余白 20px の外まで広げる）に新しい順で縦に並べる。写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›。「訪問記録」の見出しと ✎（`#d-visitlist`）は廃止。…の「編集」は従来のインライン編集（`showShop(shopId, false, v.id)`）。v338 までの店の写真カルーセル＋訪問履歴のサムネ（`.visit-block.d-photoblock`）は無くなった。
 - 今年のまとめ（v364〜）: 統計の「もっと見る」の先頭 `#stat-year`（`renderYearCard()`、`renderRecordCards()` の最初）。`yearSummary(year)` が今年の訪問から 店数・回数・新しい店（初訪問が今年）・都道府県数・よく行った店3・★が高かった店3（評価ありのみ）・よく食べたジャンル3 を出す。今年の訪問が無ければカードごと出さない。「画像で共有」は `buildYearCard(d)`（canvas 1080×1350）→ `shareImageBlob(blob, filename, text, title)`（Web Share → 無ければ保存モーダル。記録カード `shareRecordCard` も同じ関数）。
@@ -121,14 +125,14 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   v325 の部品で残っているもの: `memoryVisit()`（統計の「N年前の今ごろ」）、`rememberPos()`／`gourmet.lastPos`（現在地の控え）、
   `focusMap(lon, lat, zoom)`（地図へ寄せる。初期化前なら控えて最初の描画で寄せる。setTimeout で jumpTo しない）。
 - 信頼度（v323〜）: `ratingPair()` は `{personal, overall, raters, reliable, conf}` を返す。`conf` は ok／ref（参考: 2人以上・一致率が出せる人1人以上）／none（データ不足）。
-  店の詳細・店シートは `ratePairHtml()` が ref に「参考」を添え、none のときは「あなた向け」の箱を出さない（v335〜。「データ不足」の箱と説明文は廃止）。見出しは「あなた向け」「みんな」。検索カードも none を出さない。地図のピンの色も none なら自分の平均。
+  店の詳細・店シートの要点行（あなた／みんな／訪問）は none のとき「みんな」の列を出さない（v335〜。「データ不足」の箱と説明文は廃止。箱を描いていた `ratePairHtml()` は v368 で削除）。検索カードも none を出さない。地図のピンの色も none なら自分の平均。
   一致率バッジ `tasteBadge()` は「味覚一致 82%・共通12店」の形で共通店舗数を添え、共通5件未満は「共通N店・データ不足」（%なし）、5〜19件は「・参考」。
 - お気に入り♥は v323 で UI を廃止（「行きたい」のしおりと紛らわしいため）。`shop.favorite` のデータと隠しチェック `#f-fav` は互換のため残す。戻さない。
 - 統計タブ（v323〜）: 主役は「行った店・今年の訪問・★5をつけた店・行きたい店の達成」の4タイル（`#stat-cards`）。残り（`#stat-cards-more`＝味の平均・訪れた都道府県の2つ（v339〜）・記録カード・よく行く店・制覇マップ・グラフ…）は
   `#stat-more` に畳み「もっと見る」で開く（開閉は `gourmet.statMore` に記憶）。グラフ部品（Chart.js）はタイルを描いた後に読む。
 - 「★5 ×N人」（v318〜。v356〜 数えるのは ★4.5 以上 `FIVE_MIN_RATING`）: 平均は人数が増えると 4 点台に寄るため、別に `fiveStarFans()` で数えてホームのカードと検索の一覧に `fiveChipHtml()` で出す。
   数えるのは自分と味覚一致率 `FIVE_MATCH_MIN`（70%）以上の人だけ。地図ではピンの頭を金の★にする（v320〜）。まとまりの色は ★5 の有無ではなく中で一番評価の高い店の色（利用者の希望）。
-  v339〜 カードには出さない（地図のピンの★だけ。`fiveChipHtml()` は未使用）。検索の「お店」一覧は v357〜 お店の記録と同じ形（写真の★バッジ＋「あなた向け」の1行）。プロフィールの写真カードは写真と店名だけ。
+  v339〜 カードには出さない（地図のピンの★だけ。`fiveChipHtml()` は v368 で削除）。検索の「お店」一覧は v357〜 お店の記録と同じ形（写真の★バッジ＋「あなた向け」の1行）。プロフィールの写真カードは写真と店名だけ。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
