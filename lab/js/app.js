@@ -4,7 +4,7 @@
 //  - 依頼事項: 一度きり。依頼者・期限つき。完了したら下に沈む
 //  - データは localStorage（lab.tasks.v1）のみ
 // =====================================================
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 const KEY = 'lab.tasks.v1';
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 月曜はじまり
@@ -72,8 +72,8 @@ function subText(t) {
   const parts = [];
   if (t.kind === 'clean') {
     const d = t.days || [];
-    parts.push(esc(d.length === 0 || d.length === 7 ? '毎日'
-      : d.length === 5 && [1, 2, 3, 4, 5].every(x => d.includes(x)) ? '平日'
+    // 毎日（曜日の指定なし）は書かない
+    if (d.length && d.length < 7) parts.push(esc(d.length === 5 && [1, 2, 3, 4, 5].every(x => d.includes(x)) ? '平日'
       : DAY_ORDER.filter(x => d.includes(x)).map(x => WD[x]).join('、')));
   } else {
     if (t.from) parts.push(esc(t.from));
@@ -89,7 +89,7 @@ function subText(t) {
     }
   }
   if (t.note) parts.push(esc(t.note));
-  return parts.join('、') || (t.kind === 'clean' ? '後片付け' : '依頼事項');
+  return parts.join('、');
 }
 
 function itemHtml(t, rest = false) {
@@ -100,7 +100,7 @@ function itemHtml(t, rest = false) {
       <button class="del" data-del="${esc(t.id)}" aria-label="削除"></button>
       <div class="body">
         <div class="title">${esc(t.title)}</div>
-        <div class="sub">${subText(t)}</div>
+        ${(() => { const st = subText(t); return st ? `<div class="sub">${st}</div>` : ''; })()}
       </div>
       <input type="checkbox" switch class="tg${NATIVE_SWITCH ? '' : ' custom'}" data-tg="${esc(t.id)}" ${done ? 'checked' : ''} ${rest ? 'disabled' : ''} aria-label="完了">
     </div>
