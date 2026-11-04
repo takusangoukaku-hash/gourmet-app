@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=365">
+<link rel="stylesheet" href="css/style.css?v=366">
 </head>
 <body>
 
@@ -386,6 +386,7 @@
     <div id="stat-more" class="stat-more hidden">
     <div id="stat-cards-more" class="stat-cards"></div>
     <div id="stat-year" class="card hidden"></div><!-- 今年のまとめ（v364〜）。今年の訪問が無ければ出さない -->
+    <div id="stat-month" class="card hidden"></div><!-- 月ごとの振り返り（v366〜）。訪問が無ければ出さない -->
     <div class="stat-actions">
       <button type="button" id="stat-share-card" class="btn stat-share"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 記録カードを画像で共有</button>
     </div>
@@ -630,12 +631,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=365"></script>
-<script src="js/api.js?v=365"></script>
-<script src="js/cloud.js?v=365"></script>
-<script src="js/register.js?v=365"></script>
-<script src="js/import.js?v=365"></script>
-<script src="js/views.js?v=365"></script>
-<script src="js/app.js?v=365"></script>
+<script src="js/store.js?v=366"></script>
+<script src="js/api.js?v=366"></script>
+<script src="js/cloud.js?v=366"></script>
+<script src="js/register.js?v=366"></script>
+<script src="js/import.js?v=366"></script>
+<script src="js/views.js?v=366"></script>
+<script src="js/app.js?v=366"></script>
 </body>
 </html>

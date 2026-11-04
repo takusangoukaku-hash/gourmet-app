@@ -2735,7 +2735,7 @@ const Views = (() => {
     }
     hideExplore();
     refreshPrefOptions();
-    if (listResultMode === 'photo') { renderSearchPhotos(); return; }
+    if (listResultMode === 'photo') { exploreItems = null; renderSearchPhotos(); return; } // 写真の付け替え・削除・同期を拾い直す（v366〜）
     const box = $('#shop-list');
     const shops = sortShops(filteredShops());
 
@@ -4228,6 +4228,7 @@ const Views = (() => {
   // 統計タブの上部（グラフの読み込みを待たずに出す）
   function renderRecordCards() {
     renderYearCard();
+    renderMonthCard(); // 月ごとの振り返り（v366〜）
     renderRegulars();
     renderWishCard();
     renderConquest().catch(() => {});
@@ -4793,6 +4794,114 @@ const Views = (() => {
     };
     render();
     document.body.appendChild(ov);
+  }
+
+  // ---------- 写真の付け替え（v366〜） ----------
+  // mode = 'visit': 同じ店の別の訪問を選ぶ ／ 'shop': 店を選んでからその店の訪問を選ぶ（訪問が1つならそのまま）
+  function openPhotoMove(ph, mode, done) {
+    const ov = document.createElement('div');
+    ov.className = 'modal modal-full visitlist-modal pk-modal';
+    ov.innerHTML = `<div class="modal-box">
+        <div class="vl-topbar">
+          <button type="button" class="modal-close pk-close" aria-label="閉じる">${IC_X}</button>
+          <span class="vl-title">${mode === 'shop' ? '移す先の店' : '移す先の訪問'}</span>
+        </div>
+        <div class="vl-body"><div class="pk-body"></div></div>
+      </div>`;
+    const close = () => ov.remove();
+    ov.querySelector('.pk-close').addEventListener('click', close);
+    const body = ov.querySelector('.pk-body');
+    const move = async (shopId, visitId) => {
+      const ok = await Store.movePhoto(ph.id, shopId, visitId).catch(() => false);
+      close();
+      if (!ok) { App.toast('移せませんでした'); return; }
+      const s = Store.getShop(shopId) || {};
+      App.toast(`「${s.name || ''}」の記録へ移しました`);
+      if (done) done();
+    };
+    const row = (main, sub, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pk-row';
+      b.innerHTML = `<span class="pk-main">${main}</span>${sub ? `<span class="pk-sub">${sub}</span>` : ''}`;
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const visitRows = (shopId) => {
+      body.innerHTML = '';
+      const vs = Store.visitsOf(shopId).filter(v => v.id !== ph.visitId);
+      if (!vs.length) { body.innerHTML = '<div class="empty"><p>移せる訪問がありません。</p></div>'; return; }
+      for (const v of vs) body.appendChild(row(esc(fmtDate(v.datetime)), `${v.rating ? '★' + fmtR(v.rating) : '評価なし'}${v.comment ? ' ・ ' + esc(v.comment.slice(0, 20)) : ''}`, () => move(shopId, v.id)));
+    };
+    if (mode === 'visit') { visitRows(ph.shopId); }
+    else {
+      const input = document.createElement('input');
+      input.type = 'search'; input.className = 'pk-filter'; input.placeholder = '店名で絞り込む'; input.autocomplete = 'off';
+      const list = document.createElement('div');
+      body.append(input, list);
+      const lastAt = new Map();
+      for (const v of Store.visits()) { const t = new Date(v.datetime).getTime() || 0; if (t > (lastAt.get(v.shopId) || 0)) lastAt.set(v.shopId, t); }
+      const render = () => {
+        const q = input.value.trim().toLowerCase();
+        list.innerHTML = '';
+        const shops = Store.shops().filter(s => s.id !== ph.shopId && (!q || (s.name || '').toLowerCase().includes(q)))
+          .sort((a, b) => (lastAt.get(b.id) || 0) - (lastAt.get(a.id) || 0)).slice(0, 60);
+        if (!shops.length) { list.innerHTML = '<div class="empty"><p>店がありません。</p></div>'; return; }
+        for (const s of shops) list.appendChild(row(esc(s.name), esc([s.station, [s.pref, s.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ')), () => {
+          const vs = Store.visitsOf(s.id);
+          if (vs.length === 1) move(s.id, vs[0].id); else if (!vs.length) App.toast('この店には記録がありません'); else { ov.querySelector('.vl-title').textContent = `${s.name} の訪問`; ph.__toShop = s.id; visitRows(s.id); }
+        }));
+      };
+      input.addEventListener('input', render);
+      render();
+    }
+    document.body.appendChild(ov);
+  }
+
+  // ---------- 月ごとの振り返り（v366〜。統計の「もっと見る」、今年のまとめの下） ----------
+  let monthSel = ''; // 見ている月 'YYYY-MM'（訪問のある月だけ ‹ › で切り替え）
+  function renderMonthCard() {
+    const box = $('#stat-month');
+    if (!box) return;
+    const mkey = (d) => { const t = new Date(d); return isNaN(t) ? '' : `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`; };
+    const all = Store.visits();
+    const months = [...new Set(all.map(v => mkey(v.datetime)).filter(Boolean))].sort().reverse();
+    if (!months.length) { box.classList.add('hidden'); return; }
+    const now = mkey(new Date());
+    if (!months.includes(monthSel)) monthSel = months.includes(now) ? now : months[0];
+    const i = months.indexOf(monthSel);
+    const vs = all.filter(v => mkey(v.datetime) === monthSel).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    const shopIds = new Set(vs.map(v => v.shopId));
+    const firstAt = new Map();
+    for (const v of all) { const t = new Date(v.datetime).getTime() || 0; if (!firstAt.has(v.shopId) || t < firstAt.get(v.shopId)) firstAt.set(v.shopId, t); }
+    const newShops = [...shopIds].filter(id => mkey(firstAt.get(id)) === monthSel).length;
+    const [y, m] = monthSel.split('-');
+    const nav = (cls, label, on) => months.length > 1 ? `<button type="button" class="yc-nav ${cls}" aria-label="${label}"${on ? '' : ' disabled'}>${cls === 'yc-prev' ? '‹' : '›'}</button>` : '';
+    box.classList.remove('hidden');
+    box.innerHTML = `
+      <div class="yc-head"><div class="yc-title">${nav('yc-prev', '前の月', i < months.length - 1)}<b>${y}年${+m}月</b>${nav('yc-next', '次の月', i > 0)}</div></div>
+      <div class="yc-nums mc-nums"><div><b>${shopIds.size}</b><span>店</span></div><div><b>${vs.length}</b><span>回</span></div><div><b>${newShops}</b><span>新しい店</span></div></div>
+      <div class="mc-strip"></div>`;
+    const prev = box.querySelector('.yc-prev'), next = box.querySelector('.yc-next');
+    if (prev) prev.addEventListener('click', () => { monthSel = months[i + 1]; renderMonthCard(); });
+    if (next) next.addEventListener('click', () => { monthSel = months[i - 1]; renderMonthCard(); });
+    // その月の写真の帯（訪問の新しい順）。タップで投稿として開く
+    const strip = box.querySelector('.mc-strip');
+    Store.allPhotos().then(allPh => {
+      if (!strip.isConnected) return;
+      const vIdx = new Map(vs.map((v, j) => [v.id, j]));
+      const phs = allPh.filter(p => vIdx.has(p.visitId)).sort((a, b) => vIdx.get(a.visitId) - vIdx.get(b.visitId) || a.createdAt - b.createdAt);
+      if (!phs.length) { strip.remove(); return; }
+      const seen = new Map(); const posts = [];
+      for (const p of phs) if (!seen.has(p.visitId)) { seen.set(p.visitId, posts.length); posts.push(buildOwnPost(p)); }
+      for (const p of phs.slice(0, 40)) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'mc-ph'; b.setAttribute('aria-label', '写真を開く');
+        b.innerHTML = '<img alt="" loading="lazy" decoding="async">';
+        setThumb(b.querySelector('img'), p);
+        b.addEventListener('click', () => showPostDetail(posts[seen.get(p.visitId)], { list: posts, index: seen.get(p.visitId) }));
+        strip.appendChild(b);
+      }
+    });
   }
 
   // 訪問1件の部品（v364〜 訪問の一覧と店舗の詳細で共用。v344 の並び: 写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›）
@@ -5521,6 +5630,7 @@ const Views = (() => {
     });
     // 訪問記録の写真をすべて全幅で並べる（自分の投稿は端末内の全写真、他人の投稿は代表1枚）
     const cap = `${p.shopName || ''}${isMine && p.datetime ? '　' + fmtDate(p.datetime) : ''}`;
+    let curIdx = 0, itemsRef = []; // いま見えている写真（「…」の付け替え・削除の対象。v366〜）
     (async () => {
       // 表示する写真の一覧。グループ投稿(photoItems)なら各写真にその訪問の評価を持つ
       const isGroup = Array.isArray(p.photoItems) && p.photoItems.length > 0;
@@ -5533,6 +5643,7 @@ const Views = (() => {
         items = ps.map(x => ({ ph: x, rating: p.rating || 0 }));
       }
       if (!items.length && p.photoUrl) items = [{ url: p.photoUrl, rating: p.rating || 0 }];
+      itemsRef = items;
       const box = sect.querySelector('.pd-photos');
       // 各写真の右上に、その訪問の星の数（★4のように）。ホーム・投稿詳細どの写真にも出す
       const badge = (r) => r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : '';
@@ -5554,6 +5665,7 @@ const Views = (() => {
         box.after(dots);
         box.addEventListener('scroll', () => {
           const i = Math.round(box.scrollLeft / box.clientWidth);
+          curIdx = i;
           [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
         }, { passive: true });
       } else {
@@ -5573,10 +5685,25 @@ const Views = (() => {
     const eb = sect.querySelector('.pd-edit');
     if (eb) eb.addEventListener('click', () => {
       if (!mv) return;
-      openActionSheet([
+      const acts = [
         { label: '店舗の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
         { label: '編集', onClick: () => { close(); showShop(mv.shopId, false, mv.id); } },
-      ]);
+      ];
+      // いま見えている写真の付け替え・削除（v366〜。端末内の写真のときだけ）
+      const it = itemsRef[curIdx];
+      const ph = it && it.ph;
+      if (ph && Store.getShop(ph.shopId)) {
+        const done = () => { close(); App.refreshCurrent(); };
+        if (Store.visitsOf(ph.shopId).length > 1) acts.push({ label: 'この写真を別の訪問へ', onClick: () => openPhotoMove(ph, 'visit', done) });
+        acts.push({ label: 'この写真を別の店へ', onClick: () => openPhotoMove(ph, 'shop', done) });
+        acts.push({ label: 'この写真を削除', danger: true, onClick: async () => {
+          if (!confirm('この写真を削除しますか？（記録は残ります）')) return;
+          await Store.deletePhoto(ph.id);
+          App.toast('写真を削除しました');
+          done();
+        } });
+      }
+      openActionSheet(acts);
     });
     const rv = sect.querySelector('.pd-revisit');
     if (rv) rv.addEventListener('click', () => { if (mv) openRegisterFor(mv.shopId); });

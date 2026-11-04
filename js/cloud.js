@@ -687,9 +687,14 @@ const Cloud = (() => {
         await putTombstone('photo', obj.id);
         await fb.fs.deleteDoc(dref('photos', obj.id)).catch(() => {});
         await fb.st.deleteObject(fb.st.ref(storage, `users/${user.uid}/photos/${obj.id}.jpg`)).catch(() => {});
+        if (obj.visitId && Store.visits().some(v => v.id === obj.visitId)) await publishPostForVisit(obj.visitId).catch(() => {}); // 残った写真で投稿を出し直す（v366〜）
         return;
       }
-      if (action === 'meta') return fb.fs.setDoc(dref('photos', obj.id), clean(obj), { merge: true }); // 店の統合など、メタ情報だけの変更（v364〜）
+      if (action === 'meta') { // 店の統合・写真の付け替えなど、メタ情報（店・訪問）だけの変更（v364〜）
+        await fb.fs.setDoc(dref('photos', obj.id), clean({ shopId: obj.shopId, visitId: obj.visitId }), { merge: true });
+        for (const vid of [obj.visitId, obj.prevVisitId]) if (vid && Store.visits().some(v => v.id === vid)) await publishPostForVisit(vid).catch(() => {});
+        return;
+      }
       return uploadPhoto(obj);
     }
   }

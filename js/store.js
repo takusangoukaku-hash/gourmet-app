@@ -236,6 +236,19 @@ const Store = (() => {
     if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash].shopId = shopId; try { persistHashes(); } catch { /* noop */ } }
     return true;
   }
+  // 写真1枚を別の訪問・別の店へ付け替える（v366〜 投稿詳細の「…」から）。クラウドにはメタ情報だけ送り、前後の訪問の公開投稿を出し直す
+  async function movePhoto(id, shopId, visitId) {
+    const rec = await getPhotoRec(id).catch(() => null);
+    if (!rec || !shopId || !visitId) return false;
+    const prevVisitId = rec.visitId;
+    rec.shopId = shopId; rec.visitId = visitId;
+    await writePhoto(rec, false);
+    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash] = { shopId, visitId }; try { persistHashes(); } catch { /* noop */ } }
+    emit('photo', 'meta', { id, shopId, visitId, prevVisitId });
+    return true;
+  }
+  // 写真1枚だけ消す（訪問は残る）
+  const deletePhoto = (id) => deletePhotosWhere(p => p.id === id);
   // サムネイル1枚（{ blob, v } か null）
   async function getThumb(id) {
     const d = await db();
@@ -341,7 +354,7 @@ const Store = (() => {
         // 削除が確定してから指紋を消す（失敗時に「写真は残っているのに再登録できる」状態を防ぐ）
         for (const p of removed) { if (p.hash) delete photoHashes[p.hash]; }
         if (removed.length) { try { persistHashes(); } catch { /* noop */ } }
-        for (const p of removed) { markDeleted('photo', p.id); emit('photo', 'del', { id: p.id, hash: p.hash }); }
+        for (const p of removed) { markDeleted('photo', p.id); emit('photo', 'del', { id: p.id, hash: p.hash, visitId: p.visitId }); } // visitId は公開投稿の出し直し用（v366〜）
         resolve();
       };
       tx.onerror = () => resolve();
@@ -669,7 +682,7 @@ const Store = (() => {
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters, mergeShops,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
-    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, relinkPhoto, getThumb, getPhotoBlob,
+    addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, relinkPhoto, movePhoto, deletePhoto, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
     wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
