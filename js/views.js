@@ -2736,27 +2736,46 @@ const Views = (() => {
 
     const groupFn = groupKeyFns($('#flt-group').value);
     box.innerHTML = '';
-    const cardOf = shopCard; // 検索タブは比べやすい横長の一覧（プロフィールは写真の並び）
+    renderListSections(box, shops, groupFn);
+  }
 
+  // 検索の「お店」一覧（v357〜）: お店の記録・投稿詳細と同じ .sfs の並び（写真 → 操作行 → 店名 → 場所 → あなた向け）。
+  // 写真はサムネだけ（lite）。まとめ（都道府県・ジャンル…）があれば見出しで区切る
+  let listSeq = 0;
+  async function renderListSections(box, shops, groupFn) {
+    const seq = ++listSeq;
+    const all = await Store.allPhotos().catch(() => []);
+    if (seq !== listSeq || !box.isConnected) return;
+    const vById = new Map(Store.visits().map(v => [v.id, v]));
+    const t = (p) => { const v = vById.get(p.visitId); return (v && v.datetime) ? new Date(v.datetime).getTime() : (p.createdAt || 0); };
+    const byShop = new Map();
+    for (const p of all) { if (!byShop.has(p.shopId)) byShop.set(p.shopId, []); byShop.get(p.shopId).push(p); }
+    const section = (sh) => {
+      const photos = (byShop.get(sh.id) || []).slice().sort((a, b) => t(b) - t(a) || (b.createdAt || 0) - (a.createdAt || 0));
+      return buildShopFeedSection({ shopId: sh.id, photos }, { lite: true });
+    };
+    const wrap = document.createElement('div');
+    wrap.className = 'pf-shopfeed list-feed';
     if (!groupFn) {
-      shops.forEach(s => box.appendChild(cardOf(s)));
+      shops.forEach(sh => wrap.appendChild(section(sh)));
     } else {
       const groups = new Map();
-      for (const s of shops) {
-        for (const key of groupFn(s)) {
+      for (const sh of shops) {
+        for (const key of groupFn(sh)) {
           if (!groups.has(key)) groups.set(key, []);
-          groups.get(key).push(s);
+          groups.get(key).push(sh);
         }
       }
       [...groups.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([key, list]) => {
         const h = document.createElement('div');
         h.className = 'group-header';
         h.innerHTML = `${esc(key)} <span class="count">${list.length}件</span>`;
-        box.appendChild(h);
-        list.forEach(s => box.appendChild(cardOf(s)));
+        wrap.appendChild(h);
+        list.forEach(sh => wrap.appendChild(section(sh)));
       });
     }
-    loadThumbs(box);
+    box.innerHTML = '';
+    box.appendChild(wrap);
   }
 
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
@@ -2818,66 +2837,7 @@ const Views = (() => {
 
   // 店舗一覧の1行（検索タブ・プロフィールの検索サブタブ共通）。
   // デザインカンプ準拠のカード型: 左＝代表写真、右＝店名・ジャンル・駅・★平均＋大きな数字・訪問回数
-  function shopCard(s) {
-    const avg = Store.avgRating(s.id);
-    const genre = shopLabelGenre(s) || '';
-    const div = document.createElement('div');
-    div.className = 'pf-shopcard';
-    div.dataset.shopOpen = s.id;
-    div.innerHTML = `
-      <div class="ps-thumb" data-thumb="${s.id}">${IC_DISH}</div>
-      <div class="ps-main">
-        <div class="ps-name">${esc(s.name)}</div>
-        ${(genre || s.station) ? `<div class="ps-row">${[genre, s.station].filter(Boolean).map(esc).join(' ・ ')}</div>` : ''}
-        <div class="ps-stars">${starSvg(avg, 17)}<span class="ps-avg">${avg ? fmtR(avg) : '－'}</span>${(() => {
-          // フォロワーの評価があるお店は「あなた向け評価」を並べて出す（一致率で重み付け）
-          const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
-          return pair.conf !== 'none' ? `<span class="ps-you${pair.conf === 'ref' ? ' ref' : ''}" title="${pair.conf === 'ref' ? '参考: 評価した人がまだ少なめです' : 'あなたと味覚が近い人の評価ほど重く数えた★'}">あなた向け <b>${fmtR(pair.personal)}</b>${pair.conf === 'ref' ? '<i>参考</i>' : ''}</span>` : '';
-        })()}</div>
-      </div>`;
-    // 写真タップはホームの投稿と同じ表示（上下スクロールで検索結果の前後の店の投稿へ）。
-    // カードの他の場所のタップは従来どおり店舗詳細（data-shopOpen の委譲）
-    div.querySelector('.ps-thumb').addEventListener('click', (e) => {
-      e.stopPropagation();
-      openShopPostFeed(s.id, sortShops(filteredShops()));
-    });
-    return div;
-  }
-
-  // 店の一覧（検索結果など）から、写真がある店を投稿の形にして連続スクロールで見せる。
-  // タップした店から始まり、下スクロールで一覧の並び順に次の店の投稿が出る（ホームと同じ）
-  async function openShopPostFeed(shopId, shops) {
-    const all = await Store.allPhotos();
-    const vById = new Map(Store.visits().map(v => [v.id, v]));
-    const t = (p) => {
-      const v = vById.get(p.visitId);
-      return (v && v.datetime) ? new Date(v.datetime).getTime() : (p.createdAt || 0);
-    };
-    const groups = (shops && shops.length ? shops : [Store.getShop(shopId)]).filter(Boolean)
-      .map(s => ({ shopId: s.id, photos: all.filter(p => p.shopId === s.id) }))
-      .filter(g => g.photos.length);
-    groups.forEach(g => g.photos.sort((a, b) => t(b) - t(a) || (b.createdAt || 0) - (a.createdAt || 0)));
-    const idx = groups.findIndex(g => g.shopId === shopId);
-    if (idx < 0) { showShop(shopId); return; } // 写真のない店は従来の店舗詳細へ
-    const posts = groups.map(g => buildOwnShopPost(g));
-    showPostDetail(posts[idx], { list: posts, index: idx });
-  }
-
-  async function loadThumbs(root) {
-    // 店ごとの代表写真を並列に引く（逐次 await だと店の数だけ往復が積み重なる）
-    // 画面に近い先頭から 24 件ずつまとめて引く（全件同時だと最初の1枚が遅くなる）
-    const els = [...root.querySelectorAll('[data-thumb]')];
-    for (let i = 0; i < els.length; i += 24) {
-      if (!root.isConnected) return;
-      await Promise.all(els.slice(i, i + 24).map(async (el) => {
-        const rep = await Store.repPhoto(el.dataset.thumb).catch(() => null);
-        if (rep && el.isConnected) {
-          el.innerHTML = `<img alt="" loading="lazy" decoding="async">`;
-          setThumb(el.querySelector('img'), rep);
-        }
-      }));
-    }
-  }
+  // 検索の店カード shopCard() / openShopPostFeed() / loadThumbs() は v357 で廃止（一覧は renderListSections の .sfs）
 
   // ========== 写真ギャラリー ==========
   function initPhotos() {
@@ -3372,13 +3332,17 @@ const Views = (() => {
   // 店舗セクション1つぶん（v338〜。v343〜 投稿詳細と同じ並び: 写真（★1つ）→ 操作行（♥・コメント・経路・共有 … 記録を追加・…）→ 店名 → 駅 ・ 県 市 → 日付 → 訪問の写真）
   // 枠や影は無し。「N回訪問」「最終訪問」「すべての訪問履歴」の文字と店ごとの大きなボタンは廃止。
   // いいね・コメントは最新の写真の訪問（＝公開投稿の id）に付く
-  function buildShopFeedSection(g) {
+  function buildShopFeedSection(g, opt) {
+    const o = opt || {}; // lite: 写真はサムネだけ（検索の一覧。v357〜）
     const s = Store.getShop(g.shopId) || {};
     const vs = Store.visitsOf(g.shopId);
     const last = Store.lastVisitDate(g.shopId);
     const hasPos = s.lat != null && s.lon != null;
     const postId = (g.photos[0] || {}).visitId || '';
     const loc = locHtml(s.station, s.pref, s.city);
+    // フォロワーの評価があるお店は「あなた向け」を1行（検索で比べるため。conf が none なら出さない）
+    const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+    const youLine = pair.conf !== 'none' ? `<div class="pd-sub sfs-you">あなた向け ${starIc('full', 12)}<b>${fmtR(pair.personal)}</b>${pair.conf === 'ref' ? ' <i>参考</i>' : ''}</div>` : '';
     const el = document.createElement('div');
     el.className = 'sfs';
     el.innerHTML = `
@@ -3389,6 +3353,7 @@ const Views = (() => {
       <div class="sfs-body">
         <button type="button" class="pd-shop sfs-name">${esc(s.name || '')}</button>
         ${loc ? `<div class="pd-sub">${loc}</div>` : ''}
+        ${youLine}
         ${last ? `<div class="pd-sub">${esc(fmtDateJa(last))}</div>` : ''}
         <div class="sfs-visits"></div>
         ${cmtBoxHtml()}
@@ -3406,15 +3371,21 @@ const Views = (() => {
       slide.className = 'sfs-slide';
       slide.setAttribute('aria-label', '店舗詳細を開く');
       slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
-      if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
+      if (i === 0 && !o.lite) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
       slide.addEventListener('click', () => showShop(g.shopId));
       car.appendChild(slide);
       return slide;
     });
+    if (!g.photos.length) {
+      // 写真の無い店（検索の一覧）: 淡い地に器の印。★は自分の平均
+      const avg = Store.avgRating(g.shopId);
+      car.innerHTML = `<div class="sfs-slide vlc-noph">${IC_DISH}${avg ? `<span class="pd-photo-star">★${fmtR(avg)}</span>` : ''}</div>`;
+      car.firstElementChild.addEventListener('click', () => showShop(g.shopId));
+    }
     const upgrade = (i) => {
       const sl = slides[i];
-      if (!sl || sl.dataset.full) return;
+      if (!sl || sl.dataset.full || o.lite) return;
       sl.dataset.full = '1';
       setFullPhoto(sl.querySelector('img'), g.photos[i]);
     };

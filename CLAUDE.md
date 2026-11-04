@@ -90,7 +90,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   `#stat-more` に畳み「もっと見る」で開く（開閉は `gourmet.statMore` に記憶）。グラフ部品（Chart.js）はタイルを描いた後に読む。
 - 「★5 ×N人」（v318〜。v356〜 数えるのは ★4.5 以上 `FIVE_MIN_RATING`）: 平均は人数が増えると 4 点台に寄るため、別に `fiveStarFans()` で数えてホームのカードと検索の一覧に `fiveChipHtml()` で出す。
   数えるのは自分と味覚一致率 `FIVE_MATCH_MIN`（70%）以上の人だけ。地図ではピンの頭を金の★にする（v320〜）。まとまりの色は ★5 の有無ではなく中で一番評価の高い店の色（利用者の希望）。
-  v339〜 カードには出さない（地図のピンの★だけ。`fiveChipHtml()` は未使用）。検索の店カードは「店名／ジャンル ・ 駅／★平均（＋あなた向け）」だけ。プロフィールの写真カードは写真と店名だけ。
+  v339〜 カードには出さない（地図のピンの★だけ。`fiveChipHtml()` は未使用）。検索の「お店」一覧は v357〜 お店の記録と同じ形（写真の★バッジ＋「あなた向け」の1行）。プロフィールの写真カードは写真と店名だけ。
 - 他人の投稿では日付を出さない（`isMine` で判定済み）。
 - 行きたい店（v303〜）: 訪問で消さず `doneAt` を付けて「達成」にする。`Store.wishes()` は未達成のみ、達成済みも含めるなら `Store.allWishes()`、
   達成度は `Store.wishProgress()`。バックアップ・同期には達成済みも含める（`allWishes`/`rawWishes`）。
@@ -118,7 +118,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   縦横比は写真メタの `ar`（縦/横）: `Api.compressImage()` が `blob.aspect` に付け `Store.addPhoto()` が保存、古い写真はサムネ作成時・表示時に `Store.setPhotoAspect()` で後追い。
   公開投稿（`publicPosts`）にも `ar` を入れる（他人の投稿は `Number(p.ar) || 0`。無ければ正方形扱い）。
 - 役割分担（v315〜）: プロフィール＝自分のアルバム（「写真」と「統計」の2タブ。写真の上の `#pf-photo-q` で絞り込み）、
-  検索タブ＝条件で探す・比べる（横長の `shopCard()` 一覧と写真の切り替え）。同じ機能を2か所に置かない（v314 のプロフィール「お店をさがす」は廃止）。
+  検索タブ＝条件で探す・比べる（「お店」は v357〜 お店の記録と同じ `.sfs` の並びを `renderListSections()` で描く（`buildShopFeedSection(g, {lite:true})`＝写真はサムネだけ、写真の無い店は器の印、「あなた向け」を1行）。横長の `shopCard()` は廃止。写真モードとの切り替えは `#list-mode-segs`）。同じ機能を2か所に置かない（v314 のプロフィール「お店をさがす」は廃止）。
 - スマホ表示（v330〜）: 幅 360〜390px で見切れないことを基準にする。全画面モーダルの ✕（`.modal.modal-full .modal-close`）は `flex-shrink: 0`（列 flex で潰れて見出しに重なった）、
   店シートのボタン列 `.msh-btns` は折り返し、評価の箱の見出し `.rp-label` は折り返す、地図の凡例 `.map-legend-float` は `max-width: calc(100% - 70px)` でズームボタンを避ける。
   画面を足したら幅 360px でも確認する。
