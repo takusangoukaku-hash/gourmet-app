@@ -1471,7 +1471,7 @@ const Views = (() => {
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
     ov.querySelector('.msh-revisit').addEventListener('click', () => { close(); openRegisterFor(shopId); }); // v350〜 店を選んだ状態の登録画面へ
 
-    // あなたの写真: 角丸のタイルを横に並べる。左上に日付だけ（見出し・枚数・★は出さない。v336〜）
+    // あなたの写真: 角丸のタイルを 3 列で折り返して並べる（v361〜 横スクロールをやめ、シートごと上下に）。左上に日付だけ（見出し・枚数・★は出さない。v336〜）
     const myrow = ov.querySelector('.msh-myrow');
     photos.forEach(ph => {
       const v = vById.get(ph.visitId) || {};
