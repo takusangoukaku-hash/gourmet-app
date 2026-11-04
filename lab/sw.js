@@ -3,12 +3,12 @@
 //  - ネットワーク優先（更新を即反映、オフライン時はキャッシュ）
 //  - 更新時に消すのは lab- のキャッシュだけ
 // =====================================================
-const VERSION = 'v1'; // 初版: 後片付け（曜日繰り返し）・依頼事項（依頼者・期限）・トグルで完了
+const VERSION = 'v2'; // アプリらしい操作: 本物のスイッチ（iOS は振動）・左スワイプで削除・シートを下に引いて閉じる・並べ替えの動き・ホーム画面に追加の案内
 const CACHE = 'lab-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=1', './js/app.js?v=1',
+  './', './index.html', './css/style.css?v=2', './js/app.js?v=2',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

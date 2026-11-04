@@ -4,11 +4,14 @@
 //  - 依頼事項: 一度きり。依頼者・期限つき。完了したら下に沈む
 //  - データは localStorage（lab.tasks.v1）のみ
 // =====================================================
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 const KEY = 'lab.tasks.v1';
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 月曜はじまり
 
+// iOS 17.4+ の Safari は <input switch> を本物のスイッチで描き、切り替えで振動する
+const NATIVE_SWITCH = 'switch' in HTMLInputElement.prototype;
+const buzz = (ms = 10) => { try { navigator.vibrate?.(ms); } catch {} };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -42,7 +45,23 @@ function toggle(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
   if (t.kind === 'clean') t.doneDay = isDone(t) ? null : ymd();
   else t.doneAt = t.doneAt ? null : new Date().toISOString();
-  save(); render();
+  save();
+  buzz();
+  clearTimeout(toggle.timer);
+  toggle.timer = setTimeout(renderAnimated, 280);
+}
+
+// 並べ替えを滑らかに（FLIP: 前の位置から新しい位置へ動かす）
+function renderAnimated() {
+  const before = new Map([...document.querySelectorAll('.item')].map(el => [el.dataset.id, el.getBoundingClientRect().top]));
+  render();
+  document.querySelectorAll('.item').forEach(el => {
+    const top = before.get(el.dataset.id);
+    if (top == null) return;
+    const dy = top - el.getBoundingClientRect().top;
+    if (!dy) return;
+    el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
 }
 
 // ---------- 描画 ----------
@@ -76,12 +95,15 @@ function subText(t) {
 function itemHtml(t, rest = false) {
   const done = isDone(t);
   return `<div class="item${done ? ' done' : ''}${rest ? ' rest' : ''}" data-id="${esc(t.id)}">
-    <button class="del" data-del="${esc(t.id)}" aria-label="削除"></button>
-    <div class="body">
-      <div class="title">${esc(t.title)}</div>
-      <div class="sub">${subText(t)}</div>
+    <button class="swipe-del" data-del="${esc(t.id)}">削除</button>
+    <div class="item-in">
+      <button class="del" data-del="${esc(t.id)}" aria-label="削除"></button>
+      <div class="body">
+        <div class="title">${esc(t.title)}</div>
+        <div class="sub">${subText(t)}</div>
+      </div>
+      <input type="checkbox" switch class="tg${NATIVE_SWITCH ? '' : ' custom'}" data-tg="${esc(t.id)}" ${done ? 'checked' : ''} ${rest ? 'disabled' : ''} aria-label="完了">
     </div>
-    <button class="tg${done ? ' on' : ''}" data-tg="${esc(t.id)}" role="switch" aria-checked="${done}" ${rest ? 'disabled' : ''} aria-label="完了"></button>
   </div>`;
 }
 
@@ -99,6 +121,7 @@ function sortClean(a, b) {
 }
 
 function render() {
+  openRow = null;
   document.body.classList.toggle('editing', editing);
   $('#btn-edit').textContent = editing ? '完了' : '編集';
   $('#btn-edit').classList.toggle('active', editing);
@@ -232,15 +255,86 @@ $('#btn-clear-done').onclick = () => {
   toast(`${gone.length}件を消去`, '元に戻す', () => { tasks = before; save(); render(); });
 };
 
-$('#list').addEventListener('click', (e) => {
+$('#list').addEventListener('change', (e) => {
   const tg = e.target.closest('[data-tg]');
-  if (tg) { if (!tg.disabled) toggle(tg.dataset.tg); return; }
+  if (tg) toggle(tg.dataset.tg);
+});
+$('#list').addEventListener('click', (e) => {
+  if (swipedAt && Date.now() - swipedAt < 400) { e.preventDefault(); return; } // スワイプ直後の誤タップ
+  if (e.target.closest('[data-tg]')) return;
+  if (openRow && !e.target.closest('.swipe-del')) { closeSwipe(); return; }
   const del = e.target.closest('[data-del]');
   if (del) { removeTask(del.dataset.del); return; }
   if (e.target.closest('#toggle-rest')) { showRest = !showRest; render(); return; }
   const row = e.target.closest('.item');
   if (row) openSheet(tasks.find(t => t.id === row.dataset.id));
 });
+
+// ---------- 左スワイプで削除（iOS の一覧と同じ） ----------
+const DEL_W = 88;
+let openRow = null, swipedAt = 0;
+function setX(row, x, anim) {
+  const inner = row.querySelector('.item-in');
+  inner.style.transition = anim ? 'transform .25s cubic-bezier(.2,.8,.2,1)' : 'none';
+  inner.style.transform = x ? `translateX(${x}px)` : '';
+  row.classList.toggle('swiping', x !== 0);
+}
+function closeSwipe() { if (openRow) { setX(openRow, 0, true); openRow = null; } }
+(() => {
+  let row = null, x0 = 0, y0 = 0, base = 0, dx = 0, mode = null;
+  const list = $('#list');
+  list.addEventListener('touchstart', (e) => {
+    const r = e.target.closest('.item');
+    if (!r || editing || e.target.closest('[data-tg]') || e.target.closest('.swipe-del')) { row = null; return; }
+    if (openRow && openRow !== r) closeSwipe();
+    row = r; mode = null; dx = 0;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    base = openRow === r ? -DEL_W : 0;
+  }, { passive: true });
+  list.addEventListener('touchmove', (e) => {
+    if (!row) return;
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (!mode) { if (Math.abs(mx) < 8 && Math.abs(my) < 8) return; mode = Math.abs(mx) > Math.abs(my) ? 'h' : 'v'; }
+    if (mode !== 'h') return;
+    e.preventDefault();
+    dx = Math.min(0, base + mx);
+    if (dx < -DEL_W) dx = -DEL_W + (dx + DEL_W) * 0.6; // 引っぱりすぎは重く
+    setX(row, dx, false);
+  }, { passive: false });
+  list.addEventListener('touchend', () => {
+    if (!row || mode !== 'h') { row = null; return; }
+    swipedAt = Date.now();
+    const w = row.offsetWidth;
+    if (dx < -w * 0.55) { const id = row.dataset.id; buzz(15); removeTask(id); openRow = null; }
+    else if (dx < -DEL_W / 2) { setX(row, -DEL_W, true); openRow = row; }
+    else { setX(row, 0, true); if (openRow === row) openRow = null; }
+    row = null;
+  });
+})();
+document.addEventListener('touchstart', (e) => { if (openRow && !e.target.closest('.item')) closeSwipe(); }, { passive: true });
+
+// ---------- シートを下に引いて閉じる ----------
+(() => {
+  const sheet = document.querySelector('.sheet');
+  let y0 = null, dy = 0;
+  sheet.addEventListener('touchstart', (e) => {
+    if (!e.target.closest('.grab, .sheet-head') || e.target.closest('button')) { y0 = null; return; }
+    y0 = e.touches[0].clientY; dy = 0; sheet.style.transition = 'none';
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (y0 == null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    sheet.style.transform = `translateY(${dy}px)`;
+    e.preventDefault();
+  }, { passive: false });
+  sheet.addEventListener('touchend', () => {
+    if (y0 == null) return;
+    y0 = null;
+    sheet.style.transition = 'transform .22s ease-out';
+    if (dy > 110) { sheet.style.transform = 'translateY(100%)'; setTimeout(() => { closeSheet(); sheet.style.transform = ''; }, 200); }
+    else sheet.style.transform = '';
+  });
+})();
 
 $('#sh-kind').addEventListener('click', (e) => {
   const b = e.target.closest('[data-kind]'); if (!b) return;
@@ -266,6 +360,30 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 setInterval(checkDay, 60000);
 
 render();
+
+// ---------- ホーム画面に追加の案内（ブラウザで開いているときだけ・一度閉じたら出さない） ----------
+(() => {
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  let seen = false; try { seen = !!localStorage.getItem('lab.installHint'); } catch {}
+  if (standalone || seen) return;
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const el = $('#install');
+  const show = () => { el.hidden = false; document.body.classList.add('has-install'); };
+  const done = () => { el.hidden = true; document.body.classList.remove('has-install'); try { localStorage.setItem('lab.installHint', '1'); } catch {} };
+  el.querySelector('.x').onclick = done;
+  if (ios) {
+    el.querySelector('.msg').innerHTML = 'ホーム画面に追加すると、アプリとして全画面で使えます。<br>下の <b>共有</b> ボタン → <b>ホーム画面に追加</b>';
+    show();
+  } else {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      el.querySelector('.msg').textContent = 'アプリとしてインストールできます';
+      const b = el.querySelector('.go'); b.hidden = false;
+      b.onclick = async () => { e.prompt(); await e.userChoice.catch(() => {}); done(); };
+      show();
+    });
+  }
+})();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -12,6 +12,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); }
 body {
+  touch-action: manipulation; -webkit-touch-callout: none; overscroll-behavior-y: none;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 40px);
   -webkit-user-select: none; user-select: none;
@@ -52,10 +53,20 @@ main { padding: 0 16px; }
 .sec-h .n { font-size: 15px; font-weight: 400; color: var(--dim); margin-left: 8px; }
 
 /* 1件の行（アラームの行と同じ形） */
-.item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 0; border-bottom: 1px solid var(--line);
+.item { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+.item-in {
+  position: relative; z-index: 1; background: var(--bg);
+  display: flex; align-items: center; gap: 12px; padding: 14px 0;
+  transition: background .15s;
 }
+.item-in:active { background: #111; }
+.swipe-del {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 88px;
+  background: var(--danger); color: #fff; font-size: 17px; font-weight: 600;
+  visibility: hidden;
+}
+.item.swiping .swipe-del { visibility: visible; }
+.item.swiping .item-in:active { background: var(--bg); }
 .item .del { display: none; flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--danger); position: relative; }
 .item .del::after { content: ""; position: absolute; left: 6px; right: 6px; top: 11px; height: 2px; background: #fff; border-radius: 1px; }
 body.editing .item .del { display: block; }
@@ -72,17 +83,20 @@ body.editing .item .tg { display: none; }
 .item.done .sub { font-weight: 400; }
 .item.rest { opacity: .5; }
 
-/* トグル */
-.tg {
-  flex-shrink: 0; width: 64px; height: 38px; border-radius: 19px;
+/* トグル（iOS は本物のスイッチ。対応しないブラウザは .custom で同じ形に描く） */
+.tg { flex-shrink: 0; margin: 0; accent-color: var(--on); cursor: pointer; }
+.tg:not(.custom) { transform: scale(1.25); transform-origin: right center; margin-right: 8px; }
+.tg.custom {
+  -webkit-appearance: none; appearance: none;
+  width: 64px; height: 38px; border-radius: 19px;
   background: var(--off); position: relative; transition: background .2s;
 }
-.tg::after {
+.tg.custom::after {
   content: ""; position: absolute; top: 3px; left: 3px; width: 44px; height: 32px; border-radius: 16px;
   background: #fff; transition: transform .2s; box-shadow: 0 2px 4px rgba(0,0,0,.25);
 }
-.tg.on { background: var(--on); }
-.tg.on::after { transform: translateX(14px); }
+.tg.custom:checked { background: var(--on); }
+.tg.custom:checked::after { transform: translateX(14px); }
 .tg:disabled { opacity: .5; }
 
 .more { display: block; width: 100%; text-align: left; padding: 14px 0; color: var(--dim); font-size: 15px; }
@@ -102,6 +116,10 @@ body.editing .item .tg { display: none; }
   animation: up .22s ease-out;
 }
 @keyframes up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+/* つまみ */
+.grab { width: 36px; height: 5px; border-radius: 3px; background: #48484a; margin: 0 auto 10px; }
+.sheet { overscroll-behavior: contain; }
+.sheet-head { touch-action: none; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .sheet-head h2 { font-size: 17px; font-weight: 600; margin: 0; }
 .sheet .pill { background: #2c2c2e; }
@@ -127,6 +145,17 @@ body.editing .item .tg { display: none; }
 .days button { flex: 1; aspect-ratio: 1; max-width: 44px; border-radius: 50%; background: #3a3a3c; font-size: 15px; }
 .days button.sel { background: var(--on); color: #000; font-weight: 600; }
 
+/* ホーム画面に追加の案内 */
+body.has-install { padding-bottom: calc(env(safe-area-inset-bottom) + 160px); }
+.install {
+  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 15;
+  background: #2c2c2e; border-radius: 14px; padding: 14px 44px 14px 16px;
+  font-size: 15px; line-height: 1.6; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  display: flex; align-items: center; gap: 12px;
+}
+.install .msg { flex: 1; }
+.install .go { height: 36px; padding: 0 14px; font-size: 15px; }
+.install .x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; display: grid; place-items: center; color: var(--dim); }
 .toast {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px); transform: translateX(-50%);
   background: #2c2c2e; color: var(--fg); padding: 12px 18px; border-radius: 22px; font-size: 15px;
