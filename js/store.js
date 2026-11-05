@@ -599,6 +599,18 @@ const Store = (() => {
     } finally { remoteApply = false; }
   }
 
+  // 店の無い訪問・訪問の無い写真を消す（v370〜。同期で記録を取り込んだ後と、設定の「店の無い記録を掃除」から）。
+  // 消したものはクラウドにも伝える（通常の削除と同じ）
+  async function cleanupOrphans() {
+    const shopIds = new Set(shops.map(s => s.id));
+    const orphanVisits = visits.filter(v => !shopIds.has(v.shopId));
+    for (const v of orphanVisits) await deleteVisit(v.id);
+    const visitIds = new Set(visits.map(v => v.id));
+    const before = (await allPhotos()).length;
+    await deletePhotosWhere(p => !visitIds.has(p.visitId) || !shopIds.has(p.shopId));
+    const after = (await allPhotos()).length;
+    return { visits: orphanVisits.length, photos: before - after };
+  }
   // 別端末での削除をこちらにも反映する（v365〜）。通知も墓標も出さず、他の記録へ波及させない
   // （店を消したときの訪問・写真は、それぞれの削除の控えで消える）。削除より後に直した記録は残す
   async function applyRemoteDelete(kind, id, at) {
@@ -689,7 +701,7 @@ const Store = (() => {
 
   return {
     shops: () => shops.slice(), visits: () => visits.slice(),
-    addShop, updateShop, deleteShop, getShop, matchShop, distMeters, mergeShops,
+    addShop, updateShop, deleteShop, getShop, matchShop, distMeters, mergeShops, cleanupOrphans,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, relinkPhoto, movePhoto, deletePhoto, getThumb, getPhotoBlob,

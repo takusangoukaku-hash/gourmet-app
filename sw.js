@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v369'; // 発見のジャンルの絵を差し替え始めた（1枚目: ラーメン。ChatGPT 生成・256px・白背景）
+const VERSION = 'v370'; // 投稿を画像カードで共有。地図の長押しで行きたい店。起動: index.html をキャッシュ優先（裏で更新）・書体を非同期に。店の無い記録の掃除
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -73,7 +73,19 @@ self.addEventListener('fetch', (e) => {
       );
       return;
     }
-    // それ以外（index.html・アイコン等）はネットワーク優先: 常に最新を取り、オフライン時のみキャッシュを使う
+    // 画面（index.html）はキャッシュ優先で即起動し、裏で取り直して次回に備える（v370〜。版の切り替えは app.js の update() → 新版の SW が担う。
+    // 以前はネットワーク優先で、回線が遅いと起動がその分待たされていた）
+    if (e.request.mode === 'navigate') {
+      e.respondWith(
+        caches.match('./index.html').then(m => {
+          const net = fetch(e.request).then(res => { if (cacheable(res)) { putCached(new Request('./index.html'), res.clone()).catch(() => {}); } return res; });
+          if (m) { net.catch(() => {}); return m; }
+          return net.catch(() => Response.error());
+        })
+      );
+      return;
+    }
+    // それ以外（アイコン等）はネットワーク優先: 常に最新を取り、オフライン時のみキャッシュを使う
     e.respondWith(
       fetch(e.request).then(res => {
         if (cacheable(res)) { const copy = res.clone(); putCached(e.request, copy).catch(() => {}); }

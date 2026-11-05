@@ -20,9 +20,10 @@
 <link rel="preconnect" href="https://firebasestorage.googleapis.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap">
+<!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=369">
+<link rel="stylesheet" href="css/style.css?v=370">
 </head>
 <body>
 
@@ -535,6 +536,10 @@
         <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="4.5"/><circle cx="16" cy="12" r="4.5"/></svg></span>
         <span class="set-label">重複した店をまとめる</span><span class="set-arrow">›</span>
       </button>
+      <button id="cleanup-orphans" class="set-row">
+        <span class="set-ic set-ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></span>
+        <span class="set-label">店の無い記録を掃除</span><span class="set-arrow">›</span>
+      </button>
     </div>
     <input type="file" id="backup-file" accept=".json,application/json" hidden>
 
@@ -623,12 +628,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=369"></script>
-<script src="js/api.js?v=369"></script>
-<script src="js/cloud.js?v=369"></script>
-<script src="js/register.js?v=369"></script>
-<script src="js/import.js?v=369"></script>
-<script src="js/views.js?v=369"></script>
-<script src="js/app.js?v=369"></script>
+<script src="js/store.js?v=370"></script>
+<script src="js/api.js?v=370"></script>
+<script src="js/cloud.js?v=370"></script>
+<script src="js/register.js?v=370"></script>
+<script src="js/import.js?v=370"></script>
+<script src="js/views.js?v=370"></script>
+<script src="js/app.js?v=370"></script>
 </body>
 </html>

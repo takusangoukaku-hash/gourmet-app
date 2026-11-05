@@ -704,6 +704,7 @@ const Views = (() => {
     });
     // ズーム＋コンパス（回転リセット）は右下へ（左上は検索バーが重なるため）
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    wireMapLongPress(); // 長押しで「ここに行きたい店を追加」（v370〜）
     // 現在地ボタン: ワンタップで現在地周辺へ移動（ズーム16まで寄る）。現在地は青い点で表示
     map.addControl(new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true, timeout: 8000 },
@@ -2013,7 +2014,7 @@ const Views = (() => {
     return out;
   }
   // 追加シート。prefill があれば（共有から開いたとき）最初から解析して出す
-  function openWishAdd(prefill) {
+  function openWishAdd(prefill, pos) { // pos = { lat, lon }: 地図の長押しから（v370〜。周辺の店を候補に出す）
     const body = $('#modal-body');
     body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店を追加</h2>
       <p class="hint" style="margin:0 0 8px">店名を入力するか、Google マップ／Apple マップの「共有」で出る文章やリンクをそのまま貼り付けてください。</p>
@@ -2028,6 +2029,7 @@ const Views = (() => {
     $('#modal').classList.remove('hidden');
     const ta = $('#wa-text'), parsed = $('#wa-parsed'), cands = $('#wa-cands'), saveBtn = $('#wa-save'), searchBtn = $('#wa-search');
     let cur = parseWishInput('');
+    if (pos && pos.lat != null) { cur.lat = pos.lat; cur.lon = pos.lon; }
     let picked = null; // 候補から選んだ店 { name, lat, lon, address, genre }
     const paint = () => {
       const p = picked || cur;
@@ -2038,7 +2040,23 @@ const Views = (() => {
       parsed.innerHTML = `<div class="wa-name">${esc(p.name || '（店名なし）')}</div>
         <div class="wa-sub">${p.lat != null ? `${IC_PIN} 位置あり（地図にピンが出ます）` : '位置なし（「場所を探す」で候補から選べます）'}${p.address ? '　' + esc(p.address) : ''}${cur.source === 'google' ? '　Google マップ' : cur.source === 'apple' ? '　Apple マップ' : ''}</div>`;
     };
-    ta.addEventListener('input', () => { cur = parseWishInput(ta.value); picked = null; cands.innerHTML = ''; paint(); });
+    ta.addEventListener('input', () => { cur = parseWishInput(ta.value); if (cur.lat == null && pos && pos.lat != null) { cur.lat = pos.lat; cur.lon = pos.lon; } picked = null; cands.innerHTML = ''; paint(); });
+    // 地図の長押しから: その場所の周りの店を先に出して、タップで店名と位置を入れる（v370〜）
+    if (pos && pos.lat != null) {
+      cands.innerHTML = '<p class="hint">この場所の近くの店を探しています…</p>';
+      Api.nearbyShops(pos.lat, pos.lon, 150).then(list => {
+        list = (list || []).filter(c => c && c.name && c.name !== '(名称不明)').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 8);
+        if (!list.length) { cands.innerHTML = '<p class="hint">近くの店が見つかりませんでした。店名を入れると、この場所に行きたい店として保存できます。</p>'; return; }
+        cands.innerHTML = list.map((c, i) => `<button type="button" class="wa-cand" data-i="${i}"><b>${esc(c.name || '')}</b><span>${esc(c.address || '')}${c.distance != null && isFinite(c.distance) ? `　${Math.round(c.distance)}m` : ''}</span></button>`).join('');
+        cands.querySelectorAll('.wa-cand').forEach(b => b.addEventListener('click', () => {
+          const c = list[+b.dataset.i];
+          picked = { name: c.name || '', lat: c.lat ?? pos.lat, lon: c.lon ?? pos.lon, address: c.address || '', genre: (Api.guessGenres(c) || {}).shopGenre || '' };
+          cands.querySelectorAll('.wa-cand').forEach(x => x.classList.toggle('on', x === b));
+          paint();
+        }));
+      }).catch(() => { cands.innerHTML = '<p class="hint">近くの店を探せませんでした。店名を入れると、この場所に行きたい店として保存できます。</p>'; });
+      paint();
+    }
     searchBtn.addEventListener('click', async () => {
       if (!cur.name) return;
       searchBtn.disabled = true; cands.innerHTML = '<p class="hint">探しています…</p>';
@@ -3382,6 +3400,17 @@ const Views = (() => {
     if (nav && o.nav) nav.addEventListener('click', o.nav);
     root.querySelector('.pd-share').addEventListener('click', async () => {
       const text = o.shareText || '';
+      // v370〜 写真があれば縦長の画像カード（写真＋店名＋★＋駅）を作って共有シートへ。作れなければ文字だけ
+      if (o.card) {
+        try {
+          const info = await o.card();
+          if (info && info.photoUrl) {
+            const blob = await buildPostCard(info);
+            await shareImageBlob(blob, 'bitemap-post.png', text, info.shopName || '記録');
+            return;
+          }
+        } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); }
+      }
       if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
       try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
     });
@@ -3483,6 +3512,11 @@ const Views = (() => {
       nav: () => openNav(s),
       shareTitle: s.name || '',
       shareText: `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`,
+      card: async () => { // 最新の写真で画像カード（v370〜）
+        const ph0 = (g.photos || [])[0];
+        const v0 = vs[0];
+        return { photoUrl: ph0 ? (await fullPhotoUrl(ph0)) || '' : '', shopName: s.name || '', rating: v0 ? (v0.rating || 0) : 0, station: s.station, pref: s.pref, city: s.city, date: v0 ? fmtDate(v0.datetime) : '' };
+      },
     });
     el.querySelector('.sfs-menu').addEventListener('click', () => {
       const latest = vs[0];
@@ -4230,6 +4264,42 @@ const Views = (() => {
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
+  // 投稿の画像カード（v370〜）: 1080×1920（ストーリー向け）。写真を角丸で大きく、下に 店名・★・場所・日付・BITEMAP
+  async function buildPostCard(info) {
+    const W = 1080, H = 1920;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
+    const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
+    const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
+    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
+    // 写真（同一オリジンの blob URL はそのまま、他人の写真は CORS を頼む。駄目なら例外 → 呼び元が文字で共有）
+    const img = new Image();
+    if (!/^blob:|^data:/.test(info.photoUrl) && !info.photoUrl.startsWith(location.origin)) img.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('写真を読めませんでした')); img.src = info.photoUrl; });
+    const px = 60, py = 140, pw = W - px * 2, ph = 1300;
+    g.save(); roundRect(g, px, py, pw, ph, 40); g.clip();
+    const r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight);
+    const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+    g.drawImage(img, px + (pw - dw) / 2, py + (ph - dh) / 2, dw, dh);
+    g.restore();
+    // ★バッジ（写真の右上。投稿詳細と同じ黒地に金）
+    if (info.rating) {
+      const label = `★${fmtR(info.rating)}`; g.font = F(800, 44);
+      const bw = g.measureText(label).width + 56;
+      g.fillStyle = 'rgba(20,16,12,.82)'; roundRect(g, px + pw - bw - 28, py + 28, bw, 76, 38); g.fill();
+      g.fillStyle = '#F2C14E'; g.textBaseline = 'middle'; g.fillText(label, px + pw - bw, py + 66); g.textBaseline = 'alphabetic';
+    }
+    let y = py + ph + 110;
+    g.fillStyle = '#1F1E1D'; g.font = F(800, 64); g.fillText(fit(info.shopName, pw, 800, 64), px, y);
+    y += 80;
+    const loc = [info.station, [info.pref, info.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ');
+    if (loc) { g.fillStyle = '#6B6964'; g.font = F(600, 36); g.fillText(fit(loc, pw, 600, 36), px, y); y += 60; }
+    if (info.date) { g.fillStyle = '#87867F'; g.font = F(500, 32); g.fillText(info.date, px, y); }
+    g.fillStyle = '#C6613F'; g.font = F(800, 40); g.textAlign = 'right'; g.fillText('BITEMAP', W - px, H - 90); g.textAlign = 'left';
+    g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 600, 500, 24), px, H - 90);
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
+  }
   function roundRect(g, x, y, w, h, r) {
     g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
     g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
@@ -4819,7 +4889,7 @@ const Views = (() => {
         if (!shops.length) { list.innerHTML = '<div class="empty"><p>店がありません。</p></div>'; return; }
         for (const s of shops) list.appendChild(row(esc(s.name), esc([s.station, [s.pref, s.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ')), () => {
           const vs = Store.visitsOf(s.id);
-          if (vs.length === 1) move(s.id, vs[0].id); else if (!vs.length) App.toast('この店には記録がありません'); else { ov.querySelector('.vl-title').textContent = `${s.name} の訪問`; ph.__toShop = s.id; visitRows(s.id); }
+          if (vs.length === 1) move(s.id, vs[0].id); else if (!vs.length) App.toast('この店には記録がありません'); else { ov.querySelector('.vl-title').textContent = `${s.name} の訪問`; visitRows(s.id); }
         }));
       };
       input.addEventListener('input', render);
@@ -4898,7 +4968,9 @@ const Views = (() => {
       </div>`;
     const car = card.querySelector('.sfs-carousel');
     const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
+    let firstPh = null; // 画像カードの共有に使う（v370〜）
     Store.photosOfVisit(v.id).then(ps => {
+      firstPh = ps[0] || null;
       if (!ps.length) { car.innerHTML = `<div class="sfs-slide vlc-noph">${IC_DISH}${badge}</div>`; return; }
       const slides = ps.map((ph, i) => {
         const slide = document.createElement('button');
@@ -4936,7 +5008,8 @@ const Views = (() => {
       { label: 'この記録を編集', onClick: () => ctx.editVisit(v) },
       { label: 'この記録を削除', danger: true, onClick: () => ctx.delVisit(v) },
     ]));
-    wireSocial(card, v.id, { nav: () => openNav(s), shareTitle: s.name || '', shareText });
+    wireSocial(card, v.id, { nav: () => openNav(s), shareTitle: s.name || '', shareText,
+      card: async () => ({ photoUrl: firstPh ? (await fullPhotoUrl(firstPh)) || '' : '', shopName: s.name || '', rating: v.rating || 0, station: s.station, pref: s.pref, city: s.city, date: fmtDate(v.datetime) }) }); // v370〜
     return card;
   }
 
@@ -5353,6 +5426,44 @@ const Views = (() => {
 
   // 地図タブへ切り替えて指定の場所を表示（ホームカードのミニ地図から）
   // 店の位置を地図で指定する（v340〜）。地図タブへ移り、中央の印に合わせて「この位置にする」で cb({lat, lon})
+  // 地図の長押し（600ms・8px 動いたら取り消し）→ その場所に行きたい店を追加（v370〜）。位置指定中は無効
+  function wireMapLongPress() {
+    const cv = map.getCanvas();
+    let timer = 0, sx = 0, sy = 0, armed = null; // armed: 長押しが成立した位置。指を離したときに開く（離した瞬間の click でシートが閉じないように）
+    const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+    const start = (x, y) => {
+      if (mapPick) return;
+      sx = x; sy = y; armed = null; clear();
+      timer = setTimeout(() => {
+        timer = 0;
+        const r = cv.getBoundingClientRect();
+        armed = map.unproject([sx - r.left, sy - r.top]);
+      }, 600);
+    };
+    const moved = (x, y) => { if (timer && (Math.abs(x - sx) > 8 || Math.abs(y - sy) > 8)) clear(); };
+    const end = () => {
+      clear();
+      if (!armed) return;
+      const ll = armed; armed = null;
+      setTimeout(() => onMapLongPress(ll.lat, ll.lng), 80);
+    };
+    // 指: touch イベント（MapLibre の canvas では pointer の up/cancel が指を離す前に来ることがあるため）。マウス: pointer
+    cv.addEventListener('touchstart', (e) => { if (e.touches.length !== 1) { clear(); armed = null; return; } start(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    cv.addEventListener('touchmove', (e) => { if (e.touches.length !== 1) { clear(); armed = null; return; } moved(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    cv.addEventListener('touchend', end);
+    cv.addEventListener('touchcancel', () => { clear(); armed = null; });
+    cv.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) start(e.clientX, e.clientY); });
+    cv.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') moved(e.clientX, e.clientY); });
+    cv.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') end(); });
+    for (const ev of ['pointercancel', 'pointerleave']) cv.addEventListener(ev, (e) => { if (e.pointerType === 'mouse') { clear(); armed = null; } });
+    cv.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  function onMapLongPress(lat, lon) {
+    if (mapPopup) { try { mapPopup.remove(); } catch { /* noop */ } }
+    openActionSheet([
+      { label: 'ここに行きたい店を追加', onClick: () => openWishAdd('', { lat, lon }) },
+    ]);
+  }
   let mapPick = null;
   function pickOnMap(center, cb) {
     closeModal();
@@ -5681,6 +5792,11 @@ const Views = (() => {
       nav: () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }),
       shareTitle: p.shopName || '',
       shareText: `${p.shopName || ''}${p.station ? ` / ${p.station}` : ''} - BITEMAP`,
+      card: async () => { // いま見えている写真で画像カード（v370〜）
+        const it = itemsRef[curIdx];
+        const url = it ? (it.ph ? await fullPhotoUrl(it.ph) : it.url) : '';
+        return { photoUrl: url || '', shopName: p.shopName || '', rating: it && it.rating ? it.rating : (p.rating || 0), station: p.station, pref: p.pref, city: p.city, date: isMine && p.datetime ? fmtDate(p.datetime) : '' };
+      },
     });
     return sect;
   }

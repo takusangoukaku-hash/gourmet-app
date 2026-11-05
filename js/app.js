@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v369'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v370'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -260,6 +260,12 @@ const App = (() => {
     });
     $('#backup-import').addEventListener('click', () => $('#backup-file').click());
     $('#merge-shops').addEventListener('click', () => Views.openMergeShops()); // 重複した店の統合（v364〜）
+    $('#cleanup-orphans').addEventListener('click', async () => { // 店の無い記録の掃除（v370〜）
+      const r = await Store.cleanupOrphans().catch(() => null);
+      if (!r) { toast('掃除できませんでした'); return; }
+      toast(r.visits || r.photos ? `店の無い記録 ${r.visits}件・写真 ${r.photos}枚を消しました` : '掃除する記録はありませんでした');
+      if (r.visits || r.photos) refreshCurrent();
+    });
     $('#backup-file').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       e.target.value = '';

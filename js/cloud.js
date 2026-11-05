@@ -76,6 +76,7 @@ const Cloud = (() => {
           try {
             // 記録（店・訪問・プロフィール）を先に同期し、この時点で「同期済み」にする
             await syncRecords();
+            await Store.cleanupOrphans().catch(() => {}); // 取り込みが済んだ後に、店の無い訪問・訪問の無い写真を消す（v370〜）
             setStatus('synced');
             App.refreshCurrent();
             // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
@@ -634,6 +635,7 @@ const Cloud = (() => {
     try {
       await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
       const recs = await syncRecords(); // 取り込み＋全件の押し上げ（差分ではなく全件上書き＝確実）
+      await Store.cleanupOrphans().catch(() => {}); // v370〜
       if (recs) App.refreshCurrent(); // 別端末からの記録をすぐ画面に
       const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
       lastSweepAt = Date.now();
