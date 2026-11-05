@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=370">
+<link rel="stylesheet" href="css/style.css?v=371">
 </head>
 <body>
 
@@ -543,6 +543,21 @@
     </div>
     <input type="file" id="backup-file" accept=".json,application/json" hidden>
 
+    <div class="set-section-title">表示</div>
+    <div class="set-list">
+      <label class="set-row set-row-static" for="set-font">
+        <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19 10 5l6 14"/><path d="M6.3 14h7.4"/><path d="M17 11v8"/><path d="M15 15h4"/></svg></span>
+        <span class="set-label">文字の大きさ</span>
+        <select id="set-font" class="set-select">
+          <option value="auto">iPhone に合わせる</option>
+          <option value="s">小</option>
+          <option value="m">標準</option>
+          <option value="l">大</option>
+          <option value="xl">特大</option>
+        </select>
+      </label>
+    </div>
+
     <div class="set-section-title">ヘルプ</div>
     <div class="set-list">
       <button id="show-welcome" class="set-row">
@@ -628,12 +643,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=370"></script>
-<script src="js/api.js?v=370"></script>
-<script src="js/cloud.js?v=370"></script>
-<script src="js/register.js?v=370"></script>
-<script src="js/import.js?v=370"></script>
-<script src="js/views.js?v=370"></script>
-<script src="js/app.js?v=370"></script>
+<script src="js/store.js?v=371"></script>
+<script src="js/api.js?v=371"></script>
+<script src="js/cloud.js?v=371"></script>
+<script src="js/register.js?v=371"></script>
+<script src="js/import.js?v=371"></script>
+<script src="js/views.js?v=371"></script>
+<script src="js/app.js?v=371"></script>
 </body>
 </html>

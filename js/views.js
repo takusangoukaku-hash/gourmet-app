@@ -852,12 +852,30 @@ const Views = (() => {
           'text-halo-color': dark ? '#1a1b1f' : '#ffffff', 'text-halo-width': 1.2 } });
 
       // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
-      map.on('click', 'pins', (e) => openPinPopup(e.features[0]));
+      // ピンが重なっているとき（同じビルの店など）は一覧から選ぶ（v371〜）
+      map.on('click', 'pins', (e) => {
+        // 描かれているピンだけでなく、重なって隠れているピン（同じ座標の店）も元データから拾う
+        const q = map.project(e.features[0].geometry.coordinates);
+        const near = map.querySourceFeatures('shops').filter(x => !x.properties.cluster && x.geometry && x.geometry.type === 'Point')
+          .filter(x => { const s2 = map.project(x.geometry.coordinates); return Math.abs(s2.x - q.x) <= 14 && Math.abs(s2.y - q.y) <= 20; });
+        const uniq = [...new Map([...near, e.features[0]].map(x => [x.properties.id, x.properties])).values()];
+        if (uniq.length > 1) { openClusterList(uniq); return; }
+        openPinPopup(e.features[0]);
+      });
       map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
       const zoomCluster = (e) => {
         const f = e.features[0];
-        map.getSource('shops').getClusterExpansionZoom(f.properties.cluster_id)
-          .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
+        const src = map.getSource('shops');
+        src.getClusterExpansionZoom(f.properties.cluster_id).then(z => {
+          // ズームしても分かれないほど近い（展開に z15 以上が要る）まとまりは、中の店の一覧を出す（v371〜）
+          if (z >= 15 && (f.properties.point_count || 0) <= 40) {
+            src.getClusterLeaves(f.properties.cluster_id, 40, 0)
+              .then(leaves => openClusterList(leaves.map(l => l.properties)))
+              .catch(() => map.easeTo({ center: f.geometry.coordinates, zoom: z }));
+            return;
+          }
+          map.easeTo({ center: f.geometry.coordinates, zoom: z });
+        });
       };
       map.on('click', 'clusters', zoomCluster);
       map.on('click', 'cluster-halo', (e) => {
@@ -1327,6 +1345,22 @@ const Views = (() => {
 
   // ピンをタップ → 自分の店はデザイン案準拠の店舗シート（上に地図が見えたまま）
   // つながりの人だけの店はポップアップ（誰の訪問か・平均・投稿へ）
+  // まとまり・重なったピンの中の店を一覧で選ぶ（v371〜）。評価の高い順。自分の店は店シート、フォロワーだけの店はその人の店シート
+  function openClusterList(props) {
+    const items = [...new Map(props.map(p => [p.id, p])).values()].map(p => {
+      const mine = p.kind !== 'other';
+      const s = mine ? Store.getShop(p.id) : null;
+      const g = !mine ? networkById.get(p.id) : null;
+      const r = mine ? (s ? Store.avgRating(s.id) : 0) : (g && g.rating ? g.rating : 0);
+      return { p, mine, s, g, r, name: p.name || (s && s.name) || (g && g.name) || '' };
+    }).filter(x => x.mine ? !!x.s : !!x.g).sort((a, b) => b.r - a.r);
+    if (!items.length) return;
+    if (mapPopup) { try { mapPopup.remove(); } catch { /* noop */ } }
+    openActionSheet(items.slice(0, 12).map(x => ({
+      label: `${x.name}${x.r ? `　★${fmtR(x.r)}` : ''}${x.mine ? '' : '　フォロー中'}`,
+      onClick: () => { if (x.mine) showMapShopSheet(x.s.id); else showNetShopSheet(x.g); },
+    })));
+  }
   function openPinPopup(feature) {
     if (mapPopup) mapPopup.remove();
     if (feature.properties.kind === 'other') {
@@ -3401,18 +3435,29 @@ const Views = (() => {
     root.querySelector('.pd-share').addEventListener('click', async () => {
       const text = o.shareText || '';
       // v370〜 写真があれば縦長の画像カード（写真＋店名＋★＋駅）を作って共有シートへ。作れなければ文字だけ
-      if (o.card) {
+      const shareText = async () => {
+        if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
+        try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+      };
+      const shareImage = async (shape) => {
         try {
           const info = await o.card();
-          if (info && info.photoUrl) {
-            const blob = await buildPostCard(info);
-            await shareImageBlob(blob, 'bitemap-post.png', text, info.shopName || '記録');
-            return;
-          }
-        } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); }
+          const urls = (info && (info.photoUrls || (info.photoUrl ? [info.photoUrl] : [])) || []).filter(Boolean);
+          if (!urls.length) { App.toast('写真が無いので文字で共有します'); await shareText(); return; }
+          const blob = await buildPostCard(Object.assign({}, info, { photoUrls: urls }), shape);
+          await shareImageBlob(blob, `bitemap-${shape}.png`, text, info.shopName || '記録');
+        } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); await shareText(); }
+      };
+      // v371〜 形を選ぶ: 縦長（ストーリー）／正方形（投稿。写真を最大2枚）／文字だけ
+      if (o.card) {
+        openActionSheet([
+          { label: '縦長の画像（ストーリー向け）', onClick: () => shareImage('story') },
+          { label: '正方形の画像（投稿向け・写真2枚まで）', onClick: () => shareImage('square') },
+          { label: '文字だけ', onClick: shareText },
+        ]);
+        return;
       }
-      if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
-      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+      await shareText();
     });
   }
 
@@ -3513,9 +3558,9 @@ const Views = (() => {
       shareTitle: s.name || '',
       shareText: `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`,
       card: async () => { // 最新の写真で画像カード（v370〜）
-        const ph0 = (g.photos || [])[0];
+        const urls = []; for (const ph of (g.photos || []).slice(0, 2)) { const u = await fullPhotoUrl(ph); if (u) urls.push(u); }
         const v0 = vs[0];
-        return { photoUrl: ph0 ? (await fullPhotoUrl(ph0)) || '' : '', shopName: s.name || '', rating: v0 ? (v0.rating || 0) : 0, station: s.station, pref: s.pref, city: s.city, date: v0 ? fmtDate(v0.datetime) : '' };
+        return { photoUrl: urls[0] || '', photoUrls: urls, shopName: s.name || '', rating: v0 ? (v0.rating || 0) : 0, station: s.station, pref: s.pref, city: s.city, date: v0 ? fmtDate(v0.datetime) : '' };
       },
     });
     el.querySelector('.sfs-menu').addEventListener('click', () => {
@@ -4265,24 +4310,32 @@ const Views = (() => {
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
   // 投稿の画像カード（v370〜）: 1080×1920（ストーリー向け）。写真を角丸で大きく、下に 店名・★・場所・日付・BITEMAP
-  async function buildPostCard(info) {
-    const W = 1080, H = 1920;
+  async function buildPostCard(info, shape) {
+    const square = shape === 'square';
+    const W = 1080, H = square ? 1080 : 1920;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d');
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
     const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
     const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
     g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
-    // 写真（同一オリジンの blob URL はそのまま、他人の写真は CORS を頼む。駄目なら例外 → 呼び元が文字で共有）
-    const img = new Image();
-    if (!/^blob:|^data:/.test(info.photoUrl) && !info.photoUrl.startsWith(location.origin)) img.crossOrigin = 'anonymous';
-    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('写真を読めませんでした')); img.src = info.photoUrl; });
-    const px = 60, py = 140, pw = W - px * 2, ph = 1300;
-    g.save(); roundRect(g, px, py, pw, ph, 40); g.clip();
-    const r = Math.max(pw / img.naturalWidth, ph / img.naturalHeight);
-    const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
-    g.drawImage(img, px + (pw - dw) / 2, py + (ph - dh) / 2, dw, dh);
-    g.restore();
+    const urls = (info.photoUrls || [info.photoUrl]).filter(Boolean).slice(0, square ? 2 : 1);
+    const load = (u) => new Promise((res, rej) => {
+      const img = new Image();
+      if (!/^blob:|^data:/.test(u) && !u.startsWith(location.origin)) img.crossOrigin = 'anonymous'; // 他人の写真は CORS を頼む。駄目なら例外 → 呼び元が文字で共有
+      img.onload = () => res(img); img.onerror = () => rej(new Error('写真を読めませんでした')); img.src = u;
+    });
+    const imgs = await Promise.all(urls.map(load));
+    const cover = (img, x, y, w, h) => {
+      g.save(); roundRect(g, x, y, w, h, 40); g.clip();
+      const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+      g.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      g.restore();
+    };
+    const px = 60, py = square ? 60 : 140, pw = W - px * 2, ph = square ? 700 : 1300;
+    if (imgs.length === 2) { const gap = 14; const w2 = (pw - gap) / 2; cover(imgs[0], px, py, w2, ph); cover(imgs[1], px + w2 + gap, py, w2, ph); }
+    else cover(imgs[0], px, py, pw, ph);
     // ★バッジ（写真の右上。投稿詳細と同じ黒地に金）
     if (info.rating) {
       const label = `★${fmtR(info.rating)}`; g.font = F(800, 44);
@@ -4290,14 +4343,14 @@ const Views = (() => {
       g.fillStyle = 'rgba(20,16,12,.82)'; roundRect(g, px + pw - bw - 28, py + 28, bw, 76, 38); g.fill();
       g.fillStyle = '#F2C14E'; g.textBaseline = 'middle'; g.fillText(label, px + pw - bw, py + 66); g.textBaseline = 'alphabetic';
     }
-    let y = py + ph + 110;
-    g.fillStyle = '#1F1E1D'; g.font = F(800, 64); g.fillText(fit(info.shopName, pw, 800, 64), px, y);
-    y += 80;
+    let y = py + ph + (square ? 90 : 110);
+    g.fillStyle = '#1F1E1D'; g.font = F(800, square ? 56 : 64); g.fillText(fit(info.shopName, pw - (square ? 220 : 0), 800, square ? 56 : 64), px, y);
+    y += square ? 66 : 80;
     const loc = [info.station, [info.pref, info.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ');
-    if (loc) { g.fillStyle = '#6B6964'; g.font = F(600, 36); g.fillText(fit(loc, pw, 600, 36), px, y); y += 60; }
-    if (info.date) { g.fillStyle = '#87867F'; g.font = F(500, 32); g.fillText(info.date, px, y); }
-    g.fillStyle = '#C6613F'; g.font = F(800, 40); g.textAlign = 'right'; g.fillText('BITEMAP', W - px, H - 90); g.textAlign = 'left';
-    g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 600, 500, 24), px, H - 90);
+    if (loc) { g.fillStyle = '#6B6964'; g.font = F(600, square ? 32 : 36); g.fillText(fit(loc, pw - (square ? 220 : 0), 600, square ? 32 : 36), px, y); y += square ? 50 : 60; }
+    if (info.date) { g.fillStyle = '#87867F'; g.font = F(500, square ? 28 : 32); g.fillText(info.date, px, y); }
+    g.fillStyle = '#C6613F'; g.font = F(800, 40); g.textAlign = 'right'; g.fillText('BITEMAP', W - px, square ? H - 60 : H - 90); g.textAlign = 'left';
+    if (!square) { g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 600, 500, 24), px, H - 90); }
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
   function roundRect(g, x, y, w, h, r) {
@@ -4968,9 +5021,9 @@ const Views = (() => {
       </div>`;
     const car = card.querySelector('.sfs-carousel');
     const badge = v.rating ? `<span class="pd-photo-star">★${fmtR(v.rating)}</span>` : '';
-    let firstPh = null; // 画像カードの共有に使う（v370〜）
+    let visitPhs = []; // 画像カードの共有に使う（v370〜）
     Store.photosOfVisit(v.id).then(ps => {
-      firstPh = ps[0] || null;
+      visitPhs = ps;
       if (!ps.length) { car.innerHTML = `<div class="sfs-slide vlc-noph">${IC_DISH}${badge}</div>`; return; }
       const slides = ps.map((ph, i) => {
         const slide = document.createElement('button');
@@ -5009,7 +5062,8 @@ const Views = (() => {
       { label: 'この記録を削除', danger: true, onClick: () => ctx.delVisit(v) },
     ]));
     wireSocial(card, v.id, { nav: () => openNav(s), shareTitle: s.name || '', shareText,
-      card: async () => ({ photoUrl: firstPh ? (await fullPhotoUrl(firstPh)) || '' : '', shopName: s.name || '', rating: v.rating || 0, station: s.station, pref: s.pref, city: s.city, date: fmtDate(v.datetime) }) }); // v370〜
+      card: async () => { const urls = []; for (const ph of visitPhs.slice(0, 2)) { const u = await fullPhotoUrl(ph); if (u) urls.push(u); }
+        return { photoUrl: urls[0] || '', photoUrls: urls, shopName: s.name || '', rating: v.rating || 0, station: s.station, pref: s.pref, city: s.city, date: fmtDate(v.datetime) }; } }); // v370〜
     return card;
   }
 
@@ -5792,10 +5846,11 @@ const Views = (() => {
       nav: () => openNav({ name: p.shopName, lat: p.lat, lon: p.lon }),
       shareTitle: p.shopName || '',
       shareText: `${p.shopName || ''}${p.station ? ` / ${p.station}` : ''} - BITEMAP`,
-      card: async () => { // いま見えている写真で画像カード（v370〜）
-        const it = itemsRef[curIdx];
-        const url = it ? (it.ph ? await fullPhotoUrl(it.ph) : it.url) : '';
-        return { photoUrl: url || '', shopName: p.shopName || '', rating: it && it.rating ? it.rating : (p.rating || 0), station: p.station, pref: p.pref, city: p.city, date: isMine && p.datetime ? fmtDate(p.datetime) : '' };
+      card: async () => { // いま見えている写真（正方形は次の1枚も）で画像カード（v370〜）
+        const it = itemsRef[curIdx], it2 = itemsRef[curIdx + 1] || itemsRef[curIdx - 1];
+        const urlOf = async (x) => x ? (x.ph ? await fullPhotoUrl(x.ph) : x.url) : '';
+        const urls = [await urlOf(it), await urlOf(it2)].filter(Boolean);
+        return { photoUrl: urls[0] || '', photoUrls: urls, shopName: p.shopName || '', rating: it && it.rating ? it.rating : (p.rating || 0), station: p.station, pref: p.pref, city: p.city, date: isMine && p.datetime ? fmtDate(p.datetime) : '' };
       },
     });
     return sect;

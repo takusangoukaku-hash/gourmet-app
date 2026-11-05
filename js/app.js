@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v370'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v371'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -83,6 +83,29 @@ const App = (() => {
     if (currentTab === 'feed') await Views.renderFeed(true); else refreshCurrent();
   }
 
+  // ---------- 文字の大きさ（v371〜）。設定の「文字の大きさ」: iPhone に合わせる（既定）／小／標準／大／特大 ----------
+  // px で組んだ画面をまとめて拡縮する（CSS の zoom。地図は除く）。「iPhone に合わせる」は端末の文字サイズ設定（-apple-system-body の実寸）から倍率を取る
+  const FONT_SCALES = { s: 0.92, m: 1, l: 1.1, xl: 1.22 };
+  function systemFontScale() {
+    try {
+      const el = document.createElement('span');
+      el.style.cssText = 'position:absolute;visibility:hidden;font:-apple-system-body;';
+      el.textContent = 'A';
+      document.body.appendChild(el);
+      const px = parseFloat(getComputedStyle(el).fontSize) || 17;
+      el.remove();
+      return Math.min(1.35, Math.max(0.85, Math.round((px / 17) * 100) / 100));
+    } catch { return 1; }
+  }
+  function applyFontScale() {
+    let pref = 'auto';
+    try { pref = localStorage.getItem('gourmet.fontScale') || 'auto'; } catch { /* noop */ }
+    const scale = pref === 'auto' ? systemFontScale() : (FONT_SCALES[pref] || 1);
+    document.documentElement.style.setProperty('--ui-zoom', String(scale));
+    const sel = $('#set-font');
+    if (sel) sel.value = pref;
+  }
+
   // ---------- 接続なし・同期中の帯（v368〜。見出しの下。普段は出さない） ----------
   //  接続なし: すぐ出す（記録は端末に残り、つながると同期される）。同期中: 2秒以上続いたときだけ出す（ちらつかせない）
   let netSyncTimer = 0, netSyncing = false;
@@ -108,6 +131,9 @@ const App = (() => {
     const params = new URLSearchParams(location.search);
     watchKeyboard();
     watchNet();
+    applyFontScale();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) applyFontScale(); }); // 端末の文字サイズを変えて戻ってきたとき
+    $('#set-font').addEventListener('change', () => { try { localStorage.setItem('gourmet.fontScale', $('#set-font').value); } catch { /* noop */ } applyFontScale(); });
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
     Views.initList();

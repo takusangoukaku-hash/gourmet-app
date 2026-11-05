@@ -2053,6 +2053,10 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 .mg-arrow { font-size: 11px; color: var(--muted); padding: 6px 0 6px 2px; }
 .mg-arrow::before { content: '↕ '; }
 .mg-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+/* 文字の大きさ（v371〜）: 地図以外をまとめて拡縮 */
+.app-header, .net-bar, .tabs, .view:not(#view-map), .modal, .update-bar, .toast, .mz-selbar, .reg-sticky, #lightbox { zoom: var(--ui-zoom, 1); }
+.set-select { margin-left: auto; width: auto; max-width: 50%; padding: 6px 28px 6px 10px; font-size: 14px; }
+.set-row-static .set-select { cursor: pointer; }
 /* 記録の編集シート（v367〜） */
 .ve-box { position: relative; }
 .ve-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; padding: 8px 0 0 40px; } /* ✕（左上・40px）の右に見出し */

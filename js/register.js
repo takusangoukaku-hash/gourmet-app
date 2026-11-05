@@ -477,6 +477,16 @@ const Register = (() => {
         pendingPhotos.splice(i, 1);
         renderPreviews();
       });
+      // 写真をタップ: 1枚目（代表）にする／左右へ動かす／外す（v371〜）
+      div.querySelector('img').addEventListener('click', () => {
+        const move = (to) => { const [x] = pendingPhotos.splice(i, 1); pendingPhotos.splice(to, 0, x); renderPreviews(); };
+        Views.openActionSheet([
+          { label: '1枚目（代表）にする', onClick: () => move(0) },
+          ...(i > 1 ? [{ label: '左へ', onClick: () => move(i - 1) }] : []),
+          ...(i < pendingPhotos.length - 1 ? [{ label: '右へ', onClick: () => move(i + 1) }] : []),
+          { label: '外す', danger: true, onClick: () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(i, 1); renderPreviews(); } },
+        ]);
+      });
       box.appendChild(div);
     });
     if (pendingPhotos.length > 1) {
