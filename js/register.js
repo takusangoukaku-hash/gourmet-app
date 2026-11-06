@@ -146,9 +146,11 @@ const Register = (() => {
 
     $('#save-btn').addEventListener('click', save);
     // 行きたい店として保存（店舗名だけでOK。訪問を記録すると自動で外れる）
-    $('#save-wish-btn').addEventListener('click', saveWish);
-    // 「あとで記録」: 写真だけ下書き保存 ／ 下書き一覧を開く
-    $('#save-later-btn').addEventListener('click', saveLater);
+    // v372〜 「その他」の一覧に畳んだ（記録せずに行きたい店へ ／ あとで記録＝写真があるときだけ）
+    $('#reg-more-row').addEventListener('click', () => Views.openActionSheet([
+      { label: '記録せずに行きたい店へ', onClick: saveWish },
+      ...(pendingPhotos.length ? [{ label: 'あとで記録（写真だけ保存）', onClick: saveLater }] : []),
+    ]));
     $('#drafts-btn').addEventListener('click', openDrafts);
     refreshDraftsBanner();
     renderPreviews(); // 初期表示から「＋写真」タイルを出す
@@ -212,8 +214,8 @@ const Register = (() => {
   // いまの写真を評価なしで下書き保存（食事中はサッと撮るだけ）
   async function saveLater() {
     if (!pendingPhotos.length) { App.toast('先に写真を撮ってください'); return; }
-    const btn = $('#save-later-btn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    const btn = $('#reg-more-row');
+    btn.disabled = true;
     try {
       const photos = [];
       for (const p of pendingPhotos) {
@@ -235,7 +237,7 @@ const Register = (() => {
     } catch (e) {
       console.error(e); App.toast('下書きの保存に失敗しました');
     } finally {
-      btn.disabled = false; btn.textContent = 'あとで記録（写真だけ保存）';
+      btn.disabled = false;
     }
   }
 
@@ -498,8 +500,6 @@ const Register = (() => {
       add.addEventListener('click', openCamera);
       box.appendChild(add);
     }
-    // 写真があるときだけ「あとで記録」を表示
-    $('#save-later-btn').classList.toggle('hidden', !pendingPhotos.length);
     updateStep();
   }
 

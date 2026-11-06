@@ -685,6 +685,8 @@ const Views = (() => {
       <div class="lg-row">${pin(PIN_COLORS[4], 'star')}<span class="lg-txt"><b>金の★</b>　あなたか味覚の近い人が ★4.5 以上を付けた店</span></div>
       <div class="lg-sec">引いたとき</div>
       <div class="lg-row"><span class="lg-cluster"><i></i><b>12</b></span><span class="lg-txt">近い店は丸にまとまり、中に件数。色はその中で一番評価が高い店の色</span></div>
+      <div class="lg-sec">長押し</div>
+      <div class="lg-row">${pin(WISH_COLOR, 'dot')}<span class="lg-txt">地図を長押しすると、その場所に行きたい店を追加できます</span></div>
       <p class="hint" style="margin:12px 0 0">この説明は地図の左下の「?」からいつでも開けます。</p>`;
     $('#modal').classList.remove('modal-full');
     $('#modal').classList.remove('hidden');
@@ -2051,8 +2053,7 @@ const Views = (() => {
   function openWishAdd(prefill, pos) { // pos = { lat, lon }: 地図の長押しから（v370〜。周辺の店を候補に出す）
     const body = $('#modal-body');
     body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店を追加</h2>
-      <p class="hint" style="margin:0 0 8px">店名を入力するか、Google マップ／Apple マップの「共有」で出る文章やリンクをそのまま貼り付けてください。</p>
-      <textarea id="wa-text" class="wa-text" rows="3" placeholder="例: 麺屋 こがね　／　https://maps.app.goo.gl/…"></textarea>
+      <textarea id="wa-text" class="wa-text" rows="3" placeholder="店名、または Google／Apple マップの共有リンクを貼り付け"></textarea>
       <div id="wa-parsed" class="wa-parsed hidden"></div>
       <div id="wa-cands" class="wa-cands"></div>
       <div class="wa-actions">
@@ -2530,7 +2531,20 @@ const Views = (() => {
     </button>`;
   }
 
-  // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）。記録が無いくくりも表示
+  // v372〜 0件のくくり・ジャンルは畳んでおき「記録のないジャンル N」で開く（開いたかどうかは覚える）
+  let exShowOff = false;
+  const offToggleHtml = (n) => n ? `<button type="button" class="ex-showoff">${exShowOff ? '記録のないジャンルを隠す' : `記録のないジャンル ${n}`}</button>` : '';
+  function wireOffToggle(box, force) {
+    box.classList.toggle('show-off', force || exShowOff);
+    const b = box.querySelector('.ex-showoff');
+    if (!b) return;
+    b.addEventListener('click', () => {
+      exShowOff = !exShowOff;
+      box.classList.toggle('show-off', exShowOff);
+      b.textContent = exShowOff ? '記録のないジャンルを隠す' : `記録のないジャンル ${box.querySelectorAll('.ex-cat.off').length}`;
+    });
+  }
+  // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）。0件のくくりは畳む
   async function renderExploreCats() {
     const box = $('#explore-cats');
     box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
@@ -2547,7 +2561,9 @@ const Views = (() => {
     const cats = Api.DISH_CATEGORIES.map((c, i) => ({ c, i, n: catCount(c) })).sort((a, b) => b.n - a.n || a.i - b.i);
     box.innerHTML = catTile('', 'すべて', items.length, CAT_COLORS[0], { wide: true }) +
       cats.map(({ c, i, n }) => catTile('', c.name, n, CAT_COLORS[(i + 1) % CAT_COLORS.length], { sub: c.name })).join('') +
+      offToggleHtml(cats.filter(x => !x.n).length) +
       stationRowHtml();
+    wireOffToggle(box);
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.sub) openExploreSub(b.dataset.sub);   // 大きなくくり → 詳しいジャンル一覧へ
       else openExploreCat('', 'すべて');                   // すべて → 写真グリッドへ
@@ -2587,7 +2603,9 @@ const Views = (() => {
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
     const gs = cat.genres.map((g, i) => ({ g, i, n: count.get(g) || 0 })).sort((a, b) => b.n - a.n || a.i - b.i); // v368〜 多い順・0件は後ろ
     box.innerHTML = catTile(cat.genres.join(GKEY_SEP), catName + 'すべて', total, CAT_COLORS[0], { wide: true }) +
-      gs.map(({ g, i, n }) => catTile(g, g, n, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('');
+      gs.map(({ g, i, n }) => catTile(g, g, n, CAT_COLORS[(i + 1) % CAT_COLORS.length])).join('') +
+      (total ? offToggleHtml(gs.filter(x => !x.n).length) : '');
+    wireOffToggle(box, !total); // くくり全体が0件なら全部出す
     box.querySelectorAll('.ex-cat').forEach(b => b.addEventListener('click', () =>
       openExploreCat(b.dataset.cat, b.querySelector('.ex-cat-label').textContent)));
   }
@@ -2599,9 +2617,10 @@ const Views = (() => {
     const back = exploreSub;
     const head = $('#explore-head');
     head.classList.remove('hidden');
-    head.innerHTML = `<button type="button" class="ex-back" aria-label="戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span>`;
+    head.innerHTML = `<button type="button" class="ex-back" aria-label="戻る">‹</button><span class="ex-head-title">${esc(label || 'すべて')}</span><button type="button" class="btn small ex-sel">選択</button>`;
     head.querySelector('.ex-back').addEventListener('click', () =>
       back ? openExploreSub(back) : showExploreCats());
+    head.querySelector('.ex-sel').addEventListener('click', () => mzSelStart($('#explore-grid .mz-grid'))); // v372〜 長押しの代わりの見えるボタン
     $('#explore-grid').classList.remove('hidden');
     renderExploreGrid(genre);
   }
@@ -2991,6 +3010,13 @@ const Views = (() => {
       return cell;
     });
     box.innerHTML = '';
+    if (list.some(it => it.kind === 'mine')) { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）
+      const tools = document.createElement('div');
+      tools.className = 'mz-tools';
+      tools.innerHTML = '<button type="button" class="btn small mz-selbtn">選択</button>';
+      tools.querySelector('.mz-selbtn').addEventListener('click', () => mzSelStart(grid));
+      box.appendChild(tools);
+    }
     box.appendChild(grid);
   }
 
@@ -3450,11 +3476,16 @@ const Views = (() => {
       };
       // v371〜 形を選ぶ: 縦長（ストーリー）／正方形（投稿。写真を最大2枚）／文字だけ
       if (o.card) {
-        openActionSheet([
-          { label: '縦長の画像（ストーリー向け）', onClick: () => shareImage('story') },
-          { label: '正方形の画像（投稿向け・写真2枚まで）', onClick: () => shareImage('square') },
-          { label: '文字だけ', onClick: shareText },
-        ]);
+        // v372〜 前回選んだ形を先頭にする（gourmet.shareShape）
+        const last = localStorage.getItem('gourmet.shareShape') || '';
+        const remember = (k, fn) => () => { try { localStorage.setItem('gourmet.shareShape', k); } catch { /* noop */ } fn(); };
+        const acts = [
+          { k: 'story', label: '縦長の画像（ストーリー向け）', onClick: remember('story', () => shareImage('story')) },
+          { k: 'square', label: '正方形の画像（投稿向け・写真2枚まで）', onClick: remember('square', () => shareImage('square')) },
+          { k: 'text', label: '文字だけ', onClick: remember('text', shareText) },
+        ];
+        acts.sort((a, b) => (b.k === last) - (a.k === last));
+        openActionSheet(acts);
         return;
       }
       await shareText();
@@ -3544,7 +3575,7 @@ const Views = (() => {
         t.className = 'dvt';
         t.innerHTML = `<span class="dvt-ph"><img alt="" loading="lazy" decoding="async"></span>`;
         setThumb(t.querySelector('img'), ph);
-        t.addEventListener('click', () => showVisitList(g.shopId));
+        t.addEventListener('click', () => showShop(g.shopId)); // v372〜 訪問の一覧は店舗の詳細に統合
         row.appendChild(t);
       });
     } else {
@@ -3567,8 +3598,7 @@ const Views = (() => {
       const latest = vs[0];
       openActionSheet([
         { label: '店舗の詳細を見る', onClick: () => showShop(g.shopId) },
-        { label: '訪問の一覧', onClick: () => showVisitList(g.shopId) },
-        ...(latest ? [{ label: '最新の記録を編集', onClick: () => showShop(g.shopId, false, latest.id) }] : []),
+        ...(latest ? [{ label: '最新の記録を編集', onClick: () => openVisitEdit(latest.id, () => App.refreshCurrent()) }] : []), // v372〜 シートで直す（訪問の一覧は廃止）
         ...(hasPos ? [{ label: '地図で見る', onClick: () => focusMapAt(s.lat, s.lon) }] : []),
       ]);
     });
@@ -4202,7 +4232,7 @@ const Views = (() => {
         <button type="button" class="modal-close" aria-label="閉じる">${IC_X}</button>
         <h2 class="sh-title">${esc(title)}</h2>
         <img class="rc-img" alt="${esc(title)}" src="${url}">
-        <p class="sh-note">画像を長押し（パソコンは右クリック）で保存できます。</p>
+        <p class="sh-note">長押しでも保存できます</p>
         <div class="sh-actions">
           <a class="btn primary small" href="${url}" download="${esc(filename)}">画像を保存</a>
           <a class="btn small" href="https://x.com/intent/post?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Xに投稿（画像は保存して添付）</a>
@@ -4380,6 +4410,7 @@ const Views = (() => {
   // 店舗詳細の上下スクロールでの店舗送り: 最下部でさらに下へスワイプ→次の店舗、
   // 最上部で下へ引っ張る→前の店舗（プロフィールの写真カードの並び順）
   let shopNavState = null, shopNavBound = false;
+  let shopVisitMode = 'list'; // 店舗の詳細の訪問: 'list'（写真主役）| 'tl'（タイムライン）。v372〜（訪問の一覧の画面から移した）
   function bindShopNavOnce() {
     if (shopNavBound) return;
     shopNavBound = true;
@@ -4559,7 +4590,6 @@ const Views = (() => {
       // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
       $('#d-more').addEventListener('click', () => openActionSheet([
         ...(hasPos0 ? [{ label: '地図で見る', onClick: () => { closeModal(); focusMapAt(s.lat, s.lon); } }] : []),
-        { label: '写真つきで訪問を追加', onClick: () => { closeModal(); App.switchTab('register'); Register.preselectShop(shopId); } },
         { label: '店舗情報を編集', onClick: () => openShopEdit(shopId, () => showShop(shopId)) },
         { label: s.status === 'closed' ? '営業中に戻す' : '閉店にする', onClick: () => { Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' }); showShop(shopId); } },
         { label: '店舗を削除', onClick: async () => {
@@ -4585,7 +4615,7 @@ const Views = (() => {
           const vMap = new Map(vs.map(v => [v.id, v]));
           const shot = (p) => { const v = vMap.get(p.visitId); return (v && v.datetime ? new Date(v.datetime).getTime() : 0) || p.createdAt || 0; };
           const photos = all.filter(p => p.shopId === shopId).sort((a, b) => shot(b) - shot(a) || b.createdAt - a.createdAt);
-          if (!photos.length || !strip.isConnected) return;
+          if (!photos.length || vs.length < 2 || !strip.isConnected) return; // v372〜 訪問が1回なら下の記録と同じ写真なので帯は出さない
           const post = buildOwnShopPost({ shopId, photos });
           const box = strip.querySelector('.d-swipe');
           const items = post.photoItems;
@@ -4610,8 +4640,7 @@ const Views = (() => {
           strip.classList.remove('hidden');
         });
         // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
-        const feed = document.createElement('div');
-        feed.className = 'pf-shopfeed d-visitfeed';
+        // v372〜 訪問が2回以上なら リスト／タイムライン の切り替え（別画面だった「訪問の一覧」をここに統合）
         const ctx = {
           editVisit: (v) => openVisitEdit(v.id, (how) => { App.refreshCurrent(); if (how === 'deleted' && !Store.visitsOf(shopId).length) closeModal(); else showShop(shopId, false); }), // v367〜 その場のシート
           delVisit: async (v) => {
@@ -4621,8 +4650,24 @@ const Views = (() => {
             if (Store.visitsOf(shopId).length) showShop(shopId, false); else closeModal();
           },
         };
-        for (const v of vs) feed.appendChild(buildVisitSection(shopId, v, ctx));
-        vbox.appendChild(feed);
+        const vlist = document.createElement('div');
+        const renderVisits = () => {
+          vlist.innerHTML = '';
+          if (vs.length >= 2) {
+            const segs = document.createElement('div');
+            segs.className = 'd-vsegs';
+            segs.innerHTML = `<div class="vl-segs">${[['list', 'リスト'], ['tl', 'タイムライン']].map(([m, l]) => `<button type="button" class="vl-seg${shopVisitMode === m ? ' on' : ''}" data-m="${m}">${l}</button>`).join('')}</div>`;
+            segs.querySelectorAll('.vl-seg').forEach(b => b.addEventListener('click', () => { shopVisitMode = b.dataset.m; renderVisits(); }));
+            vlist.appendChild(segs);
+          }
+          if (vs.length >= 2 && shopVisitMode === 'tl') { vlist.appendChild(buildTimeline(s, vs, ctx.editVisit)); return; }
+          const feed = document.createElement('div');
+          feed.className = 'pf-shopfeed d-visitfeed';
+          for (const v of vs) feed.appendChild(buildVisitSection(shopId, v, ctx));
+          vlist.appendChild(feed);
+        };
+        renderVisits();
+        vbox.appendChild(vlist);
       }
       // フォロー中の人のこの店の記録（写真＋★＋アカウントアイコン。タップで投稿を表示）
       // 他人の記録なので日付は出さず、@ユーザー名のみ表示する。味覚一致率の高い人を先に
@@ -4646,8 +4691,6 @@ const Views = (() => {
     $('#modal').classList.remove('hidden');
   }
 
-  // その店の訪問記録を一覧で見るページ（日付・評価・ジャンル・コメント・写真・編集/削除）
-  // 写真は投稿詳細と同じ見せ方: 画面の横幅いっぱい＋複数枚は左右スワイプ（Instagram風）
   // ---------- 重複した店の統合（v364〜） ----------
   // 同じ店が名前違い・位置違いで二重に登録されているものを探す。
   //  候補: 正規化した名前が同じ ／ 80m 以内で名前の似た店（二文字の一致率 0.5 以上）／ 名前がかなり似ていて（0.8 以上）500m 以内か位置なし
@@ -5069,120 +5112,37 @@ const Views = (() => {
 
   // 訪問の一覧（v344〜 投稿詳細・お店の記録と同じ並び: 写真（★）→ 操作行（♥・コメント・経路・共有 … また来た・…）→ 日付 → ジャンル ・ 詳細 ›）
   // 上の統計タイル・下の「＋ 新しい記録を追加」・左スワイプの編集/削除は廃止（編集・削除は「…」）
-  function showVisitList(shopId) {
-    const s = Store.getShop(shopId);
-    if (!s) return;
-    const hasPos = s.lat != null && s.lon != null;
-    const ov = document.createElement('div');
-    ov.className = 'modal modal-full visitlist-modal';
-    ov.innerHTML = `<div class="modal-box">
-        <div class="vl-topbar">
-          <button type="button" class="vl-back" aria-label="閉じる">‹</button>
-          <div class="vl-titles">
-            <span class="vl-title">${esc(s.name)} の訪問記録</span>
-            <span class="vl-sub"></span>
+  // 訪問のタイムライン: 縦の線と点で時系列に並べる（v372〜 店舗の詳細の「タイムライン」。v344〜v371 は「訪問の一覧」の画面にあった）
+  function buildTimeline(shop, list, editVisit) {
+    const tl = document.createElement('div');
+    tl.className = 'vl-tl';
+    for (const v of list) {
+      const it = document.createElement('div');
+      it.className = 'vl-tli';
+      const gtxt = (v.dishGenres || []).join('・');
+      it.innerHTML = `
+        <div class="vl-tldate">${esc(fmtDate(v.datetime))}<span>${relTime(v.datetime)}</span></div>
+        <div class="vl-tlrow">
+          <button type="button" class="vl-tlph">${IC_DISH}</button>
+          <div class="vl-tlinfo">
+            <div class="vl-tlstars">${starSvg(v.rating, 14)}${v.rating ? `<b>${fmtR(v.rating)}</b>` : ''}</div>
+            ${gtxt ? `<div class="vl-tlg">${esc(gtxt)}</div>` : ''}
+            ${v.comment ? `<div class="vl-tlcm">${esc(v.comment)}</div>` : ''}
           </div>
-        </div>
-        <div class="vl-body"></div>
-      </div>`;
-    const body = ov.querySelector('.vl-body');
-    const close = () => ov.remove();
-    ov.querySelector('.vl-back').addEventListener('click', close);
-
-    let mode = 'list';   // 'list'（写真主役） | 'tl'（タイムライン）
-    let genreSel = '';   // ジャンル絞り込み（'' = すべて）
-
-    const editVisit = (v) => openVisitEdit(v.id, (how) => { App.refreshCurrent(); if (how === 'deleted' && !Store.visitsOf(shopId).length) { close(); return; } render(); }); // v367〜 その場のシート
-    const delVisit = async (v) => {
-      if (!confirm('この記録を削除しますか？')) return;
-      await Store.deleteVisit(v.id);
-      App.refreshCurrent();
-      render();
-    };
-    const shareText = `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
-
-    // 訪問1件（お店の記録と同じ部品）。いいね・コメントはこの訪問（＝公開投稿の id）に付く
-    const buildCard = (v) => buildVisitSection(shopId, v, { editVisit, delVisit }); // v364〜 店舗の詳細と共通
-
-    // タイムライン表示: 縦の線と点で時系列に並べる
-    function renderTimeline(list) {
-      const tl = document.createElement('div');
-      tl.className = 'vl-tl';
-      for (const v of list) {
-        const it = document.createElement('div');
-        it.className = 'vl-tli';
-        const gtxt = (v.dishGenres || []).join('・');
-        it.innerHTML = `
-          <div class="vl-tldate">${esc(fmtDate(v.datetime))}<span>${relTime(v.datetime)}</span></div>
-          <div class="vl-tlrow">
-            <button type="button" class="vl-tlph">${IC_DISH}</button>
-            <div class="vl-tlinfo">
-              <div class="vl-tlstars">${starSvg(v.rating, 14)}${v.rating ? `<b>${fmtR(v.rating)}</b>` : ''}</div>
-              ${gtxt ? `<div class="vl-tlg">${esc(gtxt)}</div>` : ''}
-              ${v.comment ? `<div class="vl-tlcm">${esc(v.comment)}</div>` : ''}
-            </div>
-            <button type="button" class="v-edit-link icon-only ve-edit" title="この記録を編集"
-              aria-label="この記録を編集">${IC_EDIT}</button>
-          </div>`;
-        Store.photosOfVisit(v.id).then(ps => {
-          if (!ps.length) return;
-          const ph = ps[0];
-          const holder = it.querySelector('.vl-tlph');
-          holder.innerHTML = ''; holder.appendChild(fullImg(ph));
-          holder.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${s.name}　${fmtDate(v.datetime)}`)));
-        });
-        it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
-        tl.appendChild(it);
-      }
-      body.appendChild(tl);
-    }
-
-    const render = () => {
-      const all = Store.visitsOf(shopId);
-      ov.querySelector('.vl-sub').textContent = `あなたの記録（${all.length}件）`;
-      body.innerHTML = '';
-      if (!all.length) { body.innerHTML = '<div class="empty"><p>訪問記録がありません。</p></div>'; return; }
-
-      const genres = [...new Set(all.flatMap(v => v.dishGenres || []))];
-      if (genreSel && !genres.includes(genreSel)) genreSel = '';
-      const list = genreSel ? all.filter(v => (v.dishGenres || []).includes(genreSel)) : all;
-
-      // 上: ジャンル絞り込み ＋ 表示切り替え（統計タイルは v344 で廃止。件数は見出しの下に）
-      const head = document.createElement('div');
-      head.className = 'vl-head';
-      head.innerHTML = `
-        <div class="vl-tools">
-          <div class="vl-chips"></div>
-          <div class="vl-segs">
-            <button type="button" class="vl-seg" data-m="list">リスト</button>
-            <button type="button" class="vl-seg" data-m="tl">タイムライン</button>
-          </div>
+          <button type="button" class="v-edit-link icon-only ve-edit" title="この記録を編集"
+            aria-label="この記録を編集">${IC_EDIT}</button>
         </div>`;
-      const chips = head.querySelector('.vl-chips');
-      if (genres.length) {
-        chips.innerHTML = `<button type="button" class="vl-chip${genreSel ? '' : ' on'}" data-g="">すべて</button>` +
-          genres.map(g => `<button type="button" class="vl-chip${genreSel === g ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('');
-        chips.querySelectorAll('.vl-chip').forEach(c =>
-          c.addEventListener('click', () => { genreSel = c.dataset.g; render(); }));
-      } else chips.remove();
-      head.querySelectorAll('.vl-seg').forEach(b => {
-        b.classList.toggle('on', b.dataset.m === mode);
-        b.addEventListener('click', () => { mode = b.dataset.m; render(); });
+      Store.photosOfVisit(v.id).then(ps => {
+        if (!ps.length) return;
+        const ph = ps[0];
+        const holder = it.querySelector('.vl-tlph');
+        holder.innerHTML = ''; holder.appendChild(fullImg(ph));
+        holder.addEventListener('click', () => fullPhotoUrl(ph).then(u => openLightbox(u || '', `${shop.name}　${fmtDate(v.datetime)}`)));
       });
-      body.appendChild(head);
-
-      if (!list.length) {
-        const e = document.createElement('div');
-        e.className = 'empty';
-        e.innerHTML = '<p>該当する記録がありません。</p>';
-        body.appendChild(e);
-        return;
-      }
-      if (mode === 'tl') { renderTimeline(list); return; }
-      for (const v of list) body.appendChild(buildCard(v));
-    };
-    render();
-    document.body.appendChild(ov);
+      it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
+      tl.appendChild(it);
+    }
+    return tl;
   }
 
   // ========== SNS: 公開プロフィールの共有 / 閲覧 ==========
@@ -5725,38 +5685,40 @@ const Views = (() => {
     sect.className = 'pd-sect';
     // v343〜 お店の記録と同じ並び: 写真 → 操作行（♥・コメント・経路・共有 … 保存／また来た）→ 店名 → 駅 ・ 県 市 → ジャンル ・ 詳細 ›
     // 星の行と大きな「ここへ行く」は廃止（★は写真のバッジ、経路は操作行）
+    // v372〜 自分の投稿は投稿者の行を出さず（自分だとわかっている）「…」を操作行の右端に。ひとことは畳まず見せ、
+    // 日付はジャンルの行に。「詳細」は住所・お店の評価があるときだけ
+    const moreHtml = [
+      p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : '',
+      axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : '',
+    ].join('');
+    const genTxt = [p.genre || p.shopGenre || '', isMine && p.datetime ? fmtDate(p.datetime) : ''].filter(Boolean).join(' ・ ');
     sect.innerHTML = `
-        <div class="pd-sect-head">
+        ${isMine ? '' : `<div class="pd-sect-head">
           <button type="button" class="feed-author pd-author" data-u="${esc(p.username)}">
             <span class="fc-avatar">${av}</span>
             <span class="fc-name">${esc(p.displayName || 'BITEMAP')}${p.username ? `<span class="fc-handle">@${esc(p.username)}</span>` : ''}</span>
           </button>
-          ${isMine ? `<button type="button" class="pd-menu-btn pd-edit" title="メニュー"
-            aria-label="メニュー">${IC_MORE}</button>` : ''}
-        </div>
+        </div>`}
         <div class="pd-phwrap">
           <div class="pd-photos"></div>
         </div>
         ${actRowHtml({ postId: p.id, hasPos, right: mv
-          ? `<button type="button" class="act-btn pd-revisit" aria-label="記録を追加">${IC_PLUS}</button>`
+          ? `<button type="button" class="act-btn pd-revisit" aria-label="記録を追加">${IC_PLUS}</button><button type="button" class="act-btn pd-edit" aria-label="メニュー">${IC_MORE}</button>`
           : `<button type="button" class="act-btn fa-save pd-save${wishStateForPost(p) ? ' on' : ''}" aria-label="行きたい店に保存">${IC_BOOKMARK}</button>` })}
         <div class="pd-body">
           ${o.inShop ? '' : `<div class="pd-shop">${esc(p.shopName || '')}</div>`}
           ${loc && !o.inShop ? `<div class="pd-sub">${loc}</div>` : ''}
-          <div class="pd-sub pd-genrow"><span>${esc(p.genre || p.shopGenre || '')}</span>
-            <button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button></div>
-          <div class="pd-morebox hidden">
-            ${p.address ? `<div class="pd-sub">${esc(p.address)}</div>` : ''}
-            ${axes ? `<div class="pd-axes"><div class="pd-axtitle">お店の評価</div>${axes}</div>` : ''}
-            ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
-            ${isMine && p.datetime ? `<div class="pd-date">${fmtDate(p.datetime)}</div>` : ''}
-          </div>
+          ${p.comment ? `<div class="pd-comment">${esc(p.comment)}</div>` : ''}
+          ${genTxt || moreHtml ? `<div class="pd-sub pd-genrow"><span>${esc(genTxt)}</span>
+            ${moreHtml ? `<button type="button" class="pd-more row-toggle"><span class="ri">詳細</span><span class="chev">›</span></button>` : ''}</div>` : ''}
+          ${moreHtml ? `<div class="pd-morebox hidden">${moreHtml}</div>` : ''}
           ${cmtBoxHtml()}
         </div>`;
-    sect.querySelector('.pd-author').addEventListener('click', () => { close(); showPublicProfile(p.username); });
-    // 「▸ 詳細」で住所・お店の評価・感想・日付・ナビ・編集を開閉
+    const author = sect.querySelector('.pd-author');
+    if (author) author.addEventListener('click', () => { close(); showPublicProfile(p.username); });
+    // 「詳細 ›」で住所・お店の評価を開閉
     const moreBtn = sect.querySelector('.pd-more');
-    moreBtn.addEventListener('click', () => {
+    if (moreBtn) moreBtn.addEventListener('click', () => {
       const hidden = sect.querySelector('.pd-morebox').classList.toggle('hidden');
       moreBtn.classList.toggle('open', !hidden);
     });

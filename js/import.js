@@ -43,12 +43,7 @@ const Import = (() => {
       <div class="modal-head"><button type="button" class="modal-close im-close" aria-label="閉じる">${Views.icons.x}</button><h2>過去の写真をまとめて取り込む</h2></div>
       <div class="im-body">
         <div class="im-intro">
-          <p>写真アプリから料理の写真を選ぶと、<b>撮った日と場所ごとに「1回の訪問」にまとめて</b>並べます。店名と★を付けて「記録する」を押すだけです。</p>
-          <ul class="im-tips">
-            <li>一度に <b>${IMPORT_BATCH}枚</b> まで。何回かに分けて取り込めます（取り込み済みの写真は自動で飛ばします）</li>
-            <li>位置情報（撮影場所）が付いた写真ほど、店の候補が正確に出ます</li>
-            <li>料理のジャンルは AI が自動で判定します（あとで直せます）</li>
-          </ul>
+          <p>撮った日と場所ごとに1回の訪問にまとめます。店名と★を付けて記録します。</p><!-- v372〜 説明は1行に -->
           <label class="check im-inc"><input type="checkbox" id="im-include-skipped"> 前に「飛ばす」にした写真も表示する</label>
           <input type="file" id="im-files" accept="image/*" multiple hidden>
           <button type="button" class="btn primary big" id="im-pick">${Views.icons.camera} 写真を選ぶ（最大${IMPORT_BATCH}枚）</button>

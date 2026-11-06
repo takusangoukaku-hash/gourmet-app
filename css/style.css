@@ -802,9 +802,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 /* 写真がまだ無い店の置き換え表示（🍽️） */
 
 /* 訪問記録の一覧ページ: 全画面表示。写真は画面の横幅いっぱい＋複数枚は左右スワイプ */
-/* スクロールは中身（.vl-body）だけに閉じ込め、✕と店名は上に残す */
-.visitlist-modal { overflow: hidden; }
-.visitlist-modal .modal-box { padding: 0; height: 100%; display: flex; flex-direction: column; }
+/* スクロールは中身（.vl-body）だけに閉じ込め、✕と店名は上に残す（訪問の一覧の画面は v372 で店舗の詳細に統合） */
 .vl-topbar {
   flex-shrink: 0; display: flex; align-items: center; gap: 6px;
   padding: 6px 10px; border-bottom: 1px solid var(--border-lite); background: var(--card);
@@ -926,6 +924,9 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 
 /* タイムライン表示: 左の縦線と点で時系列に */
 .vl-tl { padding: 2px 16px 20px; }
+/* 店舗の詳細の リスト／タイムライン 切り替え（v372〜） */
+.d-vsegs { display: flex; justify-content: flex-end; padding: 2px 0 8px; }
+#d-visits .vl-tl { padding: 2px 0 20px; }
 .vl-tli { position: relative; padding: 0 0 20px 26px; }
 .vl-tli::before { content: ''; position: absolute; left: 8px; top: 6px; bottom: 0; width: 2px; background: var(--border-lite); }
 .vl-tli:last-child::before { bottom: auto; height: 20px; }
@@ -1096,7 +1097,6 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .import-modal .modal-head { padding: 10px 14px 6px; }
 .import-modal .im-body { flex: 1; overflow-y: auto; padding: 0 14px 16px; }
 .im-intro p { font-size: 14px; line-height: 1.7; }
-.im-tips { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; color: var(--muted); line-height: 1.7; }
 .im-inc { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .im-progress { margin: 10px 0; }
 .im-bar { height: 6px; border-radius: 999px; background: var(--field); overflow: hidden; }
@@ -1682,6 +1682,10 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .ex-cat.ex-all .ex-cat-label { font-size: 18px; }
 /* まだ記録がないジャンルは色を薄く（カード自体は白のまま） */
 .ex-cat.off { opacity: .55; }
+/* v372〜 0件のくくり・ジャンルは畳み、「記録のないジャンル N」で開く */
+.explore-cats .ex-cat.off { display: none; }
+.explore-cats.show-off .ex-cat.off { display: flex; }
+.ex-showoff { grid-column: 1 / -1; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--muted); padding: 2px 0 6px; text-align: center; }
 @media (min-width: 640px) { .explore-cats { grid-template-columns: repeat(3, 1fr); } }
 /* カテゴリー内の見出し（‹ 戻る ＋ ジャンル名） */
 .explore-head { display: flex; align-items: center; gap: 6px; padding: 4px 0 8px; }
@@ -1692,6 +1696,8 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 }
 .ex-back:hover { background: var(--border-lite); }
 .ex-head-title { font-weight: 700; font-size: 18px; }
+.ex-sel { margin-left: auto; } /* v372〜 写真を選ぶ（長押しの代わりの見えるボタン） */
+.mz-tools { display: flex; justify-content: flex-end; padding: 0 0 8px; }
 
 /* ---------- ダークモード（端末の設定に追従） ---------- */
 @media (prefers-color-scheme: dark) {
@@ -1937,8 +1943,9 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 #view-register.step2 #reg-pick { display: none; }
 #view-register:not(.step2) #record-card, #view-register:not(.step2) .reg-sticky { display: none; }
 .reg-pick { display: flex; flex-direction: column; gap: 0; }
-.reg-pick-hero { height: 240px; border: none; border-radius: 14px; background: var(--field); color: var(--muted); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
-.reg-pick-hero .ic { width: 40px; height: 40px; stroke-width: 1.5; }
+.reg-pick-tiles { display: flex; gap: 8px; margin-bottom: 8px; } /* v372〜 撮る／選ぶ を同じ大きさに */
+.reg-pick-tile { flex: 1; height: 150px; border: none; border-radius: 14px; background: var(--field); color: var(--muted); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.reg-pick-tile .ic { width: 36px; height: 36px; stroke-width: 1.5; }
 .reg-row, .row-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 50px; border: none; border-top: 1px solid var(--border-lite); background: none; padding: 0 2px; cursor: pointer; font-family: inherit; font-size: 15px; color: var(--text); text-align: left; }
 .reg-row:first-of-type { border-top: none; }
 .row-toggle { border-top: 1px solid var(--border-lite); border-bottom: 1px solid var(--border-lite); margin-top: 14px; }
@@ -1954,7 +1961,7 @@ body[data-tab="register"] main, body[data-tab="list"] main, body[data-tab="map"]
 .reg-photo-empty { display: flex; gap: 8px; }
 .reg-photo-empty button { flex: 1; height: 120px; border: none; border-radius: 14px; background: var(--field); color: var(--muted); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 .reg-photo-empty button .ic { width: 32px; height: 32px; stroke-width: 1.5; }
-.reg-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.reg-photo img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; } /* v372〜 4:3 → 3:2（店名・★が1画面に入る） */
 .reg-photo-x { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.5); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .reg-photo-x .x-ic { width: 16px; height: 16px; }
 .reg-photo-chg { position: absolute; right: 10px; bottom: 10px; border: none; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; font-family: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
