@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=373">
+<link rel="stylesheet" href="css/style.css?v=374">
 </head>
 <body>
 
@@ -359,6 +359,11 @@
         <path d="M3 20h18"/><path d="M6 20v-7"/><path d="M12 20V5"/><path d="M18 20v-10"/>
       </svg>
     </button>
+    <button class="psub" data-ptab="wishes" title="行きたい" aria-label="行きたい"><!-- v374〜 行きたい店の一覧はここ（全画面モーダルから移した） -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    </button>
   </div>
 
   <!-- 写真パネル（初期表示）。上の検索欄で自分のアルバムを絞り込む（条件での絞り込み・並べ替えは検索タブ）。v315〜 -->
@@ -370,6 +375,9 @@
     </div>
     <div id="pf-photo-grid" class="photo-grid"></div>
   </div>
+
+  <!-- 行きたい店（v374〜。renderWishlist が描く） -->
+  <div id="ptab-wishes" class="ptab-panel hidden"></div>
 
   <!-- 統計パネル -->
   <div id="ptab-stats" class="ptab-panel hidden">
@@ -645,12 +653,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=373"></script>
-<script src="js/api.js?v=373"></script>
-<script src="js/cloud.js?v=373"></script>
-<script src="js/register.js?v=373"></script>
-<script src="js/import.js?v=373"></script>
-<script src="js/views.js?v=373"></script>
-<script src="js/app.js?v=373"></script>
+<script src="js/store.js?v=374"></script>
+<script src="js/api.js?v=374"></script>
+<script src="js/cloud.js?v=374"></script>
+<script src="js/register.js?v=374"></script>
+<script src="js/import.js?v=374"></script>
+<script src="js/views.js?v=374"></script>
+<script src="js/app.js?v=374"></script>
 </body>
 </html>

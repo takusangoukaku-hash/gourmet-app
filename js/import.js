@@ -41,6 +41,7 @@ const Import = (() => {
     ov.className = 'modal import-modal';
     ov.innerHTML = `<div class="modal-box">
       <div class="modal-head"><button type="button" class="modal-close im-close" aria-label="閉じる">${Views.icons.x}</button><h2>過去の写真をまとめて取り込む</h2></div>
+      <div class="im-steps" id="im-steps">${['選ぶ', 'まとめる', '店名と★', '記録'].map((t, i) => `<span class="im-step" data-n="${i + 1}"><i>${i + 1}</i><span>${t}</span></span>`).join('')}</div><!-- 手順（v374〜） -->
       <div class="im-body">
         <div class="im-intro">
           <p>撮った日と場所ごとに1回の訪問にまとめます。店名と★を付けて記録します。</p><!-- v372〜 説明は1行に -->
@@ -63,6 +64,12 @@ const Import = (() => {
     $('#im-files', ov).addEventListener('change', (e) => { const fs = [...e.target.files || []]; e.target.value = ''; if (fs.length) handleFiles(fs); });
     $('#im-include-skipped', ov).addEventListener('change', (e) => { includeSkipped = e.target.checked; });
     $('#im-save', ov).addEventListener('click', saveAll);
+    setStep(1);
+  }
+  // いまの手順を上の帯に（1 選ぶ → 2 まとめる → 3 店名と★ → 4 記録。v374〜）
+  function setStep(n) {
+    if (!ov) return;
+    ov.querySelectorAll('.im-step').forEach(s => { const k = +s.dataset.n; s.classList.toggle('on', k === n); s.classList.toggle('done', k < n); });
   }
   function close() {
     if (busy && !confirm('取り込みの途中です。閉じますか？')) return;
@@ -79,6 +86,7 @@ const Import = (() => {
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
     $('.im-intro', ov).classList.add('hidden');
+    setStep(2);
     busy = true;
     const skipped = loadSkipped();
     const items = [];
@@ -201,6 +209,7 @@ const Import = (() => {
       paintGroup(g);
     });
     $('#im-foot', ov).classList.remove('hidden');
+    setStep(3);
     updateFoot();
   }
   function paintGroup(g) {
@@ -258,6 +267,7 @@ const Import = (() => {
     const todo = groups.filter(ready);
     if (!todo.length) return;
     busy = true;
+    setStep(4);
     const btn = $('#im-save', ov); btn.disabled = true;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
@@ -307,7 +317,7 @@ const Import = (() => {
     sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
       <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
       <div class="im-sum-b"><button type="button" class="btn primary" id="im-again">続けて写真を選ぶ</button><button type="button" class="btn" id="im-done">閉じる</button></div>`;
-    $('#im-again', ov).addEventListener('click', () => { groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); });
+    $('#im-again', ov).addEventListener('click', () => { groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
     $('#im-done', ov).addEventListener('click', close);
     if (typeof App !== 'undefined' && App.refreshCurrent) App.refreshCurrent();
   }

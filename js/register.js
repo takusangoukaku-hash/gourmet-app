@@ -379,7 +379,7 @@ const Register = (() => {
   // 味の評価（0.5刻み）。選んだ値を星の右に数字でも出して、.5 が入ったか分かるようにする
   function mountTasteStars() {
     const val = $('#f-rating-val');
-    const show = (v) => { if (val) val.textContent = v ? v.toFixed(1) : ''; };
+    const show = (v) => { if (val) val.innerHTML = v ? `${v.toFixed(1)}<small>${Views.ratingWord(v)}</small>` : ''; }; // v374〜 意味を1語で
     const old = $('#f-rating');
     const el = old.cloneNode(false); // リスナーを持たない空の要素に差し替える
     old.replaceWith(el);

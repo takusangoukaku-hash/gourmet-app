@@ -30,6 +30,16 @@ const Views = (() => {
   const starBtn = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`;
   // 味の評価の入力（0.5刻み対応）: 星の左半分タップ＝◯.5、右半分タップ＝◯.0
   // 登録フォームと記録の編集フォームで共用する
+  // ★の意味を1語で（v374〜。登録・編集シートの星の右に）: 1〜1.5 いまいち／2〜2.5 まあまあ／3〜3.5 ふつう／4〜4.5 満足／5 最高
+  function ratingWord(r) {
+    r = Number(r) || 0;
+    if (r <= 0) return '';
+    if (r < 2) return 'いまいち';
+    if (r < 3) return 'まあまあ';
+    if (r < 4) return 'ふつう';
+    if (r < 5) return '満足';
+    return '最高';
+  }
   function mountRatingStars(el, initial, onChange) {
     el.innerHTML = '';
     const btns = [];
@@ -2119,7 +2129,9 @@ const Views = (() => {
   }
 
   let wishTab = 'todo', wishSort = 'added'; // 行きたい店の一覧の表示（v367〜。行きたい／行けた、追加順／近い順／名前順）
-  function openWishlist() {
+  // 行きたい店の一覧（v374〜 マイページの小タブ「行きたい」。v367〜v373 は全画面モーダルだった）
+  function openWishlist() { App.switchTab('profile'); showProfileTab('wishes'); }
+  function renderWishlist(body) {
     const all = Store.allWishes();
     const pos = lastKnownPos;
     const dist = (w) => (pos && w.lat != null && w.lon != null) ? Store.distMeters(pos.lat, pos.lon, w.lat, w.lon) : null;
@@ -2130,10 +2142,8 @@ const Views = (() => {
     else wishes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const done = all.filter(w => w.doneAt).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
     const pg = Store.wishProgress();
-    const body = $('#modal-body');
     const seg = (k, label) => `<button type="button" class="vl-seg${wishTab === k ? ' on' : ''}" data-wt="${k}">${label}</button>`;
-    body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店</h2>
-      <button type="button" class="btn small wish-add" id="wish-add">＋ 店名やリンクを貼って追加</button>`
+    body.innerHTML = `<button type="button" class="btn small wish-add" id="wish-add">＋ 店名やリンクを貼って追加</button>`
       + (pg.total ? `<div class="wish-pg"><div class="wish-pg-l">達成度</div>${wishProgressHtml(pg)}</div>` : '')
       + `<div class="wish-tools"><div class="vl-segs list-segs">${seg('todo', `行きたい ${wishes.length}`)}${seg('done', `行けた ${done.length}`)}</div>
           ${wishTab === 'todo' && wishes.length > 1 ? `<select id="wish-sort"><option value="added"${wishSort === 'added' ? ' selected' : ''}>追加順</option><option value="near"${wishSort === 'near' ? ' selected' : ''}>近い順</option><option value="name"${wishSort === 'name' ? ' selected' : ''}>名前順</option></select>` : ''}</div>`
@@ -2157,16 +2167,14 @@ const Views = (() => {
           ${w.doneShopId && Store.getShop(w.doneShopId) ? `<button class="btn small wish-shop" data-id="${esc(w.doneShopId)}">記録</button>` : ''}
           <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
         </div>`).join('') : '<p class="hint">まだ達成した店はありません。</p>'));
-    $('#modal').classList.remove('modal-full'); // 行きたいリストはカード表示に戻す
-    $('#modal').classList.remove('hidden');
-    $('#wish-add').addEventListener('click', () => openWishAdd());
-    body.querySelectorAll('.vl-seg[data-wt]').forEach(b => b.addEventListener('click', () => { wishTab = b.dataset.wt; openWishlist(); }));
+    const again = () => renderWishlist(body);
+    body.querySelector('#wish-add').addEventListener('click', () => openWishAdd());
+    body.querySelectorAll('.vl-seg[data-wt]').forEach(b => b.addEventListener('click', () => { wishTab = b.dataset.wt; again(); }));
     const sortSel = body.querySelector('#wish-sort');
-    if (sortSel) sortSel.addEventListener('change', () => { wishSort = sortSel.value; if (wishSort === 'near' && !pos) App.toast('現在地がまだ分かりません。地図かホームを開くと取れます'); openWishlist(); });
+    if (sortSel) sortSel.addEventListener('change', () => { wishSort = sortSel.value; if (wishSort === 'near' && !pos) App.toast('現在地がまだ分かりません。地図かホームを開くと取れます'); again(); });
     body.querySelectorAll('.wish-rec').forEach(b => b.addEventListener('click', () => {
       const w = all.find(x => x.id === b.dataset.id);
       if (!w) return;
-      closeModal();
       Register.prefillWish(w);
       App.switchTab('register');
     }));
@@ -2175,10 +2183,10 @@ const Views = (() => {
       const w = all.find(x => x.id === b.dataset.id);
       if (!w) return;
       const acts = [];
-      if (!w.doneAt && w.lat != null) acts.push({ label: '地図で見る', onClick: () => { $('#modal').classList.add('hidden'); focusMap(w.lon, w.lat, 15); App.switchTab('map'); } });
+      if (!w.doneAt && w.lat != null) acts.push({ label: '地図で見る', onClick: () => { focusMap(w.lon, w.lat, 15); App.switchTab('map'); } });
       if (!w.doneAt && w.lat != null) acts.push({ label: 'ここへ行く', onClick: () => openNav({ name: w.name, lat: w.lat, lon: w.lon }) });
-      if (w.doneAt) acts.push({ label: '達成を取り消す（行きたいに戻す）', onClick: () => { Store.undoWish(w.id); refreshWishData(); App.toast('行きたい店に戻しました'); openWishlist(); } });
-      acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => { Store.removeWish(w.id); refreshWishData(); openWishlist(); } });
+      if (w.doneAt) acts.push({ label: '達成を取り消す（行きたいに戻す）', onClick: () => { Store.undoWish(w.id); refreshWishData(); App.toast('行きたい店に戻しました'); again(); } });
+      acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => { Store.removeWish(w.id); refreshWishData(); again(); } });
       openActionSheet(acts);
     }));
   }
@@ -3204,10 +3212,13 @@ const Views = (() => {
     document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
     $('#ptab-photos').classList.toggle('hidden', name !== 'photos');
     $('#ptab-stats').classList.toggle('hidden', name !== 'stats');
-    // v315〜 プロフィールは「写真（自分のアルバム）」と「統計」の2つ。条件で探すのは検索タブ
+    $('#ptab-wishes').classList.toggle('hidden', name !== 'wishes');
+    // v315〜 マイページは「写真（自分のアルバム）」と「統計」、v374〜「行きたい」。条件で探すのは探す
     if (name === 'stats') {
       // グラフは表示中のcanvasでないと大きさが0になるため、表示時に描画する
       renderStats();
+    } else if (name === 'wishes') {
+      renderWishlist($('#ptab-wishes'));
     } else {
       renderProfilePhotos();
     }
@@ -4946,7 +4957,7 @@ const Views = (() => {
     ov.innerHTML = `<div class="modal-box ve-box">
         <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
         <div class="ve-head"><b>${esc(s.name || '記録')}</b><span>${esc(fmtDate(v.datetime))}</span></div>
-        <div class="ve-row">味の評価 <span class="stars small ve-stars"></span></div>
+        <div class="ve-row">味の評価 <span class="stars small ve-stars"></span><span class="ve-rword">${esc(ratingWord(v.rating))}</span></div>
         <div class="ve-sub">料理ジャンル</div>
         <div class="ve-genres"></div>
         <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
@@ -4960,7 +4971,7 @@ const Views = (() => {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.ve-close').addEventListener('click', close);
     let rating = v.rating || 0;
-    mountRatingStars(ov.querySelector('.ve-stars'), rating, (val) => { rating = val; });
+    mountRatingStars(ov.querySelector('.ve-stars'), rating, (val) => { rating = val; ov.querySelector('.ve-rword').textContent = ratingWord(val); });
     const set = new Set(v.dishGenres || []);
     Api.buildGenrePicker(ov.querySelector('.ve-genres'), set);
     ov.querySelector('.ve-save').addEventListener('click', () => {
@@ -6270,6 +6281,7 @@ const Views = (() => {
   }
   return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
+    ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）
     mzOrder, // 見た目が整う並び（v331〜。動作確認用に公開）
