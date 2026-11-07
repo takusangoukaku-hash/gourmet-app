@@ -1091,6 +1091,9 @@ const Views = (() => {
     });
     $('#map-pick-cancel').addEventListener('click', endMapPick);
     $('#map-locate').addEventListener('click', () => locateUser(true));
+    // 行きたい店を追加（v376〜）: 画面の中央の位置で、長押しと同じ流れ（周辺の店の候補 → 店名）
+    const addBtn = $('#map-add');
+    if (addBtn) addBtn.addEventListener('click', () => { if (!map) return; const c = map.getCenter(); onMapLongPress(c.lat, c.lng); });
     $('#map-nearby').addEventListener('click', () => openNearby());
     $('#map-heat').addEventListener('click', toggleHeat);
   }
@@ -4928,6 +4931,31 @@ const Views = (() => {
     ov.querySelector('.ve-close').addEventListener('click', close);
     ov.querySelector('#d-cancel').addEventListener('click', close);
     ov.querySelector('#de-pos-addr').addEventListener('click', () => { close(); fixPosByAddress(shopId); });
+    // v376〜 住所を入れたら（入力を離れたとき）、空いている 最寄駅・都道府県・市区町村 を住所から埋める（登録画面と同じ仕組み）
+    let fillSeq = 0;
+    const addrInput = ov.querySelector('#de-address');
+    const autoFill = async () => {
+      const address = addrInput.value.trim();
+      const st = ov.querySelector('#de-station'), pf = ov.querySelector('#de-pref'), ct = ov.querySelector('#de-city');
+      if (!address || address === (s.address || '') || (st.value && pf.value && ct.value)) return;
+      const seq = ++fillSeq;
+      const empties = [st, pf, ct].filter(i => !i.value);
+      empties.forEach(i => { i.dataset.ph = i.placeholder || ''; i.placeholder = '住所から探しています…'; });
+      try {
+        const hit = (await Api.geocodeAddress(address))[0];
+        if (seq !== fillSeq || !hit || !ov.isConnected) return;
+        const [geo, station] = await Promise.all([
+          (!pf.value || !ct.value) ? Api.reverseGeocode(hit.lat, hit.lon).catch(() => ({})) : Promise.resolve({}),
+          !st.value ? Api.nearestStation(hit.lat, hit.lon).catch(() => '') : Promise.resolve(''),
+        ]);
+        if (seq !== fillSeq || !ov.isConnected) return;
+        if (geo.pref && !pf.value) pf.value = geo.pref;
+        if (geo.city && !ct.value) ct.value = geo.city;
+        if (station && !st.value) st.value = station;
+      } catch { /* 探せなければそのまま */ }
+      finally { empties.forEach(i => { i.placeholder = i.dataset.ph || ''; }); }
+    };
+    addrInput.addEventListener('change', autoFill);
     ov.querySelector('#de-pos-map').addEventListener('click', () => { close(); pickOnMap({ lat: s.lat, lon: s.lon }, (c) => {
       Store.updateShop(shopId, { lat: c.lat, lon: c.lon, posLevel: 'manual' });
       App.toast('位置を直しました');
@@ -5448,6 +5476,7 @@ const Views = (() => {
     ensureNetworkLoaded(() => { if (feedCache) paintFeed(feedCache.posts); });
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+    const segs = $('#feed-segs'); if (segs) segs.classList.toggle('hidden', !me); // v376〜 未ログインでは並びの切り替えを出さない
     if (!me) {
       // v375〜 他の空の状態と同じ部品（絵＋1行＋ボタン）。ボタンは設定のログインと同じ処理
       box.innerHTML = emptyBox(EMPTY_IC_PEOPLE, 'ログインすると、フォロー中の人の記録がここに並びます',
@@ -5488,7 +5517,7 @@ const Views = (() => {
 
   // 投稿一覧の描画（renderFeedの表示部分。裏の再取得後の差し替えでも使う）
   // ホームの表示モード: おすすめ（味覚一致率の高い人を優先）／最新／フォロー中
-  let feedSeg = 'reco';
+  let feedSeg = 'reco'; // 'reco' おすすめ／'new' 最新（v376〜 「フォロー中」は最新と同じ並びだったので外した）
   function initFeedSegs() {
     document.querySelectorAll('#feed-segs .feed-seg').forEach(b => b.addEventListener('click', () => {
       feedSeg = b.dataset.seg;

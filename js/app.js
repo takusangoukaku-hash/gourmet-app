@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v375'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v376'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -203,6 +203,7 @@ const App = (() => {
         + '<span class="sa-value"></span></span>';
       box.querySelector('.sa-value').textContent = user.email || user.displayName || 'Googleアカウント';
     };
+    const settingsHooks = []; // 設定を開いたときに描き直す関数（v376〜）
     // 設定上部のプロフィール行（名前・@ユーザー名・アイコン）
     const renderSettingsProfile = () => {
       const p = Store.getProfile();
@@ -223,6 +224,7 @@ const App = (() => {
       Api.refreshProxyStatus().then(() => { $('#settings-status').textContent = settingsStatus(); });
       renderSettingsAccount();
       renderSettingsProfile();
+      settingsHooks.forEach(f => { try { f(); } catch { /* noop */ } }); // v376〜 データの行の「前回 …」
       $('#settings-modal').classList.remove('hidden');
     });
     $('#settings-save').addEventListener('click', () => {
@@ -269,8 +271,21 @@ const App = (() => {
       const d = new Date();
       return `bitemap-backup${suffix}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
     };
+    // データの行の下に前回の実行（v376〜）。日時は端末に控える
+    const fmtWhen = (ts) => { const d = new Date(+ts || 0); if (!+ts) return ''; const now = new Date(); const same = d.toDateString() === now.toDateString(); const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; return same ? `今日 ${hm}` : (d.getFullYear() === now.getFullYear() ? `${d.getMonth() + 1}月${d.getDate()}日` : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`); };
+    const noteRow = (id, text) => { const el = $(id); if (el) el.textContent = text || ''; };
+    const renderDataRows = () => {
+      const ex = localStorage.getItem('gourmet.lastBackupAt'); noteRow('#sub-backup-export', ex ? `前回 ${fmtWhen(ex)}` : '');
+      const im = localStorage.getItem('gourmet.lastRestoreAt'); noteRow('#sub-backup-import', im ? `前回 ${fmtWhen(im)}` : '');
+      let cl = null; try { cl = JSON.parse(localStorage.getItem('gourmet.lastCleanup') || 'null'); } catch { cl = null; }
+      noteRow('#sub-cleanup', cl && cl.at ? `前回 ${fmtWhen(cl.at)}${cl.visits || cl.photos ? ` ・ 記録 ${cl.visits}件・写真 ${cl.photos}枚` : ' ・ 無し'}` : '');
+      noteRow('#sub-merge', `店 ${Store.shops().length}件`);
+    };
+    settingsHooks.push(renderDataRows);
     $('#backup-export').addEventListener('click', async () => {
       downloadJson(await buildBackup(false), backupName(''));
+      try { localStorage.setItem('gourmet.lastBackupAt', String(Date.now())); } catch { /* noop */ }
+      renderDataRows();
       toast('バックアップを書き出しました');
     });
     $('#backup-export-photos').addEventListener('click', async () => {
@@ -279,6 +294,8 @@ const App = (() => {
       try {
         const data = await buildBackup(true, (done, total, label) => { toast(`${label || '写真'}を準備中… ${done}/${total}`); });
         downloadJson(data, backupName('-photos'));
+        try { localStorage.setItem('gourmet.lastBackupAt', String(Date.now())); } catch { /* noop */ }
+        renderDataRows();
         toast(`写真込みで書き出しました（写真${(data.photos || []).length}枚）`);
       } catch (err) {
         toast('書き出せませんでした: ' + (err && err.message || err));
@@ -289,6 +306,8 @@ const App = (() => {
     $('#cleanup-orphans').addEventListener('click', async () => { // 店の無い記録の掃除（v370〜）
       const r = await Store.cleanupOrphans().catch(() => null);
       if (!r) { toast('掃除できませんでした'); return; }
+      try { localStorage.setItem('gourmet.lastCleanup', JSON.stringify({ at: Date.now(), visits: r.visits || 0, photos: r.photos || 0 })); } catch { /* noop */ }
+      renderDataRows();
       toast(r.visits || r.photos ? `店の無い記録 ${r.visits}件・写真 ${r.photos}枚を消しました` : '掃除する記録はありませんでした');
       if (r.visits || r.photos) refreshCurrent();
     });
@@ -299,6 +318,8 @@ const App = (() => {
       try {
         const data = JSON.parse(await file.text());
         const r = await restoreBackup(data);
+        try { localStorage.setItem('gourmet.lastRestoreAt', String(Date.now())); } catch { /* noop */ }
+        renderDataRows();
         toast(r.added || r.photos
           ? `読み込みました（記録${r.added}件・写真${r.photos}枚を追加・更新）`
           : '追加の記録はありませんでした（すべて登録済み）');
