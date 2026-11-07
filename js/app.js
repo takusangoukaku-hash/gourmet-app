@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v378'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v379'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -283,7 +283,35 @@ const App = (() => {
       let cl = null; try { cl = JSON.parse(localStorage.getItem('gourmet.lastCleanup') || 'null'); } catch { cl = null; }
       noteRow('#sub-cleanup', cl && cl.at ? `前回 ${fmtWhen(cl.at)}${cl.visits || cl.photos ? ` ・ 記録 ${cl.visits}件・写真 ${cl.photos}枚` : ' ・ 無し'}` : '');
       noteRow('#sub-merge', `店 ${Store.shops().length}件`);
+      Store.listBackups().then(list => noteRow('#sub-auto-backups', list.length ? `前回 ${fmtWhen(list[0].at)} ・ ${list.length}世代` : '週に1回、記録を端末内に残します')).catch(() => {});
     };
+    // 端末内の自動バックアップ（v379〜）: 週に1回、記録（写真なし）を IndexedDB に残す（最大4世代）。設定から書き出し・復元できる
+    const AUTO_BACKUP_MS = 7 * 24 * 3600 * 1000;
+    const autoBackupLocal = async () => {
+      try {
+        if (!Store.shops().length) return;
+        const last = +localStorage.getItem('gourmet.lastAutoBackupAt') || 0;
+        if (Date.now() - last < AUTO_BACKUP_MS) return;
+        await Store.putBackup(await buildBackup(false));
+        localStorage.setItem('gourmet.lastAutoBackupAt', String(Date.now()));
+      } catch (e) { console.warn('自動バックアップ:', e); }
+    };
+    setTimeout(autoBackupLocal, 20000); // 起動の 20 秒後（起動を遅らせない）
+    setInterval(autoBackupLocal, 6 * 3600 * 1000); // 開きっぱなしでも1日に数回は確かめる
+    $('#auto-backups').addEventListener('click', async () => {
+      const list = await Store.listBackups().catch(() => []);
+      const pick = (b) => Views.openActionSheet([
+        { label: 'ファイルに書き出す', onClick: async () => { const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; } downloadJson(data, backupName('-auto-' + new Date(b.at).toISOString().slice(0, 10).replace(/-/g, ''))); toast('書き出しました'); } },
+        { label: 'この内容を復元する（今の記録は消えません）', onClick: async () => {
+          if (!confirm(`${fmtWhen(b.at)} のバックアップから、無い記録や古い記録を取り込みます。よろしいですか？`)) return;
+          const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; }
+          try { const r = await restoreBackup(data); toast(r.added ? `復元しました（記録${r.added}件を追加・更新）` : '追加の記録はありませんでした'); refreshCurrent(); } catch (err) { toast('復元できませんでした: ' + (err && err.message || err)); }
+        } },
+      ]);
+      const acts = list.map(b => ({ label: `${fmtWhen(b.at)} ・ 店 ${b.n.shops || 0}・記録 ${b.n.visits || 0}`, onClick: () => pick(b) }));
+      acts.push({ label: 'いま残す', onClick: async () => { try { await Store.putBackup(await buildBackup(false)); localStorage.setItem('gourmet.lastAutoBackupAt', String(Date.now())); renderDataRows(); toast('端末内に残しました'); } catch (e) { toast('残せませんでした: ' + (e && e.message || e)); } } });
+      Views.openActionSheet(acts);
+    });
     settingsHooks.push(renderDataRows);
     $('#backup-export').addEventListener('click', async () => {
       downloadJson(await buildBackup(false), backupName(''));

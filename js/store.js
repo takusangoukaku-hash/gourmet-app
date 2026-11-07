@@ -101,7 +101,8 @@ const Store = (() => {
         // v2: 下書き(drafts)ストアを追加
         // v3: 写真のメタ情報(meta)とサムネイル(thumbs)を本体(photos)から分離。
         //     一覧の描画で全写真の本体（数十MB）を読まずに済むようにする（速度と省メモリ）
-        const req = indexedDB.open('gourmet-photos', 3);
+        // v4: 端末内の自動バックアップ(backups)ストアを追加（v379〜。週に1回、記録だけを最大4世代）
+        const req = indexedDB.open('gourmet-photos', 4);
         req.onupgradeneeded = (ev) => {
           const d = req.result;
           const tx = req.transaction;
@@ -119,6 +120,7 @@ const Store = (() => {
             ms.createIndex('shopId', 'shopId');
           }
           if (!d.objectStoreNames.contains('thumbs')) d.createObjectStore('thumbs', { keyPath: 'id' });
+          if (!d.objectStoreNames.contains('backups')) d.createObjectStore('backups', { keyPath: 'at' });
           if (ev.oldVersion > 0 && ev.oldVersion < 3) {
             // 既存の写真からメタ情報とサムネイルを1回だけ分離する（本体はそのまま）
             const ps = tx.objectStore('photos'), ms = tx.objectStore('meta'), ts = tx.objectStore('thumbs');
@@ -330,6 +332,32 @@ const Store = (() => {
     return new Promise((resolve, reject) => {
       const req = d.transaction('meta').objectStore('meta').index('visitId').getAll(visitId);
       req.onsuccess = () => resolve(livePhotos(req.result || []));
+      req.onerror = () => reject(req.error);
+    });
+  }
+  // ---------- 端末内の自動バックアップ（v379〜） ----------
+  const BACKUP_KEEP = 4;
+  async function putBackup(data) {
+    const d = await db();
+    const rec = { at: Date.now(), n: { shops: (data.shops || []).length, visits: (data.visits || []).length, wishes: (data.wishes || []).length }, data };
+    await new Promise((resolve, reject) => { const tx = d.transaction('backups', 'readwrite'); tx.objectStore('backups').put(rec); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    const all = await listBackups();
+    for (const b of all.slice(BACKUP_KEEP)) await new Promise((resolve) => { const tx = d.transaction('backups', 'readwrite'); tx.objectStore('backups').delete(b.at); tx.oncomplete = resolve; tx.onerror = resolve; });
+    return rec.at;
+  }
+  async function listBackups() { // 新しい順。中身は含まない
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('backups').objectStore('backups').getAll();
+      req.onsuccess = () => resolve((req.result || []).map(r => ({ at: r.at, n: r.n || {} })).sort((a, b) => b.at - a.at));
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function getBackup(at) {
+    const d = await db();
+    return new Promise((resolve, reject) => {
+      const req = d.transaction('backups').objectStore('backups').get(at);
+      req.onsuccess = () => resolve(req.result ? req.result.data : null);
       req.onerror = () => reject(req.error);
     });
   }
@@ -720,6 +748,7 @@ const Store = (() => {
     addWish, removeWish, undoWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
     setSyncHook, applyRemote, applyRemoteDelete, putPhotoRaw, photoIds,
+    putBackup, listBackups, getBackup, // 端末内の自動バックアップ（v379〜）
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
     deletedIds, clearDeleted, wipeLocal, rev: () => rev,
     addHit, hitLog, hitSummary, mergeHits,

@@ -854,6 +854,13 @@ const Views = (() => {
       map.addLayer({ id: 'pin-labels-hi', type: 'symbol', source: 'shops', minzoom: DROP_ZOOM,
         filter: ['!', ['has', 'point_count']],
         layout: Object.assign({}, labelLayout, { 'text-offset': PIN_LABEL_OFFSET }), paint: labelPaint });
+      // v379〜 引いているとき（z10〜DROP_ZOOM）は評価の高い店（★4.5 以上か金の★）だけ店名を出す。重なれば自動で隠れる（text-optional）。
+      // まとまり（cluster）のある 'shops' に z13 未満の文字の層を足すとタイルが描けなくなったため、評価の高い店だけの別ソース 'shops-hi' に描く
+      map.addSource('shops-hi', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'pin-labels-lo', type: 'symbol', source: 'shops-hi', minzoom: 10, maxzoom: DROP_ZOOM,
+        layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 9.5, 'text-anchor': 'bottom', 'text-max-width': 10,
+          'text-offset': PIN_LABEL_OFFSET, 'text-optional': true, 'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'ravg'], 0]] },
+        paint: labelPaint });
 
       // 行きたい店（紫のピン）。評価色と混ざらないよう独立したソースで描く
       map.addSource('wishes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -1673,6 +1680,7 @@ const Views = (() => {
     if (mapScope === 'wish') {
       networkById.clear();
       map.getSource('shops').setData({ type: 'FeatureCollection', features: [] });
+      const hiSrc0 = map.getSource('shops-hi'); if (hiSrc0) hiSrc0.setData({ type: 'FeatureCollection', features: [] });
       refreshWishData();
       $('#map-filter-count').textContent = '';
       const pts = Store.wishes().filter(w => w.lat != null && w.lon != null).map(w => [w.lon, w.lat]);
@@ -1791,6 +1799,8 @@ const Views = (() => {
       f.properties.five = fiveStarFans({ name: s.name, lat: s.lat, lon: s.lon }).n ? 1 : 0;
     }
     map.getSource('shops').setData({ type: 'FeatureCollection', features });
+    const hiSrc = map.getSource('shops-hi'); // 引いたときの店名（評価の高い店だけ。v379〜）
+    if (hiSrc) hiSrc.setData({ type: 'FeatureCollection', features: features.filter(f => f.properties && (f.properties.five === 1 || (f.properties.ravg || 0) >= 4.5)) });
     refreshWishData();
 
     // 視点合わせは「まだ視点が決まっていないとき」だけ。決まった後の再描画
