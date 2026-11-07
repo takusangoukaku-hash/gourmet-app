@@ -145,7 +145,10 @@ const Register = (() => {
     $('#reg-pick-cam').addEventListener('click', openCamera);
     $('#reg-back').addEventListener('click', () => { if (resetFormConfirmed()) { resetForm(); } });
     $('#reg-pick-lib').addEventListener('click', () => $('#photo-input').click());
-    $('#reg-pick-text').addEventListener('click', () => { forceStep2 = true; updateStep(); setTimeout(() => $('#f-shop-name').focus(), 250); });
+    $('#reg-pick-text').addEventListener('click', () => {
+      forceStep2 = true; updateStep(); setTimeout(() => $('#f-shop-name').focus(), 250);
+      nearbyForNoPhoto(); // v378〜 現在地の周辺の店を候補に（タップで選ぶ。自動では選ばない）
+    });
     $('#reg-pick-wish').addEventListener('click', () => Views.openWishAdd());
     // 2枚目「記録」: ジャンルの札 → 選択肢の開閉。「ひとこと」「住所・最寄駅」の行 → 折りたたみの開閉
     $('#genre-pill').addEventListener('click', openGenreSheet); // v373〜 よく使う6つ＋検索＋全ジャンルのシート
@@ -256,9 +259,9 @@ const Register = (() => {
   // 地図に紫のピンで表示される。その店の訪問を記録すると自動で行きたいから外れる
   function saveWish() {
     const name = $('#f-shop-name').value.trim();
-    if (!name) { App.toast('店舗名を入力してください'); return; }
+    if (!name) { App.toast('店名を入れてください'); return; }
     const m = Store.matchShop({ name, lat: selected ? selected.lat : null, lon: selected ? selected.lon : null });
-    if (m) { App.toast('この店はすでに訪問の記録があります'); return; }
+    if (m) { App.toast('この店はすでに記録があります'); return; }
     const w = Store.addWish({
       name,
       lat: selected && selected.lat != null ? selected.lat : null,
@@ -635,7 +638,14 @@ const Register = (() => {
   }
 
   // ---------- フローA: 周辺候補 ----------
-  async function loadCandidates(lat, lon) {
+  // 写真なしで記録（v378〜）: 現在地が取れれば周辺の店（登録済み → 候補）を出す。店名を打ち始めていたら出さない
+  async function nearbyForNoPhoto() {
+    const pos = await getCurrentPos(4000);
+    if (!pos || !forceStep2 || pendingPhotos.length || $('#f-shop-name').value.trim() || selected) return;
+    lastGps = pos; // 候補の距離・重複の確認・位置の基準に（写真の GPS と同じ扱い）
+    await loadCandidates(pos.lat, pos.lon, { auto: false });
+  }
+  async function loadCandidates(lat, lon, opt) {
     const box = $('#shop-candidates');
     box.innerHTML = '<p class="hint">検索中…</p>';
     try {
@@ -649,12 +659,13 @@ const Register = (() => {
       results.forEach(c => { c.flow = 'nearby'; });
       existing.forEach(e => { e.flow = 'nearby'; });
       lastQuery = '';
-      renderCandidates(box, existing, results, '周辺に店舗候補が見つかりませんでした。「名前で検索」をお試しください。');
+      renderCandidates(box, existing, results, '近くに店の候補が見つかりませんでした。店名を入れると名前で探せます');
       // 利用者が自分で店を選んだあと（2枚目の写真の追加など）は、自動選択で上書きしない
       if (selected && !autoPicked) return;
+      if (opt && opt.auto === false) return; // v378〜 写真なしのときはタップで選んでもらう
       autoSelectBest(box, existing, results);
     } catch (e) {
-      box.innerHTML = '<p class="hint">店舗検索に失敗しました（通信エラー）。「名前で検索」または「地図で指定」をご利用ください。</p>';
+      box.innerHTML = '<p class="hint">店を探せませんでした（通信エラー）。店名を入れると名前で探せます</p>';
     }
   }
 
@@ -771,7 +782,7 @@ const Register = (() => {
     suggestSeq++; // 進行中の予測検索を無効化（手動検索を優先）
     const q = $('#f-shop-name').value.trim();
     const box = $('#shop-candidates');
-    if (!q) { box.innerHTML = '<p class="hint">店舗名を入力してから「名前で検索」を押してください。</p>'; return; }
+    if (!q) { box.innerHTML = '<p class="hint">店名を入れてから検索してください</p>'; return; }
     box.innerHTML = '<p class="hint">検索中…（周辺の店舗情報も含めて探しています）</p>';
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
@@ -795,7 +806,7 @@ const Register = (() => {
     if (!ref) ref = await getCurrentPos();
     withDistances(existing, [], ref); // v377〜 登録済みは近い順（検索結果の距離は結果が来てから）
 
-    const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で再検索するか、「地図で指定」から位置を指定して店舗名を入力してください。';
+    const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で探し直すか、そのまま店名だけで記録できます';
     const mySeq = ++searchSeq;
 
     // まず高速な検索（Photon + Nominatim）を即表示
@@ -829,7 +840,7 @@ const Register = (() => {
     if (ref) {
       const note = document.createElement('p');
       note.className = 'hint';
-      note.textContent = '周辺の店舗をさらに検索中…';
+      note.textContent = '近くの店をさらに探しています…';
       box.appendChild(note);
       const more = await Api.searchShopsNearby(nameQuery, ref).catch(() => []);
       note.remove();
@@ -1005,7 +1016,7 @@ const Register = (() => {
     const name = $('#f-shop-name').value.trim();
     // 訪問日は自動記録（写真の撮影日→なければ当日）。編集画面から修正可能
     const dtVal = visitDate || toLocalInput(new Date());
-    if (!name) { App.toast('店舗名を入力してください'); return; }
+    if (!name) { App.toast('店名を入れてください'); return; }
     if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
 
     const btn = $('#save-btn');

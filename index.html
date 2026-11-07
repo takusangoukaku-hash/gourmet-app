@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=377">
+<link rel="stylesheet" href="css/style.css?v=378">
 </head>
 <body>
 
@@ -77,8 +77,8 @@
     <div class="form-grid">
       <div class="full flabel reg-namebox">
         <div class="search-row reg-name-row">
-          <input type="text" id="f-shop-name" placeholder="店舗名を追加" autocomplete="off">
-          <button type="button" id="shop-search-btn" class="btn icon-only" aria-label="店舗名で検索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
+          <input type="text" id="f-shop-name" placeholder="店名を追加" autocomplete="off">
+          <button type="button" id="shop-search-btn" class="btn icon-only" aria-label="店名で検索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
         </div>
         <div class="reg-meta"><span id="reg-station"></span><button type="button" id="genre-pill" class="genre-pill">ジャンルを選ぶ</button></div>
         <div id="reg-dup" class="reg-dup hidden"></div><!-- 登録済みの店と同じ店らしいときの案内（v365〜） -->
@@ -572,6 +572,14 @@
           <option value="xl">特大</option>
         </select>
       </label>
+      <label class="set-row set-row-static" for="set-home-square"><!-- v378〜 ホームのカードの写真の高さ -->
+        <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+        <span class="set-label">ホームの写真</span>
+        <select id="set-home-square" class="set-select">
+          <option value="">写真の形のまま</option>
+          <option value="1">正方形にそろえる</option>
+        </select>
+      </label>
     </div>
 
     <div class="set-section-title">ヘルプ</div>
@@ -659,12 +667,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=377"></script>
-<script src="js/api.js?v=377"></script>
-<script src="js/cloud.js?v=377"></script>
-<script src="js/register.js?v=377"></script>
-<script src="js/import.js?v=377"></script>
-<script src="js/views.js?v=377"></script>
-<script src="js/app.js?v=377"></script>
+<script src="js/store.js?v=378"></script>
+<script src="js/api.js?v=378"></script>
+<script src="js/cloud.js?v=378"></script>
+<script src="js/register.js?v=378"></script>
+<script src="js/import.js?v=378"></script>
+<script src="js/views.js?v=378"></script>
+<script src="js/app.js?v=378"></script>
 </body>
 </html>

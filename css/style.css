@@ -1522,8 +1522,9 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 /* ---------- 地図: 星の色の説明を地図上に常時表示 ---------- */
 /* 行きたい店を追加（v376〜）: 右下の拡大縮小・現在地の上に丸ボタン */
 /* 接続なしのとき地図の上に出す小さな帯（v377〜。見出しの帯は地図タブでは隠しているため） */
-.map-offline { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); z-index: 1045; background: rgba(38,38,38,.9); color: #fff; font-size: 12px; padding: 6px 12px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+.map-offline { position: absolute; left: 50%; top: 118px; transform: translateX(-50%); z-index: 1045; background: rgba(38,38,38,.9); color: #fff; font-size: 12px; padding: 6px 12px; border-radius: 999px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; pointer-events: none; } /* 表示範囲のボタン（左上）の下に。幅360でも重ならない（v378 の点検で直した） */
 body.msh-open .map-offline, body.map-picking .map-offline { display: none; }
+.feed-square .fcard-img { aspect-ratio: 1 / 1 !important; } /* ホームの写真を正方形に（v378〜） */
 .map-add-btn { position: absolute; right: 10px; bottom: 168px; z-index: 1045; width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--accent); color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.22); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
 .map-add-btn svg { width: 22px; height: 22px; }
 body.map-picking .map-add-btn, body.msh-open .map-add-btn { display: none; }

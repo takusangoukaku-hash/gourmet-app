@@ -1139,7 +1139,7 @@ const Views = (() => {
 
   // 指定した店舗へのナビ: 車/電車/徒歩を選んで地図アプリ（Googleマップ）でルート表示
   function openNav(s) {
-    if (!s || s.lat == null || s.lon == null) { App.toast('この店舗には位置情報がありません'); return; }
+    if (!s || s.lat == null || s.lon == null) { App.toast('この店には位置がありません'); return; }
     const dest = `${s.lat},${s.lon}`;
     const modes = [
       { key: 'driving', label: '車', icon: IC_CAR },
@@ -1217,7 +1217,7 @@ const Views = (() => {
     const axisActive = ['taste', 'casual', 'atmosphere', 'speed']
       .filter(k => +($('#mf-' + k).value || 0) > 0)
       .map(k => AXIS_LABEL[k] + '★' + $('#mf-' + k).value + '+');
-    const cond = [...mapGenreFilter, ...axisActive].join('・') || 'すべての店舗';
+    const cond = [...mapGenreFilter, ...axisActive].join('・') || 'すべての店';
 
     let mode = 'walk';
     let origin = null;      // { lat, lon }
@@ -1261,7 +1261,7 @@ const Views = (() => {
         return;
       }
       if (!rows.length) {
-        listEl.innerHTML = '<div class="empty"><p>条件に合う店舗が見つかりません。</p></div>';
+        listEl.innerHTML = '<div class="empty"><p>条件に合う店が見つかりません</p></div>';
         return;
       }
       listEl.innerHTML = rows.map((r, i) => {
@@ -1465,7 +1465,7 @@ const Views = (() => {
       <div class="msh-top"></div>
       <div class="msh-sheet">
         ${sheetHeadHtml({
-          hasPhoto: !!photos.length, name: s.name, station: s.station, heroLabel: '店舗詳細を開く',
+          hasPhoto: !!photos.length, name: s.name, station: s.station, heroLabel: '店の詳細を開く',
           tiles: [
             hasPos ? { cls: 'msh-navbtn', icon: IC_NAV, label: mins ? `${mins}分` : '経路', primary: true } : null,
             { cls: 'msh-revisit', icon: IC_PLUS, label: 'また来た' },
@@ -1492,7 +1492,7 @@ const Views = (() => {
     ov.querySelector('.msh-share').addEventListener('click', async () => {
       const text = `${s.name}${genre ? `（${genre}）` : ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
       if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
-      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+      try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
     });
     // 店の写真・名前 → 全画面の店舗詳細（記録の閲覧・編集はこちらから）
     if (photos.length) setFullPhoto(ov.querySelector('.msh-hero img'), photos[0]);
@@ -1639,7 +1639,7 @@ const Views = (() => {
     ov.querySelector('.msh-share').addEventListener('click', async () => {
       const text = `${name0}${genre ? `（${genre}）` : ''}${station ? ` / ${station}` : ''} - BITEMAP`;
       if (navigator.share) { navigator.share({ title: name0, text }).catch(() => {}); return; }
-      try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+      try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
     });
     // 店の写真・名前 → 最新の投稿（下スクロールでこの店の他の投稿へ）
     const openLatest = () => showPostDetail(latest, { list: posts, index: 0 });
@@ -2147,7 +2147,7 @@ const Views = (() => {
     saveBtn.addEventListener('click', () => {
       const p = picked || cur;
       if (!p.name) return;
-      if (Store.matchShop({ name: p.name, lat: p.lat, lon: p.lon })) { App.toast('この店はすでに訪問の記録があります'); return; }
+      if (Store.matchShop({ name: p.name, lat: p.lat, lon: p.lon })) { App.toast('この店はすでに記録があります'); return; }
       const w = Store.addWish({ name: p.name, lat: p.lat, lon: p.lon, genre: p.genre || '', address: p.address || '' });
       App.toast(w.lat != null ? '行きたい店に保存しました。地図に紫のピンで表示されます' : '行きたい店に保存しました（位置なし）', 4000);
       closeModal();
@@ -2958,7 +2958,7 @@ const Views = (() => {
       return;
     }
     if (!shops.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_FORK, '条件に一致する店舗がありません。');
+      box.innerHTML = emptyBox(EMPTY_IC_FORK, '条件に合う店がありません');
       return;
     }
 
@@ -3556,7 +3556,7 @@ const Views = (() => {
       // v370〜 写真があれば縦長の画像カード（写真＋店名＋★＋駅）を作って共有シートへ。作れなければ文字だけ
       const shareText = async () => {
         if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
-        try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+        try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
       };
       const shareImage = async (shape) => {
         try {
@@ -3625,7 +3625,7 @@ const Views = (() => {
       const slide = document.createElement('button');
       slide.type = 'button';
       slide.className = 'sfs-slide';
-      slide.setAttribute('aria-label', '店舗詳細を開く');
+      slide.setAttribute('aria-label', '店の詳細を開く');
       slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
       if (i === 0 && !o.lite) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
@@ -3690,7 +3690,7 @@ const Views = (() => {
     el.querySelector('.sfs-menu').addEventListener('click', () => {
       const latest = vs[0];
       openActionSheet([
-        { label: '店舗の詳細を見る', onClick: () => showShop(g.shopId) },
+        { label: '店の詳細を見る', onClick: () => showShop(g.shopId) },
         ...(latest ? [{ label: '最新の記録を編集', onClick: () => openVisitEdit(latest.id, () => App.refreshCurrent()) }] : []), // v372〜 シートで直す（訪問の一覧は廃止）
         ...(hasPos ? [{ label: '地図で見る', onClick: () => focusMapAt(s.lat, s.lon) }] : []),
       ]);
@@ -4003,7 +4003,7 @@ const Views = (() => {
     const prefEntries = tally(shops.map(s => (s.country && s.country !== '日本') ? s.country : s.pref));
     chart('chart-pref', {
       type: 'bar',
-      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店舗数', data: prefEntries.map(e => e[1]), backgroundColor: '#D97757', borderRadius: 6 }] },
+      data: { labels: prefEntries.map(e => e[0]), datasets: [{ label: '店の数', data: prefEntries.map(e => e[1]), backgroundColor: '#D97757', borderRadius: 6 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
@@ -4702,16 +4702,16 @@ const Views = (() => {
       $('#d-share').addEventListener('click', async () => {
         const text = `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
         if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
-        try { await navigator.clipboard.writeText(text); App.toast('店舗情報をコピーしました'); } catch { /* noop */ }
+        try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
       });
       const posFix = $('#d-posfix');
       if (posFix) posFix.addEventListener('click', () => openShopEdit(shopId, () => showShop(shopId)));
       // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
       $('#d-more').addEventListener('click', () => openActionSheet([
         ...(hasPos0 ? [{ label: '地図で見る', onClick: () => { closeModal(); focusMapAt(s.lat, s.lon); } }] : []),
-        { label: '店舗情報を編集', onClick: () => openShopEdit(shopId, () => showShop(shopId)) },
+        { label: '店の情報を編集', onClick: () => openShopEdit(shopId, () => showShop(shopId)) },
         { label: s.status === 'closed' ? '営業中に戻す' : '閉店にする', onClick: () => { Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' }); showShop(shopId); } },
-        { label: '店舗を削除', onClick: async () => {
+        { label: 'この店を削除', onClick: async () => {
           if (!confirm(`「${s.name}」と訪問記録・写真をすべて削除します。よろしいですか？`)) return;
           await Store.deleteShop(shopId);
           closeModal();
@@ -4932,7 +4932,7 @@ const Views = (() => {
     ov.className = 'modal ve-modal se-modal';
     ov.innerHTML = `<div class="modal-box ve-box">
         <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
-        <div class="ve-head"><b>店舗情報</b></div>
+        <div class="ve-head"><b>店の情報</b></div>
         <div class="form-grid se-grid">
           <label class="full">店舗名<input type="text" id="de-name" value="${esc(s.name)}"></label>
           <label>最寄駅<input type="text" id="de-station" value="${esc(s.station || '')}"></label>
@@ -4988,7 +4988,7 @@ const Views = (() => {
     // 保存（v362〜 住所が変わったら住所から位置を求め直す。v363〜 国土地理院 → Nominatim）
     ov.querySelector('#d-save-all').addEventListener('click', async () => {
       const name = ov.querySelector('#de-name').value.trim();
-      if (!name) { App.toast('店舗名は空にできません'); return; }
+      if (!name) { App.toast('店名は空にできません'); return; }
       const address = ov.querySelector('#de-address').value.trim();
       const addrChanged = address && address !== (s.address || '');
       Store.updateShop(shopId, {
@@ -5011,7 +5011,7 @@ const Views = (() => {
         if (!$('#modal').classList.contains('hidden')) showShop(shopId);
         App.toast(`位置を更新しました（${hit.name || '住所から'}）`);
       } else {
-        App.toast('住所から位置が見つかりませんでした。店舗情報の「住所から探す」か「地図で指定」で直してください');
+        App.toast('住所から位置が見つかりませんでした。店の情報の「住所から探す」か「地図で指定」で直してください');
       }
     });
     document.body.appendChild(ov);
@@ -5076,7 +5076,7 @@ const Views = (() => {
     ov.innerHTML = `<div class="modal-box">
         <div class="vl-topbar">
           <button type="button" class="modal-close pk-close" aria-label="閉じる">${IC_X}</button>
-          <span class="vl-title">${phs.length > 1 ? `${phs.length}枚を` : ''}${mode === 'shop' ? '移す先の店' : '移す先の訪問'}</span>
+          <span class="vl-title">${phs.length > 1 ? `${phs.length}枚を` : ''}${mode === 'shop' ? '移す先の店' : '移す先の記録'}</span>
         </div>
         <div class="vl-body"><div class="pk-body"></div></div>
       </div>`;
@@ -5102,7 +5102,7 @@ const Views = (() => {
     const visitRows = (shopId) => {
       body.innerHTML = '';
       const vs = Store.visitsOf(shopId).filter(v => v.id !== ph.visitId);
-      if (!vs.length) { body.innerHTML = '<div class="empty"><p>移せる訪問がありません。</p></div>'; return; }
+      if (!vs.length) { body.innerHTML = '<div class="empty"><p>移せる記録がありません</p></div>'; return; }
       for (const v of vs) body.appendChild(row(esc(fmtDate(v.datetime)), `${v.rating ? '★' + fmtR(v.rating) : '評価なし'}${v.comment ? ' ・ ' + esc(v.comment.slice(0, 20)) : ''}`, () => move(shopId, v.id)));
     };
     if (mode === 'visit') { visitRows(ph.shopId); }
@@ -5503,7 +5503,7 @@ const Views = (() => {
     const segs = $('#feed-segs'); if (segs) segs.classList.toggle('hidden', !me); // v376〜 未ログインでは並びの切り替えを出さない
     if (!me) {
       // v375〜 他の空の状態と同じ部品（絵＋1行＋ボタン）。ボタンは設定のログインと同じ処理
-      box.innerHTML = emptyBox(EMPTY_IC_PEOPLE, 'ログインすると、フォロー中の人の記録がここに並びます',
+      box.innerHTML = emptyBox(EMPTY_IC_PEOPLE, 'ログインすると、フォロー中の人の投稿がここに並びます',
         (typeof Cloud !== 'undefined' && Cloud.isSupported()) ? '<button class="btn primary" id="feed-login-btn">ログイン</button>' : '');
       const lb = $('#feed-login-btn');
       if (lb) lb.addEventListener('click', () => { const l = $('#pf-login'); if (l) l.click(); });
@@ -5572,7 +5572,7 @@ const Views = (() => {
     if (!posts.length) {
       box.className = 'feed-list';
       box.innerHTML = emptyBox(EMPTY_IC_PEOPLE,
-        'まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の記録が並びます。',
+        'まだ投稿がありません。<br>ユーザーを探してフォローすると、その人の投稿が並びます',
         '<button class="btn primary" id="feed-search-btn">ユーザーを探す</button>');
       const b = $('#feed-search-btn');
       if (b) b.addEventListener('click', () => { if (Cloud.getUser()) openUserSearch(); else App.toast('ログインが必要です'); });
@@ -5586,7 +5586,9 @@ const Views = (() => {
     box.className = 'feed-list mz-grid feed-mz';
     box.innerHTML = '';
     // 見た目が整う順（v331〜）: おすすめ／新着の順を土台に、直近4件の中から列が揃う写真を選ぶ。カードの下の段ぶん（投稿者といいね）は extra で見込む
-    const shown = mzOrder(posts, p => Number(p.ar) || 0, mzCols(box), 0.28);
+    const square = !!localStorage.getItem('gourmet.homeSquare'); // v378〜 設定→表示「ホームの写真」
+    box.classList.toggle('feed-square', square);
+    const shown = mzOrder(posts, p => (square ? 1 : (Number(p.ar) || 0)), mzCols(box), 0.28);
     appendChunked(box, shown.length, (i) => buildFeedCard(shown[i], shown, i));
   }
 
@@ -5710,7 +5712,8 @@ const Views = (() => {
         </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
-    mzWatch(card, img);
+    if (localStorage.getItem('gourmet.homeSquare')) { img.style.aspectRatio = '1 / 1'; img.addEventListener('load', () => mzFit(card)); } // v378〜 正方形（読み込んだら行数だけ合わせる）
+    else mzWatch(card, img);
     const showImg = (url) => {
       if (!url) return;
       if (img.src !== url) img.src = url;
@@ -5934,7 +5937,7 @@ const Views = (() => {
     if (eb) eb.addEventListener('click', () => {
       if (!mv) return;
       const acts = [
-        { label: '店舗の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
+        { label: '店の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
         { label: '編集', onClick: () => openVisitEdit(mv.id, () => { close(); App.refreshCurrent(); }) }, // その場のシートで直す（v367〜）
       ];
       // いま見えている写真の付け替え・削除（v366〜。端末内の写真のときだけ）
@@ -5942,7 +5945,7 @@ const Views = (() => {
       const ph = it && it.ph;
       if (ph && Store.getShop(ph.shopId)) {
         const done = () => { close(); App.refreshCurrent(); };
-        if (Store.visitsOf(ph.shopId).length > 1) acts.push({ label: 'この写真を別の訪問へ', onClick: () => openPhotoMove(ph, 'visit', done) });
+        if (Store.visitsOf(ph.shopId).length > 1) acts.push({ label: 'この写真を別の記録へ', onClick: () => openPhotoMove(ph, 'visit', done) });
         acts.push({ label: 'この写真を別の店へ', onClick: () => openPhotoMove(ph, 'shop', done) });
         acts.push({ label: 'この写真を削除', danger: true, onClick: () => {
           Store.deferDelete('photo', ph.id); // v375〜 元に戻せる（数秒後に本当に消す）
@@ -5982,7 +5985,7 @@ const Views = (() => {
     ov.innerHTML = `<div class="modal-box pd-full">
         <div class="pd-topbar">
           <button type="button" class="modal-close pd-close" aria-label="閉じる">${IC_X}</button>
-          <span class="pd-top-title">投稿</span>
+          <span class="pd-top-title">${Store.visits().some(v => v.id === p.id) ? '記録' : '投稿'}</span><!-- v378〜 自分のものは「記録」 -->
         </div>
         <div class="pd-scroll"><div class="pd-sentinel-top"></div><div class="pd-sentinel"></div></div>
       </div>`;
