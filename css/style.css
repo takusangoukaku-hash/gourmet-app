@@ -1648,6 +1648,7 @@ body.map-picking .map-add-btn, body.msh-open .map-add-btn { display: none; }
 .set-label { flex: 1; min-width: 0; }
 .set-sub2 { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; } /* 行の下の「前回 …」（v376〜） */
 .set-sub2:empty { display: none; }
+#sub-font { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 文字の大きさの見本（v381〜）。特大でも折り返さない */
 .set-value { color: var(--muted); font-size: 13px; flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-arrow { color: #BFBCB2; font-size: 20px; line-height: 1; flex-shrink: 0; }
 /* 開発者向け設定（折りたたみ） */
@@ -2138,6 +2139,13 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 /* 接続なし・同期中の帯（v368〜） */
 .net-bar { font-size: 12px; color: var(--muted); background: var(--field); text-align: center; padding: 5px 16px; border-bottom: 1px solid var(--border-lite); }
 body[data-tab="map"] .net-bar, body[data-tab="list"] .net-bar, body[data-tab="register"] .net-bar { display: none; }
+/* 検索: 付いている条件のチップ（v381〜。お店・写真の結果の上。× で1つずつ外す） */
+.flt-active { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 0 8px; }
+.flt-active-n { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.flt-chip { display: inline-flex; align-items: center; gap: 6px; }
+.flt-chip .x { font-size: 11px; opacity: .85; }
+.mz-tools .flt-active { flex: 1; padding: 0; }
+.mz-tools .mz-selbtn { margin-left: auto; }
 /* 検索: 駅の店を地図で見る（v380〜）。結果の上の1行 */
 .list-station-map { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 46px; margin: 0 0 6px; padding: 0 14px; border: 1px solid var(--border-lite); border-radius: 14px; background: var(--card); color: var(--text); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .list-station-map .ri { display: flex; align-items: center; gap: 10px; min-width: 0; }

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v380'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v381'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -104,6 +104,8 @@ const App = (() => {
     document.documentElement.style.setProperty('--ui-zoom', String(scale));
     const sel = $('#set-font');
     if (sel) sel.value = pref;
+    const sub = $('#sub-font'); // v381〜 行の下に倍率と見本（画面ごと拡縮されるので、この行がそのまま見本になる）
+    if (sub) sub.textContent = `${scale.toFixed(2)}倍 ・ 麺屋 こがね`;
   }
 
   // ---------- 接続なし・同期中の帯（v368〜。見出しの下。普段は出さない） ----------

@@ -1496,11 +1496,7 @@ const Views = (() => {
     const close = () => { ov.remove(); document.body.classList.remove('msh-open'); }; // 開いている間はアプリの見出しと検索バーを隠す（v336〜）
     ov.querySelector('.msh-close').addEventListener('click', close);
     ov.querySelector('.msh-top').addEventListener('click', (e) => { if (e.target === e.currentTarget) close(); });
-    ov.querySelector('.msh-share').addEventListener('click', async () => {
-      const text = `${s.name}${genre ? `（${genre}）` : ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
-      if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
-      try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
-    });
+    ov.querySelector('.msh-share').addEventListener('click', () => shareShop(shopId, `${s.name}${genre ? `（${genre}）` : ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`)); // v381〜
     // 店の写真・名前 → 全画面の店舗詳細（記録の閲覧・編集はこちらから）
     if (photos.length) setFullPhoto(ov.querySelector('.msh-hero img'), photos[0]);
     ov.querySelector('.msh-hero').addEventListener('click', () => showShop(shopId));
@@ -2277,6 +2273,23 @@ const Views = (() => {
     b.classList.toggle('has-flt', n > 0);
     $('#flt-clear').classList.toggle('hidden', !n);
   }
+  // 付いている条件を結果の上にチップで出す（v381〜。お店・写真の両方）。× で1つずつ外せる。無ければ何も出さない
+  function activeFilterChips(count, unit) {
+    const dg = $('#flt-dish-genre').value, r = $('#flt-rating').value, pref = $('#flt-pref').value;
+    const items = [dg ? ['genre', dg] : null, r ? ['rating', `★${r}以上`] : null, pref ? ['pref', pref] : null].filter(Boolean);
+    if (!items.length) return null;
+    const row = document.createElement('div');
+    row.className = 'flt-active';
+    row.innerHTML = `<span class="flt-active-n">${count}${unit}</span>` + items.map(([k, label]) => `<button type="button" class="chip on flt-chip" data-k="${k}" aria-label="${esc(label)} を外す">${esc(label)}<span class="x">✕</span></button>`).join('');
+    row.querySelectorAll('.flt-chip').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.k;
+      if (k === 'genre') { $('#flt-dish-genre').value = ''; document.querySelectorAll('#list-genre-chips .chip').forEach(x => x.classList.remove('on')); }
+      else if (k === 'rating') { $('#flt-rating').value = ''; document.querySelectorAll('.star-chip').forEach(x => x.classList.remove('on')); }
+      else $('#flt-pref').value = '';
+      renderList();
+    }));
+    return row;
+  }
   function refreshPrefOptions() {
     const cur = $('#flt-pref').value;
     const prefs = [...new Set(Store.shops().map(s => s.pref).filter(Boolean))].sort();
@@ -2987,6 +3000,8 @@ const Views = (() => {
       head.innerHTML = `<span class="ri">${IC_MAP}<span>${esc(st)}の店を地図で見る</span></span><span class="arrow">›</span>`;
       head.addEventListener('click', () => showStationOnMap(st));
     }
+    const chips = activeFilterChips(shops.length, '件');
+    if (chips) { const wrap = document.createElement('div'); if (head) wrap.appendChild(head); wrap.appendChild(chips); head = wrap; } // v381〜 条件のチップは駅の行の下
     renderListSections(box, shops, groupFn, head);
   }
   // キーワードと一致する駅名（登録済みの店の最寄駅。空白・全角半角・大文字小文字と末尾の「駅」の有無は無視）
@@ -3124,11 +3139,16 @@ const Views = (() => {
       return cell;
     });
     box.innerHTML = '';
-    if (list.some(it => it.kind === 'mine')) { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）
+    const chips = activeFilterChips(list.length, '枚'); // v381〜 写真モードにも付いている条件（× で外す）
+    if (chips || list.some(it => it.kind === 'mine')) { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）
       const tools = document.createElement('div');
       tools.className = 'mz-tools';
-      tools.innerHTML = '<button type="button" class="btn small mz-selbtn">選択</button>';
-      tools.querySelector('.mz-selbtn').addEventListener('click', () => mzSelStart(grid));
+      if (chips) tools.appendChild(chips);
+      if (list.some(it => it.kind === 'mine')) {
+        const sel = document.createElement('button'); sel.type = 'button'; sel.className = 'btn small mz-selbtn'; sel.textContent = '選択';
+        sel.addEventListener('click', () => mzSelStart(grid));
+        tools.appendChild(sel);
+      }
       box.appendChild(tools);
     }
     box.appendChild(grid);
@@ -4497,6 +4517,89 @@ const Views = (() => {
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
+  // 店のまとめの画像（v381〜）: 1080×1350。帯に店名・駅 県 市、あなた／みんな／訪問のタイル、写真（1枚目は大きく、2〜4枚目は下に3つ）
+  async function buildShopCard(shopId) {
+    const s = Store.getShop(shopId);
+    if (!s) throw new Error('店がありません');
+    const vs = Store.visitsOf(shopId);
+    const vById = new Map(vs.map(x => [x.id, x]));
+    const t = (p) => { const x = vById.get(p.visitId); return (x && x.datetime) ? new Date(x.datetime).getTime() : (p.createdAt || 0); };
+    const photos = (await Store.allPhotos()).filter(p => p.shopId === shopId).sort((a, b) => t(b) - t(a) || (b.createdAt || 0) - (a.createdAt || 0));
+    const W = 1080, H = 1350;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
+    const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
+    const fit = (text, max, w, px) => { let x = String(text || ''); g.font = F(w, px); while (x.length > 1 && g.measureText(x).width > max) x = x.slice(0, -2) + '…'; return x; };
+    g.fillStyle = '#F5F3EC'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#C6613F'; g.fillRect(0, 0, W, 240);
+    g.fillStyle = '#FFFFFF'; g.font = F(800, 64); g.fillText(fit(s.name, 936, 800, 64), 72, 120);
+    const loc = [s.station, [s.pref, s.city].filter(Boolean).join(' '), shopLabelGenre(s)].filter(Boolean).join(' ・ ');
+    g.font = F(600, 30); g.globalAlpha = 0.85; g.fillText(fit(loc, 936, 600, 30), 72, 185); g.globalAlpha = 1;
+    const pair = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
+    const myAvg = Store.avgRating(shopId) || 0;
+    const stats = [
+      myAvg ? [fmtR(myAvg), 'あなた', true] : null,
+      pair.raters ? [fmtR(pair.overall), 'みんな', true] : null,
+      vs.length ? [String(vs.length), '回 来店', false] : null,
+    ].filter(Boolean);
+    const cw = (W - 144) / Math.max(1, stats.length);
+    stats.forEach(([val, l, star], i) => {
+      const x = 72 + cw * i;
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 290, cw - 12, 150, 39); g.fill();
+      g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = star ? '#1F1E1D' : '#C6613F'; g.textAlign = 'center';
+      g.font = F(800, 56); g.fillText((star ? '★' : '') + val, x + cw / 2, 375);
+      g.fillStyle = '#87867F'; g.font = F(600, 24); g.fillText(l, x + cw / 2, 418);
+      g.textAlign = 'left';
+    });
+    // 写真: 1枚目は全幅、2〜4枚目は下に3つ。読めない写真は飛ばす
+    const imgs = [];
+    for (const ph of photos) {
+      if (imgs.length >= 4) break;
+      try {
+        const u = await fullPhotoUrl(ph); if (!u) continue;
+        imgs.push(await new Promise((res, rej) => { const img = new Image(); if (!/^blob:|^data:/.test(u) && !u.startsWith(location.origin)) img.crossOrigin = 'anonymous'; img.onload = () => res(img); img.onerror = () => rej(new Error('x')); img.src = u; }));
+      } catch { /* noop */ }
+    }
+    if (!imgs.length) throw new Error('写真がありません');
+    const cover = (img, x, y, w, h) => {
+      g.save(); roundRect(g, x, y, w, h, 39); g.clip();
+      const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+      g.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      g.restore();
+    };
+    const y0 = stats.length ? 490 : 290;
+    const bigH = imgs.length > 1 ? 460 : 800;
+    cover(imgs[0], 72, y0, 936, bigH);
+    const gap = 15, cell = (936 - gap * 2) / 3;
+    imgs.slice(1).forEach((img, i) => cover(img, 72 + i * (cell + gap), y0 + bigH + gap, cell, cell));
+    g.fillStyle = '#C6613F'; g.font = F(800, 36); g.textAlign = 'right'; g.fillText('BITEMAP', W - 72, H - 28); g.textAlign = 'left';
+    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
+  }
+  // 店の共有（v381〜。店舗の詳細・店シート）: 写真があれば「店のまとめ（画像）／文字だけ」、無ければ文字だけ
+  async function shareShop(shopId, text) {
+    const s = Store.getShop(shopId);
+    if (!s) return;
+    const shareText = async () => {
+      if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
+      try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
+    };
+    const hasPhoto = (await Store.allPhotos()).some(p => p.shopId === shopId);
+    if (!hasPhoto) { await shareText(); return; }
+    openActionSheet([
+      { label: '店のまとめ（画像）', onClick: async () => {
+        App.toast('画像を作成中…', 1500);
+        let blob;
+        try { blob = await buildShopCard(shopId); } catch (e) { console.warn('店のまとめを作れませんでした（文字で共有）:', e); await shareText(); return; }
+        await shareImageBlob(blob, 'bitemap-shop.png', text, s.name || '店のまとめ');
+      } },
+      { label: '文字だけ', onClick: shareText },
+    ]);
+  }
   // 月の振り返りの画像（v380〜）: 1080×1350。年のまとめと同じ帯・名前・数のタイル。その下にその月の写真（最大6枚、3列）、写真が無ければよく行った店
   async function buildMonthCard(d) {
     const W = 1080, H = 1350;
@@ -4818,11 +4921,7 @@ const Views = (() => {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
-      $('#d-share').addEventListener('click', async () => {
-        const text = `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`;
-        if (navigator.share) { navigator.share({ title: s.name, text }).catch(() => {}); return; }
-        try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
-      });
+      $('#d-share').addEventListener('click', () => shareShop(shopId, `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`)); // v381〜 店のまとめ（画像）か文字
       const posFix = $('#d-posfix');
       if (posFix) posFix.addEventListener('click', () => openShopEdit(shopId, () => showShop(shopId)));
       // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
