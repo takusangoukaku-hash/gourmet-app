@@ -1825,7 +1825,11 @@ const Views = (() => {
   function applyPendingFocus() {
     if (!pendingMapFocus || !map) return;
     const f = pendingMapFocus; pendingMapFocus = null;
-    map.jumpTo({ center: [f.lon, f.lat], zoom: f.zoom });
+    if (f.bounds) { // 複数の店の範囲（v380〜 駅の店を地図で見る）
+      const b = new maplibregl.LngLatBounds();
+      f.bounds.forEach(c => b.extend(c));
+      try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
+    } else map.jumpTo({ center: [f.lon, f.lat], zoom: f.zoom });
     mapHasView = true; // 以降の再描画で視点を動かさない
   }
 
@@ -2974,13 +2978,38 @@ const Views = (() => {
 
     const groupFn = groupKeyFns($('#flt-group').value);
     box.innerHTML = '';
-    renderListSections(box, shops, groupFn);
+    // v380〜 キーワードが登録済みの駅名なら、その駅の店を地図で見る行（発見の「駅から」→ 検索 → 地図）
+    const st = stationOfKeyword($('#flt-keyword').value);
+    let head = null;
+    if (st) {
+      head = document.createElement('button');
+      head.type = 'button'; head.className = 'list-station-map';
+      head.innerHTML = `<span class="ri">${IC_MAP}<span>${esc(st)}の店を地図で見る</span></span><span class="arrow">›</span>`;
+      head.addEventListener('click', () => showStationOnMap(st));
+    }
+    renderListSections(box, shops, groupFn, head);
+  }
+  // キーワードと一致する駅名（登録済みの店の最寄駅。空白・全角半角・大文字小文字と末尾の「駅」の有無は無視）
+  function stationOfKeyword(kw) {
+    const norm = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase().replace(/駅$/, '');
+    const k = norm(kw);
+    if (!k) return '';
+    const s = Store.shops().find(x => x.station && norm(x.station) === k);
+    return s ? s.station : '';
+  }
+  // その駅の店（位置のあるもの）に地図を合わせる（v380〜）。地図はその店の範囲に寄せる
+  function showStationOnMap(st) {
+    const shops = Store.shops().filter(s => s.station === st && s.lat != null && s.lon != null);
+    if (!shops.length) { App.toast('位置のある店がありません'); return; }
+    pendingMapFocus = { bounds: shops.map(s => [s.lon, s.lat]) };
+    App.switchTab('map');
+    if (map && mapLoaded) applyPendingFocus();
   }
 
   // 検索の「お店」一覧（v357〜）: お店の記録・投稿詳細と同じ .sfs の並び（写真 → 操作行 → 店名 → 場所 → あなた向け）。
   // 写真はサムネだけ（lite）。まとめ（都道府県・ジャンル…）があれば見出しで区切る
   let listSeq = 0;
-  async function renderListSections(box, shops, groupFn) {
+  async function renderListSections(box, shops, groupFn, head) { // head: 一覧の上に置く部品（v380〜 駅の店を地図で見る）
     const seq = ++listSeq;
     const all = await Store.allPhotos().catch(() => []);
     if (seq !== listSeq || !box.isConnected) return;
@@ -3026,6 +3055,7 @@ const Views = (() => {
     };
     appendChunk();
     box.innerHTML = '';
+    if (head) box.appendChild(head);
     box.appendChild(wrap);
     if (pos < items.length) {
       const io = new IntersectionObserver((es) => {
@@ -4467,6 +4497,85 @@ const Views = (() => {
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
+  // 月の振り返りの画像（v380〜）: 1080×1350。年のまとめと同じ帯・名前・数のタイル。その下にその月の写真（最大6枚、3列）、写真が無ければよく行った店
+  async function buildMonthCard(d) {
+    const W = 1080, H = 1350;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
+    const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
+    const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
+    g.fillStyle = '#F5F3EC'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#C6613F'; g.fillRect(0, 0, W, 300);
+    g.fillStyle = '#FFFFFF'; g.font = F(800, 96); g.fillText(`${d.month}月`, 72, 150);
+    g.font = F(600, 34); g.globalAlpha = 0.85; g.fillText(`BITEMAP　${d.year}年${d.month}月の振り返り`, 72, 215); g.globalAlpha = 1;
+    const p = Store.getProfile();
+    g.fillStyle = '#1F1E1D'; g.font = F(800, 44); g.fillText(fit(p.name || 'BITEMAP', 936, 800, 44), 72, 380);
+    const stats = [[String(d.shops), '店'], [String(d.visits), '回 来店'], [String(d.newShops), '新しい店']];
+    const cw = (W - 144) / 3;
+    stats.forEach(([val, l], i) => {
+      const x = 72 + cw * i;
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 430, cw - 12, 170, 39); g.fill();
+      g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#C6613F'; g.textAlign = 'center';
+      g.font = F(800, val.length > 4 ? 46 : 60); g.fillText(val, x + cw / 2, 530);
+      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
+      g.textAlign = 'left';
+    });
+    // 写真: 新しい順に6枚まで。読めない写真（他端末の写真の CORS など）は飛ばす
+    const imgs = [];
+    for (const ph of d.photos || []) {
+      if (imgs.length >= 6) break;
+      try {
+        const u = await fullPhotoUrl(ph); if (!u) continue;
+        imgs.push(await new Promise((res, rej) => { const img = new Image(); if (!/^blob:|^data:/.test(u) && !u.startsWith(location.origin)) img.crossOrigin = 'anonymous'; img.onload = () => res(img); img.onerror = () => rej(new Error('x')); img.src = u; }));
+      } catch { /* 読めない写真は飛ばす */ }
+    }
+    const gap = 15, cell = (936 - gap * 2) / 3;
+    imgs.forEach((img, i) => {
+      const x = 72 + (i % 3) * (cell + gap), y = 650 + Math.floor(i / 3) * (cell + gap);
+      g.save(); roundRect(g, x, y, cell, cell, 39); g.clip();
+      const r = Math.max(cell / img.naturalWidth, cell / img.naturalHeight);
+      const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+      g.drawImage(img, x + (cell - dw) / 2, y + (cell - dh) / 2, dw, dh);
+      g.restore();
+    });
+    // よく行った店（写真が1行以下のとき、その下。2行なら入らないので出さない）
+    const rows = Math.ceil(imgs.length / 3);
+    if (rows < 2 && (d.top || []).length) {
+      const y0 = rows ? 1030 : 690;
+      g.fillStyle = '#1F1E1D'; g.font = F(800, 32); g.fillText('よく行った店', 72, y0);
+      d.top.forEach((r, i) => {
+        const yy = y0 + 52 + i * 52;
+        g.fillStyle = ['#E2B33C', '#B9BCC2', '#C98A55'][i] || '#DDD'; g.beginPath(); g.arc(89, yy - 9, 17, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#FFFFFF'; g.font = F(800, 20); g.textAlign = 'center'; g.fillText(String(i + 1), 89, yy - 2); g.textAlign = 'left';
+        g.fillStyle = '#1F1E1D'; g.font = F(700, 28); g.fillText(fit(r.s.name, 756, 700, 28), 122, yy - 2);
+        g.fillStyle = '#87867F'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(`${r.n}回`, 1008, yy - 2); g.textAlign = 'left';
+      });
+    }
+    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
+    return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
+  }
+  // 使い方（v380〜）: 設定→ヘルプ「使い方を見る」。今の画面（ホーム／探す／記録／地図／マイページ）に合わせた短い説明。初回の「ようこそ」は別
+  function showHelp() {
+    const sect = (ic, title, lines) => `<div class="hp-sect"><span class="hp-ic">${ic}</span><div class="hp-body"><b>${title}</b>${lines.map(l => `<div class="hp-line">${l}</div>`).join('')}</div></div>`;
+    const html = `
+      ${sect(IC_PLUS, '記録', ['写真を撮る／写真から選ぶ → 店名・ジャンル・★を付けて「記録する」', '過去の写真は「まとめて取り込む」（日付と場所で訪問にまとめる）', '写真なしで記録、行きたい店に入れる、あとで記録（写真だけ保存）も「その他」から'])}
+      ${sect(IC_SEARCH, '探す', ['発見: ジャンルと駅から写真を見る。検索: 店名・駅・ジャンルで探し、「絞り込み」で★・都道府県・並び替え', '「お店／写真」で見方を切り替え。写真は「選択」か長押しでまとめて移す・削除', '駅名で検索すると、その駅の店を地図で見られる'])}
+      ${sect(IC_MAP, '地図', ['ピンの色は評価（★1 灰 → ★5 赤）。金の★は、自分か味の合う人が ★4.5 以上を付けた店', 'ピンをタップで店シート。つまみを引き上げると店の詳細', '「＋」か長押しで行きたい店を追加。しおりで行きたい店だけ表示'])}
+      ${sect(svgIc('ic', '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>'), 'マイページ', ['写真: 店ごとのアルバム（上の欄で絞り込み）', '統計: 年のまとめ・月の振り返り・よく食べたジャンル・制覇マップ。「画像で共有」で画像に', '行きたい: 行きたい N／行けた M。「記録する」でそのまま登録へ'])}
+      ${sect(svgIc('ic', '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'), 'ホーム', ['ログインしてフォローすると、その人の投稿が並ぶ（おすすめ／最新）', '上から引っ張ると最新の記録と写真を取り込む'])}
+      ${sect(IC_MORE, '店の詳細と記録', ['店名の下のタイル: 経路／また来た／共有／その他（地図で見る・店の情報を編集・削除）', '記録の「…」で編集・写真の付け替え・削除。削除は5秒のあいだ「元に戻す」で戻せる'])}
+      ${sect(IC_SHARE_S, 'バックアップ', ['記録は端末に保存。週に1回、端末内に自動バックアップ（設定→バックアップ）', 'ファイルへの書き出し・読み込みも設定から。ログインすると別の端末とも同期'])}`;
+    const ov = document.createElement('div');
+    ov.className = 'modal panel-modal help-modal';
+    ov.innerHTML = `<div class="modal-box"><div class="modal-head"><h2>使い方</h2><button type="button" class="modal-close" aria-label="閉じる"><svg class="x-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="modal-scroll help-scroll">${html}</div></div>`;
+    const close = () => ov.remove();
+    ov.querySelector('.modal-close').addEventListener('click', close);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.body.appendChild(ov);
+  }
   // 投稿の画像カード（v370〜）: 1080×1920（ストーリー向け）。写真を角丸で大きく、下に 店名・★・場所・日付・BITEMAP
   async function buildPostCard(info, shape) {
     const square = shape === 'square';
@@ -5161,18 +5270,34 @@ const Views = (() => {
     const nav = (cls, label, on) => months.length > 1 ? `<button type="button" class="yc-nav ${cls}" aria-label="${label}"${on ? '' : ' disabled'}>${cls === 'yc-prev' ? '‹' : '›'}</button>` : '';
     box.classList.remove('hidden');
     box.innerHTML = `
-      <div class="yc-head"><div class="yc-title">${nav('yc-prev', '前の月', i < months.length - 1)}<b>${y}年${+m}月</b>${nav('yc-next', '次の月', i > 0)}</div></div>
+      <div class="yc-head"><div class="yc-title">${nav('yc-prev', '前の月', i < months.length - 1)}<b>${y}年${+m}月</b>${nav('yc-next', '次の月', i > 0)}</div><button type="button" class="btn small yc-share">${IC_SHARE_S} 画像で共有</button></div>
       <div class="yc-nums mc-nums"><div><b>${shopIds.size}</b><span>店</span></div><div><b>${vs.length}</b><span>回</span></div><div><b>${newShops}</b><span>新しい店</span></div></div>
       <div class="mc-strip"></div>`;
     const prev = box.querySelector('.yc-prev'), next = box.querySelector('.yc-next');
     if (prev) prev.addEventListener('click', () => { monthSel = months[i + 1]; renderMonthCard(); });
     if (next) next.addEventListener('click', () => { monthSel = months[i - 1]; renderMonthCard(); });
+    // その月の写真（訪問の新しい順）。帯と共有の画像で共用
+    const monthPhotos = (allPh) => {
+      const vIdx = new Map(vs.map((v, j) => [v.id, j]));
+      return allPh.filter(p => vIdx.has(p.visitId)).sort((a, b) => vIdx.get(a.visitId) - vIdx.get(b.visitId) || a.createdAt - b.createdAt);
+    };
+    // v380〜 年のまとめと同じ「画像で共有」（1080×1350。店数・回数・新しい店・その月の写真6枚・よく行った店）
+    box.querySelector('.yc-share').addEventListener('click', async () => {
+      App.toast('画像を作成中…', 1500);
+      const byShop = new Map();
+      for (const x of vs) byShop.set(x.shopId, (byShop.get(x.shopId) || 0) + 1);
+      const top = [...byShop.entries()].map(([id, n]) => ({ s: Store.getShop(id), n })).filter(x => x.s).sort((a, b) => b.n - a.n).slice(0, 3);
+      const d = { year: +y, month: +m, shops: shopIds.size, visits: vs.length, newShops, top, photos: monthPhotos(await Store.allPhotos().catch(() => [])) };
+      let blob;
+      try { blob = await buildMonthCard(d); } catch (e) { App.toast('' + (e && e.message || '画像を作れませんでした')); return; }
+      shareImageBlob(blob, `bitemap-${y}-${m}.png`, `${y}年${+m}月は ${d.shops}店・${d.visits}回 #BITEMAP`, `${y}年${+m}月の振り返り`);
+    });
     // その月の写真の帯（訪問の新しい順）。タップで投稿として開く
     const strip = box.querySelector('.mc-strip');
     Store.allPhotos().then(allPh => {
       if (!strip.isConnected) return;
       const vIdx = new Map(vs.map((v, j) => [v.id, j]));
-      const phs = allPh.filter(p => vIdx.has(p.visitId)).sort((a, b) => vIdx.get(a.visitId) - vIdx.get(b.visitId) || a.createdAt - b.createdAt);
+      const phs = monthPhotos(allPh);
       if (!phs.length) { strip.remove(); return; }
       const seen = new Map(); const posts = [];
       for (const p of phs) if (!seen.has(p.visitId)) { seen.set(p.visitId, posts.length); posts.push(buildOwnPost(p)); }
@@ -6382,5 +6507,6 @@ const Views = (() => {
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
     pickOnMap, fixPosByAddress, // 店の位置の修正（v340〜）
     mzOrder, // 見た目が整う並び（v331〜。動作確認用に公開）
+    showHelp, // 使い方（v380〜。設定の「使い方を見る」）
     icons: ICONS }; // 線画アイコン（v332〜。register.js / import.js / app.js が使う）
 })();

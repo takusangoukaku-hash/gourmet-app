@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v379'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v380'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -465,10 +465,10 @@ const App = (() => {
       if (e.target === welcome || e.target.closest('[data-close]')) welcomeDone();
     });
     $('#welcome-start').addEventListener('click', () => { welcomeDone(); welcome.classList.add('hidden'); });
-    // 設定の「使い方を見る」からいつでも再表示できる
+    // 設定の「使い方を見る」は今の画面に合わせた使い方（v380〜。初回の「ようこそ」は出さない）
     $('#show-welcome').addEventListener('click', () => {
       $('#settings-modal').classList.add('hidden');
-      welcome.classList.remove('hidden');
+      Views.showHelp();
     });
   }
 

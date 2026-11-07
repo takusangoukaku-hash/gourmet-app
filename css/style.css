@@ -2138,6 +2138,20 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 /* 接続なし・同期中の帯（v368〜） */
 .net-bar { font-size: 12px; color: var(--muted); background: var(--field); text-align: center; padding: 5px 16px; border-bottom: 1px solid var(--border-lite); }
 body[data-tab="map"] .net-bar, body[data-tab="list"] .net-bar, body[data-tab="register"] .net-bar { display: none; }
+/* 検索: 駅の店を地図で見る（v380〜）。結果の上の1行 */
+.list-station-map { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 46px; margin: 0 0 6px; padding: 0 14px; border: 1px solid var(--border-lite); border-radius: 14px; background: var(--card); color: var(--text); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.list-station-map .ri { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.list-station-map .ri .ic { color: var(--accent); width: 18px; height: 18px; }
+.list-station-map .arrow { color: var(--muted); font-size: 18px; }
+/* 使い方（v380〜） */
+.help-scroll { display: flex; flex-direction: column; gap: 18px; }
+.hp-sect { display: flex; gap: 12px; align-items: flex-start; }
+.hp-ic { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 14px; background: var(--field); display: flex; align-items: center; justify-content: center; color: var(--text); }
+.hp-ic .ic { width: 20px; height: 20px; }
+.hp-body { min-width: 0; }
+.hp-body b { font-size: 15px; font-weight: 700; display: block; margin-bottom: 4px; }
+.hp-line { font-size: 13px; color: var(--muted); line-height: 1.55; }
+.hp-line + .hp-line { margin-top: 4px; }
 /* 発見: 駅の入口（v368〜） */
 .ex-stations { grid-column: 1 / -1; padding-top: 4px; }
 .ex-stations .fl-label { margin: 4px 2px 6px; }
