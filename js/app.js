@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v374'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v375'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -421,6 +421,7 @@ const App = (() => {
   }
 
   function switchTab(name) {
+    flushUndo(); // 保留中の削除があれば確定してから移る（v375〜）
     currentTab = name;
     document.body.dataset.tab = name; // 検索・登録・地図ではアプリの見出しを隠す（CSS。v337〜）
     document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -442,13 +443,36 @@ const App = (() => {
 
   // ---------- トースト ----------
   let toastTimer = null;
+  let pendingUndo = null; // 取り消しつきトーストの保留（{commit}）。次のトースト・タブ移動・画面を離れるとき確定する
   function toast(msg, ms) {
+    flushUndo();
     const t = $('#toast');
     t.textContent = msg;
     t.classList.remove('hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add('hidden'), ms || 3000); // 長文の案内は長めに表示できる
   }
+  // 「元に戻す」付きのトースト（v375〜）。ms 以内にボタンを押せば undo()、押さなければ commit()（本当に消す）。
+  // 削除は Store.deferDelete で一覧から外しておき、ここで確定する
+  function toastUndo(msg, o) {
+    flushUndo();
+    const t = $('#toast');
+    t.textContent = '';
+    const span = document.createElement('span'); span.textContent = msg;
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'toast-undo'; btn.textContent = '元に戻す';
+    t.append(span, btn);
+    t.classList.add('has-undo');
+    t.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    const hide = () => { t.classList.add('hidden'); t.classList.remove('has-undo'); t.textContent = ''; };
+    const entry = { commit: () => { pendingUndo = null; clearTimeout(toastTimer); hide(); try { const r = o.commit && o.commit(); if (r && r.catch) r.catch(() => {}); } catch { /* noop */ } } };
+    pendingUndo = entry;
+    btn.addEventListener('click', () => { if (pendingUndo !== entry) return; pendingUndo = null; clearTimeout(toastTimer); hide(); if (o.undo) o.undo(); });
+    toastTimer = setTimeout(entry.commit, o.ms || 5000);
+  }
+  function flushUndo() { if (pendingUndo) pendingUndo.commit(); }
+  window.addEventListener('pagehide', flushUndo);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushUndo(); });
 
   // ---------- サンプルデータ（動作確認用） ----------
   function placeholderPhoto(label, color) {
@@ -725,5 +749,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
+  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, toastUndo, flushUndo, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
 })();

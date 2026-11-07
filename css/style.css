@@ -597,6 +597,10 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .skel-favatar { width: 46px; height: 46px; border-radius: 50%; flex: 0 0 46px; }
 .skel-fph { flex: 1; min-width: 0; aspect-ratio: 1; border-radius: 10px; max-width: calc((100% - 12px) / 3); }
 .skel-grid .skeleton { aspect-ratio: 1 / 1; border-radius: 0; }
+/* 発見のくくりの骨組み（v375〜。読み込み中の文字の代わり） */
+.skel-cats { display: contents; }
+.skel-cats .skeleton { min-height: 108px; border-radius: 14px; }
+.skel-cats .skeleton:first-child { grid-column: 1 / -1; min-height: 56px; }
 
 /* ---------- 写真（インスタ風: 正方形3列グリッド） ---------- */
 .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
@@ -1265,6 +1269,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .act-sp { flex: 1; }
 .pd-comments { margin: 4px 0 10px; }
 .pd-cempty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+.pd-clogin { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; color: var(--muted); } /* 未ログインのコメント欄（v375〜） */
 .pd-crow { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
 .pd-cav { width: 30px; height: 30px; border-radius: 50%; background: var(--field); overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
 .pd-cav img { width: 100%; height: 100%; object-fit: cover; }
@@ -1393,6 +1398,10 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   animation: toast-in .22s ease;
 }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+/* 「元に戻す」付きのトースト（v375〜） */
+.toast.has-undo { pointer-events: auto; display: flex; align-items: center; gap: 14px; text-align: left; padding: 10px 10px 10px 18px; }
+.toast-undo { border: none; border-radius: 10px; background: rgba(255,255,255,.14); color: #FFD27A; font-family: inherit; font-size: 14px; font-weight: 700; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+.toast-undo:active { background: rgba(255,255,255,.24); }
 
 /* ---------- レスポンシブ ---------- */
 @media (max-width: 640px) {

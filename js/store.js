@@ -321,7 +321,7 @@ const Store = (() => {
     const d = await db();
     return new Promise((resolve, reject) => {
       const req = d.transaction('meta').objectStore('meta').getAll();
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => resolve(livePhotos(req.result || []));
       req.onerror = () => reject(req.error);
     });
   }
@@ -329,7 +329,7 @@ const Store = (() => {
     const d = await db();
     return new Promise((resolve, reject) => {
       const req = d.transaction('meta').objectStore('meta').index('visitId').getAll(visitId);
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => resolve(livePhotos(req.result || []));
       req.onerror = () => reject(req.error);
     });
   }
@@ -337,7 +337,7 @@ const Store = (() => {
     const d = await db();
     return new Promise((resolve, reject) => {
       const req = d.transaction('meta').objectStore('meta').index('shopId').getAll(shopId);
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => resolve(livePhotos(req.result || []));
       req.onerror = () => reject(req.error);
     });
   }
@@ -573,8 +573,16 @@ const Store = (() => {
     try { undoWishForVisit(id); } catch { /* noop */ }
     await deletePhotosWhere(p => p.visitId === id);
   }
+  // 削除の保留（v375〜）: 「削除」を押してから数秒は本当には消さず、一覧からだけ外す（トーストの「元に戻す」で戻せる）。
+  // visits()/visitsOf()/wishes()/allPhotos()/photosOfVisit()/photosOfShop() が保留中のものを除く。確定は呼び元が deleteVisit 等を呼ぶ
+  const pendingDel = { visit: new Set(), photo: new Set(), wish: new Set() };
+  const deferDelete = (kind, id) => { if (pendingDel[kind]) pendingDel[kind].add(id); };
+  const undoDelete = (kind, id) => { if (pendingDel[kind]) pendingDel[kind].delete(id); };
+  const isPending = (kind, id) => !!(pendingDel[kind] && pendingDel[kind].has(id));
+  const liveVisits = () => (pendingDel.visit.size ? visits.filter(v => !pendingDel.visit.has(v.id)) : visits);
+  const livePhotos = (arr) => (pendingDel.photo.size || pendingDel.visit.size ? arr.filter(p => !pendingDel.photo.has(p.id) && !pendingDel.visit.has(p.visitId)) : arr);
   const visitsOf = (shopId) =>
-    visits.filter(v => v.shopId === shopId).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    liveVisits().filter(v => v.shopId === shopId).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
 
   // ---------- クラウドからの取り込み（通知しない） ----------
   // 新しい方（updatedAtが新しい）を採用してローカルへ反映する
@@ -700,14 +708,15 @@ const Store = (() => {
   }
 
   return {
-    shops: () => shops.slice(), visits: () => visits.slice(),
+    shops: () => shops.slice(), visits: () => liveVisits().slice(),
+    deferDelete, undoDelete, isPending, // 削除の保留（v375〜）
     addShop, updateShop, deleteShop, getShop, matchShop, distMeters, mergeShops, cleanupOrphans,
     addVisit, updateVisit, deleteVisit, visitsOf,
     visitCount, avgRating, lastVisitDate,
     addPhoto, allPhotos, photosOfVisit, photosOfShop, repPhoto, findPhotoByHash, putPhotoThumb, setPhotoAspect, setPhotoCreatedAt, relinkPhoto, movePhoto, deletePhoto, getThumb, getPhotoBlob,
     addDraft, getDrafts, getDraft, deleteDraft, draftCount,
     getProfile, setProfile,
-    wishes: () => wishes.filter(w => !isDone(w)), allWishes: () => wishes.slice(), doneWishes: () => wishes.filter(isDone),
+    wishes: () => wishes.filter(w => !isDone(w) && !pendingDel.wish.has(w.id)), allWishes: () => wishes.filter(w => !pendingDel.wish.has(w.id)), doneWishes: () => wishes.filter(w => isDone(w) && !pendingDel.wish.has(w.id)),
     addWish, removeWish, undoWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
     setSyncHook, applyRemote, applyRemoteDelete, putPhotoRaw, photoIds,

@@ -150,11 +150,13 @@ const Views = (() => {
   const EMPTY_IC_PEOPLE = BIG('<circle cx="9" cy="8" r="3.4"/><path d="M2.6 20c0-3.4 2.9-5.5 6.4-5.5s6.4 2.1 6.4 5.5"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.4"/><path d="M18 14.9c2.6.5 4.5 2.4 4.5 5.1"/>');
   const EMPTY_IC_PHOTO = BIG('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="m3 17 5-4 4 3 4-3 5 4"/>');
   const EMPTY_IC_FORK = BIG('<path d="M6 3v7a2 2 0 0 0 4 0V3M8 10v11"/><path d="M16 3c-1.5 0-2.5 2-2.5 4.5S15 12 16 12v9"/>');
+  const EMPTY_IC_CHECK = BIG('<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'); // 達成（v375〜）
   const SKEL_FEED = (() => {
     const card = '<div class="skel-card"><div class="skel-head"><div class="skeleton skel-avatar"></div><div class="skeleton skel-line" style="width:38%"></div></div><div class="skeleton skel-photo"></div><div class="skel-body"><div class="skeleton skel-line" style="width:28%;margin-bottom:8px"></div><div class="skeleton skel-line" style="width:62%"></div></div></div>';
     return card + card;
   })();
   const SKEL_GRID = '<div class="skel-grid">' + Array(9).fill('<div class="skeleton"></div>').join('') + '</div>';
+  const SKEL_CATS = '<div class="skel-cats">' + Array(7).fill('<div class="skeleton"></div>').join('') + '</div>'; // 発見のくくり（v375〜）
   // 地図の店舗シート「フォロワーの写真」読み込み中の骨組み（人の行×2）
   const SKEL_FROWS = Array(2).fill(
     '<div class="msh-frow"><div class="skeleton skel-favatar"></div>'
@@ -2157,7 +2159,7 @@ const Views = (() => {
           <button class="btn small primary wish-rec" data-id="${esc(w.id)}">記録する</button>
           <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
         </div>`).join('')
-          : (done.length ? '<p class="hint">まだ行っていない店はありません。</p>' : emptyBox(EMPTY_IC_FORK, 'まだありません。<br>ホームの投稿のしおりマークから保存できます。')))
+          : emptyBox(EMPTY_IC_FORK, done.length ? 'まだ行っていない店はありません' : 'まだありません。<br>投稿のしおりや地図の長押しから入れられます'))
         : (done.length ? done.map(w => `
         <div class="wish-row wish-done">
           <div class="wish-main">
@@ -2166,7 +2168,7 @@ const Views = (() => {
           </div>
           ${w.doneShopId && Store.getShop(w.doneShopId) ? `<button class="btn small wish-shop" data-id="${esc(w.doneShopId)}">記録</button>` : ''}
           <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
-        </div>`).join('') : '<p class="hint">まだ達成した店はありません。</p>'));
+        </div>`).join('') : emptyBox(EMPTY_IC_CHECK, '行きたい店に行って記録すると、ここに並びます')));
     const again = () => renderWishlist(body);
     body.querySelector('#wish-add').addEventListener('click', () => openWishAdd());
     body.querySelectorAll('.vl-seg[data-wt]').forEach(b => b.addEventListener('click', () => { wishTab = b.dataset.wt; again(); }));
@@ -2186,7 +2188,10 @@ const Views = (() => {
       if (!w.doneAt && w.lat != null) acts.push({ label: '地図で見る', onClick: () => { focusMap(w.lon, w.lat, 15); App.switchTab('map'); } });
       if (!w.doneAt && w.lat != null) acts.push({ label: 'ここへ行く', onClick: () => openNav({ name: w.name, lat: w.lat, lon: w.lon }) });
       if (w.doneAt) acts.push({ label: '達成を取り消す（行きたいに戻す）', onClick: () => { Store.undoWish(w.id); refreshWishData(); App.toast('行きたい店に戻しました'); again(); } });
-      acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => { Store.removeWish(w.id); refreshWishData(); again(); } });
+      acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => {
+        Store.deferDelete('wish', w.id); refreshWishData(); again(); // v375〜 元に戻せる
+        App.toastUndo('外しました', { undo: () => { Store.undoDelete('wish', w.id); refreshWishData(); again(); }, commit: () => { Store.removeWish(w.id); refreshWishData(); } });
+      } });
       openActionSheet(acts);
     }));
   }
@@ -2262,27 +2267,31 @@ const Views = (() => {
 
   function sortShops(list) {
     const mode = $('#flt-sort').value;
+    // v375〜 並べ替えの鍵（訪問から求める値）は先に店ごとに1回だけ計算する。比較のたびに visitsOf（全訪問の走査）を呼ぶと
+    // 店150・訪問300 で数十msかかっていた（CPU プロファイルで visitsOf が search list の最上位）
+    const keyed = (f) => { const k = new Map(list.map(s => [s.id, f(s)])); return (a, b) => k.get(b.id) - k.get(a.id); };
     const by = {
       newest: (a, b) => b.createdAt - a.createdAt,
-      visitDate: (a, b) => new Date(Store.lastVisitDate(b.id) || 0) - new Date(Store.lastVisitDate(a.id) || 0),
-      visitCount: (a, b) => Store.visitCount(b.id) - Store.visitCount(a.id),
-      rating: (a, b) => Store.avgRating(b.id) - Store.avgRating(a.id),
+      visitDate: () => keyed(s => new Date(Store.lastVisitDate(s.id) || 0).getTime()),
+      visitCount: () => keyed(s => Store.visitCount(s.id)),
+      rating: () => keyed(s => Store.avgRating(s.id)),
       casual: (a, b) => (b.casual || 0) - (a.casual || 0),
       atmosphere: (a, b) => (b.atmosphere || 0) - (a.atmosphere || 0),
       speed: (a, b) => (b.speed || 0) - (a.speed || 0),
       name: (a, b) => a.name.localeCompare(b.name, 'ja'),
       // 一致率で重み付けした自分向けの評価が高い順
-      personal: (a, b) => ratingPair({ name: b.name, lat: b.lat, lon: b.lon }).personal -
-        ratingPair({ name: a.name, lat: a.lat, lon: a.lon }).personal,
+      personal: () => keyed(s => ratingPair({ name: s.name, lat: s.lat, lon: s.lon }).personal),
       // 現在地から近い順（現在地が未取得なら★順に落とす）
-      distance: (a, b) => {
-        if (!lastKnownPos) return Store.avgRating(b.id) - Store.avgRating(a.id);
+      distance: () => {
+        if (!lastKnownPos) return keyed(s => Store.avgRating(s.id));
         const d = (s) => (s.lat != null && s.lon != null)
           ? Store.distMeters(lastKnownPos.lat, lastKnownPos.lon, s.lat, s.lon) : Infinity;
-        return d(a) - d(b);
+        return keyed(s => -d(s));
       },
     };
-    return list.sort(by[mode] || by.newest);
+    const LAZY = { visitDate: 1, visitCount: 1, rating: 1, personal: 1, distance: 1 }; // 鍵を先に作る種類（関数を返す）
+    const f = by[mode] || by.newest;
+    return list.sort(LAZY[mode] ? f() : f);
   }
 
   function groupKeyFns(mode) {
@@ -2582,7 +2591,7 @@ const Views = (() => {
   // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）。0件のくくりは畳む
   async function renderExploreCats() {
     const box = $('#explore-cats');
-    box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
+    box.innerHTML = SKEL_CATS; // v375〜 文字ではなく骨組み
     const items = await loadExploreItems();
     if (!items.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>最初の一皿を記録してみましょう。',
@@ -2632,7 +2641,7 @@ const Views = (() => {
     head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(catName)}</span>`;
     head.querySelector('.ex-back').addEventListener('click', showExploreCats);
     const box = $('#explore-cats');
-    box.innerHTML = '<div class="ex-loading">読み込み中…</div>';
+    box.innerHTML = SKEL_CATS; // v375〜 文字ではなく骨組み
     const items = await loadExploreItems();
     const count = genreCounts(items);
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
@@ -2763,10 +2772,13 @@ const Views = (() => {
     bar.querySelector('.mz-sel-del').addEventListener('click', async () => {
       const recs = [...mzSel.items.values()];
       if (!recs.length) { App.toast('写真を選んでください'); return; }
-      if (!confirm(`${recs.length}枚の写真を削除しますか？（記録は残ります）`)) return;
-      for (const r of recs) await Store.deletePhoto(r.id).catch(() => {});
-      App.toast(`${recs.length}枚を削除しました`);
+      // v375〜 確認ダイアログの代わりに、一覧から外して「元に戻す」付きのトースト。数秒後に本当に消す
+      for (const r of recs) Store.deferDelete('photo', r.id);
       mzSelEnd(); App.refreshCurrent();
+      App.toastUndo(`${recs.length}枚を削除しました`, {
+        undo: () => { for (const r of recs) Store.undoDelete('photo', r.id); App.refreshCurrent(); },
+        commit: async () => { for (const r of recs) await Store.deletePhoto(r.id).catch(() => {}); },
+      });
     });
     document.body.appendChild(bar);
     mzSel.bar = bar;
@@ -3482,7 +3494,22 @@ const Views = (() => {
     let loaded = false;
     cmtBtn.addEventListener('click', () => {
       const hidden = box.classList.toggle('hidden');
-      if (!hidden && !loaded) { loaded = true; if (socialReady()) loadComments(); else list.innerHTML = '<div class="pd-cempty">まだコメントはありません</div>'; }
+      if (hidden) return;
+      const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
+      // v375〜 未ログインなら入力欄の代わりに「ログイン」ボタン（設定のログインと同じ処理）
+      const add = root.querySelector('.pd-cadd');
+      if (!me) {
+        add.classList.add('hidden');
+        if (!list.querySelector('.pd-clogin')) {
+          list.innerHTML = '<div class="pd-clogin"><span>コメントするにはログインが必要です</span>' +
+            ((typeof Cloud !== 'undefined' && Cloud.isSupported()) ? '<button type="button" class="btn small primary">ログイン</button>' : '') + '</div>';
+          const b = list.querySelector('button');
+          if (b) b.addEventListener('click', () => { const l = $('#pf-login'); if (l) l.click(); });
+        }
+        return;
+      }
+      add.classList.remove('hidden');
+      if (!loaded) { loaded = true; if (socialReady()) loadComments(); else list.innerHTML = '<div class="pd-cempty">まだコメントはありません</div>'; }
     });
     const sendComment = async () => {
       const input = root.querySelector('.pd-cinput');
@@ -4097,7 +4124,7 @@ const Views = (() => {
               <button type="button" class="btn small rg-again" aria-label="${esc(x.s.name)}にまた来た">＋また来た</button>
             </span>
           </li>`).join('')}</ol>`
-        : '<p class="hint">記録した店が、来店回数の多い順にここに並びます。</p>');
+        : emptyBox(EMPTY_IC_FORK, '記録した店が、来店回数の多い順に並びます'));
     box.querySelectorAll('.rg-row').forEach(li => {
       const id = li.dataset.id;
       li.querySelector('.rg-main').addEventListener('click', () => showShop(id));
@@ -4122,7 +4149,7 @@ const Views = (() => {
       + (pg.total ? wishProgressHtml(pg)
         + (recent.length ? `<div class="wp-recent">${recent.map(w => `<div class="wp-ritem">${IC_CHECK} ${esc(w.name || '')}<span>${esc(fmtDate(new Date(w.doneAt).toISOString()))}</span></div>`).join('')}</div>` : '')
         + `<button type="button" class="btn small wp-open">行きたい店の一覧</button>`
-        : '<p class="hint">ホームの投稿のしおりマークで「行きたい店」に保存すると、行けた割合がここに出ます。</p>');
+        : emptyBox(EMPTY_IC_CHECK, '行きたい店に行けた割合がここに出ます')); // v375〜 他の空の状態と同じ部品
     const b = box.querySelector('.wp-open');
     if (b) b.addEventListener('click', openWishlist);
   }
@@ -4156,7 +4183,7 @@ const Views = (() => {
           <span class="cq-name">${esc(name)}</span>
           <span class="cq-n">${e.shops}店<small>・${e.visits}回</small></span>
           <span class="cq-w">${e.wishTotal ? `行きたい ${e.wishDone}/${e.wishTotal}` : ''}</span>
-        </button>`).join('')}</div>` : '<p class="hint">店を記録すると、行った都道府県が塗られていきます。</p>'}
+        </button>`).join('')}</div>` : emptyBox('', '店を記録すると、行った都道府県が塗られていきます')}
       ${geo ? `<p class="cq-src">地図: <a href="${esc(geo.attributionUrl)}" target="_blank" rel="noopener">国土数値情報（行政区域データ）</a>を加工して作成（CC BY 4.0）</p>` : ''}`;
     const open = (name) => openPrefShops(name, geo);
     box.querySelectorAll('.cq-row').forEach(b => b.addEventListener('click', () => open(b.dataset.pref)));
@@ -4213,10 +4240,8 @@ const Views = (() => {
     const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
     const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
     // 地: 生成りの紙＋上部にテラコッタの帯
-    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
-    const grad = g.createLinearGradient(0, 0, W, 300);
-    grad.addColorStop(0, '#D97757'); grad.addColorStop(1, '#B4552F');
-    g.fillStyle = grad; g.fillRect(0, 0, W, 300);
+    g.fillStyle = '#F5F3EC'; g.fillRect(0, 0, W, H); // 下地（--field）
+    g.fillStyle = '#C6613F'; g.fillRect(0, 0, W, 300); // v375〜 グラデーションをやめアクセント1色（デザインシステム）
     g.fillStyle = '#FFFFFF';
     g.font = F(800, 64); g.textBaseline = 'alphabetic'; g.fillText('BITEMAP', 72, 128);
     g.font = F(600, 30); g.globalAlpha = 0.85; g.fillText('グルメ記録 会員証', 72, 180); g.globalAlpha = 1;
@@ -4243,8 +4268,8 @@ const Views = (() => {
     const cw = (W - 144) / 4;
     stats.forEach(([v, l], i) => {
       const x = 72 + cw * i;
-      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 490, cw - 12, 170, 26); g.fill();
-      g.strokeStyle = '#EAE3D8'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 490, cw - 12, 170, 39); g.fill();
+      g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = '#C6613F'; g.textAlign = 'center';
       g.font = F(800, v.length > 5 ? 46 : 60); g.fillText(v, x + cw / 2, 590);
       g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 636);
@@ -4263,7 +4288,7 @@ const Views = (() => {
         const e = data.get(pr.name) || { shops: 0 };
         const path = pr.path || new Path2D(pr.d);
         g.fillStyle = FILL[cqLevel(e.shops)]; g.fill(path);
-        g.strokeStyle = '#FBF7F2'; g.lineWidth = 1.6 / sc; g.stroke(path);
+        g.strokeStyle = '#F5F3EC'; g.lineWidth = 1.6 / sc; g.stroke(path);
       }
       const ob = geo.okinawaBox; g.strokeStyle = '#CFC6B8'; g.lineWidth = 2 / sc; g.strokeRect(ob[0], ob[1], ob[2], ob[3]);
       g.restore();
@@ -4370,10 +4395,8 @@ const Views = (() => {
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
     const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
     const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
-    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
-    const grad = g.createLinearGradient(0, 0, W, 300);
-    grad.addColorStop(0, '#D97757'); grad.addColorStop(1, '#B4552F');
-    g.fillStyle = grad; g.fillRect(0, 0, W, 300);
+    g.fillStyle = '#F5F3EC'; g.fillRect(0, 0, W, H); // 下地（--field）
+    g.fillStyle = '#C6613F'; g.fillRect(0, 0, W, 300); // v375〜 グラデーションをやめアクセント1色（デザインシステム）
     g.fillStyle = '#FFFFFF'; g.font = F(800, 96); g.fillText(String(d.year), 72, 150);
     g.font = F(600, 34); g.globalAlpha = 0.85; g.fillText(`BITEMAP　${d.year === new Date().getFullYear() ? '今年' : d.year + '年'}のまとめ`, 72, 215); g.globalAlpha = 1;
     const p = Store.getProfile();
@@ -4382,8 +4405,8 @@ const Views = (() => {
     const cw = (W - 144) / 4;
     stats.forEach(([v, l], i) => {
       const x = 72 + cw * i;
-      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 430, cw - 12, 170, 26); g.fill();
-      g.strokeStyle = '#EAE3D8'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#FFFFFF'; roundRect(g, x + 6, 430, cw - 12, 170, 39); g.fill();
+      g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = '#C6613F'; g.textAlign = 'center';
       g.font = F(800, v.length > 4 ? 46 : 60); g.fillText(v, x + cw / 2, 530);
       g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
@@ -4416,7 +4439,7 @@ const Views = (() => {
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* noop */ }
     const F = (w, px) => `${w} ${px}px ${CARD_FONT}`;
     const fit = (text, max, w, px) => { let t = String(text || ''); g.font = F(w, px); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
-    g.fillStyle = '#FBF7F2'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#F5F3EC'; g.fillRect(0, 0, W, H); // 下地（--field）
     const urls = (info.photoUrls || [info.photoUrl]).filter(Boolean).slice(0, square ? 2 : 1);
     const load = (u) => new Promise((res, rej) => {
       const img = new Image();
@@ -4425,7 +4448,7 @@ const Views = (() => {
     });
     const imgs = await Promise.all(urls.map(load));
     const cover = (img, x, y, w, h) => {
-      g.save(); roundRect(g, x, y, w, h, 40); g.clip();
+      g.save(); roundRect(g, x, y, w, h, 39); g.clip(); // 角丸 14px 相当（1080/390 倍）
       const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
       const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
       g.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
@@ -4439,7 +4462,7 @@ const Views = (() => {
       const label = `★${fmtR(info.rating)}`; g.font = F(800, 44);
       const bw = g.measureText(label).width + 56;
       g.fillStyle = 'rgba(20,16,12,.82)'; roundRect(g, px + pw - bw - 28, py + 28, bw, 76, 38); g.fill();
-      g.fillStyle = '#F2C14E'; g.textBaseline = 'middle'; g.fillText(label, px + pw - bw, py + 66); g.textBaseline = 'alphabetic';
+      g.fillStyle = '#F2C14E'; g.textBaseline = 'middle'; g.fillText(label, px + pw - bw, py + 66); g.textBaseline = 'alphabetic'; // 金は★の印だけ（投稿詳細のバッジと同じ）
     }
     let y = py + ph + (square ? 90 : 110);
     g.fillStyle = '#1F1E1D'; g.font = F(800, square ? 56 : 64); g.fillText(fit(info.shopName, pw - (square ? 220 : 0), 800, square ? 56 : 64), px, y);
@@ -4712,12 +4735,7 @@ const Views = (() => {
         // v372〜 訪問が2回以上なら リスト／タイムライン の切り替え（別画面だった「訪問の一覧」をここに統合）
         const ctx = {
           editVisit: (v) => openVisitEdit(v.id, (how) => { App.refreshCurrent(); if (how === 'deleted' && !Store.visitsOf(shopId).length) closeModal(); else showShop(shopId, false); }), // v367〜 その場のシート
-          delVisit: async (v) => {
-            if (!confirm('この記録を削除しますか？')) return;
-            await Store.deleteVisit(v.id);
-            App.refreshCurrent();
-            if (Store.visitsOf(shopId).length) showShop(shopId, false); else closeModal();
-          },
+          delVisit: (v) => deleteVisitWithUndo(v.id, () => { if (!$('#modal').classList.contains('hidden')) { if (Store.visitsOf(shopId).length) showShop(shopId, false); else closeModal(); } }), // v375〜 元に戻せる
         };
         const vlist = document.createElement('div');
         const renderVisits = () => {
@@ -4988,12 +5006,9 @@ const Views = (() => {
       close();
       if (onDone) onDone('saved');
     });
-    ov.querySelector('.ve-del').addEventListener('click', async () => {
-      if (!confirm('この記録を削除しますか？写真も一緒に削除されます。')) return;
-      await Store.deleteVisit(v.id);
-      App.toast('記録を削除しました');
+    ov.querySelector('.ve-del').addEventListener('click', () => {
       close();
-      if (onDone) onDone('deleted');
+      deleteVisitWithUndo(v.id, () => { if (onDone) onDone(Store.visitsOf(v.shopId).length ? 'saved' : 'deleted'); }, () => { if (onDone) onDone('deleted'); }); // v375〜 元に戻せる
     });
     document.body.appendChild(ov);
   }
@@ -5111,6 +5126,19 @@ const Views = (() => {
   }
 
   // 訪問1件の部品（v364〜 訪問の一覧と店舗の詳細で共用。v344 の並び: 写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›）
+  // 記録の削除（v375〜）: すぐには消さず一覧から外し、トーストの「元に戻す」で戻せる。確定したら本当に消す。
+  // afterHide: 外した直後の描き直し。afterCommit: 本当に消えたあと（省略時は afterHide と同じ）
+  function deleteVisitWithUndo(visitId, afterHide, afterCommit) {
+    const v = Store.visits().find(x => x.id === visitId);
+    if (!v) return;
+    Store.deferDelete('visit', visitId);
+    App.refreshCurrent();
+    if (afterHide) afterHide();
+    App.toastUndo('記録を削除しました', {
+      undo: () => { Store.undoDelete('visit', visitId); App.refreshCurrent(); if (afterHide) afterHide(); },
+      commit: async () => { await Store.deleteVisit(visitId); App.refreshCurrent(); if (afterCommit) afterCommit(); else if (afterHide) afterHide(); },
+    });
+  }
   // ctx = { editVisit(v), delVisit(v) }
   function buildVisitSection(shopId, v, ctx) {
     const s = Store.getShop(shopId) || {};
@@ -5421,7 +5449,11 @@ const Views = (() => {
     const box = $('#feed-list');
     const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
     if (!me) {
-      box.innerHTML = `<div class="empty"><p>ホームではフォロー中の人の投稿が見られます。<br>プロフィール画面からGoogleログインしてください。</p></div>`;
+      // v375〜 他の空の状態と同じ部品（絵＋1行＋ボタン）。ボタンは設定のログインと同じ処理
+      box.innerHTML = emptyBox(EMPTY_IC_PEOPLE, 'ログインすると、フォロー中の人の記録がここに並びます',
+        (typeof Cloud !== 'undefined' && Cloud.isSupported()) ? '<button class="btn primary" id="feed-login-btn">ログイン</button>' : '');
+      const lb = $('#feed-login-btn');
+      if (lb) lb.addEventListener('click', () => { const l = $('#pf-login'); if (l) l.click(); });
       return;
     }
     const fresh = feedCache && (Date.now() - feedCache.time < FEED_TTL);
@@ -5859,11 +5891,10 @@ const Views = (() => {
         const done = () => { close(); App.refreshCurrent(); };
         if (Store.visitsOf(ph.shopId).length > 1) acts.push({ label: 'この写真を別の訪問へ', onClick: () => openPhotoMove(ph, 'visit', done) });
         acts.push({ label: 'この写真を別の店へ', onClick: () => openPhotoMove(ph, 'shop', done) });
-        acts.push({ label: 'この写真を削除', danger: true, onClick: async () => {
-          if (!confirm('この写真を削除しますか？（記録は残ります）')) return;
-          await Store.deletePhoto(ph.id);
-          App.toast('写真を削除しました');
+        acts.push({ label: 'この写真を削除', danger: true, onClick: () => {
+          Store.deferDelete('photo', ph.id); // v375〜 元に戻せる（数秒後に本当に消す）
           done();
+          App.toastUndo('写真を削除しました', { undo: () => { Store.undoDelete('photo', ph.id); App.refreshCurrent(); }, commit: () => Store.deletePhoto(ph.id) });
         } });
       }
       openActionSheet(acts);
