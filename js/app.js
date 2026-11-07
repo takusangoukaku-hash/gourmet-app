@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v372'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v373'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -207,7 +207,7 @@ const App = (() => {
     const renderSettingsProfile = () => {
       const p = Store.getProfile();
       $('#set-name').textContent = p.name || 'BITEMAP';
-      $('#set-sub').textContent = p.username ? '@' + p.username : 'プロフィールを見る'; // v372〜 この行はプロフィールのタブを開くだけなので「編集」と言わない
+      $('#set-sub').textContent = p.username ? '@' + p.username : 'マイページを見る'; // v372〜 この行はプロフィールのタブを開くだけなので「編集」と言わない
       const av = $('#set-avatar');
       av.textContent = '';
       // 画像はDOM経由で設定する（文字列連結でHTMLに埋め込まない）

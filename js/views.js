@@ -1941,10 +1941,7 @@ const Views = (() => {
       $('#list-detail-filters').classList.add('hidden'); // 開くたびに詳細は閉じた状態から
       buildListGenreChips(); // 記録済みジャンルでチップを作り直す
     });
-    $('#list-detail-toggle').addEventListener('click', () => {
-      $('#list-detail-filters').classList.toggle('hidden');
-      $('#list-detail-toggle').classList.toggle('on', !$('#list-detail-filters').classList.contains('hidden'));
-    });
+    $('#list-detail-toggle').addEventListener('click', openFilterSheet); // v373〜 下からのシート
     // 条件を外す（v367〜。ジャンル・★・都道府県をまとめて外す。並び替え・まとめては残す）
     $('#flt-clear').addEventListener('click', () => {
       $('#flt-dish-genre').value = ''; $('#flt-rating').value = ''; $('#flt-pref').value = '';
@@ -2187,6 +2184,36 @@ const Views = (() => {
   }
 
   // 付いている絞り込みの数を「詳細」ボタンに出し、「条件を外す」を出し入れする（v367〜）
+  // 絞り込み・並び替えのシート（v373〜）: #list-detail-filters（チップ・選択肢と配線はそのまま）をシートへ移して見せ、
+  // 閉じたら元の場所へ戻す。下のボタンに今の件数を出す
+  function openFilterSheet() {
+    const panel = $('#list-detail-filters');
+    if (!panel || document.querySelector('.flt-modal')) return;
+    const home = panel.parentElement;
+    const ov = document.createElement('div');
+    ov.className = 'modal action-sheet flt-modal';
+    ov.innerHTML = `<div class="as-box flt-sheet">
+        <div class="as-handle"></div>
+        <div class="flt-head"><span>絞り込み・並び替え</span><button type="button" class="sheet-x flt-x" aria-label="閉じる">${IC_X}</button></div>
+        <div class="flt-body"></div>
+        <button type="button" class="btn primary big flt-done">閉じる</button>
+      </div>`;
+    document.body.appendChild(ov); // 先に文書へ入れる（中の #flt-* を $() で引けるように）
+    ov.querySelector('.flt-body').appendChild(panel);
+    panel.classList.remove('hidden');
+    const done = ov.querySelector('.flt-done');
+    const updateDone = () => {
+      if (listResultMode === 'photo') { done.textContent = '閉じる'; return; }
+      done.textContent = `${filteredShops().length} 件を表示`;
+    };
+    updateDone();
+    panel.addEventListener('change', () => setTimeout(updateDone, 0));
+    panel.addEventListener('click', () => setTimeout(updateDone, 0));
+    const close = () => { panel.classList.add('hidden'); home.appendChild(panel); ov.remove(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    done.addEventListener('click', close);
+    ov.querySelector('.flt-x').addEventListener('click', close);
+  }
   function updateFilterBadge() {
     const n = [$('#flt-dish-genre').value, $('#flt-rating').value, $('#flt-pref').value].filter(Boolean).length;
     const b = $('#list-detail-toggle');
@@ -3037,6 +3064,7 @@ const Views = (() => {
     // カウントのタップ: 画面移動（店舗）／フォロー・フォロワーは一覧を表示
     document.querySelectorAll('.pstat').forEach(b =>
       b.addEventListener('click', () => {
+        if (b.dataset.ptab) { showProfileTab(b.dataset.ptab); return; } // v373〜 「写真」の数 → 写真の小タブ
         if (b.dataset.goto) { App.switchTab(b.dataset.goto); return; }
         const me = (typeof Cloud !== 'undefined') ? Cloud.getUser() : null;
         if (!me) { App.toast('ログインするとフォロー機能が使えます'); return; }
@@ -3233,7 +3261,7 @@ const Views = (() => {
     if (nEl) nEl.textContent = q ? `${shown.length}店` : '';
     if (!shown.length) {
       box.className = 'photo-grid';
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, `「${esc(q)}」に合うお店はアルバムにありません。<br>条件で探すときは検索タブを使ってください。`);
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, `「${esc(q)}」に合うお店はアルバムにありません。<br>条件で探すときは「探す」を使ってください。`);
       return;
     }
     // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」、下に訪問回数と前回）
@@ -3647,6 +3675,7 @@ const Views = (() => {
     if (p.avatar) av.innerHTML = `<img src="${esc(p.avatar)}" alt="">`;
     else av.innerHTML = IC_BOWL;
     $('#pf-shops').textContent = Store.shops().length;
+    Store.allPhotos().then(ps => { const el = $('#pf-photos'); if (el) el.textContent = ps.length; }).catch(() => {}); // v373〜
     // フォロー/フォロワー数（ログイン中はクラウドから実数を取得）
     $('#pf-following').textContent = p.following || 0;
     $('#pf-followers').textContent = p.followers || 0;
@@ -3786,9 +3815,12 @@ const Views = (() => {
       [pg.total ? `${pg.done}<small>/${pg.total}</small>` : '－', '行きたい店の達成'],
     ].map(tile).join('');
     // v340〜 上の4タイルと重なるもの（総訪問回数・今月の訪問・保存写真枚数）は出さない
+    const visitedShops = shops.filter(s => Store.visitCount(s.id) > 0).length; // v373〜 再訪率＝2回以上行った店 ÷ 行った店
+    const revisited = shops.filter(s => Store.visitCount(s.id) >= 2).length;
     $('#stat-cards-more').innerHTML = [
       [allAvg || '－', '味の平均'],
       [`<span id="stat-pref-n">${prefCount}</span><small>/47</small>`, '訪れた都道府県'],
+      [visitedShops ? `${Math.round(revisited / visitedShops * 100)}<small>%</small>` : '－', '再訪率'],
     ].map(tile).join('');
 
     // ここから下はグラフ（Chart.js）。読み込めなくても上のタイルやカードは出ている
@@ -4009,6 +4041,31 @@ const Views = (() => {
 
   // ---- よく行く店（来店回数の多い順。メダルは上位3店） ----
   const MEDAL = (rank) => `<span class="rg-medal rg-m${rank}" aria-label="${rank}位">${rank}</span>`;
+  // ---- よく食べたジャンル（訪問に付けた料理ジャンルの多い順。上位6つ。タップで「探す」をそのジャンルで絞る。v373〜） ----
+  function renderGenreRank() {
+    const box = $('#stat-genres');
+    if (!box) return;
+    const count = new Map();
+    for (const v of Store.visits()) for (const g of (v.dishGenres || [])) count.set(g, (count.get(g) || 0) + 1);
+    const rows = [...count.entries()].sort((a, b) => b[1] - a[1] || Api.DISH_GENRES.indexOf(a[0]) - Api.DISH_GENRES.indexOf(b[0])).slice(0, 6);
+    if (!rows.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const total = [...count.values()].reduce((s, n) => s + n, 0);
+    const max = rows[0][1];
+    box.innerHTML = `<h2>よく食べたジャンル</h2>` + rows.map(([g, n]) => `
+      <button type="button" class="gr-row" data-g="${esc(g)}">
+        <span class="gr-name">${esc(g)}</span>
+        <span class="gr-n"><b>${n}</b>回 ・ ${Math.round(n / total * 100)}%</span>
+        <span class="gr-bar"><i style="width:${Math.round(n / max * 100)}%"></i></span>
+      </button>`).join('');
+    box.classList.remove('hidden');
+    box.querySelectorAll('.gr-row').forEach(b => b.addEventListener('click', () => {
+      App.switchTab('list'); // enterListTab で条件が空になってから入れる
+      setListMode(false);
+      $('#flt-dish-genre').value = b.dataset.g;
+      renderList();
+    }));
+  }
+
   function renderRegulars() {
     const box = $('#stat-regulars');
     if (!box) return;
@@ -4398,6 +4455,7 @@ const Views = (() => {
   function renderRecordCards() {
     renderYearCard();
     renderMonthCard(); // 月ごとの振り返り（v366〜）
+    renderGenreRank(); // よく食べたジャンル（v373〜）
     renderRegulars();
     renderWishCard();
     renderConquest().catch(() => {});

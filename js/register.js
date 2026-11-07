@@ -74,6 +74,66 @@ const Register = (() => {
     pill.classList.toggle('empty', !g.length && text == null);
   }
 
+  // ジャンルを選ぶシート（v373〜）: 上に検索欄、「よく使う」（自分の記録で多い6つ。無ければ各くくりの先頭）、
+  // その下に全ジャンル（#f-dish-genres＝くくり→ジャンルの2段階ピッカーをそのまま移す。閉じたら #reg-genres へ戻す）
+  function openGenreSheet() {
+    if (document.querySelector('.gp-modal')) return;
+    const picker = $('#f-dish-genres');
+    const home = picker.parentElement;
+    const ov = document.createElement('div');
+    ov.className = 'modal action-sheet gp-modal';
+    ov.innerHTML = `<div class="as-box gp-sheet">
+        <div class="as-handle"></div>
+        <div class="gp-head"><span>料理ジャンル</span><button type="button" class="sheet-x gp-x" aria-label="閉じる">${Views.icons.x}</button></div>
+        <input type="search" class="gp-q" placeholder="ジャンルを検索" autocomplete="off" enterkeyhint="search">
+        <div class="gp-body">
+          <div class="gp-sel"></div>
+          <div class="gp-hits chips hidden"></div>
+          <div class="gp-favwrap"><div class="fl-label">よく使う</div><div class="gp-fav chips"></div></div>
+          <div class="fl-label">すべて</div>
+          <div class="gp-all"></div>
+        </div>
+        <button type="button" class="btn primary big gp-done">決定</button>
+      </div>`;
+    document.body.appendChild(ov); // 先に文書へ入れてからピッカーを移す
+    ov.querySelector('.gp-all').appendChild(picker);
+    const favs = (() => {
+      const count = new Map();
+      for (const v of Store.visits()) for (const g of (v.dishGenres || [])) count.set(g, (count.get(g) || 0) + 1);
+      const top = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([g]) => g).filter(g => Api.DISH_GENRES.includes(g));
+      for (const c of Api.DISH_CATEGORIES) { if (top.length >= 6) break; if (!top.includes(c.genres[0])) top.push(c.genres[0]); }
+      return top.slice(0, 6);
+    })();
+    const chip = (g) => `<button type="button" class="chip${selectedDishGenres.has(g) ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`;
+    const q = ov.querySelector('.gp-q');
+    const paint = () => {
+      ov.querySelector('.gp-sel').textContent = selectedDishGenres.size ? '選択中: ' + [...selectedDishGenres].join('・') : '';
+      ov.querySelector('.gp-fav').innerHTML = favs.map(chip).join('');
+      const kw = q.value.trim().toLowerCase();
+      const hits = ov.querySelector('.gp-hits');
+      if (kw) {
+        const list = Api.DISH_GENRES.filter(g => g.toLowerCase().includes(kw));
+        hits.innerHTML = list.length ? list.map(chip).join('') : '<span class="hint">見つかりません</span>';
+      }
+      hits.classList.toggle('hidden', !kw);
+      ov.querySelector('.gp-favwrap').classList.toggle('hidden', !!kw);
+      dishPicker.render();
+    };
+    const toggle = (g) => {
+      if (selectedDishGenres.has(g)) selectedDishGenres.delete(g); else selectedDishGenres.add(g);
+      userTouchedGenres = true; autoFilledGenres = false; // 手で選んだ＝以降は自動判定で上書きしない
+      paint();
+    };
+    for (const sel of ['.gp-fav', '.gp-hits']) ov.querySelector(sel).addEventListener('click', (e) => { const b = e.target.closest('.chip[data-g]'); if (b) toggle(b.dataset.g); });
+    picker.addEventListener('click', () => setTimeout(paint, 0)); // 全ジャンル側で選んだら「選択中」と「よく使う」にも反映
+    q.addEventListener('input', paint);
+    const close = () => { home.appendChild(picker); ov.remove(); updateGenrePill(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.gp-done').addEventListener('click', close);
+    ov.querySelector('.gp-x').addEventListener('click', close);
+    paint();
+  }
+
   function init() {
     $('#photo-input').addEventListener('change', (e) => addFiles(e.target.files));
     $('#camera-input').addEventListener('change', (e) => addFiles(e.target.files));
@@ -88,7 +148,7 @@ const Register = (() => {
     $('#reg-pick-text').addEventListener('click', () => { forceStep2 = true; updateStep(); setTimeout(() => $('#f-shop-name').focus(), 250); });
     $('#reg-pick-wish').addEventListener('click', () => Views.openWishAdd());
     // 2枚目「記録」: ジャンルの札 → 選択肢の開閉。「ひとこと」「住所・最寄駅」の行 → 折りたたみの開閉
-    $('#genre-pill').addEventListener('click', () => $('#reg-genres').classList.toggle('hidden'));
+    $('#genre-pill').addEventListener('click', openGenreSheet); // v373〜 よく使う6つ＋検索＋全ジャンルのシート
     document.querySelectorAll('#record-card [data-reg-open]').forEach(b => b.addEventListener('click', () => {
       const box = $('#reg-' + b.dataset.regOpen) || $('#detail-fields');
       box.classList.toggle('hidden');
@@ -550,8 +610,7 @@ const Register = (() => {
           updateGenrePill();
         } else if (result.confident === false && result.dishGenres.length) {
           // 自信なし: 勝手に入れず、札に「？」付きで候補を見せて選択肢を開く（v337〜）
-          updateGenrePill(`${result.dishGenres[0]}？`);
-          $('#reg-genres').classList.remove('hidden');
+          updateGenrePill(`${result.dishGenres[0]}？`); // v373〜 選択肢は開かない（札をタップするとシート）
         } else {
           aiClassified = true;
           autoFilledGenres = true;
@@ -561,9 +620,8 @@ const Register = (() => {
           updateGenrePill();
         }
       } else {
-        // 判定できず: 札は「ジャンルを選ぶ」のまま、選択肢を開いておく
+        // 判定できず: 札は「ジャンルを選ぶ」のまま（v373〜 札をタップするとシート）
         updateGenrePill();
-        $('#reg-genres').classList.remove('hidden');
       }
     } catch (e) {
       console.error('AI classification failed:', e);

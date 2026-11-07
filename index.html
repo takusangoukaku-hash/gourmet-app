@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=372">
+<link rel="stylesheet" href="css/style.css?v=373">
 </head>
 <body>
 
@@ -253,9 +253,9 @@
     <!-- 検索バーを押したとき最初に見える操作（地図・詳細）。「お気に入りのみ」は v323 で廃止 -->
     <div class="filter-row">
       <button type="button" id="list-open-map" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg> 地図で見る</button>
-      <button type="button" id="list-detail-toggle" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg> 詳細</button>
+      <button type="button" id="list-detail-toggle" class="btn small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg> 絞り込み</button>
     </div>
-    <!-- 「詳細」を押したときだけ出る絞り込み（星チップ・ジャンルチップ・並び替え） -->
+    <!-- 「絞り込み」を押すと下からのシート（openFilterSheet）に移して見せる。閉じるとここへ戻る（v373〜） -->
     <div id="list-detail-filters" class="hidden">
     <div class="fl-label">絞り込み<button type="button" id="flt-clear" class="btn small flt-clear hidden">条件を外す</button></div>
     <div id="list-genre-chips" class="map-filter"></div>
@@ -324,7 +324,8 @@
       </button>
       <input type="file" id="pf-avatar-input" accept="image/*" hidden>
       <div class="profile-stats">
-        <button type="button" class="pstat" data-goto="list"><b id="pf-shops">0</b><span>店舗</span></button>
+        <button type="button" class="pstat" data-goto="list"><b id="pf-shops">0</b><span>店</span></button>
+        <button type="button" class="pstat" data-ptab="photos"><b id="pf-photos">0</b><span>写真</span></button><!-- v373〜 タップで「写真」の小タブへ -->
         <button type="button" class="pstat" data-social="following"><b id="pf-following">0</b><span>フォロー</span></button>
         <button type="button" class="pstat" data-social="followers"><b id="pf-followers">0</b><span>フォロワー</span></button>
       </div>
@@ -383,6 +384,7 @@
     <div class="stat-actions">
       <button type="button" id="stat-share-card" class="btn stat-share"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> 記録カードを画像で共有</button>
     </div>
+    <div id="stat-genres" class="card hidden"></div><!-- よく食べたジャンル（v373〜）。記録が無ければ出さない -->
     <div id="stat-regulars" class="card"></div>
     <div id="stat-conquest" class="card"></div>
     <div id="stat-wish" class="card"></div>
@@ -415,22 +417,22 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>
     </svg></span><span class="t-label">ホーム</span></button>
-  <button class="tab" data-tab="list" title="検索" aria-label="検索"><span class="t-icon">
+  <button class="tab" data-tab="list" title="探す" aria-label="探す"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-    </svg></span><span class="t-label">検索</span></button>
-  <button class="tab tab-add" data-tab="register" title="登録" aria-label="登録"><span class="t-icon">
+    </svg></span><span class="t-label">探す</span></button>
+  <button class="tab tab-add" data-tab="register" title="記録" aria-label="記録"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8"/><path d="M8 12h8"/>
-    </svg></span><span class="t-label">登録</span></button>
+    </svg></span><span class="t-label">記録</span></button>
   <button class="tab" data-tab="map" title="地図" aria-label="地図"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/>
     </svg></span><span class="t-label">地図</span></button>
-  <button class="tab" data-tab="profile" title="プロフィール" aria-label="プロフィール"><span class="t-icon">
+  <button class="tab" data-tab="profile" title="マイページ" aria-label="マイページ"><span class="t-icon">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
-    </svg></span><span class="t-label">プロフィール</span></button>
+    </svg></span><span class="t-label">マイページ</span></button>
 </nav>
 
 <!-- 店舗詳細モーダル -->
@@ -449,7 +451,7 @@
     <div class="welcome-steps">
       <div class="w-step">
         <span class="w-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg></span>
-        <div><b>撮って記録</b><div class="w-sub">下の「登録」から写真を撮るだけ</div></div>
+        <div><b>撮って記録</b><div class="w-sub">下の「記録」から写真を撮るだけ</div></div>
       </div>
       <div class="w-step">
         <span class="w-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg></span>
@@ -478,7 +480,7 @@
       <span class="sp-avatar" id="set-avatar"><svg class="av-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20h7"/><path d="M14 3l-6.5 8M19 4l-9 7"/></svg></span>
       <span class="sp-main">
         <span class="sp-name" id="set-name">BITEMAP</span>
-        <span class="sp-sub" id="set-sub">プロフィールを見る</span>
+        <span class="sp-sub" id="set-sub">マイページを見る</span>
       </span>
       <span class="set-arrow">›</span>
     </button>
@@ -643,12 +645,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=372"></script>
-<script src="js/api.js?v=372"></script>
-<script src="js/cloud.js?v=372"></script>
-<script src="js/register.js?v=372"></script>
-<script src="js/import.js?v=372"></script>
-<script src="js/views.js?v=372"></script>
-<script src="js/app.js?v=372"></script>
+<script src="js/store.js?v=373"></script>
+<script src="js/api.js?v=373"></script>
+<script src="js/cloud.js?v=373"></script>
+<script src="js/register.js?v=373"></script>
+<script src="js/import.js?v=373"></script>
+<script src="js/views.js?v=373"></script>
+<script src="js/app.js?v=373"></script>
 </body>
 </html>
