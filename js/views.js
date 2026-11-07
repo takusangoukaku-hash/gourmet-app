@@ -1994,7 +1994,7 @@ const Views = (() => {
     $('#list-detail-toggle').addEventListener('click', openFilterSheet); // v373〜 下からのシート
     // 条件を外す（v367〜。ジャンル・★・都道府県をまとめて外す。並び替え・まとめては残す）
     $('#flt-clear').addEventListener('click', () => {
-      $('#flt-dish-genre').value = ''; $('#flt-rating').value = ''; $('#flt-pref').value = '';
+      $('#flt-dish-genre').value = ''; $('#flt-rating').value = ''; $('#flt-pref').value = ''; photoStation = '';
       document.querySelectorAll('#list-genre-chips .chip, .star-chip').forEach(x => x.classList.remove('on'));
       renderList();
     });
@@ -2282,14 +2282,16 @@ const Views = (() => {
   // 付いている条件を結果の上にチップで出す（v381〜。お店・写真の両方）。× で1つずつ外せる。無ければ何も出さない
   function activeFilterChips(count, unit) {
     const dg = $('#flt-dish-genre').value, r = $('#flt-rating').value, pref = $('#flt-pref').value;
-    const items = [dg ? ['genre', dg] : null, r ? ['rating', `★${r}以上`] : null, pref ? ['pref', pref] : null].filter(Boolean);
+    const st = listResultMode === 'photo' ? photoStation : ''; // v383〜 写真モードの駅
+    const items = [st ? ['station', st] : null, dg ? ['genre', dg] : null, r ? ['rating', `★${r}以上`] : null, pref ? ['pref', pref] : null].filter(Boolean);
     if (!items.length) return null;
     const row = document.createElement('div');
     row.className = 'flt-active';
     row.innerHTML = `<span class="flt-active-n">${count}${unit}</span>` + items.map(([k, label]) => `<button type="button" class="chip on flt-chip" data-k="${k}" aria-label="${esc(label)} を外す">${esc(label)}<span class="x">✕</span></button>`).join('');
     row.querySelectorAll('.flt-chip').forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.k;
-      if (k === 'genre') { $('#flt-dish-genre').value = ''; document.querySelectorAll('#list-genre-chips .chip').forEach(x => x.classList.remove('on')); }
+      if (k === 'station') photoStation = '';
+      else if (k === 'genre') { $('#flt-dish-genre').value = ''; document.querySelectorAll('#list-genre-chips .chip').forEach(x => x.classList.remove('on')); }
       else if (k === 'rating') { $('#flt-rating').value = ''; document.querySelectorAll('.star-chip').forEach(x => x.classList.remove('on')); }
       else $('#flt-pref').value = '';
       renderList();
@@ -2562,6 +2564,7 @@ const Views = (() => {
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
   function enterListTab() {
     $('#flt-keyword').value = '';
+    photoStation = ''; // v383〜 写真モードの駅も毎回まっさらに
     // 絞り込みも毎回まっさらに（見えない絞り込みが残って「表示されない」と混乱しないように）
     $('#flt-dish-genre').value = '';
     $('#flt-rating').value = '';
@@ -2679,11 +2682,15 @@ const Views = (() => {
       renderList();
     }));
   }
-  // よく行く駅（訪問の多い順に8つ）。駅の無い記録ばかりなら出さない
-  function stationRowHtml() {
+  // よく行く駅（訪問の多い順に n 個）
+  function topStations(n) {
     const byStation = new Map();
     for (const v of Store.visits()) { const s = Store.getShop(v.shopId); const st = s && s.station; if (st) byStation.set(st, (byStation.get(st) || 0) + 1); }
-    const top = [...byStation.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return [...byStation.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+  }
+  // よく行く駅（訪問の多い順に8つ）。駅の無い記録ばかりなら出さない
+  function stationRowHtml() {
+    const top = topStations(8);
     if (!top.length) return '';
     return `<div class="ex-stations"><div class="fl-label">駅から</div><div class="ex-station-row">${top.map(([st, n]) => `<button type="button" class="chip ex-station" data-st="${esc(st)}">${esc(st)}<span>${n}</span></button>`).join('')}</div></div>`;
   }
@@ -3092,11 +3099,13 @@ const Views = (() => {
 
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
   // キーワード・ジャンル・星・お気に入り・都道府県の絞り込みを写真1枚ごとに適用する
+  let photoStation = ''; // 写真モードの「駅から」の絞り込み（v383〜。探すを開き直す・条件を外すで消える）
   async function renderSearchPhotos() {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
     box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
     const kw = $('#flt-keyword').value.trim().toLowerCase();
+    const st = photoStation;
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
     const pref = $('#flt-pref').value;
@@ -3108,6 +3117,7 @@ const Views = (() => {
       if (it.kind === 'mine') {
         const shop = Store.getShop(it.ph.shopId) || {};
         const v = vById.get(it.ph.visitId) || {};
+        if (st && (shop.station || '') !== st) return false;
         if (pref && shop.pref !== pref) return false;
         if (minR && (v.rating || 0) < minR) return false;
         if (kw) {
@@ -3119,6 +3129,7 @@ const Views = (() => {
       }
       // フォロー中の人の投稿
       const p = it.p;
+      if (st && (p.station || '') !== st) return false;
       if (pref && (p.pref || '') !== pref) return false;
       if (minR && (p.rating || 0) < minR) return false;
       if (kw) {
@@ -3145,6 +3156,15 @@ const Views = (() => {
       return cell;
     });
     box.innerHTML = '';
+    // v383〜 「駅から」のチップ（記録の多い駅 8 つ。タップでその駅の写真だけ、もう一度で解除）
+    const stTop = topStations(8);
+    if (stTop.length) {
+      const row = document.createElement('div');
+      row.className = 'ex-station-row ph-stations';
+      row.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === st ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
+      row.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { photoStation = photoStation === b.dataset.st ? '' : b.dataset.st; renderSearchPhotos(); }));
+      box.appendChild(row);
+    }
     const chips = activeFilterChips(list.length, '枚'); // v381〜 写真モードにも付いている条件（× で外す）
     if (chips || list.some(it => it.kind === 'mine')) { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）
       const tools = document.createElement('div');
@@ -4486,15 +4506,18 @@ const Views = (() => {
     const i = years.indexOf(yearSel);
     box.classList.remove('hidden');
     const li = (t, v) => `<div class="yc-row"><span>${t}</span><b>${v}</b></div>`;
+    // v383〜 店名はタップで店の詳細へ（.yc-shop）
+    const shopsLi = (t, arr, tail) => `<div class="yc-row"><span>${t}</span><b>${arr.map(x => `<button type="button" class="yc-shop" data-id="${esc(x.s.id)}">${esc(x.s.name)}</button>${esc(tail(x))}`).join('、')}</b></div>`;
     const nav = (cls, label, on) => years.length > 1 ? `<button type="button" class="yc-nav ${cls}" aria-label="${label}"${on ? '' : ' disabled'}>${cls === 'yc-prev' ? '‹' : '›'}</button>` : '';
     box.innerHTML = `
       <div class="yc-head"><div class="yc-title">${nav('yc-prev', '前の年', i < years.length - 1)}<b>${d.year}年のまとめ</b>${nav('yc-next', '次の年', i > 0)}</div><button type="button" class="btn small yc-share">${IC_SHARE_S} 画像で共有</button></div>
       <div class="yc-nums">
         <div><b>${d.shops}</b><span>店</span></div><div><b>${d.visits}</b><span>回</span></div><div><b>${d.newShops}</b><span>新しい店</span></div><div><b>${d.prefs}</b><span>都道府県</span></div>
       </div>
-      ${d.top.length ? li('よく行った', esc(d.top.map(x => `${x.s.name}（${x.n}回）`).join('、'))) : ''}
-      ${d.rated.length ? li('★が高かった', esc(d.rated.map(x => `${x.s.name} ${fmtR(x.avg)}`).join('、'))) : ''}
+      ${d.top.length ? shopsLi('よく行った', d.top, x => `（${x.n}回）`) : ''}
+      ${d.rated.length ? shopsLi('★が高かった', d.rated, x => ` ${fmtR(x.avg)}`) : ''}
       ${d.genres.length ? li('よく食べた', esc(d.genres.map(([g, n]) => `${g} ${n}回`).join('、'))) : ''}`;
+    box.querySelectorAll('.yc-shop').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id))); // v383〜
     const prev = box.querySelector('.yc-prev'), next = box.querySelector('.yc-next');
     if (prev) prev.addEventListener('click', () => { yearSel = years[i + 1]; renderYearCard(); });
     if (next) next.addEventListener('click', () => { yearSel = years[i - 1]; renderYearCard(); });
@@ -5280,6 +5303,7 @@ const Views = (() => {
         <div class="ve-sub">料理ジャンル</div>
         <div class="ve-genres"></div>
         <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
+        <div class="ve-row ve-photos">写真 <span class="ve-pn">…</span><button type="button" class="btn small ve-addphoto">${IC_PLUS} 写真を足す</button><input type="file" class="ve-file" accept="image/*" multiple hidden></div>
         <textarea rows="2" class="ve-comment" placeholder="ひとこと">${esc(v.comment || '')}</textarea>
         <div class="v-btns ve-btns">
           <button type="button" class="btn primary ve-save">保存</button>
@@ -5293,6 +5317,31 @@ const Views = (() => {
     mountRatingStars(ov.querySelector('.ve-stars'), rating, (val) => { rating = val; ov.querySelector('.ve-rword').textContent = ratingWord(val); });
     const set = new Set(v.dishGenres || []);
     Api.buildGenrePicker(ov.querySelector('.ve-genres'), set);
+    // v383〜 写真を足す（写真なしの記録にあとから付ける・枚数を増やす）。圧縮して保存し、サムネを作り、公開投稿を出し直す
+    const pn = ov.querySelector('.ve-pn');
+    const countPhotos = () => Store.photosOfVisit(v.id).then(ps => { pn.textContent = ps.length ? `${ps.length}枚` : 'なし'; }).catch(() => { pn.textContent = ''; });
+    countPhotos();
+    const file = ov.querySelector('.ve-file');
+    ov.querySelector('.ve-addphoto').addEventListener('click', () => file.click());
+    file.addEventListener('change', async () => {
+      const files = [...file.files || []]; file.value = '';
+      if (!files.length) return;
+      App.toast('写真を保存しています…', 2000);
+      let n = 0;
+      for (const f of files) {
+        try {
+          const blob = await Api.compressImage(f);
+          const pid = await Store.addPhoto(v.shopId, v.id, 'dish', blob, await Api.fileHash(f));
+          warmThumb(pid, blob); n++;
+        } catch (e) { console.warn('写真を足せませんでした', e); }
+      }
+      if (!n) { App.toast('写真を保存できませんでした'); return; }
+      if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.publishPostForVisit(v.id).catch(() => {});
+      App.toast(`写真を${n}枚足しました`);
+      countPhotos();
+      exploreItems = null; // 探すの写真を拾い直す
+      if (onDone) onDone('saved');
+    });
     ov.querySelector('.ve-save').addEventListener('click', () => {
       const dateVal = ov.querySelector('.ve-date').value;
       if (!dateVal) { App.toast('訪問日を入力してください'); return; }

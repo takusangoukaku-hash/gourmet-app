@@ -1343,6 +1343,13 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .ve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .ve-rword { font-size: 12px; color: var(--muted); }
 .ve-row input[type="date"] { width: auto; }
+.ve-photos .ve-addphoto { margin-left: auto; } /* 写真を足す（v383〜） */
+/* 年のまとめの店名（v383〜）: タップで店の詳細へ */
+.yc-shop { all: unset; cursor: pointer; color: var(--accent); font-weight: 600; }
+/* 探すの写真モードの「駅から」（v383〜） */
+.ph-stations { margin: 0 0 8px; }
+.ph-stations .ex-station.on { background: var(--accent); border-color: transparent; color: #fff; }
+.ph-stations .ex-station.on span { color: #fff; }
 .ve-sub { font-size: 12px; color: var(--muted); font-weight: 600; margin: 6px 0 2px; }
 
 .lightbox-box { text-align: center; margin: auto; }
