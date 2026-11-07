@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=376">
+<link rel="stylesheet" href="css/style.css?v=377">
 </head>
 <body>
 
@@ -152,6 +152,7 @@
       <button type="button" class="btn primary" id="map-pick-ok">この位置にする</button>
     </div>
   </div>
+  <div id="map-offline" class="map-offline hidden">接続なし ・ 見たことのある範囲だけ表示します</div><!-- v377〜 -->
   <!-- 行きたい店を追加（v376〜。画面の中央の位置で。長押しと同じ） -->
   <button type="button" id="map-add" class="map-add-btn" aria-label="行きたい店を追加" title="行きたい店を追加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   <div class="map-overlay">
@@ -658,12 +659,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=376"></script>
-<script src="js/api.js?v=376"></script>
-<script src="js/cloud.js?v=376"></script>
-<script src="js/register.js?v=376"></script>
-<script src="js/import.js?v=376"></script>
-<script src="js/views.js?v=376"></script>
-<script src="js/app.js?v=376"></script>
+<script src="js/store.js?v=377"></script>
+<script src="js/api.js?v=377"></script>
+<script src="js/cloud.js?v=377"></script>
+<script src="js/register.js?v=377"></script>
+<script src="js/import.js?v=377"></script>
+<script src="js/views.js?v=377"></script>
+<script src="js/app.js?v=377"></script>
 </body>
 </html>

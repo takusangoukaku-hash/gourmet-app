@@ -1404,6 +1404,26 @@ const Views = (() => {
   const IC_PLUS = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
   // 「5/30」のような短い日付（写真タイルの隅用）
   function fmtDateShort(iso) { const d = new Date(iso); return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()}`; }
+  // 店シートのつまみを上に引き上げたら全画面へ（v377〜）。上端（scrollTop 0 付近）で 40px 以上上へ動かしたときだけ
+  function wireSheetPullUp(ov, onUp) {
+    const sheet = ov.querySelector('.msh-sheet');
+    const handle = ov.querySelector('.msh-handle');
+    if (!sheet || !handle) return;
+    let y0 = null;
+    const start = (e) => { const t = e.touches ? e.touches[0] : e; y0 = t.clientY; };
+    const move = (e) => {
+      if (y0 == null) return;
+      const t = e.touches ? e.touches[0] : e;
+      if (y0 - t.clientY > 40) { y0 = null; onUp(); }
+    };
+    const end = () => { y0 = null; };
+    for (const el of [handle, sheet]) {
+      el.addEventListener('touchstart', (e) => { if (el === sheet && sheet.scrollTop > 4) return; start(e); }, { passive: true });
+      el.addEventListener('touchmove', (e) => { if (el === sheet && sheet.scrollTop > 4) { y0 = null; return; } move(e); }, { passive: true });
+      el.addEventListener('touchend', end, { passive: true });
+    }
+    handle.addEventListener('click', onUp);
+  }
   // o = { hasPhoto, name, station, heroLabel, tiles: [{cls, icon, label, primary}], facts: [{k, v, star}] }
   function sheetHeadHtml(o) {
     const facts = (o.facts || []).filter(f => f && f.v !== '' && f.v != null);
@@ -1458,6 +1478,7 @@ const Views = (() => {
           ],
         })}
         <div class="msh-myrow ${photos.length ? '' : 'hidden'}"></div>
+        <button type="button" class="row-toggle msh-all"><span class="ri">すべて見る（記録 ${vs.length}件${photos.length ? `・写真 ${photos.length}枚` : ''}）</span><span class="chev">›</span></button><!-- v377〜 店舗の詳細へ -->
         <div class="msh-sec msh-follow hidden">
           <div class="msh-sechead"><b>フォロワーの写真</b><span class="msh-n msh-fn"></span>
             <button type="button" class="msh-sort">新しい順 ⇅</button>
@@ -1477,13 +1498,16 @@ const Views = (() => {
     if (photos.length) setFullPhoto(ov.querySelector('.msh-hero img'), photos[0]);
     ov.querySelector('.msh-hero').addEventListener('click', () => showShop(shopId));
     ov.querySelector('.msh-name').addEventListener('click', () => showShop(shopId));
+    ov.querySelector('.msh-all').addEventListener('click', () => showShop(shopId));
+    // v377〜 つまみを上に 40px 以上引き上げると店舗の詳細（シートは要点だけ、すべては詳細で）
+    wireSheetPullUp(ov, () => showShop(shopId));
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
     ov.querySelector('.msh-revisit').addEventListener('click', () => { close(); openRegisterFor(shopId); }); // v350〜 店を選んだ状態の登録画面へ
 
     // あなたの写真: 角丸のタイルを 3 列で折り返して並べる（v361〜 横スクロールをやめ、シートごと上下に）。左上に日付だけ（見出し・枚数・★は出さない。v336〜）
     const myrow = ov.querySelector('.msh-myrow');
-    photos.forEach(ph => {
+    photos.slice(0, 6).forEach(ph => { // v377〜 シートは要点だけ: 写真は新しい 6 枚（2段）まで。残りは「すべて見る ›」
       const v = vById.get(ph.visitId) || {};
       const c = document.createElement('button');
       c.type = 'button';

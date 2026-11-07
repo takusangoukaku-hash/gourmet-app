@@ -658,6 +658,13 @@ const Register = (() => {
     }
   }
 
+  // 候補に距離を添え、登録済みは近い順に（v377〜）。基準位置が無ければ何もしない。検索結果の並び（関連度）は変えない
+  function withDistances(existing, results, ref) {
+    if (!ref || ref.lat == null) return;
+    for (const e of existing) if (e.shop && e.shop.lat != null && e.shop.lon != null) e.distance = Store.distMeters(ref.lat, ref.lon, e.shop.lat, e.shop.lon);
+    existing.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    for (const c of results || []) if ((c.distance == null || !isFinite(c.distance)) && c.lat != null && c.lon != null) c.distance = Store.distMeters(ref.lat, ref.lon, c.lat, c.lon);
+  }
   function renderCandidates(box, existing, results, emptyMsg) {
     box.innerHTML = '';
     const seenOsm = new Set();
@@ -734,8 +741,7 @@ const Register = (() => {
     // 登録済み店舗は即時に出せる（再訪の最短導線）
     const existing = Store.shops()
       .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
-      .slice(0, 3)
-      .map(s => ({ shop: s, distance: null }));
+      .map(s => ({ shop: s, distance: null })); // v377〜 3件に絞るのは距離で並べたあと（下）
 
     // 基準位置: 写真のGPS → 現在地（1回だけ取得して以後使い回す）
     if (!suggestRef) suggestRef = lastGps || await getCurrentPos(2500);
@@ -745,6 +751,8 @@ const Register = (() => {
     try { results = await Api.suggestShops(q, suggestRef); } catch { /* 通信エラー時は登録済みのみ */ }
     if (mySeq !== suggestSeq) return;                        // 入力が進んだ・手動検索が始まった
     if ($('#f-shop-name').value.trim() !== q) return;        // 入力値が変わっていたら破棄
+    withDistances(existing, results, suggestRef); // v377〜 登録済みは近い順、候補にも距離
+    existing.splice(3); // 近い3件だけ
 
     if (!existing.length && !results.length) return; // 何もなければ表示を変えない
     results.forEach(c => { c.flow = 'suggest'; });
@@ -785,6 +793,7 @@ const Register = (() => {
       }
     }
     if (!ref) ref = await getCurrentPos();
+    withDistances(existing, [], ref); // v377〜 登録済みは近い順（検索結果の距離は結果が来てから）
 
     const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で再検索するか、「地図で指定」から位置を指定して店舗名を入力してください。';
     const mySeq = ++searchSeq;
@@ -793,6 +802,7 @@ const Register = (() => {
     let results = [];
     try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
     if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
+    withDistances(existing, results, ref); // v377〜 検索結果にも距離
     results.forEach(c => { c.flow = 'search'; });
     existing.forEach(e => { e.flow = 'search'; });
     lastQuery = q;

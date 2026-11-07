@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v376'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v377'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -110,6 +110,7 @@ const App = (() => {
   //  接続なし: すぐ出す（記録は端末に残り、つながると同期される）。同期中: 2秒以上続いたときだけ出す（ちらつかせない）
   let netSyncTimer = 0, netSyncing = false;
   function updateNetBar() {
+    const mo = $('#map-offline'); if (mo) mo.classList.toggle('hidden', navigator.onLine); // 地図の上の小さな帯（v377〜）
     const bar = $('#net-bar');
     if (!bar) return;
     if (!navigator.onLine) { bar.textContent = '接続なし ・ 記録は端末に保存され、つながると同期します'; bar.classList.remove('hidden'); return; }
