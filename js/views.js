@@ -1507,6 +1507,7 @@ const Views = (() => {
     const navBtn = ov.querySelector('.msh-navbtn');
     if (navBtn) navBtn.addEventListener('click', () => openNav(s));
     ov.querySelector('.msh-revisit').addEventListener('click', () => { close(); openRegisterFor(shopId); }); // v350〜 店を選んだ状態の登録画面へ
+    wireLongPress(ov.querySelector('.msh-revisit'), () => quickRevisit(shopId, () => { close(); refreshMapData(false); })); // v382〜 長押しで写真なしの記録
 
     // あなたの写真: 角丸のタイルを 3 列で折り返して並べる（v361〜 横スクロールをやめ、シートごと上下に）。左上に日付だけ（見出し・枚数・★は出さない。v336〜）
     const myrow = ov.querySelector('.msh-myrow');
@@ -2182,20 +2183,25 @@ const Views = (() => {
     const done = all.filter(w => w.doneAt).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
     const pg = Store.wishProgress();
     const seg = (k, label) => `<button type="button" class="vl-seg${wishTab === k ? ' on' : ''}" data-wt="${k}">${label}</button>`;
+    // v382〜 現在地から 1km 以内の行きたい店は「近く」として先頭にまとめ、徒歩の分数を添える（近い順のときは全体が距離順なので分けない）
+    const NEAR_M = 1000;
+    const near = (pos && wishSort !== 'near') ? wishes.filter(w => { const d = dist(w); return d != null && d <= NEAR_M; }).sort((a, b) => dist(a) - dist(b)) : [];
+    const rest = near.length ? wishes.filter(w => !near.includes(w)) : wishes;
+    const wishRow = (w) => { const d = dist(w); const nearRow = near.includes(w); return `
+        <div class="wish-row${nearRow ? ' wish-near' : ''}">
+          <div class="wish-main">
+            <div class="wish-name">${esc(w.name || '')}</div>
+            <div class="wish-sub">${esc([w.genre, nearRow ? `徒歩${walkMinutes(w.lat, w.lon)}分` : fmtDist(d), w.fromUsername ? '@' + w.fromUsername + ' さんの投稿から' : ''].filter(Boolean).join(' ・ '))}</div>
+          </div>
+          <button class="btn small primary wish-rec" data-id="${esc(w.id)}">記録する</button>
+          <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
+        </div>`; };
     body.innerHTML = `<button type="button" class="btn small wish-add" id="wish-add">＋ 店名やリンクを貼って追加</button>`
       + (pg.total ? `<div class="wish-pg"><div class="wish-pg-l">達成度</div>${wishProgressHtml(pg)}</div>` : '')
       + `<div class="wish-tools"><div class="vl-segs list-segs">${seg('todo', `行きたい ${wishes.length}`)}${seg('done', `行けた ${done.length}`)}</div>
           ${wishTab === 'todo' && wishes.length > 1 ? `<select id="wish-sort"><option value="added"${wishSort === 'added' ? ' selected' : ''}>追加順</option><option value="near"${wishSort === 'near' ? ' selected' : ''}>近い順</option><option value="name"${wishSort === 'name' ? ' selected' : ''}>名前順</option></select>` : ''}</div>`
       + (wishTab === 'todo'
-        ? (wishes.length ? wishes.map(w => `
-        <div class="wish-row">
-          <div class="wish-main">
-            <div class="wish-name">${esc(w.name || '')}</div>
-            <div class="wish-sub">${esc([w.genre, fmtDist(dist(w)), w.fromUsername ? '@' + w.fromUsername + ' さんの投稿から' : ''].filter(Boolean).join(' ・ '))}</div>
-          </div>
-          <button class="btn small primary wish-rec" data-id="${esc(w.id)}">記録する</button>
-          <button class="btn small icon-only wish-more" data-id="${esc(w.id)}" aria-label="メニュー">${IC_MORE}</button>
-        </div>`).join('')
+        ? (wishes.length ? (near.length ? `<div class="wish-group">近く</div>${near.map(wishRow).join('')}${rest.length ? '<div class="wish-group">ほか</div>' : ''}` : '') + rest.map(wishRow).join('')
           : emptyBox(EMPTY_IC_FORK, done.length ? 'まだ行っていない店はありません' : 'まだありません。<br>投稿のしおりや地図の長押しから入れられます'))
         : (done.length ? done.map(w => `
         <div class="wish-row wish-done">
@@ -3508,6 +3514,30 @@ const Views = (() => {
 
   // ---------- 投稿詳細とお店の記録で共通の部品（v343〜） ----------
   // ＋（記録を追加）: 開いている画面を閉じ、その店を選んだ状態で登録画面へ（v346〜。写真なしの「また来た」ではない）
+  // 長押し（v382〜 「また来た」のタイル）: 600ms・8px 動いたら取り消し。成立したら直後の click を1回だけ握りつぶす
+  function wireLongPress(el, onLong, ms) {
+    let timer = 0, sx = 0, sy = 0, fired = false;
+    const clear = () => { if (timer) { clearTimeout(timer); timer = 0; } };
+    el.addEventListener('pointerdown', (e) => { if (e.button !== 0 && e.pointerType === 'mouse') return; sx = e.clientX; sy = e.clientY; fired = false; clear(); timer = setTimeout(() => { timer = 0; fired = true; onLong(); }, ms || 600); });
+    el.addEventListener('pointermove', (e) => { if (timer && (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8)) clear(); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, clear);
+    el.addEventListener('click', (e) => { if (fired) { fired = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    el.addEventListener('contextmenu', (e) => e.preventDefault()); // iOS の長押しメニューを出さない
+    el.style.webkitTouchCallout = 'none'; el.style.userSelect = 'none'; el.style.webkitUserSelect = 'none';
+  }
+  // 写真なしで今日の記録を1件足す（v382〜 「また来た」の長押し）。★とジャンルは前回の記録と同じ。トーストの「元に戻す」で取り消せる
+  function quickRevisit(shopId, afterChange) {
+    const s = Store.getShop(shopId);
+    if (!s) return;
+    const last = Store.visitsOf(shopId).slice().sort((a, b) => new Date(b.datetime) - new Date(a.datetime))[0];
+    const rating = last ? (Number(last.rating) || 0) : 0;
+    const v = Store.addVisit({ shopId, rating, dishGenres: last && last.dishGenres ? last.dishGenres.slice() : [], datetime: new Date().toISOString(), visitType: last && last.visitType || '店内飲食' });
+    if (afterChange) afterChange();
+    App.toastUndo(`写真なしで記録しました ・ ${rating ? '★' + fmtR(rating) : '評価なし'}`, {
+      undo: async () => { await Store.deleteVisit(v.id); if (afterChange) afterChange(); },
+      commit: () => {},
+    });
+  }
   function openRegisterFor(shopId) {
     document.querySelectorAll('.modal.shopfeed-modal, .modal.visitlist-modal, .modal.postdetail-modal, .modal.action-sheet').forEach(m => m.remove());
     closeModal();
@@ -4921,6 +4951,7 @@ const Views = (() => {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
+      wireLongPress($('#d-revisit'), () => quickRevisit(shopId, () => { showShop(shopId); App.refreshCurrent(); })); // v382〜 長押しで写真なしの記録
       $('#d-share').addEventListener('click', () => shareShop(shopId, `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`)); // v381〜 店のまとめ（画像）か文字
       const posFix = $('#d-posfix');
       if (posFix) posFix.addEventListener('click', () => openShopEdit(shopId, () => showShop(shopId)));

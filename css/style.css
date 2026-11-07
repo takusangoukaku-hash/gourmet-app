@@ -1622,6 +1622,16 @@ body.map-picking .map-add-btn, body.msh-open .map-add-btn { display: none; }
 .set-section-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; margin: 20px 2px 6px; }
 
 .set-version { font-size: 12px; color: var(--muted); text-align: center; margin: 24px 0 4px; }
+/* 設定の最下段（v382〜）: 「このアプリ」にバージョン・出典、その下に小さな「開発者向け設定」 */
+.set-about { padding: 2px 4px; }
+.set-about .set-version { margin: 4px 0; text-align: left; }
+.set-dev { margin-top: 12px; margin-bottom: 8px; }
+.set-dev > details > summary.set-row { padding: 9px 14px; font-size: 13px; color: var(--muted); }
+.set-dev .set-ic { width: 26px; height: 26px; border-radius: 8px; }
+.set-dev .set-ic svg { width: 15px; height: 15px; }
+/* 行きたい店の「近く」（v382〜） */
+.wish-group { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; margin: 12px 2px 2px; }
+.wish-near .wish-sub { color: var(--accent); }
 .set-list { border: 1px solid var(--border-lite); border-radius: 14px; overflow: hidden; background: var(--card); }
 .set-row {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -1649,6 +1659,9 @@ body.map-picking .map-add-btn, body.msh-open .map-add-btn { display: none; }
 .set-sub2 { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; } /* 行の下の「前回 …」（v376〜） */
 .set-sub2:empty { display: none; }
 #sub-font { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 文字の大きさの見本（v381〜）。特大でも折り返さない */
+/* 表示の行の選択肢（v382〜）: 幅360で見出し「文字の大きさ」が折り返さないよう、選択肢を少し小さく・見出しに最低幅 */
+.set-row-static .set-select { max-width: min(118px, 40%); font-size: 13px; padding: 6px 24px 6px 8px; }
+.set-about a, .set-adv-body a { color: var(--accent); } /* 暗色でも読める色（v382〜） */
 .set-value { color: var(--muted); font-size: 13px; flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-arrow { color: #BFBCB2; font-size: 20px; line-height: 1; flex-shrink: 0; }
 /* 開発者向け設定（折りたたみ） */

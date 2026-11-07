@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=381">
+<link rel="stylesheet" href="css/style.css?v=382">
 </head>
 <body>
 
@@ -592,6 +592,14 @@
         <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.4 3.4"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg></span>
         <span class="set-label">使い方を見る</span><span class="set-arrow">›</span>
       </button>
+    </div>
+
+    <div class="set-section-title">このアプリ</div>
+    <div class="set-about">
+      <p class="set-version" id="settings-status"></p>
+      <p class="set-version">店舗データの出典: <a href="https://openpoiapi.com/attribution.html" target="_blank" rel="noopener">OpenPOI API</a>（Overture Maps Foundation ／ 各自治体・厚生労働省の食品営業許可・届出オープンデータ）、© OpenStreetMap contributors</p>
+    </div>
+    <div class="set-list set-dev"><!-- v382〜 開発者向けはヘルプから外して最下段の小さな行に -->
       <details class="set-adv">
         <summary class="set-row">
           <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2"/><path d="M16 6l2 2"/><path d="M14.5 7.5 17 10"/></svg></span>
@@ -635,9 +643,6 @@
         </div>
       </details>
     </div>
-
-    <p class="set-version" id="settings-status"></p>
-    <p class="set-version">店舗データの出典: <a href="https://openpoiapi.com/attribution.html" target="_blank" rel="noopener">OpenPOI API</a>（Overture Maps Foundation ／ 各自治体・厚生労働省の食品営業許可・届出オープンデータ）、© OpenStreetMap contributors</p>
     </div>
   </div>
 </div>
@@ -671,12 +676,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=381"></script>
-<script src="js/api.js?v=381"></script>
-<script src="js/cloud.js?v=381"></script>
-<script src="js/register.js?v=381"></script>
-<script src="js/import.js?v=381"></script>
-<script src="js/views.js?v=381"></script>
-<script src="js/app.js?v=381"></script>
+<script src="js/store.js?v=382"></script>
+<script src="js/api.js?v=382"></script>
+<script src="js/cloud.js?v=382"></script>
+<script src="js/register.js?v=382"></script>
+<script src="js/import.js?v=382"></script>
+<script src="js/views.js?v=382"></script>
+<script src="js/app.js?v=382"></script>
 </body>
 </html>
