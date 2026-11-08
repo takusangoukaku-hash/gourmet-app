@@ -36,7 +36,7 @@ body {
 }
 
 /* 見出し・店名もゴシック（v335〜。明朝は廃止。ブランドロゴの Poppins だけ別書体） */
-.card h2, .card h3, h3, .detail-head h2, .popup .p-name, .group-header, .nearby-title, .pf-name, .lightbox-caption{
+.card h2, .card h3, h3, .detail-head h2, .popup .p-name, .group-header, .nearby-title, .pf-name{
   font-weight: 700; letter-spacing: 0;
 }
 .detail-head h2, .popup .p-name, .nearby-title, .pf-name{
@@ -831,33 +831,16 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   padding: 6px 10px; border-bottom: 1px solid var(--border-lite); background: var(--card);
 }
 .vl-topbar .modal-close { position: static; margin: 0; flex-shrink: 0; }
-.vl-back {
-  flex: 0 0 40px; width: 40px; height: 40px; border: none; background: none; cursor: pointer;
-  font-size: 28px; line-height: 1; color: var(--text); padding: 0 0 4px;
-}
 /* タイトルを中央に置くため、右側に戻るボタンと同じ幅の余白を作る */
 .vl-topbar::after { content: ''; flex: 0 0 40px; }
-.vl-titles {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
-}
 .vl-title {
   font-weight: 700; font-size: 15px; margin: 0; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.vl-sub { color: var(--muted); font-size: 11px; }
 .vl-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overflow-anchor: none; padding-bottom: env(safe-area-inset-bottom, 0px); /* 上への継ぎ足しはJSで位置補正するため二重補正を防ぐ。下はホームインジケータを避ける（v355〜） */ }
 .vl-body .empty { padding: 28px 16px; }
 /* 上: ジャンル絞り込み・表示切り替え（v344〜 統計タイルと下の固定ボタンは廃止） */
-.vl-head { padding: 10px 16px 6px; }
 /* 1行目: 表示切り替え（右寄せ）／2行目: ジャンル絞り込み（横スクロール） */
-.vl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.vl-chips { order: 2; flex: 1 1 100%; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.vl-chips::-webkit-scrollbar { display: none; }
-.vl-chip {
-  flex: 0 0 auto; border: 1px solid var(--border-lite); background: var(--card); cursor: pointer;
-  border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); font-family: inherit;
-}
-.vl-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 .vl-segs { flex: 0 0 auto; margin-left: auto; display: flex; background: var(--field); border-radius: 999px; padding: 4px; }
 .vl-seg {
   border: none; background: none; cursor: pointer; border-radius: 999px; font-family: inherit;
@@ -987,9 +970,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   background: var(--accent-soft); color: var(--accent); font-weight: bold; font-size: 13px;
   border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer;
 }
-.save-later { margin-top: 8px; color: var(--muted); }
 /* 行きたい店として保存（店舗名だけでOK） */
-.save-wish { margin-top: 8px; color: #8B5CF6; border-color: #C9B8F5; font-weight: 600; }
 /* 必須が埋まるまで保存ボタンを薄く（タップは受け付けて理由をトーストで案内） */
 #save-btn.is-disabled { opacity: .45; }
 .save-hint { color: var(--muted); font-size: 13px; text-align: center; margin: 8px 0 2px; }
@@ -1035,13 +1016,6 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 /* 投稿セクション（下スクロールで次の投稿が続く）。各投稿の先頭に投稿者を表示 */
 .pd-sect-head { display: flex; align-items: center; padding: 10px 12px 8px; }
 /* 自分の投稿はヘッダー右端にインスタ風の「⋯」。タップで記録の編集へ */
-.pd-menu-btn {
-  margin-left: auto; flex-shrink: 0; border: none; background: none; cursor: pointer;
-  color: var(--text); padding: 6px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.pd-menu-btn .ic { width: 20px; height: 20px; }
-.pd-menu-btn:hover { background: var(--border-lite); }
 .pd-sect + .pd-sect { border-top: 8px solid var(--field); }
 .pd-sect .pd-body { padding-bottom: 20px; }
 .pd-author { display: flex; align-items: center; gap: 10px; border: none; background: none; cursor: pointer; padding: 0; text-align: left; min-width: 0; }
@@ -1069,7 +1043,6 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .pd-axis { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin: 2px 0; }
 .pd-axstar { color: var(--star); }
 .pd-comment { font-size: 14px; margin: 10px 0; white-space: pre-wrap; }
-.pd-date { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
 
 /* ---------- お知らせ（通知） ---------- */
 .notif-btn { position: relative; }
@@ -1352,7 +1325,6 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .ph-stations .ex-station.on span { color: #fff; }
 .ve-sub { font-size: 12px; color: var(--muted); font-weight: 600; margin: 6px 0 2px; }
 
-.lightbox-box { text-align: center; margin: auto; }
 /* 写真だけの全画面（v384〜） */
 .pv-modal { background: #000; padding: 0; display: block; }
 .pv-close { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 8px; width: 44px; height: 44px; border: none; background: rgba(0, 0, 0, .35); border-radius: 50%; color: #fff; z-index: 3; display: flex; align-items: center; justify-content: center; }
@@ -1365,14 +1337,8 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .pv-img { max-width: 100%; max-height: 100%; object-fit: contain; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transform-origin: center; transition: transform .05s linear; }
 .pv-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #fff; font-size: 13px; background: rgba(0, 0, 0, .45); z-index: 2; }
 .pv-foot .btn { background: rgba(255, 255, 255, .16); border-color: transparent; color: #fff; }
-.lb-close {
-  position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px;
-  width: 44px; height: 44px; border: none; background: none; cursor: pointer;
-  color: #fff; font-size: 20px; line-height: 1; z-index: 2;
-  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .7));
-}
-.lightbox-box img { max-width: 92vw; max-height: 80vh; border-radius: 10px; }
-.lightbox-box p { color: #fff; font-size: 13px; }
+.pv-btns { display: flex; gap: 8px; flex-shrink: 0; } /* 共有・記録を見る（v386〜） */
+.pv-foot .btn .ic { width: 14px; height: 14px; }
 
 /* ---------- 独自カメラ画面 ---------- */
 .camera-overlay {
@@ -1742,8 +1708,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 
 /* ---------- 発見: Podcast風カテゴリータイル ---------- */
 .explore-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 0 16px; }
-.explore-cats > .empty, .explore-cats > .ex-loading { grid-column: 1 / -1; }
-.ex-loading { text-align: center; color: var(--muted); padding: 24px 0; font-size: 13px; }
+.explore-cats > .empty { grid-column: 1 / -1; }
 /* 白いカードにジャンル色の文字。色はタイルごとの --cat-c を文字と飾りにだけ使う */
 /* デザイン案準拠: クリーム色のカードに手描き風イラスト＋ジャンル名＋件数（アクセント色） */
 .ex-cat {
@@ -1828,7 +1793,6 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 .stat-more-btn[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
 .stat-more { padding-top: 4px; }
 /* 統計タブ上部: 記録カードの共有（全幅の輪郭ボタン。v322〜） */
-.stat-actions { display: flex; margin: 0 0 12px; }
 /* 今年のまとめ（v364〜） */
 #stat-year { margin: 0 0 12px; }
 .yc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
@@ -2152,7 +2116,7 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 .mg-arrow::before { content: '↕ '; }
 .mg-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 /* 文字の大きさ（v371〜）: 地図以外をまとめて拡縮 */
-.app-header, .net-bar, .tabs, .view:not(#view-map), .modal, .update-bar, .toast, .mz-selbar, .reg-sticky, #lightbox { zoom: var(--ui-zoom, 1); }
+.app-header, .net-bar, .tabs, .view:not(#view-map), .modal, .update-bar, .toast, .mz-selbar, .reg-sticky { zoom: var(--ui-zoom, 1); }
 .set-select { margin-left: auto; width: auto; max-width: 50%; padding: 6px 28px 6px 10px; font-size: 14px; }
 .set-row-static .set-select { cursor: pointer; }
 /* 記録の編集シート（v367〜） */

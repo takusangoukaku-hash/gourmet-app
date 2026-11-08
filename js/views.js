@@ -1522,7 +1522,7 @@ const Views = (() => {
       c.addEventListener('click', () => { // v385〜 写真だけの全画面。「記録を見る」で投稿詳細（シートは閉じる）
         const six = photos.slice(0, 6);
         openPhotoViewer(six.map(x => { const vv = vById.get(x.visitId) || {}; return { ph: x, rating: vv.rating || 0, date: vv.datetime ? fmtDate(vv.datetime) : '' }; }), six.indexOf(ph),
-          { onRecord: () => { close(); showPostDetail(buildOwnShopPost({ shopId, photos })); } });
+          { onRecord: () => { close(); showPostDetail(buildOwnShopPost({ shopId, photos })); }, shop: s });
       });
       myrow.appendChild(c);
     });
@@ -3207,12 +3207,6 @@ const Views = (() => {
   // 検索の店カード shopCard() / openShopPostFeed() / loadThumbs() は v357 で廃止（一覧は renderListSections の .sfs）
 
   // ========== 写真ギャラリー ==========
-  function openLightbox(url, caption) {
-    $('#lightbox-img').src = url;
-    $('#lightbox-caption').textContent = caption || '';
-    $('#lightbox').classList.remove('hidden');
-  }
-
   // 写真だけの全画面（v384〜 店の詳細の写真の帯から）: 左右送り（スナップ）・ピンチと2回タップで拡大・下に日付と★・「記録を見る」
   // items: [{ph, rating, date}]。opts.onRecord(i) があれば「記録を見る」を出す
   function openPhotoViewer(items, index, opts) {
@@ -3223,7 +3217,7 @@ const Views = (() => {
     ov.innerHTML = `<button type="button" class="pv-close" aria-label="閉じる">${IC_X}</button>
       <div class="pv-count"></div>
       <div class="pv-track">${items.map(() => '<div class="pv-slide"><img class="pv-img" alt="" decoding="async"></div>').join('')}</div>
-      <div class="pv-foot"><span class="pv-cap"></span>${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}</div>`;
+      <div class="pv-foot"><span class="pv-cap"></span><span class="pv-btns">${o.shop ? `<button type="button" class="btn small pv-share">${IC_SHARE_S} 共有</button>` : ''}${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}</span></div>`;
     const track = ov.querySelector('.pv-track');
     const slides = [...track.children];
     const loaded = new Set();
@@ -3239,6 +3233,15 @@ const Views = (() => {
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     ov.querySelector('.pv-close').addEventListener('click', close);
     if (o.onRecord) ov.querySelector('.pv-rec').addEventListener('click', () => { const i = cur; close(); o.onRecord(i); });
+    // v386〜 共有: いま見ている写真（正方形は次の1枚も）で画像カード。投稿詳細の共有と同じシート
+    if (o.shop) ov.querySelector('.pv-share').addEventListener('click', () => {
+      const sh = o.shop;
+      const urlOf = (it) => it ? (it.ph ? fullPhotoUrl(it.ph) : Promise.resolve(it.url || '')) : Promise.resolve('');
+      shareCardSheet(async () => {
+        const urls = (await Promise.all([items[cur], items[cur + 1]].map(urlOf))).filter(Boolean);
+        return { photoUrl: urls[0] || '', photoUrls: urls, shopName: sh.name || '', rating: items[cur].rating || 0, station: sh.station, pref: sh.pref, city: sh.city, date: items[cur].date || '' };
+      }, `${sh.name || ''}${sh.station ? ` / ${sh.station}` : ''} - BITEMAP`, sh.name || '');
+    });
     track.addEventListener('scroll', () => { const i = Math.round(track.scrollLeft / track.clientWidth); if (i !== cur && i >= 0 && i < items.length) { resetZoom(); cur = i; update(); } }, { passive: true });
     // 拡大: 2本指のピンチ（pointer）と2回タップ。拡大中は1本指で動かす。等倍に戻すと左右送りに戻る
     let scale = 1, tx = 0, ty = 0; const pts = new Map(); let pinch = null, lastTap = 0, drag = null;
@@ -3484,7 +3487,9 @@ const Views = (() => {
       const card = mzItem({
         name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
         badge: avg ? '★' + fmtR(avg) : '',
-        onClick: () => showShopFeed(shown, idx), // 絞り込み中は、絞り込んだ店の中で前後へ送る
+        // v386〜 写真のタップは写真だけの全画面（その店の写真を左右送り）。お店の記録へは「記録を見る」（絞り込み中は、絞り込んだ店の中で前後へ送る）
+        onClick: () => openPhotoViewer(g.photos.map(ph => { const vv = vById.get(ph.visitId) || {}; return { ph, rating: vv.rating || 0, date: vv.datetime ? fmtDate(vv.datetime) : '' }; }), 0,
+          { onRecord: () => showShopFeed(shown, idx), shop }),
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
       return card;
@@ -3735,38 +3740,34 @@ const Views = (() => {
     root.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
     const nav = root.querySelector('.pd-nav');
     if (nav && o.nav) nav.addEventListener('click', o.nav);
-    root.querySelector('.pd-share').addEventListener('click', async () => {
-      const text = o.shareText || '';
-      // v370〜 写真があれば縦長の画像カード（写真＋店名＋★＋駅）を作って共有シートへ。作れなければ文字だけ
-      const shareText = async () => {
-        if (navigator.share) { navigator.share({ title: o.shareTitle || '', text }).catch(() => {}); return; }
-        try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
-      };
-      const shareImage = async (shape) => {
-        try {
-          const info = await o.card();
-          const urls = (info && (info.photoUrls || (info.photoUrl ? [info.photoUrl] : [])) || []).filter(Boolean);
-          if (!urls.length) { App.toast('写真が無いので文字で共有します'); await shareText(); return; }
-          const blob = await buildPostCard(Object.assign({}, info, { photoUrls: urls }), shape);
-          await shareImageBlob(blob, `bitemap-${shape}.png`, text, info.shopName || '記録');
-        } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); await shareText(); }
-      };
-      // v371〜 形を選ぶ: 縦長（ストーリー）／正方形（投稿。写真を最大2枚）／文字だけ
-      if (o.card) {
-        // v372〜 前回選んだ形を先頭にする（gourmet.shareShape）
-        const last = localStorage.getItem('gourmet.shareShape') || '';
-        const remember = (k, fn) => () => { try { localStorage.setItem('gourmet.shareShape', k); } catch { /* noop */ } fn(); };
-        const acts = [
-          { k: 'story', label: '縦長の画像（ストーリー向け）', onClick: remember('story', () => shareImage('story')) },
-          { k: 'square', label: '正方形の画像（投稿向け・写真2枚まで）', onClick: remember('square', () => shareImage('square')) },
-          { k: 'text', label: '文字だけ', onClick: remember('text', shareText) },
-        ];
-        acts.sort((a, b) => (b.k === last) - (a.k === last));
-        openActionSheet(acts);
-        return;
-      }
-      await shareText();
-    });
+    root.querySelector('.pd-share').addEventListener('click', () => shareCardSheet(o.card, o.shareText || '', o.shareTitle || ''));
+  }
+  // 投稿の共有（v370〜。v386 で部品に）: card() があれば形を選ぶシート「縦長／正方形／文字だけ」（前回の形を先頭に）、無ければ文字だけ。
+  // card() は {photoUrl, photoUrls, shopName, rating, station, pref, city, date}。写真が無い・読めなければ文字で共有
+  async function shareCardSheet(card, text, title) {
+    const shareText = async () => {
+      if (navigator.share) { navigator.share({ title: title || '', text }).catch(() => {}); return; }
+      try { await navigator.clipboard.writeText(text); App.toast('店の情報をコピーしました'); } catch { /* noop */ }
+    };
+    const shareImage = async (shape) => {
+      try {
+        const info = await card();
+        const urls = (info && (info.photoUrls || (info.photoUrl ? [info.photoUrl] : [])) || []).filter(Boolean);
+        if (!urls.length) { App.toast('写真が無いので文字で共有します'); await shareText(); return; }
+        const blob = await buildPostCard(Object.assign({}, info, { photoUrls: urls }), shape);
+        await shareImageBlob(blob, `bitemap-${shape}.png`, text, info.shopName || '記録');
+      } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); await shareText(); }
+    };
+    if (!card) { await shareText(); return; }
+    const last = localStorage.getItem('gourmet.shareShape') || '';
+    const remember = (k, fn) => () => { try { localStorage.setItem('gourmet.shareShape', k); } catch { /* noop */ } fn(); };
+    const acts = [
+      { k: 'story', label: '縦長の画像（ストーリー向け）', onClick: remember('story', () => shareImage('story')) },
+      { k: 'square', label: '正方形の画像（投稿向け・写真2枚まで）', onClick: remember('square', () => shareImage('square')) },
+      { k: 'text', label: '文字だけ', onClick: remember('text', shareText) },
+    ];
+    acts.sort((a, b) => (b.k === last) - (a.k === last));
+    openActionSheet(acts);
   }
 
   // 店舗セクション1つぶん（v338〜。v343〜 投稿詳細と同じ並び: 写真（★1つ）→ 操作行（♥・コメント・経路・共有 … 記録を追加・…）→ 店名 → 駅 ・ 県 市 → 日付 → 訪問の写真）
@@ -5103,7 +5104,7 @@ const Views = (() => {
           }
           // v384〜 帯の写真をタップ → 写真だけの全画面（左右送り・拡大）。投稿詳細へはそこから「記録を見る」
           const viewerItems = items.map(it => { const vv = vMap.get(it.ph.visitId); return { ph: it.ph, rating: it.rating, date: vv && vv.datetime ? fmtDate(vv.datetime) : '' }; });
-          box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(viewerItems, i, { onRecord: () => showPostDetail(post) })));
+          box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(viewerItems, i, { onRecord: () => showPostDetail(post), shop: s })));
           strip.classList.remove('hidden');
         });
         // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
@@ -5615,7 +5616,7 @@ const Views = (() => {
         slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${badge}`;
         if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
         else setThumb(slide.querySelector('img'), ph);
-        slide.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), i)); // v385〜 写真だけの全画面
+        slide.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), i, { shop: s })); // v385〜 写真だけの全画面
         car.appendChild(slide);
         return slide;
       });
@@ -5676,7 +5677,7 @@ const Views = (() => {
         const ph = ps[0];
         const holder = it.querySelector('.vl-tlph');
         holder.innerHTML = ''; holder.appendChild(fullImg(ph));
-        holder.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), 0)); // v385〜
+        holder.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), 0, { shop })); // v385〜
       });
       it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
       tl.appendChild(it);
@@ -6321,7 +6322,7 @@ const Views = (() => {
       }
       // v385〜 写真のタップは写真だけの全画面（左右送り・拡大）。日付は自分の記録だけ
       const vItems = items.map(it => ({ ph: it.ph, url: it.url, rating: it.rating, date: isMine && p.datetime ? fmtDate(p.datetime) : '' }));
-      box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(vItems, i)));
+      box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(vItems, i, { shop: { name: p.shopName || '', station: p.station || '', pref: p.pref || '', city: p.city || '' } })));
       // 写真の読み込み完了＝セクションの高さ確定を伝える（上への継ぎ足しが待つ）
       await Promise.all([...box.querySelectorAll('img.pd-photo')].map(im => im.complete
         ? Promise.resolve()
@@ -6763,7 +6764,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, openLightbox, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
