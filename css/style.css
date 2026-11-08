@@ -1345,6 +1345,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .pv-prev { left: 6px; } .pv-next { right: 6px; }
 .pv-nav.hidden { display: none; }
 .mz-tools .list-sort { margin-left: 6px; } /* 写真モードの並び替え（v387〜）。「選択」の左 */
+.pf-stations { margin: 0 0 8px; } /* マイページの写真の「駅から」（v388〜） */
 .pv-foot .btn .ic { width: 14px; height: 14px; }
 
 /* ---------- 独自カメラ画面 ---------- */

@@ -3441,7 +3441,8 @@ const Views = (() => {
   }
 
   let pfTab = 'photos'; // いま開いている小タブ（写真／統計）。同期の描き直しで勝手に写真へ戻さない（v367〜）
-  function enterProfileTab() { pfTab = 'photos'; renderProfile(); }
+  let pfStation = ''; // マイページの写真の「駅から」（v388〜。タブで開き直すと消える）
+  function enterProfileTab() { pfTab = 'photos'; pfStation = ''; renderProfile(); }
   function showProfileTab(name) {
     pfTab = name;
     document.querySelectorAll('#profile-subtabs .psub').forEach(b => b.classList.toggle('active', b.dataset.ptab === name));
@@ -3496,18 +3497,27 @@ const Views = (() => {
     // カードをタップすると、その店舗から始まる連続スクロールのフィード画面が開く
     // 上の検索欄で絞り込む（店名・ジャンル・料理・地名・駅・コメント）。v315〜
     const q = String(($('#pf-photo-q') || {}).value || '').trim().toLowerCase();
-    const shown = !q ? groups : groups.filter(g => {
+    // v388〜 絞り込み欄の下に「駅から」のチップ（記録の多い駅 8 つ。探すの写真モードと同じ形）
+    let stRow = $('#pf-stations');
+    if (!stRow) { stRow = document.createElement('div'); stRow.id = 'pf-stations'; stRow.className = 'ex-station-row ph-stations pf-stations'; box.before(stRow); }
+    const stTop = topStations(8);
+    stRow.classList.toggle('hidden', !stTop.length);
+    stRow.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === pfStation ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
+    stRow.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { pfStation = pfStation === b.dataset.st ? '' : b.dataset.st; renderProfilePhotos(); }));
+    const shown = (!q && !pfStation) ? groups : groups.filter(g => {
       const shop = Store.getShop(g.shopId) || {};
+      if (pfStation && (shop.station || '') !== pfStation) return false;
+      if (!q) return true;
       const vs = Store.visitsOf(g.shopId);
       const hay = [shop.name, shopLabelGenre(shop), shop.pref, normPref(shop.pref), shop.city, shop.station, shop.address,
         ...vs.flatMap(v => [v.comment, ...(v.dishGenres || [])])].map(x => x || '').join(' ').toLowerCase();
       return q.split(/\s+/).every(w => hay.includes(w));
     });
     const nEl = $('#pf-photo-n');
-    if (nEl) nEl.textContent = q ? `${shown.length}店` : '';
+    if (nEl) nEl.textContent = (q || pfStation) ? `${shown.length}店` : '';
     if (!shown.length) {
       box.className = 'photo-grid';
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, `「${esc(q)}」に合うお店はアルバムにありません。<br>条件で探すときは「探す」を使ってください。`);
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, q ? `「${esc(q)}」に合うお店はアルバムにありません。<br>条件で探すときは「探す」を使ってください。` : `${esc(pfStation)}の店はアルバムにありません`);
       return;
     }
     // v312〜: Pinterest 風（写真の縦横比のまま詰めて並べ、写真の上に店名と「ジャンル ・ 都道府県」、下に訪問回数と前回）
@@ -4345,6 +4355,9 @@ const Views = (() => {
       App.switchTab('list'); // enterListTab で条件が空になってから入れる
       setListMode(false);
       $('#flt-dish-genre').value = b.dataset.g;
+      // v388〜 料理のジャンルは写真に付いているので、お店の一覧ではなく写真モードで開く
+      listResultMode = 'photo';
+      document.querySelectorAll('#list-mode-segs .vl-seg').forEach(x => x.classList.toggle('on', x.dataset.m === 'photo'));
       renderList();
     }));
   }
@@ -5089,6 +5102,7 @@ const Views = (() => {
       // 「その他」: 地図で見る／訪問を追加／店舗情報／閉店／削除（v341〜。ボタンの列をやめて一覧に）
       $('#d-more').addEventListener('click', () => openActionSheet([
         ...(hasPos0 ? [{ label: '地図で見る', onClick: () => { closeModal(); focusMapAt(s.lat, s.lon); } }] : []),
+        ...(vs.length ? [{ label: '最新の記録に写真を足す', onClick: () => pickPhotos(async (files) => { if (await addPhotosToVisit(vs[0], files)) showShop(shopId); }) }] : []), // v388〜（長押しで付けた写真なしの記録向け）
         { label: '店の情報を編集', onClick: () => openShopEdit(shopId, () => showShop(shopId)) },
         { label: s.status === 'closed' ? '営業中に戻す' : '閉店にする', onClick: () => { Store.updateShop(shopId, { status: s.status === 'closed' ? 'open' : 'closed' }); showShop(shopId); } },
         { label: 'この店を削除', onClick: async () => {
@@ -5435,21 +5449,8 @@ const Views = (() => {
     ov.querySelector('.ve-addphoto').addEventListener('click', () => file.click());
     file.addEventListener('change', async () => {
       const files = [...file.files || []]; file.value = '';
-      if (!files.length) return;
-      App.toast('写真を保存しています…', 2000);
-      let n = 0;
-      for (const f of files) {
-        try {
-          const blob = await Api.compressImage(f);
-          const pid = await Store.addPhoto(v.shopId, v.id, 'dish', blob, await Api.fileHash(f));
-          warmThumb(pid, blob); n++;
-        } catch (e) { console.warn('写真を足せませんでした', e); }
-      }
-      if (!n) { App.toast('写真を保存できませんでした'); return; }
-      if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.publishPostForVisit(v.id).catch(() => {});
-      App.toast(`写真を${n}枚足しました`);
+      if (!(await addPhotosToVisit(v, files))) return; // v388 で部品に
       countPhotos();
-      exploreItems = null; // 探すの写真を拾い直す
       if (onDone) onDone('saved');
     });
     ov.querySelector('.ve-save').addEventListener('click', () => {
@@ -5471,6 +5472,33 @@ const Views = (() => {
       deleteVisitWithUndo(v.id, () => { if (onDone) onDone(Store.visitsOf(v.shopId).length ? 'saved' : 'deleted'); }, () => { if (onDone) onDone('deleted'); }); // v375〜 元に戻せる
     });
     document.body.appendChild(ov);
+  }
+
+  // 記録に写真を足す（v383〜。v388 で部品に）: 圧縮して保存し、サムネを作り、ログイン中は公開投稿を出し直す。足した枚数を返す（0 なら失敗）
+  async function addPhotosToVisit(v, files) {
+    if (!files || !files.length) return 0;
+    App.toast('写真を保存しています…', 2000);
+    let n = 0;
+    for (const f of files) {
+      try {
+        const blob = await Api.compressImage(f);
+        const pid = await Store.addPhoto(v.shopId, v.id, 'dish', blob, await Api.fileHash(f));
+        warmThumb(pid, blob); n++;
+      } catch (e) { console.warn('写真を足せませんでした', e); }
+    }
+    if (!n) { App.toast('写真を保存できませんでした'); return 0; }
+    if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.publishPostForVisit(v.id).catch(() => {});
+    App.toast(`写真を${n}枚足しました`);
+    exploreItems = null; // 探すの写真を拾い直す
+    return n;
+  }
+  // 写真を選ぶだけの隠した input（v388〜 店の詳細の「その他 → 最新の記録に写真を足す」）
+  function pickPhotos(onFiles) {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true; inp.hidden = true; inp.className = 'pick-photos';
+    inp.addEventListener('change', () => { const files = [...inp.files || []]; inp.remove(); if (files.length) onFiles(files); });
+    document.body.appendChild(inp);
+    inp.click();
   }
 
   // ---------- 写真の付け替え（v366〜） ----------
