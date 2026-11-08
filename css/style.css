@@ -2173,6 +2173,11 @@ body.map-picking .map-overlay, body.map-picking .map-legend-float, body.map-pick
 body[data-tab="map"] .net-bar, body[data-tab="list"] .net-bar, body[data-tab="register"] .net-bar { display: none; }
 /* 検索: 付いている条件のチップ（v381〜。お店・写真の結果の上。× で1つずつ外す） */
 .flt-active { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 0 8px; }
+/* 探すの一覧の上の行（v385〜）: 件数／条件のチップ と 並び替えの今の値 */
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 8px; }
+.list-head .flt-active { padding: 0; flex: 1; min-width: 0; }
+.list-sort { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; border: none; background: none; padding: 4px 2px; font-family: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
+.list-sort .chev { font-size: 14px; line-height: 1; margin-top: -4px; }
 .flt-active-n { font-size: 13px; color: var(--muted); margin-right: 2px; }
 .flt-chip { display: inline-flex; align-items: center; gap: 6px; }
 .flt-chip .x { font-size: 11px; opacity: .85; }
