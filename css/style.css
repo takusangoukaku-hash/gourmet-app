@@ -1338,6 +1338,13 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .pv-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #fff; font-size: 13px; background: rgba(0, 0, 0, .45); z-index: 2; }
 .pv-foot .btn { background: rgba(255, 255, 255, .16); border-color: transparent; color: #fff; }
 .pv-btns { display: flex; gap: 8px; flex-shrink: 0; } /* 共有・記録を見る（v386〜） */
+.pv-foot .pv-more { width: 32px; padding: 0; justify-content: center; } /* 写真の「…」（v387〜） */
+.pv-foot .pv-more .ic { width: 16px; height: 16px; }
+/* 左右の ‹ ›（v387〜）: 端に薄く。幅 390 でも写真の邪魔にならない大きさ */
+.pv-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 36px; height: 48px; border: none; border-radius: 10px; background: rgba(0, 0, 0, .3); color: rgba(255, 255, 255, .85); font-size: 28px; line-height: 1; z-index: 2; cursor: pointer; padding: 0 0 4px; }
+.pv-prev { left: 6px; } .pv-next { right: 6px; }
+.pv-nav.hidden { display: none; }
+.mz-tools .list-sort { margin-left: 6px; } /* 写真モードの並び替え（v387〜）。「選択」の左 */
 .pv-foot .btn .ic { width: 14px; height: 14px; }
 
 /* ---------- 独自カメラ画面 ---------- */

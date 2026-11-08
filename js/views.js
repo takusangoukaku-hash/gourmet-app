@@ -1522,7 +1522,7 @@ const Views = (() => {
       c.addEventListener('click', () => { // v385〜 写真だけの全画面。「記録を見る」で投稿詳細（シートは閉じる）
         const six = photos.slice(0, 6);
         openPhotoViewer(six.map(x => { const vv = vById.get(x.visitId) || {}; return { ph: x, rating: vv.rating || 0, date: vv.datetime ? fmtDate(vv.datetime) : '' }; }), six.indexOf(ph),
-          { onRecord: () => { close(); showPostDetail(buildOwnShopPost({ shopId, photos })); }, shop: s });
+          { onRecord: () => { close(); showPostDetail(buildOwnShopPost({ shopId, photos })); }, shop: s, onChange: () => { close(); App.refreshCurrent(); } });
       });
       myrow.appendChild(c);
     });
@@ -2569,6 +2569,7 @@ const Views = (() => {
   function enterListTab() {
     $('#flt-keyword').value = '';
     photoStation = ''; // v383〜 写真モードの駅も毎回まっさらに
+    photoSort = 'new'; // v387〜 写真モードの並び替えも
     // 絞り込みも毎回まっさらに（見えない絞り込みが残って「表示されない」と混乱しないように）
     $('#flt-dish-genre').value = '';
     $('#flt-rating').value = '';
@@ -3027,16 +3028,17 @@ const Views = (() => {
     const wrap = document.createElement('div'); if (head) wrap.appendChild(head); wrap.appendChild(row); head = wrap;
     renderListSections(box, shops, groupFn, head);
   }
-  // 並び替えの今の値のボタン（v385〜）。タップでアクションシート（今の値に ✓）→ #flt-sort に書いて描き直す
-  function sortHeadButton() {
+  // 並び替えの今の値のボタン（v385〜）。タップでアクションシート（今の値に ✓）。
+  // 引数なし＝お店（#flt-sort に書いて描き直す）。v387〜 options([[値, 表示]...], current, onPick) で写真モードにも使う
+  function sortHeadButton(options, current, onPick) {
     const sel = $('#flt-sort');
+    const opts = options || [...sel.options].map(op => [op.value, op.textContent]);
+    const cur = options ? current : sel.value;
+    const pick = options ? onPick : (k) => { if (sel.value !== k) { sel.value = k; renderList(); } };
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'list-sort';
-    b.innerHTML = `<span>${esc(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '')}</span><span class="chev">⌄</span>`;
-    b.addEventListener('click', () => openActionSheet([...sel.options].map(op => ({
-      label: (op.value === sel.value ? '✓ ' : '') + op.textContent,
-      onClick: () => { if (sel.value !== op.value) { sel.value = op.value; renderList(); } },
-    }))));
+    b.innerHTML = `<span>${esc((opts.find(([k]) => k === cur) || opts[0] || ['', ''])[1])}</span><span class="chev">⌄</span>`;
+    b.addEventListener('click', () => openActionSheet(opts.map(([k, label]) => ({ label: (k === cur ? '✓ ' : '') + label, onClick: () => { if (k !== cur) pick(k); } }))));
     return b;
   }
   // キーワードと一致する駅名（登録済みの店の最寄駅。空白・全角半角・大文字小文字と末尾の「駅」の有無は無視）
@@ -3122,6 +3124,8 @@ const Views = (() => {
   // 検索結果を写真グリッドで表示（「お店/写真」切り替えで写真を選んだとき）。
   // キーワード・ジャンル・星・お気に入り・都道府県の絞り込みを写真1枚ごとに適用する
   let photoStation = ''; // 写真モードの「駅から」の絞り込み（v383〜。探すを開き直す・条件を外すで消える）
+  let photoSort = 'new'; // 写真モードの並び替え（v387〜。new 新しい順／rating ★が高い順／old 古い順。探すを開き直すと new）
+  const PHOTO_SORTS = [['new', '新しい順'], ['rating', '★が高い順'], ['old', '古い順']];
   async function renderSearchPhotos() {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
@@ -3167,6 +3171,10 @@ const Views = (() => {
     }
     const grid = document.createElement('div');
     grid.className = 'mz-grid';
+    // v387〜 並び替え（既定は新しい順＝loadExploreItems の順）。★は自分の写真はその記録、フォロー中の投稿は投稿の★
+    const ratingOf = (it) => it.kind === 'mine' ? ((vById.get(it.ph.visitId) || {}).rating || 0) : (Number(it.p.rating) || 0);
+    if (photoSort === 'old') list.reverse();
+    else if (photoSort === 'rating') list.sort((a, b) => ratingOf(b) - ratingOf(a) || b.time - a.time);
     const ordered = mzOrder(list, mzArOfItem, mzCols(box)); // 見た目が整う順（v331〜）
     // タップした写真から始めて、下スクロールで並び順に次の投稿が出るようリストごと渡す
     const posts = ordered.map(it => it.kind === 'net' ? it.p : buildOwnPost(it.ph));
@@ -3188,10 +3196,12 @@ const Views = (() => {
       box.appendChild(row);
     }
     const chips = activeFilterChips(list.length, '枚'); // v381〜 写真モードにも付いている条件（× で外す）
-    if (chips || list.some(it => it.kind === 'mine')) { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）
+    { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）。v387〜 並び替えの今の値も
       const tools = document.createElement('div');
       tools.className = 'mz-tools';
       if (chips) tools.appendChild(chips);
+      else { const n = document.createElement('span'); n.className = 'flt-active-n'; n.textContent = `${list.length}枚`; tools.appendChild(n); }
+      tools.appendChild(sortHeadButton(PHOTO_SORTS, photoSort, (k) => { photoSort = k; renderSearchPhotos(); }));
       if (list.some(it => it.kind === 'mine')) {
         const sel = document.createElement('button'); sel.type = 'button'; sel.className = 'btn small mz-selbtn'; sel.textContent = '選択';
         sel.addEventListener('click', () => mzSelStart(grid));
@@ -3217,7 +3227,8 @@ const Views = (() => {
     ov.innerHTML = `<button type="button" class="pv-close" aria-label="閉じる">${IC_X}</button>
       <div class="pv-count"></div>
       <div class="pv-track">${items.map(() => '<div class="pv-slide"><img class="pv-img" alt="" decoding="async"></div>').join('')}</div>
-      <div class="pv-foot"><span class="pv-cap"></span><span class="pv-btns">${o.shop ? `<button type="button" class="btn small pv-share">${IC_SHARE_S} 共有</button>` : ''}${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}</span></div>`;
+      ${items.length > 1 ? `<button type="button" class="pv-nav pv-prev" aria-label="前の写真">‹</button><button type="button" class="pv-nav pv-next" aria-label="次の写真">›</button>` : ''}
+      <div class="pv-foot"><span class="pv-cap"></span><span class="pv-btns">${o.shop ? `<button type="button" class="btn small pv-share">${IC_SHARE_S} 共有</button>` : ''}${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}${items.some(it => it.ph) ? `<button type="button" class="btn small icon-only pv-more" aria-label="メニュー">${IC_MORE}</button>` : ''}</span></div>`;
     const track = ov.querySelector('.pv-track');
     const slides = [...track.children];
     const loaded = new Set();
@@ -3228,9 +3239,31 @@ const Views = (() => {
       ov.querySelector('.pv-count').textContent = items.length > 1 ? `${cur + 1} / ${items.length}` : '';
       const it = items[cur];
       ov.querySelector('.pv-cap').textContent = [it.date, it.rating ? `★${fmtR(it.rating)}` : ''].filter(Boolean).join(' ・ ');
+      const prev = ov.querySelector('.pv-prev'), next = ov.querySelector('.pv-next');
+      if (prev) { prev.classList.toggle('hidden', cur <= 0); next.classList.toggle('hidden', cur >= items.length - 1); }
+      const more = ov.querySelector('.pv-more'); if (more) more.classList.toggle('hidden', !(it.ph && Store.getShop(it.ph.shopId))); // 端末内の写真のときだけ
     };
     const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    // v387〜 左右の ‹ › と ← → キーで送る（iPad・PC 用。スワイプは従来どおり）
+    const go = (d) => { const i = cur + d; if (i < 0 || i >= items.length) return; track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' }); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1); };
+    ov.querySelectorAll('.pv-nav').forEach(b => b.addEventListener('click', () => go(b.classList.contains('pv-prev') ? -1 : 1)));
+    // v387〜 「…」: いま見ている写真（端末内のもの）の 別の記録へ／別の店へ／削除（投稿詳細の「…」と同じ動作）。終わったら閉じて呼び元を描き直す
+    const more = ov.querySelector('.pv-more');
+    if (more) more.addEventListener('click', () => {
+      const ph = items[cur].ph;
+      if (!ph || !Store.getShop(ph.shopId)) return;
+      const done = () => { close(); if (o.onChange) o.onChange(); else App.refreshCurrent(); };
+      const acts = [];
+      if (Store.visitsOf(ph.shopId).length > 1) acts.push({ label: 'この写真を別の記録へ', onClick: () => openPhotoMove(ph, 'visit', done) });
+      acts.push({ label: 'この写真を別の店へ', onClick: () => openPhotoMove(ph, 'shop', done) });
+      acts.push({ label: 'この写真を削除', danger: true, onClick: () => {
+        Store.deferDelete('photo', ph.id); // v375〜 元に戻せる（数秒後に本当に消す）
+        done();
+        App.toastUndo('写真を削除しました', { undo: () => { Store.undoDelete('photo', ph.id); if (o.onChange) o.onChange(); else App.refreshCurrent(); }, commit: () => Store.deletePhoto(ph.id) });
+      } });
+      openActionSheet(acts);
+    });
     ov.querySelector('.pv-close').addEventListener('click', close);
     if (o.onRecord) ov.querySelector('.pv-rec').addEventListener('click', () => { const i = cur; close(); o.onRecord(i); });
     // v386〜 共有: いま見ている写真（正方形は次の1枚も）で画像カード。投稿詳細の共有と同じシート
@@ -3489,7 +3522,7 @@ const Views = (() => {
         badge: avg ? '★' + fmtR(avg) : '',
         // v386〜 写真のタップは写真だけの全画面（その店の写真を左右送り）。お店の記録へは「記録を見る」（絞り込み中は、絞り込んだ店の中で前後へ送る）
         onClick: () => openPhotoViewer(g.photos.map(ph => { const vv = vById.get(ph.visitId) || {}; return { ph, rating: vv.rating || 0, date: vv.datetime ? fmtDate(vv.datetime) : '' }; }), 0,
-          { onRecord: () => showShopFeed(shown, idx), shop }),
+          { onRecord: () => showShopFeed(shown, idx), shop, onChange: () => renderProfilePhotos() }),
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
       return card;
@@ -5104,7 +5137,7 @@ const Views = (() => {
           }
           // v384〜 帯の写真をタップ → 写真だけの全画面（左右送り・拡大）。投稿詳細へはそこから「記録を見る」
           const viewerItems = items.map(it => { const vv = vMap.get(it.ph.visitId); return { ph: it.ph, rating: it.rating, date: vv && vv.datetime ? fmtDate(vv.datetime) : '' }; });
-          box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(viewerItems, i, { onRecord: () => showPostDetail(post), shop: s })));
+          box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(viewerItems, i, { onRecord: () => showPostDetail(post), shop: s, onChange: () => { App.refreshCurrent(); showShop(shopId); } })));
           strip.classList.remove('hidden');
         });
         // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
@@ -5616,7 +5649,7 @@ const Views = (() => {
         slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${badge}`;
         if (i === 0) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
         else setThumb(slide.querySelector('img'), ph);
-        slide.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), i, { shop: s })); // v385〜 写真だけの全画面
+        slide.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), i, { shop: s, onChange: () => { App.refreshCurrent(); if (!$('#modal').classList.contains('hidden')) showShop(s.id); } })); // v385〜 写真だけの全画面
         car.appendChild(slide);
         return slide;
       });
@@ -5677,7 +5710,7 @@ const Views = (() => {
         const ph = ps[0];
         const holder = it.querySelector('.vl-tlph');
         holder.innerHTML = ''; holder.appendChild(fullImg(ph));
-        holder.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), 0, { shop })); // v385〜
+        holder.addEventListener('click', () => openPhotoViewer(ps.map(x => ({ ph: x, rating: v.rating || 0, date: fmtDate(v.datetime) })), 0, { shop, onChange: () => { App.refreshCurrent(); if (!$('#modal').classList.contains('hidden')) showShop(shop.id); } })); // v385〜
       });
       it.querySelector('.ve-edit').addEventListener('click', () => editVisit(v));
       tl.appendChild(it);
@@ -6322,7 +6355,7 @@ const Views = (() => {
       }
       // v385〜 写真のタップは写真だけの全画面（左右送り・拡大）。日付は自分の記録だけ
       const vItems = items.map(it => ({ ph: it.ph, url: it.url, rating: it.rating, date: isMine && p.datetime ? fmtDate(p.datetime) : '' }));
-      box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(vItems, i, { shop: { name: p.shopName || '', station: p.station || '', pref: p.pref || '', city: p.city || '' } })));
+      box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(vItems, i, { shop: { name: p.shopName || '', station: p.station || '', pref: p.pref || '', city: p.city || '' }, onChange: () => { close(); App.refreshCurrent(); } })));
       // 写真の読み込み完了＝セクションの高さ確定を伝える（上への継ぎ足しが待つ）
       await Promise.all([...box.querySelectorAll('img.pd-photo')].map(im => im.complete
         ? Promise.resolve()
