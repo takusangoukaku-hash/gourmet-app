@@ -3191,6 +3191,58 @@ const Views = (() => {
     $('#lightbox').classList.remove('hidden');
   }
 
+  // 写真だけの全画面（v384〜 店の詳細の写真の帯から）: 左右送り（スナップ）・ピンチと2回タップで拡大・下に日付と★・「記録を見る」
+  // items: [{ph, rating, date}]。opts.onRecord(i) があれば「記録を見る」を出す
+  function openPhotoViewer(items, index, opts) {
+    if (!items || !items.length) return;
+    const o = opts || {};
+    const ov = document.createElement('div');
+    ov.className = 'modal pv-modal';
+    ov.innerHTML = `<button type="button" class="pv-close" aria-label="閉じる">${IC_X}</button>
+      <div class="pv-count"></div>
+      <div class="pv-track">${items.map(() => '<div class="pv-slide"><img class="pv-img" alt="" decoding="async"></div>').join('')}</div>
+      <div class="pv-foot"><span class="pv-cap"></span>${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}</div>`;
+    const track = ov.querySelector('.pv-track');
+    const slides = [...track.children];
+    const loaded = new Set();
+    let cur = Math.max(0, Math.min(items.length - 1, index || 0));
+    const load = (i) => { if (i < 0 || i >= items.length || loaded.has(i)) return; loaded.add(i); setFullPhoto(slides[i].querySelector('img'), items[i].ph); };
+    const update = () => {
+      for (let i = cur - 1; i <= cur + 1; i++) load(i);
+      ov.querySelector('.pv-count').textContent = items.length > 1 ? `${cur + 1} / ${items.length}` : '';
+      const it = items[cur];
+      ov.querySelector('.pv-cap').textContent = [it.date, it.rating ? `★${fmtR(it.rating)}` : ''].filter(Boolean).join(' ・ ');
+    };
+    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    ov.querySelector('.pv-close').addEventListener('click', close);
+    if (o.onRecord) ov.querySelector('.pv-rec').addEventListener('click', () => { const i = cur; close(); o.onRecord(i); });
+    track.addEventListener('scroll', () => { const i = Math.round(track.scrollLeft / track.clientWidth); if (i !== cur && i >= 0 && i < items.length) { resetZoom(); cur = i; update(); } }, { passive: true });
+    // 拡大: 2本指のピンチ（pointer）と2回タップ。拡大中は1本指で動かす。等倍に戻すと左右送りに戻る
+    let scale = 1, tx = 0, ty = 0; const pts = new Map(); let pinch = null, lastTap = 0, drag = null;
+    const img = () => slides[cur].querySelector('img');
+    const apply = () => { img().style.transform = scale > 1 ? `translate(${tx}px, ${ty}px) scale(${scale})` : ''; track.classList.toggle('zoomed', scale > 1); };
+    const resetZoom = () => { if (scale !== 1) { scale = 1; tx = 0; ty = 0; apply(); } };
+    track.addEventListener('pointerdown', (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: scale }; drag = null; }
+      else if (pts.size === 1 && scale > 1) drag = { x: e.clientX - tx, y: e.clientY - ty };
+    });
+    track.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; scale = Math.max(1, Math.min(4, pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)); if (scale === 1) { tx = 0; ty = 0; } apply(); }
+      else if (drag && scale > 1) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); }
+    });
+    const end = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) drag = null; };
+    track.addEventListener('pointerup', end); track.addEventListener('pointercancel', end);
+    track.addEventListener('click', (e) => { const now = Date.now(); if (now - lastTap < 300) { if (scale > 1) resetZoom(); else { scale = 2; tx = 0; ty = 0; apply(); } lastTap = 0; } else lastTap = now; });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    update();
+    if (cur) track.scrollLeft = cur * track.clientWidth;
+  }
+
   // ========== プロフィール（インスタ風・将来の共有機能の土台） ==========
   function initProfile() {
     setupPullToRefresh(); // 検索・プロフィールでも引っ張って更新できるよう起動時に用意（v363〜）
@@ -5027,7 +5079,9 @@ const Views = (() => {
               [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
             }, { passive: true });
           }
-          box.querySelectorAll('.pd-photo').forEach(img => img.addEventListener('click', () => showPostDetail(post)));
+          // v384〜 帯の写真をタップ → 写真だけの全画面（左右送り・拡大）。投稿詳細へはそこから「記録を見る」
+          const viewerItems = items.map(it => { const vv = vMap.get(it.ph.visitId); return { ph: it.ph, rating: it.rating, date: vv && vv.datetime ? fmtDate(vv.datetime) : '' }; });
+          box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(viewerItems, i, { onRecord: () => showPostDetail(post) })));
           strip.classList.remove('hidden');
         });
         // v364〜 訪問の一覧・お店の記録と同じ部品で、訪問を新しい順に縦に並べる（写真→操作行→日付→ジャンル ・ 詳細）
@@ -6058,6 +6112,12 @@ const Views = (() => {
     photo.addEventListener('click', (e) => { if (e.target.closest('button')) return; openDetail(); });
     photo.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); } });
     card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
+    // v384〜 長押し: この人の投稿を見る／行きたい店に保存（外す）／店を地図で見る
+    wireLongPress(photo, () => openActionSheet([
+      ...(p.username ? [{ label: `${p.displayName || '@' + p.username} の投稿を見る`, onClick: () => showPublicProfile(p.username) }] : []),
+      { label: wishStateForPost(p) ? '行きたい店から外す' : '行きたい店に保存', onClick: () => { toggleWishForPost(p, null); App.refreshCurrent(); } },
+      ...(p.lat != null && p.lon != null ? [{ label: '店を地図で見る', onClick: () => { focusMap(p.lon, p.lat, 15); App.switchTab('map'); } }] : []),
+    ]));
     // いいね数・行きたい保存（取得結果は feedStats に控え、描き直しでは再取得しない）
     const applyStats = (st) => {
       const lb = card.querySelector('.pd-like');

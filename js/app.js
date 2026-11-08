@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v383'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v384'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -305,8 +305,11 @@ const App = (() => {
       const pick = (b) => Views.openActionSheet([
         { label: 'ファイルに書き出す', onClick: async () => { const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; } downloadJson(data, backupName('-auto-' + new Date(b.at).toISOString().slice(0, 10).replace(/-/g, ''))); toast('書き出しました'); } },
         { label: 'この内容を復元する（今の記録は消えません）', onClick: async () => {
-          if (!confirm(`${fmtWhen(b.at)} のバックアップから、無い記録や古い記録を取り込みます。よろしいですか？`)) return;
           const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; }
+          // v384〜 何が戻るかを先に出す（無ければ確認を出さない）
+          let d; try { d = backupDiff(data); } catch (err) { toast('' + (err && err.message || err)); return; }
+          if (!d.total) { toast('今の記録と同じです（取り込むものはありません）'); return; }
+          if (!confirm(`${fmtWhen(b.at)} のバックアップから取り込むもの\n${diffLines(d)}\n\n今の記録は消えません。取り込みますか？`)) return;
           try { const r = await restoreBackup(data); toast(r.added ? `復元しました（記録${r.added}件を追加・更新）` : '追加の記録はありませんでした'); refreshCurrent(); } catch (err) { toast('復元できませんでした: ' + (err && err.message || err)); }
         } },
       ]);
@@ -667,6 +670,28 @@ const App = (() => {
     }
     return null;
   }
+  // 復元で何が戻るか（v384〜）: 種類ごとに 無い（こちらに無い id）・古い（バックアップの方が新しい）の数。restoreBackup と同じ判定
+  function backupDiff(data) {
+    if (!isPlain(data) || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
+    const one = (kind, locals, list) => {
+      const map = new Map(locals.map(x => [x.id, x]));
+      let missing = 0, older = 0;
+      for (const raw of (Array.isArray(list) ? list : [])) {
+        const r = sanitizeRecord(kind, raw);
+        if (!r) continue;
+        const l = map.get(r.id);
+        if (!l) missing++; else if ((r.updatedAt || 0) > (l.updatedAt || 0)) older++;
+      }
+      return { missing, older };
+    };
+    const d = { shop: one('shop', Store.rawShops(), data.shops), visit: one('visit', Store.rawVisits(), data.visits), wish: one('wish', Store.rawWishes(), data.wishes) };
+    d.total = Object.values(d).reduce((s, x) => s + x.missing + x.older, 0);
+    return d;
+  }
+  function diffLines(d) {
+    const f = (x) => [x.missing ? `無い ${x.missing}` : '', x.older ? `古い ${x.older}` : ''].filter(Boolean).join('・') || 'なし';
+    return `店: ${f(d.shop)}\n記録: ${f(d.visit)}\n行きたい: ${f(d.wish)}`;
+  }
   async function restoreBackup(data) {
     if (!isPlain(data) || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
     // 新しい方を採用して取り込む（既存の記録は消さない）
@@ -803,5 +828,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, toastUndo, flushUndo, seedSample, buildBackup, restoreBackup, loadLib, currentTab: () => currentTab };
+  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, toastUndo, flushUndo, seedSample, buildBackup, restoreBackup, backupDiff, loadLib, currentTab: () => currentTab };
 })();
