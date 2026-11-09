@@ -2227,6 +2227,8 @@ const Views = (() => {
       Register.prefillWish(w);
       App.switchTab('register');
     }));
+    // v391〜 「記録する」の長押し: 店を登録（同じ名前・近くの店があればそれ）して今日の記録を写真なし・評価なしで1件。トーストの「元に戻す」で取り消せる
+    body.querySelectorAll('.wish-rec').forEach(b => wireLongPress(b, () => { const w = all.find(x => x.id === b.dataset.id); if (w) quickRecordWish(w, again); }));
     body.querySelectorAll('.wish-shop').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
     // 「…」のシート。v389〜 行（店名の部分）の長押しでも同じものを開く
     const openWishSheet = (id) => {
@@ -3018,7 +3020,12 @@ const Views = (() => {
       return;
     }
     if (!shops.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_FORK, '条件に合う店がありません');
+      // v391〜 条件を外すボタンと、キーワードがあれば「行きたい店に入れる」（未登録の店を探したとき＝行きたい店の行のタップなど）
+      const kw = $('#flt-keyword').value.trim();
+      box.innerHTML = emptyBox(EMPTY_IC_FORK, '条件に合う店がありません',
+        `<div class="empty-acts"><button type="button" class="btn small" id="empty-clear">条件を外す</button>${kw ? `<button type="button" class="btn small primary" id="empty-wish">「${esc(kw)}」を行きたい店に入れる</button>` : ''}</div>`);
+      $('#empty-clear').addEventListener('click', () => { $('#flt-keyword').value = ''; $('#flt-clear').click(); }); // ジャンル・★・都道府県・駅も外して描き直す
+      if (kw) $('#empty-wish').addEventListener('click', () => openWishAdd(kw));
       return;
     }
 
@@ -3692,6 +3699,29 @@ const Views = (() => {
     if (afterChange) afterChange();
     App.toastUndo(`写真なしで記録しました ・ ${rating ? '★' + fmtR(rating) : '評価なし'}`, {
       undo: async () => { await Store.deleteVisit(v.id); if (afterChange) afterChange(); },
+      commit: () => {},
+    });
+  }
+  // 行きたい店をそのまま今日の記録に（v391〜 「記録する」の長押し）。登録済みの店（matchShop: 同じ名前で 50m 以内か、位置なしで同じ名前）が
+  // あればその店に、無ければ行きたい店の名前・位置・住所・ジャンルで店を作る（foundBy: 'wish'。駅・県・市は位置から後追いで補う）。
+  // 記録は写真なし・評価なし（★0）。addVisit が行きたい店を達成にする。「元に戻す」は記録を消し（達成も戻る）、作った店も消す
+  function quickRecordWish(w, afterChange) {
+    const m = Store.matchShop({ name: w.name, lat: w.lat, lon: w.lon });
+    const created = !m;
+    const s = m || Store.addShop({ name: w.name || '', lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null, address: w.address || '', shopGenre: w.genre || 'その他', foundBy: 'wish' });
+    const v = Store.addVisit({ shopId: s.id, rating: 0, dishGenres: [], datetime: new Date().toISOString(), visitType: '店内飲食' });
+    if (created && s.lat != null && s.lon != null) { // 駅・県・市・住所を位置から補う（できる範囲で。失敗しても記録はそのまま）
+      Promise.all([Api.reverseGeocode(s.lat, s.lon).catch(() => ({})), Api.nearestStation(s.lat, s.lon).catch(() => '')]).then(([geo, station]) => {
+        const cur = Store.getShop(s.id); if (!cur) return;
+        const patch = {};
+        if (station && !cur.station) patch.station = station;
+        for (const k of ['pref', 'city', 'address']) if (geo && geo[k] && !cur[k]) patch[k] = geo[k];
+        if (Object.keys(patch).length) { Store.updateShop(s.id, patch); if (afterChange) afterChange(); }
+      });
+    }
+    if (afterChange) afterChange();
+    App.toastUndo(`${s.name} を写真なしで記録しました ・ 評価なし`, {
+      undo: async () => { await Store.deleteVisit(v.id); if (created) await Store.deleteShop(s.id); if (afterChange) afterChange(); },
       commit: () => {},
     });
   }

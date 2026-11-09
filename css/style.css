@@ -579,6 +579,8 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   text-align: center; color: var(--muted); padding: 44px 20px;
 }
 .empty .btn { margin-top: 14px; }
+.empty-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; } /* v391〜 探すの0件の案内（条件を外す／行きたい店に入れる） */
+.empty-acts .btn { margin-top: 0; max-width: 100%; white-space: normal; }
 .empty p { line-height: 1.7; margin: 0; }
 .empty-ic { display: inline-flex; margin-bottom: 12px; color: var(--border); }
 .empty-ic svg { width: 52px; height: 52px; stroke-width: 1.5; }
@@ -1389,7 +1391,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
   transform: translateX(-50%);
   background: rgba(38, 38, 38, .94); color: #fff; padding: 12px 20px; border-radius: 14px;
   font-size: 14px; line-height: 1.5; z-index: 3000; box-shadow: 0 4px 14px rgba(0,0,0,.25);
-  pointer-events: none; max-width: min(88vw, 480px); text-align: center;
+  pointer-events: none; width: max-content; max-width: min(88vw, 480px); text-align: center; /* v391〜 width: max-content（left:50% の固定配置は幅が画面の半分で折り返されていた） */
   animation: toast-in .22s ease;
 }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
