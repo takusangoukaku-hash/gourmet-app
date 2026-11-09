@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=388">
+<link rel="stylesheet" href="css/style.css?v=389">
 </head>
 <body>
 
@@ -584,6 +584,14 @@
           <option value="1">正方形にそろえる</option>
         </select>
       </label>
+      <label class="set-row set-row-static" for="set-pv-nav"><!-- v389〜 写真の全画面の左右の ‹ › -->
+        <span class="set-ic set-ic-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg></span>
+        <span class="set-label">全画面の ‹ ›</span>
+        <select id="set-pv-nav" class="set-select">
+          <option value="">出す</option>
+          <option value="1">出さない</option>
+        </select>
+      </label>
     </div>
 
     <div class="set-section-title">ヘルプ</div>
@@ -668,12 +676,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=388"></script>
-<script src="js/api.js?v=388"></script>
-<script src="js/cloud.js?v=388"></script>
-<script src="js/register.js?v=388"></script>
-<script src="js/import.js?v=388"></script>
-<script src="js/views.js?v=388"></script>
-<script src="js/app.js?v=388"></script>
+<script src="js/store.js?v=389"></script>
+<script src="js/api.js?v=389"></script>
+<script src="js/cloud.js?v=389"></script>
+<script src="js/register.js?v=389"></script>
+<script src="js/import.js?v=389"></script>
+<script src="js/views.js?v=389"></script>
+<script src="js/app.js?v=389"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v388'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v389'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -138,6 +138,8 @@ const App = (() => {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) applyFontScale(); }); // 端末の文字サイズを変えて戻ってきたとき
     const hs = $('#set-home-square'); // ホームの写真を正方形に（v378〜）
     if (hs) { hs.value = localStorage.getItem('gourmet.homeSquare') ? '1' : ''; hs.addEventListener('change', () => { try { if (hs.value) localStorage.setItem('gourmet.homeSquare', '1'); else localStorage.removeItem('gourmet.homeSquare'); } catch { /* noop */ } if (currentTab === 'feed') Views.renderFeed(); }); }
+    const pn = $('#set-pv-nav'); // 写真の全画面の ‹ ›（v389〜）
+    if (pn) { pn.value = localStorage.getItem('gourmet.pvNavOff') ? '1' : ''; pn.addEventListener('change', () => { try { if (pn.value) localStorage.setItem('gourmet.pvNavOff', '1'); else localStorage.removeItem('gourmet.pvNavOff'); } catch { /* noop */ } }); }
     $('#set-font').addEventListener('change', () => { try { localStorage.setItem('gourmet.fontScale', $('#set-font').value); } catch { /* noop */ } applyFontScale(); });
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）

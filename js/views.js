@@ -2192,7 +2192,7 @@ const Views = (() => {
     const near = (pos && wishSort !== 'near') ? wishes.filter(w => { const d = dist(w); return d != null && d <= NEAR_M; }).sort((a, b) => dist(a) - dist(b)) : [];
     const rest = near.length ? wishes.filter(w => !near.includes(w)) : wishes;
     const wishRow = (w) => { const d = dist(w); const nearRow = near.includes(w); return `
-        <div class="wish-row${nearRow ? ' wish-near' : ''}">
+        <div class="wish-row${nearRow ? ' wish-near' : ''}" data-id="${esc(w.id)}">
           <div class="wish-main">
             <div class="wish-name">${esc(w.name || '')}</div>
             <div class="wish-sub">${esc([w.genre, nearRow ? `徒歩${walkMinutes(w.lat, w.lon)}分` : fmtDist(d), w.fromUsername ? '@' + w.fromUsername + ' さんの投稿から' : ''].filter(Boolean).join(' ・ '))}</div>
@@ -2208,7 +2208,7 @@ const Views = (() => {
         ? (wishes.length ? (near.length ? `<div class="wish-group">近く</div>${near.map(wishRow).join('')}${rest.length ? '<div class="wish-group">ほか</div>' : ''}` : '') + rest.map(wishRow).join('')
           : emptyBox(EMPTY_IC_FORK, done.length ? 'まだ行っていない店はありません' : 'まだありません。<br>投稿のしおりや地図の長押しから入れられます'))
         : (done.length ? done.map(w => `
-        <div class="wish-row wish-done">
+        <div class="wish-row wish-done" data-id="${esc(w.id)}">
           <div class="wish-main">
             <div class="wish-name">${IC_CHECK} ${esc(w.name || '')}</div>
             <div class="wish-sub">${esc(fmtDate(new Date(w.doneAt).toISOString()))} に達成${w.fromUsername ? '　@' + esc(w.fromUsername) + ' さんの投稿から' : ''}</div>
@@ -2228,8 +2228,9 @@ const Views = (() => {
       App.switchTab('register');
     }));
     body.querySelectorAll('.wish-shop').forEach(b => b.addEventListener('click', () => showShop(b.dataset.id)));
-    body.querySelectorAll('.wish-more').forEach(b => b.addEventListener('click', () => {
-      const w = all.find(x => x.id === b.dataset.id);
+    // 「…」のシート。v389〜 行（店名の部分）の長押しでも同じものを開く
+    const openWishSheet = (id) => {
+      const w = all.find(x => x.id === id);
       if (!w) return;
       const acts = [];
       if (!w.doneAt && w.lat != null) acts.push({ label: '地図で見る', onClick: () => { focusMap(w.lon, w.lat, 15); App.switchTab('map'); } });
@@ -2240,7 +2241,9 @@ const Views = (() => {
         App.toastUndo('外しました', { undo: () => { Store.undoDelete('wish', w.id); refreshWishData(); again(); }, commit: () => { Store.removeWish(w.id); refreshWishData(); } });
       } });
       openActionSheet(acts);
-    }));
+    };
+    body.querySelectorAll('.wish-more').forEach(b => b.addEventListener('click', () => openWishSheet(b.dataset.id)));
+    body.querySelectorAll('.wish-row .wish-main').forEach(m => wireLongPress(m, () => openWishSheet(m.parentElement.dataset.id)));
   }
 
   // 付いている絞り込みの数を「詳細」ボタンに出し、「条件を外す」を出し入れする（v367〜）
@@ -3227,7 +3230,7 @@ const Views = (() => {
     ov.innerHTML = `<button type="button" class="pv-close" aria-label="閉じる">${IC_X}</button>
       <div class="pv-count"></div>
       <div class="pv-track">${items.map(() => '<div class="pv-slide"><img class="pv-img" alt="" decoding="async"></div>').join('')}</div>
-      ${items.length > 1 ? `<button type="button" class="pv-nav pv-prev" aria-label="前の写真">‹</button><button type="button" class="pv-nav pv-next" aria-label="次の写真">›</button>` : ''}
+      ${items.length > 1 && !localStorage.getItem('gourmet.pvNavOff') ? `<button type="button" class="pv-nav pv-prev" aria-label="前の写真">‹</button><button type="button" class="pv-nav pv-next" aria-label="次の写真">›</button>` : ''}
       <div class="pv-foot"><span class="pv-cap"></span><span class="pv-btns">${o.shop ? `<button type="button" class="btn small pv-share">${IC_SHARE_S} 共有</button>` : ''}${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}${items.some(it => it.ph) ? `<button type="button" class="btn small icon-only pv-more" aria-label="メニュー">${IC_MORE}</button>` : ''}</span></div>`;
     const track = ov.querySelector('.pv-track');
     const slides = [...track.children];
@@ -3244,7 +3247,7 @@ const Views = (() => {
       const more = ov.querySelector('.pv-more'); if (more) more.classList.toggle('hidden', !(it.ph && Store.getShop(it.ph.shopId))); // 端末内の写真のときだけ
     };
     const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
-    // v387〜 左右の ‹ › と ← → キーで送る（iPad・PC 用。スワイプは従来どおり）
+    // v387〜 左右の ‹ › と ← → キーで送る（iPad・PC 用。スワイプは従来どおり）。v389〜 設定→表示「全画面の ‹ ›」で出さないこともできる（`gourmet.pvNavOff`）
     const go = (d) => { const i = cur + d; if (i < 0 || i >= items.length) return; track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' }); };
     const onKey = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1); };
     ov.querySelectorAll('.pv-nav').forEach(b => b.addEventListener('click', () => go(b.classList.contains('pv-prev') ? -1 : 1)));
