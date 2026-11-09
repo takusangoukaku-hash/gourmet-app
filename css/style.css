@@ -1455,7 +1455,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .wish-title .ic { width: 20px; height: 20px; }
 .wish-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line, #efefef); }
 .wish-row:last-child { border-bottom: none; }
-.wish-main { flex: 1; min-width: 0; }
+.wish-main { flex: 1; min-width: 0; cursor: pointer; } /* v390〜 タップで店の詳細か探す、長押しでシート */
 .wish-name { font-weight: 600; font-size: 15px; }
 .wish-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 

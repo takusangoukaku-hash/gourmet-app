@@ -65,6 +65,7 @@ const Cloud = (() => {
             try {
               await Store.wipeLocal();
               Api.setApiKey(''); Api.setGoogleKey(''); Api.setYahooKey(''); Api.setHotpepperKey('');
+              try { localStorage.removeItem('gourmet.prefsAt'); } catch { /* noop */ } // v390〜 表示の好みは新しいアカウントのクラウド側を採用
               if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
               App.toast('別のアカウントでログインしたため、前のアカウントの端末内データを消去しました');
               App.refreshCurrent();
@@ -176,6 +177,7 @@ const Cloud = (() => {
     n += await pullDeleted(); // 別端末で消した記録（店・訪問・行きたい・写真）をこちらでも消す（v365〜）
     await pullProfile();
     await syncApiKeys();
+    await syncPrefs(); // 表示の好み（v390〜）
     await pushAllRecords();
     return n; // 別端末から取り込んだ記録の数
   }
@@ -201,6 +203,22 @@ const Cloud = (() => {
       if (localStorage.getItem('gourmet.hotpepperKey')) data.hotpepper = localStorage.getItem('gourmet.hotpepperKey');
       if (Object.keys(data).length) await fb.fs.setDoc(ref, data, { merge: true });
     } catch (e) { console.warn('APIキーの同期に失敗:', e); }
+  }
+
+  // 表示の好み（文字の大きさ・ホームの写真・全画面の ‹ ›）を端末間で同期（v390〜）。
+  // users/{uid}/meta/prefs に {fontScale, homeSquare, pvNavOff, updatedAt}。updatedAt の新しい方を採用し、
+  // こちらが新しければ書く。同じ時刻は触らない。設定を変えたときは app.js の prefChanged() からも呼ばれる
+  async function syncPrefs() {
+    if (!user || !db) return;
+    try {
+      const ref = dref('meta', 'prefs');
+      const snap = await fb.fs.getDoc(ref);
+      const remote = snap.exists() ? snap.data() : null;
+      const local = App.getDisplayPrefs();
+      const rAt = remote ? (Number(remote.updatedAt) || 0) : 0;
+      if (rAt > local.updatedAt) App.applyDisplayPrefs(remote);
+      else if (local.updatedAt > rAt) await fb.fs.setDoc(ref, clean(local));
+    } catch (e) { console.warn('表示の好みの同期に失敗:', e); }
   }
 
   // 設定の「キーを削除」用: クラウド側の控えも消す（残っていると次回ログインで復活してしまう）
@@ -889,6 +907,6 @@ const Cloud = (() => {
     searchUsers, isFollowing, follow, unfollow, followCounts, followProfiles,
     fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
-    publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep,
+    publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep, syncPrefs,
     syncNow: () => autoBackupSweep(true) }; // 引っ張って更新（v363〜）
 })();

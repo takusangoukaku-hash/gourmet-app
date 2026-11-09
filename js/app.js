@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v389'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v390'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -108,6 +108,45 @@ const App = (() => {
     if (sub) sub.textContent = `${scale.toFixed(2)}倍 ・ 麺屋 こがね`;
   }
 
+  // ---------- 表示の好み（v390〜 端末間で同期） ----------
+  //  文字の大きさ・ホームの写真・全画面の ‹ › を1つの組にして、変えた時刻 `gourmet.prefsAt` と一緒に
+  //  クラウド `users/{uid}/meta/prefs` と新しい方を採用で同期する（cloud.js の `syncPrefs()`）。
+  const PREF_KEYS = { fontScale: 'gourmet.fontScale', homeSquare: 'gourmet.homeSquare', pvNavOff: 'gourmet.pvNavOff' };
+  const PREFS_AT = 'gourmet.prefsAt';
+  function getDisplayPrefs() {
+    let at = 0, fontScale = 'auto', homeSquare = false, pvNavOff = false;
+    try {
+      at = Number(localStorage.getItem(PREFS_AT)) || 0;
+      fontScale = localStorage.getItem(PREF_KEYS.fontScale) || 'auto';
+      homeSquare = !!localStorage.getItem(PREF_KEYS.homeSquare);
+      pvNavOff = !!localStorage.getItem(PREF_KEYS.pvNavOff);
+    } catch { /* noop */ }
+    return { fontScale, homeSquare, pvNavOff, updatedAt: at };
+  }
+  // クラウドの値をこの端末に写す（値は検証してから）。画面の選択肢と見た目も合わせる
+  function applyDisplayPrefs(p) {
+    const o = p || {};
+    const fs = (o.fontScale === 'auto' || FONT_SCALES[o.fontScale]) ? o.fontScale : 'auto';
+    try {
+      localStorage.setItem(PREF_KEYS.fontScale, fs);
+      if (o.homeSquare) localStorage.setItem(PREF_KEYS.homeSquare, '1'); else localStorage.removeItem(PREF_KEYS.homeSquare);
+      if (o.pvNavOff) localStorage.setItem(PREF_KEYS.pvNavOff, '1'); else localStorage.removeItem(PREF_KEYS.pvNavOff);
+      localStorage.setItem(PREFS_AT, String(Number(o.updatedAt) || Date.now()));
+    } catch { /* noop */ }
+    applyFontScale();
+    syncPrefControls();
+    if (currentTab === 'feed') Views.renderFeed();
+  }
+  function syncPrefControls() {
+    const hs = $('#set-home-square'); if (hs) hs.value = localStorage.getItem(PREF_KEYS.homeSquare) ? '1' : '';
+    const pn = $('#set-pv-nav'); if (pn) pn.value = localStorage.getItem(PREF_KEYS.pvNavOff) ? '1' : '';
+  }
+  // 設定で変えたとき: 時刻を控え、ログイン中ならすぐクラウドへ
+  function prefChanged() {
+    try { localStorage.setItem(PREFS_AT, String(Date.now())); } catch { /* noop */ }
+    if (typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser() && Cloud.syncPrefs) Cloud.syncPrefs().catch(() => {});
+  }
+
   // ---------- 接続なし・同期中の帯（v368〜。見出しの下。普段は出さない） ----------
   //  接続なし: すぐ出す（記録は端末に残り、つながると同期される）。同期中: 2秒以上続いたときだけ出す（ちらつかせない）
   let netSyncTimer = 0, netSyncing = false;
@@ -137,10 +176,10 @@ const App = (() => {
     applyFontScale();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) applyFontScale(); }); // 端末の文字サイズを変えて戻ってきたとき
     const hs = $('#set-home-square'); // ホームの写真を正方形に（v378〜）
-    if (hs) { hs.value = localStorage.getItem('gourmet.homeSquare') ? '1' : ''; hs.addEventListener('change', () => { try { if (hs.value) localStorage.setItem('gourmet.homeSquare', '1'); else localStorage.removeItem('gourmet.homeSquare'); } catch { /* noop */ } if (currentTab === 'feed') Views.renderFeed(); }); }
+    if (hs) { hs.value = localStorage.getItem('gourmet.homeSquare') ? '1' : ''; hs.addEventListener('change', () => { try { if (hs.value) localStorage.setItem('gourmet.homeSquare', '1'); else localStorage.removeItem('gourmet.homeSquare'); } catch { /* noop */ } prefChanged(); if (currentTab === 'feed') Views.renderFeed(); }); }
     const pn = $('#set-pv-nav'); // 写真の全画面の ‹ ›（v389〜）
-    if (pn) { pn.value = localStorage.getItem('gourmet.pvNavOff') ? '1' : ''; pn.addEventListener('change', () => { try { if (pn.value) localStorage.setItem('gourmet.pvNavOff', '1'); else localStorage.removeItem('gourmet.pvNavOff'); } catch { /* noop */ } }); }
-    $('#set-font').addEventListener('change', () => { try { localStorage.setItem('gourmet.fontScale', $('#set-font').value); } catch { /* noop */ } applyFontScale(); });
+    if (pn) { pn.value = localStorage.getItem('gourmet.pvNavOff') ? '1' : ''; pn.addEventListener('change', () => { try { if (pn.value) localStorage.setItem('gourmet.pvNavOff', '1'); else localStorage.removeItem('gourmet.pvNavOff'); } catch { /* noop */ } prefChanged(); }); }
+    $('#set-font').addEventListener('change', () => { try { localStorage.setItem('gourmet.fontScale', $('#set-font').value); } catch { /* noop */ } prefChanged(); applyFontScale(); });
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
     Views.initList();
@@ -830,5 +869,5 @@ const App = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, toastUndo, flushUndo, seedSample, buildBackup, restoreBackup, backupDiff, loadLib, currentTab: () => currentTab };
+  return { switchTab, refreshCurrent, refreshAll, checkUpdate, toast, toastUndo, flushUndo, seedSample, buildBackup, restoreBackup, backupDiff, loadLib, getDisplayPrefs, applyDisplayPrefs, currentTab: () => currentTab };
 })();

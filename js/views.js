@@ -2244,6 +2244,17 @@ const Views = (() => {
     };
     body.querySelectorAll('.wish-more').forEach(b => b.addEventListener('click', () => openWishSheet(b.dataset.id)));
     body.querySelectorAll('.wish-row .wish-main').forEach(m => wireLongPress(m, () => openWishSheet(m.parentElement.dataset.id)));
+    // v390〜 行（店名の部分）のタップ: 登録済みの店が同じ名前ならその店の詳細、無ければ「探す」をその店名で開く
+    body.querySelectorAll('.wish-row .wish-main').forEach(m => m.addEventListener('click', () => {
+      const w = all.find(x => x.id === m.parentElement.dataset.id);
+      if (!w) return;
+      const hit = (w.doneShopId && Store.getShop(w.doneShopId)) || Store.shops().find(s => mergeNorm(s.name) === mergeNorm(w.name));
+      if (hit) { showShop(hit.id); return; }
+      App.switchTab('list'); // enterListTab で条件が空になってから入れる
+      setListMode(false);
+      $('#flt-keyword').value = w.name || '';
+      renderList();
+    }));
   }
 
   // 付いている絞り込みの数を「詳細」ボタンに出し、「条件を外す」を出し入れする（v367〜）
@@ -2996,6 +3007,7 @@ const Views = (() => {
     updateFilterBadge(); // 「詳細」に付いている条件の数（v367〜）
     if (listResultMode === 'photo') { exploreItems = null; renderSearchPhotos(); return; } // 写真の付け替え・削除・同期を拾い直す（v366〜）
     const box = $('#shop-list');
+    listSeq++; // v390〜 空の状態で終わるときも番号を進め、直前の非同期の描画（renderListSections）が上から描かないように
     const shops = sortShops(filteredShops());
 
     if (!Store.shops().length) {
