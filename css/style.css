@@ -2208,3 +2208,40 @@ body[data-tab="map"] .net-bar, body[data-tab="list"] .net-bar, body[data-tab="re
 .mc-ph { flex: 0 0 72px; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: none; padding: 0; background: var(--field); cursor: pointer; }
 .mc-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .msh-frows .pd-sect + .pd-sect { border-top: 8px solid var(--field); }
+
+/* ===================== v392 全体の見直し ===================== */
+/* 探すの結果: #shop-list がすでに main の余白を打ち消している。その中でさらに -16px していたため左右に 16px はみ出し、
+   文字が画面の端に付き、★のバッジが切れていた。写真は端まで、文字の部品は 16px、写真の格子は 10px（発見の格子と同じ） */
+#shop-list .pf-shopfeed { margin: 0; }
+#shop-list .list-head, #shop-list .mz-tools, #shop-list > .flt-active { padding-left: 16px; padding-right: 16px; }
+#shop-list .ph-stations { padding-left: 16px; padding-right: 16px; }
+#shop-list .list-station-map { width: calc(100% - 32px); margin-left: 16px; margin-right: 16px; }
+#shop-list > .mz-grid, #shop-list > .explore-grid > .mz-grid { padding-left: 10px; padding-right: 10px; }
+.empty-acts { margin-top: 14px; }
+/* 店の詳細の写真の帯: 下の記録（.sfs-slide）と同じ 4:3 の切り抜きに（1:1 に収める形だと上下に帯が出て、★が帯の上に浮いていた） */
+.d-swipe .pd-photo, .d-swipe.pd-carousel .pd-photo { aspect-ratio: 4 / 3; object-fit: cover; }
+/* 取り込みの見出し: 共通の .modal-head は余白 20px の箱が前提（margin -20px）。余白 0 のこの画面では ✕ が画面の外へ出て、手順の帯に重なっていた */
+.import-modal .modal-head { position: static; margin: 0; border-radius: 0; padding: 10px 14px 8px 16px; }
+.import-modal .modal-head h2 { padding: 0; font-size: 16px; }
+.import-modal .modal-head .modal-close { margin-left: -6px; }
+.import-modal .im-steps { padding-top: 10px; }
+/* button は親の文字色を継がない（既定は黒）。暗色で読めなかった所 */
+.pd-author, .set-profile { color: var(--text); font-family: inherit; }
+.wish-row { border-bottom-color: var(--border-lite); } /* --line は未定義で、暗色でも #efefef の明るい線だった */
+/* 素のままだった入力欄（暗色で白い箱） */
+.ve-date, #settings-api-key, #settings-yahoo-key, #settings-hotpepper-key, #settings-google-key {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; border: 1px solid var(--border-lite); border-radius: 10px;
+  background: var(--field); color: var(--text); font-family: inherit; font-size: 14px; padding: 8px 10px; min-height: 38px;
+}
+#settings-api-key, #settings-yahoo-key, #settings-hotpepper-key, #settings-google-key { width: 100%; margin: 4px 0 10px; }
+body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いている間は地図の絞り込みパネルも隠す */
+@media (prefers-color-scheme: dark) {
+  .ve-date { color-scheme: dark; }
+  .set-ic-gray { background: #3A3733; color: #C9C5BC; }
+  .set-ic-blue { background: #26384A; color: #8FB6E0; }
+  .set-ic-green { background: #26392A; color: #8FCB85; }
+  .map-panel, #map-search, #map-search:focus { background: var(--card); color: var(--text); }
+  .maplibregl-ctrl-group { background: var(--card); }
+  .maplibregl-ctrl-group button + button { border-top-color: var(--border); }
+  .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
+}

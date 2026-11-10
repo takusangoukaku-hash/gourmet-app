@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v391'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v392'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -88,6 +88,8 @@ const App = (() => {
   const FONT_SCALES = { s: 0.92, m: 1, l: 1.1, xl: 1.22 };
   function systemFontScale() {
     try {
+      // v392: -apple-system-body が無い環境（Android・PC）では指定が無視され、本文の 15px ÷ 17 ＝ 0.88 倍になっていた。対応していなければ等倍
+      if (!(window.CSS && CSS.supports && CSS.supports('font', '-apple-system-body'))) return 1;
       const el = document.createElement('span');
       el.style.cssText = 'position:absolute;visibility:hidden;font:-apple-system-body;';
       el.textContent = 'A';
@@ -285,7 +287,7 @@ const App = (() => {
       // ログイン中はアカウントにも控えを保存（ブラウザ都合で消えても自動復元される）
       if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.syncApiKeys().catch(() => {});
       $('#settings-modal').classList.add('hidden');
-      toast('設定を保存しました。');
+      toast('設定を保存しました');
     });
     $('#settings-clear').addEventListener('click', () => {
       Api.setApiKey('');
@@ -298,7 +300,7 @@ const App = (() => {
       // クラウドの控えも消す（残すと次回ログインで復活してしまう）
       if (typeof Cloud !== 'undefined') Cloud.clearApiKeys().catch(() => {});
       $('#settings-status').textContent = settingsStatus();
-      toast('APIキーを削除しました。');
+      toast('APIキーを削除しました');
     });
 
     // バックアップ（記録の書き出し・読み込み）
@@ -450,14 +452,16 @@ const App = (() => {
           if (reloaded) return;
           // 記録の入力中（写真・店名・評価あり）は保存が終わるまでリロードを待つ
           if (typeof Register !== 'undefined' && Register.isDirty && Register.isDirty()) {
-            if (!reloadPending) { reloadPending = true; toast('新しいバージョンがあります。記録を保存すると切り替わります'); }
+            if (!reloadPending) { reloadPending = true; toast('新しい版があります ・ 記録を保存すると切り替わります'); }
             return;
           }
           reloaded = true;
           try { sessionStorage.setItem('bitemap.resumeTab', currentTab); } catch { /* noop */ } // 再読み込み後に同じタブへ戻る（v367〜）
           location.reload();
         };
-        navigator.serviceWorker.addEventListener('controllerchange', tryReload);
+        // v392: 初めての訪問では SW が画面を引き取るだけ（clients.claim）なので再読み込みしない。以前は初回に数秒後の再読み込みが入っていた
+        let hadController = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadController) { hadController = true; return; } tryReload(); });
         document.addEventListener('bitemap:saved', () => { if (reloadPending) tryReload(); });
         // 待機中の新版を切り替える（SW に合図 → controllerchange → 再読み込み）
         const activate = (sw) => { try { sw.postMessage({ type: 'SKIP_WAITING' }); } catch { /* noop */ } };
@@ -466,7 +470,7 @@ const App = (() => {
         const onWaiting = (sw) => {
           if (!sw) return;
           if (!userActed && Date.now() - startedAt < 20000 && !(typeof Register !== 'undefined' && Register.isDirty && Register.isDirty())) { activate(sw); return; }
-          showUpdateBar(() => activate(sw));
+          showUpdateBar(() => activate(reg.waiting || sw)); // v392: 帯を出したあとにさらに新しい版が来ると、最初の worker は無効になり「更新」が効かなかった
         };
         if (reg.waiting && navigator.serviceWorker.controller) onWaiting(reg.waiting);
         reg.addEventListener('updatefound', () => {
@@ -483,8 +487,9 @@ const App = (() => {
     const urlTab = params.get('tab');
     let resumeTab = '';
     try { resumeTab = sessionStorage.getItem('bitemap.resumeTab') || ''; sessionStorage.removeItem('bitemap.resumeTab'); } catch { /* noop */ }
-    const firstTab = (urlTab && document.querySelector('#view-' + urlTab)) ? urlTab
-      : (resumeTab && document.querySelector('#view-' + resumeTab)) ? resumeTab // 新版への切り替えで再読み込みしたときは元のタブへ（v367〜）
+    const TAB_NAMES = ['feed', 'list', 'register', 'map', 'profile']; // v392: URL の ?tab= はこの中だけ（そのままセレクタに入れない）
+    const firstTab = TAB_NAMES.includes(urlTab) ? urlTab
+      : TAB_NAMES.includes(resumeTab) ? resumeTab // 新版への切り替えで再読み込みしたときは元のタブへ（v367〜）
       : (Store.shops().length ? 'list' : 'register');
     switchTab(firstTab);
 
@@ -492,7 +497,7 @@ const App = (() => {
     const shareUser = params.get('u');
     if (shareUser) Views.showPublicProfile(shareUser);
     // 地図アプリなどから「共有」で開かれた場合（manifest の share_target。Android）: 行きたい店の追加を開く
-    if (params.has('share')) {
+    if (params.has('share') || params.has('title') || params.has('text') || params.has('url')) { // v392: manifest の share_target（GET）は share= を付けられないので、title/text/url でも入る（Android の共有が開かなかった）
       const text = [params.get('title'), params.get('text'), params.get('url')].filter(Boolean).join('\n');
       history.replaceState(null, '', location.pathname); // 再読み込みで二度開かないよう消す
       if (text) setTimeout(() => Views.openWishAdd(text), 400);
@@ -520,6 +525,8 @@ const App = (() => {
 
   function switchTab(name) {
     flushUndo(); // 保留中の削除があれば確定してから移る（v375〜）
+    if (name !== 'map' && Views.closeMapSheets) Views.closeMapSheets(); // v392: 地図の店シートを残さない
+    if (Views.mzSelEnd) Views.mzSelEnd(); // v392: 写真の選択モードを残さない
     currentTab = name;
     document.body.dataset.tab = name; // 検索・登録・地図ではアプリの見出しを隠す（CSS。v337〜）
     document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -743,7 +750,13 @@ const App = (() => {
         const r = sanitizeRecord(kind, raw);
         if (!r) continue;
         const l = map.get(r.id);
-        if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
+        if (!l) {
+          // v392: こちらに無い記録を戻すときは「今」直したことにし、端末の削除の控えも外す。元の updatedAt のままだと、
+          // 消したときのクラウドの控え（削除の時刻）より古いので、次の同期でまた消えていた
+          r.updatedAt = Date.now();
+          try { Store.clearDeleted(kind, r.id); } catch { /* noop */ }
+          Store.applyRemote(kind, r); added++;
+        } else if ((r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
       }
     };
     merge('shop', Store.rawShops(), data.shops);
@@ -762,9 +775,13 @@ const App = (() => {
     // プロフィールは名前・自己紹介・アイコンだけ取り込む。@ユーザー名はクラウド側の予約と結びついているため
     // ファイルからは復元せず、ログイン時にクラウドから戻す
     if (isPlain(data.profile) && !Store.getProfile().username) {
-      const pf = { name: str(data.profile.name, 50) || 'BITEMAP', bio: str(data.profile.bio, 500) };
-      if (typeof data.profile.avatar === 'string' && DATA_IMG_RE.test(data.profile.avatar) && data.profile.avatar.length < 300000) pf.avatar = data.profile.avatar;
-      Store.setProfile(pf);
+      // v392: 今の名前・自己紹介・アイコンは上書きしない（空いている欄だけ埋める。古いバックアップで今の値が戻っていた）
+      const cur = Store.getProfile(), pf = {};
+      const nm = str(data.profile.name, 50), bio = str(data.profile.bio, 500);
+      if (nm && (!cur.name || cur.name === 'BITEMAP')) pf.name = nm;
+      if (bio && !cur.bio) pf.bio = bio;
+      if (!cur.avatar && typeof data.profile.avatar === 'string' && DATA_IMG_RE.test(data.profile.avatar) && data.profile.avatar.length < 300000) pf.avatar = data.profile.avatar;
+      if (Object.keys(pf).length) Store.setProfile(pf);
     }
     // 写真: 同じ訪問に同じ指紋（または同じ撮影登録時刻）の写真があれば二重に入れない
     let photos = 0;

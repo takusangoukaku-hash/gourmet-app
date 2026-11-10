@@ -256,7 +256,7 @@ const Views = (() => {
   }
   // <img> にサムネイルを非同期で差し込む
   function setThumb(img, rec) {
-    thumbUrl(rec).then(u => { if (u && img.isConnected !== false) img.src = u; });
+    thumbUrl(rec).then(u => { if (u && img.isConnected !== false && img._fullId !== rec.id) img.src = u; }); // 本体を表示済みなら上書きしない（v392）
   }
   // 縦向きに撮った写真は横長・正方形の枠で切り抜くと大きく見切れるので、
   // 全ての<img>で読み込み完了時に縦横を比べ、縦長なら .portrait を付ける。
@@ -270,11 +270,12 @@ const Views = (() => {
   }, true);
   // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
   function setFullPhoto(img, rec) {
+    img._fullId = '';
     setThumb(img, rec);
     fullPhotoUrl(rec).then(full => {
       if (!full) return;
       const pre = new Image();
-      pre.onload = () => { if (img.isConnected !== false) img.src = full; };
+      pre.onload = () => { if (img.isConnected !== false) { img._fullId = rec.id; img.src = full; } };
       pre.src = full;
     });
   }
@@ -1480,7 +1481,7 @@ const Views = (() => {
           ],
           facts: [
             myAvg ? { k: 'あなた', v: fmtR(myAvg), star: true } : null,
-            pair0.raters ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : null,
+            pair0.conf !== 'none' ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : null,
             vs.length >= 2 ? { k: '訪問', v: `${vs.length}回` } : null,
           ],
         })}
@@ -1626,7 +1627,7 @@ const Views = (() => {
             { cls: 'msh-share', icon: IC_SHARE_S, label: '共有' },
           ],
           facts: [
-            pair0.raters ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : (avg ? { k: 'みんな', v: fmtR(avg), star: true } : null),
+            pair0.conf !== 'none' ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : (avg ? { k: 'みんな', v: fmtR(avg), star: true } : null),
             { k: '投稿', v: `${posts.length}件` },
           ],
         })}
@@ -2091,11 +2092,12 @@ const Views = (() => {
     }
     // URL 以外の行: 店名（最初の行）と住所（〒・都道府県で始まる行）
     const lines = raw.split(/\r?\n/).map(l => l.replace(/https?:\/\/[^\s<>"]+/g, '').trim()).filter(Boolean);
-    const addrRe = /^(〒|日本|.{1,3}[都道府県])/;
+    const addrRe = /^(〒\s*\d|日本[、,\s]|(北海道|東京都|京都府|大阪府|[^\s]{2,3}県)\S*[市区町村郡])/; // v392: 都道府県名＋市区町村で始まる行だけを住所に（「京都勝牛」「焼肉道場」を住所にしない）
     for (const l of lines) {
       if (addrRe.test(l)) { if (!out.address) out.address = l.replace(/^日本、?\s*/, ''); continue; }
       if (!out.name) out.name = l;
     }
+    if (!out.name && !urls.length && out.address) { out.name = out.address; out.address = ''; } // 住所らしい1行だけなら店名として扱う（保存できなくなるのを防ぐ。v392）
     if (!out.source && out.name) out.source = 'text';
     out.name = out.name.replace(/\s+/g, ' ').trim().slice(0, 100);
     return out;
@@ -2168,6 +2170,7 @@ const Views = (() => {
       closeModal();
       refreshWishData();
       if (App.currentTab && App.currentTab() === 'feed') renderHomeMine();
+      else if (App.currentTab && App.currentTab() === 'profile') App.refreshCurrent(); // v392: マイページの「行きたい」から足したとき一覧に出す
     });
     if (prefill) { ta.value = prefill; cur = parseWishInput(prefill); paint(); if (cur.name && cur.lat == null) searchBtn.click(); }
   }
@@ -2583,6 +2586,7 @@ const Views = (() => {
 
   // 検索タブを開いたときは常に最初の画面（発見グリッド）から始める
   function enterListTab() {
+    mzSelEnd(); // v392: 選択モードを残さない（renderList を通らない戻り方で帯が残っていた）
     $('#flt-keyword').value = '';
     photoStation = ''; // v383〜 写真モードの駅も毎回まっさらに
     photoSort = 'new'; // v387〜 写真モードの並び替えも
@@ -3007,8 +3011,9 @@ const Views = (() => {
     hideExplore();
     refreshPrefOptions();
     updateFilterBadge(); // 「詳細」に付いている条件の数（v367〜）
-    if (listResultMode === 'photo') { exploreItems = null; renderSearchPhotos(); return; } // 写真の付け替え・削除・同期を拾い直す（v366〜）
+    if (listResultMode === 'photo') { listSeq++; exploreItems = null; renderSearchPhotos(); return; } // listSeq: 走っているお店の描画を無効に（v392） // 写真の付け替え・削除・同期を拾い直す（v366〜）
     const box = $('#shop-list');
+    searchPhotoSeq++; // v392: 走っている写真の描画を無効に（写真→お店と続けて押すと、お店の下に写真の格子が出ていた）
     listSeq++; // v390〜 空の状態で終わるときも番号を進め、直前の非同期の描画（renderListSections）が上から描かないように
     const shops = sortShops(filteredShops());
 
@@ -3415,7 +3420,7 @@ const Views = (() => {
           }
           $('#pf-sync').textContent = msg;
         }
-        if (state === 'synced') { renderProfile(); refreshNotifBadge(); } // 復元されたデータ・通知を反映
+        if (state === 'synced') { refreshNotifBadge(); } // v392: ここで renderProfile() しない（synced は5分おき・変更のたびに来て、マイページのスクロールが先頭へ戻っていた。データが届いたときは App.refreshCurrent() が呼ばれている） // 復元されたデータ・通知を反映
         if (state === 'signedout') { const bd = $('#notif-badge'); if (bd) bd.classList.add('hidden'); }
       });
     } else {
@@ -3725,7 +3730,13 @@ const Views = (() => {
       commit: () => {},
     });
   }
+  // 地図の店シートを片付ける（v392〜）。シートは自分の close() でしか消えず、詳細から「また来た」で記録へ移ると記録の画面の上に残っていた
+  function closeMapSheets() {
+    document.querySelectorAll('.modal.mapshop-modal').forEach(m => m.remove());
+    document.body.classList.remove('msh-open');
+  }
   function openRegisterFor(shopId) {
+    closeMapSheets();
     document.querySelectorAll('.modal.shopfeed-modal, .modal.visitlist-modal, .modal.postdetail-modal, .modal.action-sheet').forEach(m => m.remove());
     closeModal();
     App.switchTab('register');
@@ -4156,7 +4167,7 @@ const Views = (() => {
     const visitedShops = shops.filter(s => Store.visitCount(s.id) > 0).length; // v373〜 再訪率＝2回以上行った店 ÷ 行った店
     const revisited = shops.filter(s => Store.visitCount(s.id) >= 2).length;
     $('#stat-cards-more').innerHTML = [
-      [allAvg || '－', '味の平均'],
+      [allAvg ? fmtR(allAvg) : '－', '味の平均'],
       [`<span id="stat-pref-n">${prefCount}</span><small>/47</small>`, '訪れた都道府県'],
       [visitedShops ? `${Math.round(revisited / visitedShops * 100)}<small>%</small>` : '－', '再訪率'],
     ].map(tile).join('');
@@ -4759,7 +4770,7 @@ const Views = (() => {
     const myAvg = Store.avgRating(shopId) || 0;
     const stats = [
       myAvg ? [fmtR(myAvg), 'あなた', true] : null,
-      pair.raters ? [fmtR(pair.overall), 'みんな', true] : null,
+      pair.conf !== 'none' ? [fmtR(pair.overall), 'みんな', true] : null,
       vs.length ? [String(vs.length), '回 来店', false] : null,
     ].filter(Boolean);
     const cw = (W - 144) / Math.max(1, stats.length);
@@ -5076,7 +5087,7 @@ const Views = (() => {
     const myAvg0 = Store.avgRating(shopId) || 0;
     const facts0 = [
       myAvg0 ? { k: 'あなた', v: fmtR(myAvg0), star: true } : null,
-      pair0.raters ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : null,
+      pair0.conf !== 'none' ? { k: 'みんな', v: fmtR(pair0.overall), star: true } : null,
       vs.length >= 2 ? { k: '訪問', v: `${vs.length}回` } : null,
     ].filter(Boolean);
     const tilesHtml = `
@@ -5375,7 +5386,7 @@ const Views = (() => {
         <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
         <div class="ve-head"><b>店の情報</b></div>
         <div class="form-grid se-grid">
-          <label class="full">店舗名<input type="text" id="de-name" value="${esc(s.name)}"></label>
+          <label class="full">店名<input type="text" id="de-name" value="${esc(s.name)}"></label>
           <label>最寄駅<input type="text" id="de-station" value="${esc(s.station || '')}"></label>
           <label>都道府県<input type="text" id="de-pref" value="${esc(s.pref || '')}"></label>
           <label>市区町村<input type="text" id="de-city" value="${esc(s.city || '')}"></label>
@@ -5502,8 +5513,9 @@ const Views = (() => {
       const dateVal = ov.querySelector('.ve-date').value;
       if (!dateVal) { App.toast('訪問日を入力してください'); return; }
       Store.updateVisit(v.id, {
-        datetime: new Date(dateVal + 'T12:00:00').toISOString(),
-        rating: rating || 3,
+        // v392: 日付だけを差し替え、時刻は元のまま（以前は保存のたびに 12:00 になり、同じ日の並びが変わっていた）
+        datetime: (() => { const [y, m, d] = dateVal.split('-').map(Number); const nd = new Date(v.datetime); if (isNaN(nd)) return new Date(dateVal + 'T12:00:00').toISOString(); nd.setFullYear(y, m - 1, d); return nd.toISOString(); })(),
+        rating: rating || 0, // v392: 評価なし（★0）のまま保存できる（以前は ★3 に変わり、平均と公開投稿に入っていた）
         dishGenres: [...set],
         comment: ov.querySelector('.ve-comment').value.trim(),
       });
@@ -5916,7 +5928,7 @@ const Views = (() => {
     const atTop = () => (document.scrollingElement.scrollTop <= 0);
     document.addEventListener('touchstart', (e) => {
       const view = views.find(v => v.classList.contains('active'));
-      if (busy || !view || !atTop()) { pulling = false; return; }
+      if (busy || !view || !atTop() || document.querySelector('.modal:not(.hidden)')) { pulling = false; return; } // v392: 開いているモーダルの中の操作では発火させない（入力中のシートごと再読み込みされることがあった）
       bar = bars.get(view);
       startY = e.touches[0].clientY;
       pulling = true;
@@ -6297,7 +6309,7 @@ const Views = (() => {
         <div class="as-handle"></div>
         <div class="as-group">
           ${actions.map((a, i) =>
-            `<button type="button" class="as-item${a.danger ? ' danger' : ''}" data-i="${i}">${a.label}</button>`).join('')}
+            `<button type="button" class="as-item${a.danger ? ' danger' : ''}" data-i="${i}">${esc(a.label)}</button>`).join('')}
         </div>
         <button type="button" class="as-item as-cancel">キャンセル</button>
       </div>`;
@@ -6870,7 +6882,7 @@ const Views = (() => {
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）

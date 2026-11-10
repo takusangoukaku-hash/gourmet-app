@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v391'; // 行きたい店の「記録する」の長押しで写真なしの記録（元に戻せる）。探すで0件のとき「条件を外す／行きたい店に入れる」。速さの再計測（v390 の影響）と暗色・幅360の点検
+const VERSION = 'v392'; // 全体の見直し: 写真の削除が確定しても消えていなかった不具合、別端末の統合で写真が消える不具合、他アプリ(diet/lab)の画面を横取りする不具合、項目名のエスケープ漏れ、編集で★0が★3・時刻が12:00になる不具合、探すの余白、暗色の読めない字 など
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -13,7 +13,7 @@ const VN = VERSION.replace(/^v/, '');
 const SHELL = [
   './', './index.html', `./css/style.css?v=${VN}`,
   ...['store', 'api', 'cloud', 'register', 'import', 'views', 'app'].map(n => `./js/${n}.js?v=${VN}`),
-  `./js/vendor/anthropic-sdk.js?v=${VN}`,
+  './js/vendor/anthropic-sdk.js?v=330', // api.js が import する URL と同じにする（v392。以前は ?v=版 で、使われない方を毎回取りに行っていた）
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
 ];
@@ -29,7 +29,7 @@ const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.ope
 self.addEventListener('install', (e) => {
   // v359〜 ここでは skipWaiting しない。新版は「待機」にとどめ、ページ側が起動直後なら即切り替え、使用中なら帯を出して
   // タップされたら SKIP_WAITING を受けて切り替える（読んでいる最中に勝手に再読み込みしない）
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); // reload: HTTP キャッシュ（Pages は10分）の古い index.html を新しい版のキャッシュに入れない（v392）
 });
 self.addEventListener('message', (e) => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
@@ -76,13 +76,12 @@ self.addEventListener('fetch', (e) => {
     // 画面（index.html）はキャッシュ優先で即起動し、裏で取り直して次回に備える（v370〜。版の切り替えは app.js の update() → 新版の SW が担う。
     // 以前はネットワーク優先で、回線が遅いと起動がその分待たされていた）
     if (e.request.mode === 'navigate') {
-      e.respondWith(
-        caches.match('./index.html').then(m => {
-          const net = fetch(e.request).then(res => { if (cacheable(res)) { putCached(new Request('./index.html'), res.clone()).catch(() => {}); } return res; });
-          if (m) { net.catch(() => {}); return m; }
-          return net.catch(() => Response.error());
-        })
-      );
+      // v392: 自分の画面（./ と ./index.html）だけ扱う。以前は同じサイトの diet/・lab/ を開いても BITEMAP の index.html を返し、
+      // 取り直した相手の HTML を BITEMAP の index.html として保存していた。また、裏で取り直した新しい index.html を古い版のキャッシュへ入れると、
+      // 新しい SW の準備が終わる前にオフラインで開いたとき ?v= の合う CSS/JS が無くなるので、index.html は install のプリキャッシュだけにする
+      const root = new URL('./', self.location).pathname;
+      if (url.pathname !== root && url.pathname !== root + 'index.html') return;
+      e.respondWith(caches.match('./index.html').then(m => m || fetch(e.request).catch(() => Response.error())));
       return;
     }
     // それ以外（アイコン等）はネットワーク優先: 常に最新を取り、オフライン時のみキャッシュを使う

@@ -201,7 +201,16 @@ const Register = (() => {
     mountTasteStars();
     mountAxisStars();
     // 必須（店舗名・味の評価）の入力状況に合わせて保存ボタンの見た目と案内を更新
-    $('#f-shop-name').addEventListener('input', () => { updateSaveState(); updateStep(); updateDupHint(); });
+    $('#f-shop-name').addEventListener('input', () => {
+      // v392: 自動で選ばれた店・登録済みの店を選んだあとに店名を打ち替えたら、その選択は外す。選んだままだと、保存で既存の店が
+      // 打った名前に改名されたり、新しい店が別の候補の位置・ID を引き継いだりしていた
+      const val = $('#f-shop-name').value.trim();
+      if (selected && (autoPicked || selected.existingShopId) && val !== String(selected.name || '').trim()) {
+        selected = null; autoPicked = false;
+        document.querySelectorAll('#shop-candidates .candidate').forEach(x => x.classList.remove('selected', 'hidden'));
+      }
+      updateSaveState(); updateStep(); updateDupHint();
+    });
     updateSaveState();
 
     // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
@@ -1127,7 +1136,7 @@ const Register = (() => {
   }
 
   function resetForm() {
-    updateDupHint(); // 店名が空になるので隠れる（v365〜）
+    setTimeout(updateDupHint, 0); // 店名を空にした後で隠す（v392。先に呼ぶと、保存した直後の店が「登録済み」として次の記録に残っていた）
     pendingPhotos.forEach(p => URL.revokeObjectURL(p.url));
     pendingPhotos = [];
     activeDraftId = null;

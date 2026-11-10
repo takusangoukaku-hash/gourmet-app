@@ -134,7 +134,13 @@ const Store = (() => {
             };
           }
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          const d = req.result;
+          // v392〜 接続が切られたら（iOS が背面で閉じる・別タブの版上げ）次の呼び出しで開き直す。握ったままだと再起動まで写真の操作が全部失敗する
+          d.onclose = () => { dbPromise = null; };
+          d.onversionchange = () => { try { d.close(); } catch { /* noop */ } dbPromise = null; };
+          resolve(d);
+        };
         req.onerror = () => reject(req.error);
         req.onblocked = () => reject(new Error('写真データベースが他のタブで使用中です'));
       });
@@ -153,7 +159,7 @@ const Store = (() => {
   function metaOf(r) {
     return { id: r.id, shopId: r.shopId, visitId: r.visitId, type: r.type || 'dish', hash: r.hash || '',
       createdAt: r.createdAt || 0, remoteUrl: r.remoteUrl || '', hasBlob: !!r.blob, thumbV: r.thumb ? (r.thumbV || 1) : (r.thumbV || 0),
-      ar: Number(r.ar) || 0 };
+      ar: Number(r.ar) || 0, metaAt: Number(r.metaAt) || 0 };
   }
   // 本体＋メタ情報を書く共通処理（既存のサムネイル情報は保つ）
   function writePhoto(rec, notify) {
@@ -175,7 +181,7 @@ const Store = (() => {
         if (notify) emit('photo', 'put', body); // クラウドへ（Cloud側でblobをStorageへアップロード）
         resolve(rec.id);
       };
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     }));
   }
   // ar（縦/横）は Api.compressImage() が blob.aspect に付けてくる（v331〜）。無ければ後でサムネ作成時に埋まる
@@ -197,7 +203,7 @@ const Store = (() => {
         req.onsuccess = () => { const rec = req.result; if (rec) { rec.createdAt = createdAt; os.put(rec); } };
       }
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
   }
   // グリッド表示用のサムネイルを保存（次回から縮小画像を即表示できる）
@@ -211,7 +217,7 @@ const Store = (() => {
       const req = ms.get(id);
       req.onsuccess = () => { const m = req.result; if (m) { m.thumbV = thumbV || 1; if (Number(ar) > 0) m.ar = Number(ar); ms.put(m); } };
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
   }
   // 写真の縦横比（縦/横）をメタ情報にだけ書く（表示時の後追い。クラウドへは通知しない。v331〜）
@@ -225,17 +231,19 @@ const Store = (() => {
       const req = ms.get(id);
       req.onsuccess = () => { const m = req.result; if (m && !m.ar) { m.ar = ar; ms.put(m); } };
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
   }
   // 写真の店・訪問の付け替え（v364〜 店の統合がクラウド経由で届いたとき。通知は出さない）
-  async function relinkPhoto(id, shopId, visitId) {
+  // metaAt: クラウドのメタの時刻（同じ値を控えて、次の同期で「こちらが新しい」と誤って押し返さないように）。省略時は今
+  async function relinkPhoto(id, shopId, visitId, metaAt) {
     const rec = await getPhotoRec(id).catch(() => null);
     if (!rec || (rec.shopId === shopId && (!visitId || rec.visitId === visitId))) return false;
     rec.shopId = shopId;
     if (visitId) rec.visitId = visitId;
+    rec.metaAt = Number(metaAt) || Date.now();
     await writePhoto(rec, false);
-    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash].shopId = shopId; try { persistHashes(); } catch { /* noop */ } }
+    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash] = { shopId: rec.shopId, visitId: rec.visitId }; try { persistHashes(); } catch { /* noop */ } }
     return true;
   }
   // 写真1枚を別の訪問・別の店へ付け替える（v366〜 投稿詳細の「…」から）。クラウドにはメタ情報だけ送り、前後の訪問の公開投稿を出し直す
@@ -243,10 +251,10 @@ const Store = (() => {
     const rec = await getPhotoRec(id).catch(() => null);
     if (!rec || !shopId || !visitId) return false;
     const prevVisitId = rec.visitId;
-    rec.shopId = shopId; rec.visitId = visitId;
+    rec.shopId = shopId; rec.visitId = visitId; rec.metaAt = Date.now(); // v392〜 付け替えの時刻（端末間で新しい方を採る）
     await writePhoto(rec, false);
     if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash] = { shopId, visitId }; try { persistHashes(); } catch { /* noop */ } }
-    emit('photo', 'meta', { id, shopId, visitId, prevVisitId });
+    emit('photo', 'meta', { id, shopId, visitId, prevVisitId, metaAt: rec.metaAt });
     return true;
   }
   // 写真1枚だけ消す（訪問は残る）
@@ -278,7 +286,7 @@ const Store = (() => {
       const tx = d.transaction('drafts', 'readwrite');
       tx.objectStore('drafts').put(rec);
       tx.oncomplete = () => resolve(rec.id);
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
   }
   async function getDrafts() {
@@ -303,7 +311,7 @@ const Store = (() => {
       const tx = d.transaction('drafts', 'readwrite');
       tx.objectStore('drafts').delete(id);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
   }
   async function draftCount() { return (await getDrafts()).length; }
@@ -319,14 +327,16 @@ const Store = (() => {
   // 指紋が一致する登録済み写真を探す（なければ null）
   const findPhotoByHash = (hash) => (hash && photoHashes[hash]) || null;
   // 全写真のメタ情報（本体は含まない。表示は getThumb / getPhotoBlob で1枚ずつ）
-  async function allPhotos() {
+  // 生の一覧（削除の保留中のものも含む）。削除・掃除・統合のように「本当にあるもの」を相手にする処理はこちらを読む（v392〜）
+  async function rawPhotos() {
     const d = await db();
     return new Promise((resolve, reject) => {
       const req = d.transaction('meta').objectStore('meta').getAll();
-      req.onsuccess = () => resolve(livePhotos(req.result || []));
+      req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
   }
+  async function allPhotos() { return livePhotos(await rawPhotos()); }
   async function photosOfVisit(visitId) {
     const d = await db();
     return new Promise((resolve, reject) => {
@@ -340,7 +350,7 @@ const Store = (() => {
   async function putBackup(data) {
     const d = await db();
     const rec = { at: Date.now(), n: { shops: (data.shops || []).length, visits: (data.visits || []).length, wishes: (data.wishes || []).length }, data };
-    await new Promise((resolve, reject) => { const tx = d.transaction('backups', 'readwrite'); tx.objectStore('backups').put(rec); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    await new Promise((resolve, reject) => { const tx = d.transaction('backups', 'readwrite'); tx.objectStore('backups').put(rec); tx.oncomplete = resolve; tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました')); });
     const all = await listBackups();
     for (const b of all.slice(BACKUP_KEEP)) await new Promise((resolve) => { const tx = d.transaction('backups', 'readwrite'); tx.objectStore('backups').delete(b.at); tx.oncomplete = resolve; tx.onerror = resolve; });
     return rec.at;
@@ -369,8 +379,10 @@ const Store = (() => {
       req.onerror = () => reject(req.error);
     });
   }
+  // v392: 以前は allPhotos()（削除の保留中を除いた一覧）を読んでいたため、「元に戻す」の時間が過ぎて確定するとき、
+  // 消す対象の写真そのものが見えず、何も消えていなかった（その場では隠れるが、再起動で戻り、クラウドからも消えない）。生の一覧を読む
   async function deletePhotosWhere(pred) {
-    const all = await allPhotos();
+    const all = await rawPhotos();
     const d = await db();
     const tx = d.transaction(['photos', 'meta', 'thumbs'], 'readwrite');
     const removed = [];
@@ -383,9 +395,10 @@ const Store = (() => {
         for (const p of removed) { if (p.hash) delete photoHashes[p.hash]; }
         if (removed.length) { try { persistHashes(); } catch { /* noop */ } }
         for (const p of removed) { markDeleted('photo', p.id); emit('photo', 'del', { id: p.id, hash: p.hash, visitId: p.visitId }); } // visitId は公開投稿の出し直し用（v366〜）
+        for (const p of removed) pendingDel.photo.delete(p.id); // 確定したので保留から外す
         resolve();
       };
-      tx.onerror = () => resolve();
+      tx.onerror = tx.onabort = () => resolve();
     });
   }
   // 代表写真: 最新の訪問の写真（料理写真を優先）
@@ -429,6 +442,7 @@ const Store = (() => {
     for (const v of removedVisits) markDeleted('visit', v.id);
     emit('shop', 'del', { id });
     for (const v of removedVisits) emit('visit', 'del', { id: v.id });
+    for (const v of removedVisits) { try { undoWishForVisit(v.id); } catch { /* noop */ } pendingDel.visit.delete(v.id); } // v392〜 その訪問で達成になっていた行きたい店は未達成へ戻す（deleteVisit と同じ）
     await deletePhotosWhere(p => p.shopId === id);
   }
   const getShop = (id) => shops.find(s => s.id === id) || null;
@@ -454,14 +468,23 @@ const Store = (() => {
     if (drop.favorite && !keep.favorite) patch.favorite = true;
     if (Object.keys(patch).length) updateShop(keepId, patch);
     for (const v of visits.filter(x => x.shopId === dropId)) updateVisit(v.id, { shopId: keepId });
-    const metas = (await allPhotos()).filter(m => m.shopId === dropId);
+    const metas = (await rawPhotos()).filter(m => m.shopId === dropId);
     for (const m of metas) {
       const rec = await getPhotoRec(m.id).catch(() => null);
-      if (rec) { rec.shopId = keepId; await writePhoto(rec, false); emit('photo', 'meta', metaOf(rec)); }
-      if (m.hash && photoHashes[m.hash]) photoHashes[m.hash].shopId = keepId;
+      if (rec) {
+        rec.shopId = keepId; rec.metaAt = Date.now();
+        try { await writePhoto(rec, false); emit('photo', 'meta', metaOf(rec)); if (m.hash && photoHashes[m.hash]) photoHashes[m.hash].shopId = keepId; } catch { /* 下で残りを確かめる */ }
+      }
     }
     if (metas.length) { try { persistHashes(); } catch { /* noop */ } }
-    await deleteShop(dropId); // 訪問・写真は移した後なので店だけ消える
+    // v392〜 drop で達成になっていた行きたい店は keep を指すように（一覧の「記録」ボタンが消えないように）
+    let wishTouched = false;
+    for (const w of wishes) if (w.doneShopId === dropId) { w.doneShopId = keepId; w.updatedAt = Date.now(); wishTouched = true; emit('wish', 'put', w); }
+    if (wishTouched) persistWishes();
+    // v392〜 読み書きに失敗して drop に残った写真があるなら drop は消さない（deleteShop は店の写真も消すため、移し損ねた写真が失われる）。
+    // 訪問は keep へ移っているので、次の cleanupOrphans が写真を訪問の店へ付け替える
+    const left = await rawPhotos().then(all => all.some(m => m.shopId === dropId)).catch(() => true);
+    if (!left) await deleteShop(dropId); // 訪問・写真は移した後なので店だけ消える
     return getShop(keepId);
   }
 
@@ -541,7 +564,8 @@ const Store = (() => {
   }
   // 達成度: { done, total, rate(0〜100) }。外した（削除した）行きたいは数えない
   function wishProgress(filterFn) {
-    const list = filterFn ? wishes.filter(filterFn) : wishes;
+    const live = pendingDel.wish.size ? wishes.filter(w => !pendingDel.wish.has(w.id)) : wishes; // v392〜 外した直後（元に戻すの待ち）のものは数えない
+    const list = filterFn ? live.filter(filterFn) : live;
     const done = list.filter(isDone).length, total = list.length;
     return { done, total, rate: total ? Math.round(done / total * 100) : 0 };
   }
@@ -561,6 +585,7 @@ const Store = (() => {
     wishes = wishes.filter(x => x.id !== id); persistWishes();
     markDeleted('wish', id);
     emit('wish', 'del', { id });
+    pendingDel.wish.delete(id);
   }
 
   // ---------- 訪問記録（Visit） ----------
@@ -600,6 +625,7 @@ const Store = (() => {
     emit('visit', 'del', { id });
     try { undoWishForVisit(id); } catch { /* noop */ }
     await deletePhotosWhere(p => p.visitId === id);
+    pendingDel.visit.delete(id); // 確定したので保留から外す（v392〜）
   }
   // 削除の保留（v375〜）: 「削除」を押してから数秒は本当には消さず、一覧からだけ外す（トーストの「元に戻す」で戻せる）。
   // visits()/visitsOf()/wishes()/allPhotos()/photosOfVisit()/photosOfShop() が保留中のものを除く。確定は呼び元が deleteVisit 等を呼ぶ
@@ -637,15 +663,26 @@ const Store = (() => {
 
   // 店の無い訪問・訪問の無い写真を消す（v370〜。同期で記録を取り込んだ後と、設定の「店の無い記録を掃除」から）。
   // 消したものはクラウドにも伝える（通常の削除と同じ）
+  // v392: 写真は「訪問があるのに店の id が違う／店が無い」なら訪問の店へ付け替える（消さない）。別端末で店を統合すると、訪問は
+  // 残す店へ移って届くのに写真のメタは古い店のまま、という瞬間があり、以前はここで孤児として消して他の端末からも消えていた。
+  // 消すのは訪問そのものが無い写真だけ。判定に使う一覧は写真を読んだ後に作る（読む前の控えだと、その間に保存した記録の写真を消してしまう）
   async function cleanupOrphans() {
-    const shopIds = new Set(shops.map(s => s.id));
-    const orphanVisits = visits.filter(v => !shopIds.has(v.shopId));
+    const shopIds0 = new Set(shops.map(s => s.id));
+    const orphanVisits = visits.filter(v => !shopIds0.has(v.shopId));
     for (const v of orphanVisits) await deleteVisit(v.id);
-    const visitIds = new Set(visits.map(v => v.id));
-    const before = (await allPhotos()).length;
-    await deletePhotosWhere(p => !visitIds.has(p.visitId) || !shopIds.has(p.shopId));
-    const after = (await allPhotos()).length;
-    return { visits: orphanVisits.length, photos: before - after };
+    let relinked = 0;
+    for (const p of await rawPhotos()) {
+      const v = visits.find(x => x.id === p.visitId);
+      if (v && p.shopId !== v.shopId && getShop(v.shopId)) { try { if (await relinkPhoto(p.id, v.shopId, v.id)) { relinked++; emit('photo', 'meta', { id: p.id, shopId: v.shopId, visitId: v.id, prevVisitId: v.id, metaAt: Date.now() }); } } catch { /* noop */ } }
+    }
+    const before = (await rawPhotos()).length;
+    let vById = null;
+    await deletePhotosWhere(p => {
+      if (!vById) vById = new Map(visits.map(v => [v.id, v])); // 写真を読んだ後の、今の訪問
+      return !vById.has(p.visitId);
+    });
+    const after = (await rawPhotos()).length;
+    return { visits: orphanVisits.length, photos: before - after, relinked };
   }
   // 別端末での削除をこちらにも反映する（v365〜）。通知も墓標も出さず、他の記録へ波及させない
   // （店を消したときの訪問・写真は、それぞれの削除の控えで消える）。削除より後に直した記録は残す
@@ -661,13 +698,14 @@ const Store = (() => {
     } finally { remoteApply = false; }
   }
   async function removePhotoLocal(id) {
-    const p = (await allPhotos()).find(x => x.id === id);
+    const p = (await rawPhotos()).find(x => x.id === id);
     if (!p) return false;
+    pendingDel.photo.delete(id);
     const d = await db();
     await new Promise((resolve) => {
       const tx = d.transaction(['photos', 'meta', 'thumbs'], 'readwrite');
       for (const n of ['photos', 'meta', 'thumbs']) tx.objectStore(n).delete(id);
-      tx.oncomplete = resolve; tx.onerror = () => resolve();
+      tx.oncomplete = resolve; tx.onerror = tx.onabort = () => resolve();
     });
     if (p.hash && photoHashes[p.hash]) { delete photoHashes[p.hash]; try { persistHashes(); } catch { /* noop */ } }
     return true;
@@ -710,14 +748,20 @@ const Store = (() => {
     for (const k of [SHOPS_KEY, VISITS_KEY, HASHES_KEY, PROFILE_KEY, WISHES_KEY, DELETED_KEY, HITS_KEY, ...SOCIAL_KEYS]) {
       try { localStorage.removeItem(k); } catch { /* noop */ }
     }
+    // v392〜 前の利用者のものが残らないように: 端末内の自動バックアップ（復元すると前のアカウントの記録が入る）・現在地の控え・取り込みと統合の覚え書き
+    for (const k of ['gourmet.lastPos', 'gourmet.lastAutoBackupAt', 'gourmet.lastBackupAt', 'gourmet.lastRestoreAt', 'gourmet.lastCleanup', 'gourmet.mergeIgnored', 'gourmet.importSkipped.v1']) {
+      try { localStorage.removeItem(k); } catch { /* noop */ }
+    }
     shops = []; visits = []; wishes = []; photoHashes = {}; deleted = []; hits = []; rev++;
+    pendingDel.visit.clear(); pendingDel.photo.clear(); pendingDel.wish.clear();
     try {
       const d = await db();
       await new Promise((resolve) => {
-        const tx = d.transaction(['photos', 'drafts', 'meta', 'thumbs'], 'readwrite');
-        for (const n of ['photos', 'drafts', 'meta', 'thumbs']) tx.objectStore(n).clear();
+        const names = ['photos', 'drafts', 'meta', 'thumbs', 'backups'].filter(n => d.objectStoreNames.contains(n));
+        const tx = d.transaction(names, 'readwrite');
+        for (const n of names) tx.objectStore(n).clear();
         tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
+        tx.onerror = tx.onabort = () => resolve();
       });
     } catch { /* IndexedDB が使えない環境では localStorage だけ消す */ }
   }

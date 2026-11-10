@@ -95,6 +95,7 @@ const Cloud = (() => {
           } catch (e) { console.error('sync error:', e); setStatus('error', e); }
         } else {
           Store.setSyncHook(null);
+          try { pending.clear(); } catch { /* noop */ } // v392: 書き込み待ちを次のアカウントへ持ち越さない
           setStatus('signedout');
         }
       });
