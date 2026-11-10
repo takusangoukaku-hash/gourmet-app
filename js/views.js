@@ -1140,7 +1140,7 @@ const Views = (() => {
         }
         if (recenter) map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 15) });
       },
-      () => App.toast('現在地を取得できませんでした（位置情報を許可してください）'),
+      () => { if (recenter) App.toast('現在地を取得できませんでした（位置情報を許可してください）'); }, // v393: 黙って呼ぶ地図の読み込み時はトーストを出さない
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
   }
@@ -1868,10 +1868,13 @@ const Views = (() => {
     });
     node.querySelector('.popup-nav').addEventListener('click', () => openNav({ name: w.name, lat: w.lat, lon: w.lon }));
     node.querySelector('.popup-unwish').addEventListener('click', () => {
-      Store.removeWish(w.id);
+      // v393: 即削除せず、行きたい一覧と同じく保留＋元に戻す
+      const id = w.id;
+      Store.deferDelete('wish', id);
       if (mapPopup) mapPopup.remove();
-      App.toast('行きたい店から外しました');
+      refreshWishData();
       refreshMap(); // 「行きたい店だけ」表示で最後の1件を外したときは元の表示に戻る
+      App.toastUndo('外しました', { undo: () => { Store.undoDelete('wish', id); refreshWishData(); refreshMap(); }, commit: () => { Store.removeWish(id); refreshWishData(); } });
     });
     if (mapPopup) mapPopup.remove();
     // ピン（細身の涙型・高さ30px×その倍率での拡大率）の頭の上に出す
@@ -2243,7 +2246,7 @@ const Views = (() => {
       if (w.doneAt) acts.push({ label: '達成を取り消す（行きたいに戻す）', onClick: () => { Store.undoWish(w.id); refreshWishData(); App.toast('行きたい店に戻しました'); again(); } });
       acts.push({ label: w.doneAt ? '一覧から外す' : '行きたい店から外す', danger: true, onClick: () => {
         Store.deferDelete('wish', w.id); refreshWishData(); again(); // v375〜 元に戻せる
-        App.toastUndo('外しました', { undo: () => { Store.undoDelete('wish', w.id); refreshWishData(); again(); }, commit: () => { Store.removeWish(w.id); refreshWishData(); } });
+        App.toastUndo('外しました', { undo: () => { Store.undoDelete('wish', w.id); refreshWishData(); again(); }, commit: () => { Store.removeWish(w.id); refreshWishData(); if (body.isConnected) again(); /* v393: 達成度の行を最新に */ } });
       } });
       openActionSheet(acts);
     };
@@ -2286,8 +2289,10 @@ const Views = (() => {
       done.textContent = `${filteredShops().length} 件を表示`;
     };
     updateDone();
-    panel.addEventListener('change', () => setTimeout(updateDone, 0));
-    panel.addEventListener('click', () => setTimeout(updateDone, 0));
+    // v393: 開くたびに常設の panel へ足すと増えるので、閉じると捨てられる .flt-body に付ける
+    const fltBody = ov.querySelector('.flt-body');
+    fltBody.addEventListener('change', () => setTimeout(updateDone, 0));
+    fltBody.addEventListener('click', () => setTimeout(updateDone, 0));
     const close = () => { panel.classList.add('hidden'); home.appendChild(panel); ov.remove(); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     done.addEventListener('click', close);
@@ -2682,7 +2687,7 @@ const Views = (() => {
     box.innerHTML = SKEL_CATS; // v375〜 文字ではなく骨組み
     const items = await loadExploreItems();
     if (!items.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>最初の一皿を記録してみましょう。',
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません<br>最初の一皿を記録してみましょう', // v393: 文末の。を外す
         '<button class="btn primary empty-add">写真を登録する</button>');
       box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
       return;
@@ -2976,7 +2981,7 @@ const Views = (() => {
     const keys = String(genre || '').split(GKEY_SEP).filter(Boolean);
     const list = keys.length ? items.filter(it => it.genres.some(g => keys.includes(g))) : items;
     if (!list.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません。');
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'このカテゴリーの写真はまだありません');
       return;
     }
     box.innerHTML = '';
@@ -3019,7 +3024,7 @@ const Views = (() => {
 
     if (!Store.shops().length) {
       box.innerHTML = emptyBox(EMPTY_IC_FORK,
-        'まだ記録がありません。<br>「＋」から料理の写真を登録してみましょう。',
+        'まだ記録がありません<br>「＋」から料理の写真を登録してみましょう',
         '<button class="btn primary" id="seed-btn">サンプルデータで試す</button>');
       $('#seed-btn').addEventListener('click', () => App.seedSample());
       return;
@@ -3192,8 +3197,22 @@ const Views = (() => {
       }
       return true;
     });
+    // v393: 駅のチップ行を部品に（0件でも出して、駅の絞り込みを外せるようにする）
+    const makeStationRow = () => {
+      const stTop = topStations(8);
+      if (!stTop.length) return null;
+      const row = document.createElement('div');
+      row.className = 'ex-station-row ph-stations';
+      row.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === st ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
+      row.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { photoStation = photoStation === b.dataset.st ? '' : b.dataset.st; renderSearchPhotos(); }));
+      return row;
+    };
     if (!list.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません。');
+      box.innerHTML = '';
+      const row0 = makeStationRow(); if (row0) box.appendChild(row0);
+      const chips0 = activeFilterChips(0, '枚');
+      if (chips0) { const t = document.createElement('div'); t.className = 'mz-tools'; t.appendChild(chips0); box.appendChild(t); }
+      box.insertAdjacentHTML('beforeend', emptyBox(EMPTY_IC_PHOTO, '条件に一致する写真がありません'));
       return;
     }
     const grid = document.createElement('div');
@@ -3214,14 +3233,8 @@ const Views = (() => {
     });
     box.innerHTML = '';
     // v383〜 「駅から」のチップ（記録の多い駅 8 つ。タップでその駅の写真だけ、もう一度で解除）
-    const stTop = topStations(8);
-    if (stTop.length) {
-      const row = document.createElement('div');
-      row.className = 'ex-station-row ph-stations';
-      row.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === st ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
-      row.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { photoStation = photoStation === b.dataset.st ? '' : b.dataset.st; renderSearchPhotos(); }));
-      box.appendChild(row);
-    }
+    const stRow = makeStationRow();
+    if (stRow) box.appendChild(stRow);
     const chips = activeFilterChips(list.length, '枚'); // v381〜 写真モードにも付いている条件（× で外す）
     { // v372〜 自分の写真があれば「選択」（長押しの代わりの見えるボタン）。v387〜 並び替えの今の値も
       const tools = document.createElement('div');
@@ -3501,7 +3514,11 @@ const Views = (() => {
       return t || p.createdAt || 0;
     };
     if (!photos.length) {
-      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません。<br>最初の一皿を記録してみましょう。',
+      // v393: 写真が0枚になったら駅のチップと件数を残さない
+      pfStation = '';
+      const stRow0 = $('#pf-stations'); if (stRow0) { stRow0.innerHTML = ''; stRow0.classList.add('hidden'); }
+      const nEl0 = $('#pf-photo-n'); if (nEl0) nEl0.textContent = '';
+      box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません<br>最初の一皿を記録してみましょう',
         '<button class="btn primary empty-add">写真を登録する</button>');
       box.querySelector('.empty-add').addEventListener('click', () => Register.openCamera());
       return;
@@ -3527,6 +3544,7 @@ const Views = (() => {
     // v388〜 絞り込み欄の下に「駅から」のチップ（記録の多い駅 8 つ。探すの写真モードと同じ形）
     let stRow = $('#pf-stations');
     if (!stRow) { stRow = document.createElement('div'); stRow.id = 'pf-stations'; stRow.className = 'ex-station-row ph-stations pf-stations'; box.before(stRow); }
+    stRow.classList.remove('hidden'); // v393: 写真が0枚のときに隠したものを戻す
     const stTop = topStations(8);
     stRow.classList.toggle('hidden', !stTop.length);
     stRow.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === pfStation ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
@@ -4073,7 +4091,7 @@ const Views = (() => {
         return `<button type="button" class="tr-row" data-user="${esc(name)}">
           <span class="tr-rank">${i + 1}位</span>
           <span class="tr-avatar">${av}</span>
-          <span class="tr-names"><b>${esc(p.displayName || name)}さん</b><span>共通店舗 ${m.common}件</span></span>
+          <span class="tr-names"><b>${esc(p.displayName || name)}さん</b><span>共通${m.common}店</span></span>
           <span class="tr-rate">${m.rate}%</span>
         </button>`;
       }).join('');
@@ -5406,7 +5424,7 @@ const Views = (() => {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.ve-close').addEventListener('click', close);
     ov.querySelector('#d-cancel').addEventListener('click', close);
-    ov.querySelector('#de-pos-addr').addEventListener('click', () => { close(); fixPosByAddress(shopId); });
+    ov.querySelector('#de-pos-addr').addEventListener('click', () => { const typed = ov.querySelector('#de-address').value.trim(); close(); fixPosByAddress(shopId, typed); }); // v393: 打ちかけの住所を使う
     // v376〜 住所を入れたら（入力を離れたとき）、空いている 最寄駅・都道府県・市区町村 を住所から埋める（登録画面と同じ仕組み）
     let fillSeq = 0;
     const addrInput = ov.querySelector('#de-address');
@@ -5819,6 +5837,7 @@ const Views = (() => {
         <div class="sh-body"></div>
       </div>`;
     const body = ov.querySelector('.sh-body');
+    let editingUsername = false; // v393: 「ユーザー名を変更」中だけ入力欄を出す（モーダルごとの状態＝閉じれば消える）
     const close = () => ov.remove();
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.sh-close').addEventListener('click', close);
@@ -5831,14 +5850,14 @@ const Views = (() => {
     cardRow.querySelector('.sh-card').addEventListener('click', () => { close(); shareRecordCard(); });
     body.after(cardRow);
     if (!loggedIn) {
-      body.innerHTML = `<p class="sh-note">プロフィールのURLを共有するにはGoogleログイン（同期）が必要です。<br>プロフィール画面の「ログイン」からサインインしてください。</p>`;
+      body.innerHTML = `<p class="sh-note">プロフィールのURLを共有するにはGoogleログイン（同期）が必要です。<br>設定の「ログイン」からサインインしてください。</p>`;
       document.body.appendChild(ov);
       return;
     }
 
     const renderShare = () => {
       const cur = Store.getProfile();
-      if (!cur.username) {
+      if (!cur.username || editingUsername) { // v393: 変更中は保存済みの名前を消さず、入力欄だけ出す
         body.innerHTML = `
           <p class="sh-note">共有用の<strong>ユーザー名（@ハンドル）</strong>を決めてください。<br>半角英数字と _ が使えます（3〜20文字）。</p>
           <div class="sh-row"><span class="sh-at">@</span>
@@ -5847,11 +5866,13 @@ const Views = (() => {
           </div>
           <div class="sh-msg"></div>`;
         const input = body.querySelector('.sh-input');
+        if (editingUsername) input.value = cur.username || '';
         const msg = body.querySelector('.sh-msg');
         body.querySelector('.sh-set').addEventListener('click', async () => {
           msg.textContent = '設定中…';
           try {
             await Cloud.setUsername(input.value);
+            editingUsername = false;
             App.toast('ユーザー名を設定しました');
             renderProfile();
             renderShare();
@@ -5881,7 +5902,7 @@ const Views = (() => {
           catch (e) { msg.textContent = '' + (e && e.message || e); }
         });
         body.querySelector('.sh-rename').addEventListener('click', () => {
-          Store.setProfile({ username: '' }); // 入力欄を出すため一旦クリア（確定時に新名を予約）
+          editingUsername = true; // v393: 保存済みの名前は触らない（やめても投稿の公開が止まらない。旧名の解放は setUsername が行う）
           renderShare();
         });
       }
@@ -6163,12 +6184,13 @@ const Views = (() => {
     document.body.classList.remove('map-picking');
   }
   // 住所から位置を探し直す（Nominatim）。候補を出して選ばせる
-  async function fixPosByAddress(shopId) {
+  async function fixPosByAddress(shopId, addrOverride) {
     const s = Store.getShop(shopId);
-    if (!s || !s.address) { App.toast('住所が入っていません'); return; }
+    const addr = (addrOverride && String(addrOverride).trim()) || (s && s.address); // v393: シートで打った住所を優先
+    if (!s || !addr) { App.toast('住所が入っていません'); return; }
     App.toast('住所から探しています…');
     let list = [];
-    try { list = await Api.geocodeAddress(s.address); } catch { list = []; } // 国土地理院 → Nominatim（v363〜）
+    try { list = await Api.geocodeAddress(addr); } catch { list = []; } // 国土地理院 → Nominatim（v363〜）
     list = (list || []).filter(x => x && x.lat != null && x.lon != null).slice(0, 5);
     if (!list.length) { App.toast('住所から位置が見つかりませんでした。「地図で指定」をお試しください'); return; }
     openActionSheet(list.map(x => ({
@@ -6221,8 +6243,13 @@ const Views = (() => {
         </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
-    if (localStorage.getItem('gourmet.homeSquare')) { img.style.aspectRatio = '1 / 1'; img.addEventListener('load', () => mzFit(card)); } // v378〜 正方形（読み込んだら行数だけ合わせる）
-    else mzWatch(card, img);
+    if (localStorage.getItem('gourmet.homeSquare')) { // v378〜 正方形（読み込んだら行数だけ合わせる）
+      img.style.aspectRatio = '1 / 1'; img.addEventListener('load', () => mzFit(card));
+      // v393: 写真なし・読み込み失敗でも行数を合わせる（mzWatch と同じく大きさの変化も見る）
+      img.addEventListener('error', () => mzFit(card));
+      if (mzRO && card.firstElementChild) mzRO.observe(card.firstElementChild);
+      requestAnimationFrame(() => mzFit(card));
+    } else mzWatch(card, img);
     const showImg = (url) => {
       if (!url) return;
       if (img.src !== url) img.src = url;
@@ -6325,19 +6352,22 @@ const Views = (() => {
   async function toggleLikeUI(btn) {
     const id = btn.dataset.post;
     if (typeof Cloud === 'undefined' || !Cloud.getUser()) { App.toast('いいねするにはログインが必要です'); return; }
+    if (btn.dataset.busy) return; // v393: 素早い二度押しで toggleLike を二重に走らせない
+    btn.dataset.busy = '1';
     const nEl = btn.querySelector('.fa-like-n');
     const wasLiked = btn.classList.contains('liked');
     btn.classList.toggle('liked', !wasLiked);
-    nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? -1 : 1));
+    const setN = (n) => { nEl.textContent = n > 0 ? String(n) : ''; }; // v393: 0 は出さない
+    setN(Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? -1 : 1)));
     const s = feedStats.get(id); // キャッシュも更新して整合を保つ
     if (s) { s.liked = !wasLiked; s.likes = Math.max(0, s.likes + (wasLiked ? -1 : 1)); }
     try { await Cloud.toggleLike(id); }
     catch (err) {
       btn.classList.toggle('liked', wasLiked);
-      nEl.textContent = Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? 1 : -1));
+      setN(Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? 1 : -1)));
       if (s) { s.liked = wasLiked; s.likes = Math.max(0, s.likes + (wasLiked ? 1 : -1)); }
       App.toast('' + (err && err.message || err));
-    }
+    } finally { delete btn.dataset.busy; }
   }
 
   // 投稿1件ぶんのセクションを組み立てて返す（写真・評価・お店の情報・いいね・コメント）
@@ -6439,7 +6469,13 @@ const Views = (() => {
         items.forEach(it => box.appendChild(slide(it)));
       }
       // v385〜 写真のタップは写真だけの全画面（左右送り・拡大）。日付は自分の記録だけ
-      const vItems = items.map(it => ({ ph: it.ph, url: it.url, rating: it.rating, date: isMine && p.datetime ? fmtDate(p.datetime) : '' }));
+      // v393: 複数回の記録をまとめた投稿は、写真ごとにその写真の訪問日を出す
+      const dateOf = (it) => {
+        const ownV = isMine && it.ph && it.ph.visitId ? Store.visits().find(v => v.id === it.ph.visitId) : null;
+        const dt = (ownV && ownV.datetime) || p.datetime;
+        return isMine && dt ? fmtDate(dt) : '';
+      };
+      const vItems = items.map(it => ({ ph: it.ph, url: it.url, rating: it.rating, date: dateOf(it) }));
       box.querySelectorAll('.pd-photo').forEach((img, i) => img.addEventListener('click', () => openPhotoViewer(vItems, i, { shop: { name: p.shopName || '', station: p.station || '', pref: p.pref || '', city: p.city || '' }, onChange: () => { close(); App.refreshCurrent(); } })));
       // 写真の読み込み完了＝セクションの高さ確定を伝える（上への継ぎ足しが待つ）
       await Promise.all([...box.querySelectorAll('img.pd-photo')].map(im => im.complete
@@ -6454,7 +6490,11 @@ const Views = (() => {
       if (!mv) return;
       const acts = [
         { label: '店の詳細を見る', onClick: () => { close(); showShop(mv.shopId); } },
-        { label: '編集', onClick: () => openVisitEdit(mv.id, () => { close(); App.refreshCurrent(); }) }, // その場のシートで直す（v367〜）
+        { label: '編集', onClick: () => { // その場のシートで直す（v367〜）。v393: いま見えている写真の訪問を優先
+          const cur = itemsRef[curIdx];
+          const vid = cur && cur.ph && cur.ph.visitId && Store.visits().some(v => v.id === cur.ph.visitId) ? cur.ph.visitId : mv.id;
+          openVisitEdit(vid, () => { close(); App.refreshCurrent(); });
+        } },
       ];
       // いま見えている写真の付け替え・削除（v366〜。端末内の写真のときだけ）
       const it = itemsRef[curIdx];
@@ -6780,7 +6820,7 @@ const Views = (() => {
     if (fbtn) {
       if (!me) {
         fbtn.disabled = false; fbtn.textContent = 'フォローするにはログイン';
-        fbtn.addEventListener('click', () => App.toast('プロフィール画面からログインしてください'));
+        fbtn.addEventListener('click', () => App.toast('設定からログインしてください'));
       } else {
         let following = false;
         try { following = await Cloud.isFollowing(prof.uid); } catch { /* noop */ }

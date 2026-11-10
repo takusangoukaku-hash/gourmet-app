@@ -328,10 +328,24 @@ const Cloud = (() => {
     const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
     const hydrTargets = localPhotos.filter(p => !p.hasBlob && cloudIds.has(p.id));
     // 別端末で店を統合した写真（クラウドのメタの店 id が違う）は、こちらでも付け替える（v364〜）
+    // v393: 付け替えの時刻 metaAt を比べて新しい方を採る。
+    //  ・こちらが新しい（付け替えたがクラウドへの書き込みが届く前に閉じた等）→ クラウドのメタを直す。以前はクラウドを正として付け替えが戻されていた
+    //  ・クラウドが新しい → こちらを付け替える。店が同じで記録だけ違う移動（v366「別の記録へ」）も届ける（以前は店が違うときだけだった）
+    //  ・どちらにも時刻が無い（v392 以前の写真）→ 店が違うときだけ従来どおりクラウドに合わせる。記録だけの違いはどちらが正しいか分からないので触らない
+    const visitIdsNow = new Set(Store.rawVisits().map(v => v.id));
     for (const p of localPhotos) {
       const m = metaById.get(p.id);
-      if (m && m.shopId && m.shopId !== p.shopId && Store.getShop(m.shopId)) {
-        try { if (await Store.relinkPhoto(p.id, m.shopId, m.visitId)) changed++; } catch { /* noop */ }
+      if (!m || !m.shopId) continue;
+      const shopDiff = m.shopId !== p.shopId, visitDiff = !!m.visitId && m.visitId !== p.visitId;
+      if (!shopDiff && !visitDiff) continue;
+      const cAt = Number(m.metaAt) || 0, lAt = Number(p.metaAt) || 0;
+      if (lAt > cAt) {
+        try { await fb.fs.setDoc(dref('photos', p.id), clean({ shopId: p.shopId, visitId: p.visitId, metaAt: lAt }), { merge: true }); } catch { /* 次の同期でもう一度 */ }
+        continue;
+      }
+      if (!shopDiff && cAt === lAt) continue;
+      if (Store.getShop(m.shopId) && (!m.visitId || visitIdsNow.has(m.visitId))) {
+        try { if (await Store.relinkPhoto(p.id, m.shopId, m.visitId, cAt)) changed++; } catch { /* noop */ }
       }
     }
     const allTargets = [...newTargets.map(m => ({ kind: 'new', m })),
@@ -350,7 +364,7 @@ const Cloud = (() => {
           try { blob = await fetchPhotoBlob(remoteUrl); } catch { fails++; }
           await Store.putPhotoRaw({
             id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
-            hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl, ar: Number(m.ar) || 0,
+            hash: m.hash || '', createdAt: m.createdAt || Date.now(), metaAt: Number(m.metaAt) || 0, remoteUrl, ar: Number(m.ar) || 0,
             ...(blob ? { blob } : {}),
           });
         } else {
@@ -411,7 +425,7 @@ const Cloud = (() => {
     let photoUrl = presetUrl || '';
     if (!photoUrl && photoPath) photoUrl = await photoDownloadUrl(photoPath).catch(() => '');
     const ps = await Store.photosOfVisit(visitId).catch(() => []);
-    const p0 = ps && ps[0]; // 投稿に使う写真（1枚目）。縦横比 ar も一緒に公開する（v331〜）
+    const p0 = ps && ps.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0]; // 投稿に使う写真（1枚目＝登録の早い順。v393: 以前は id 順で、どの写真になるか決まっていなかった）。縦横比 ar も一緒に公開する（v331〜）
     // 引数でURLが来ない場合（編集後の再発行など）は、訪問の写真から自力で取得する
     // （ここで空のまま保存すると既存投稿の写真が消えてしまうため）
     if (!photoUrl) {
@@ -421,7 +435,12 @@ const Cloud = (() => {
       }
     }
     // 写真も評価もない記録（写真なしの「また来た」）はフィードに出さない（中身のない投稿で流れを埋めないため）
-    if (!photoUrl && !(Number(visit.rating) > 0)) return;
+    if (!photoUrl && !(Number(visit.rating) > 0)) {
+      // v393: 写真も★も無くなった記録（写真を全部消した評価なしの記録）は、前に出した投稿が残らないように消す。
+      // 写真はあるのに URL が取れなかっただけ（通信の失敗）のときは消さない
+      if (!ps || !ps.length) await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', visitId)).catch(() => {});
+      return;
+    }
     const post = clean({
       id: visitId, uid: user.uid, username: prof.username,
       displayName: prof.name || 'BITEMAP',
@@ -434,7 +453,7 @@ const Cloud = (() => {
       station: shop.station || '', address: shop.address || '',
       casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0,
       lat: (shop.lat != null ? shop.lat : null), lon: (shop.lon != null ? shop.lon : null),
-      datetime: visit.datetime, createdAt: Date.now(),
+      datetime: visit.datetime, createdAt: Number(visit.createdAt) || new Date(visit.datetime).getTime() || Date.now(), // v393: 記録を作った時刻。以前は出し直すたびに「今」になり、フォロワーのホームの新しい60件が「最後にアプリを開いた人の古い投稿」で埋まっていた
     });
     await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
   }
@@ -712,7 +731,7 @@ const Cloud = (() => {
         return;
       }
       if (action === 'meta') { // 店の統合・写真の付け替えなど、メタ情報（店・訪問）だけの変更（v364〜）
-        await fb.fs.setDoc(dref('photos', obj.id), clean({ shopId: obj.shopId, visitId: obj.visitId }), { merge: true });
+        await fb.fs.setDoc(dref('photos', obj.id), clean({ shopId: obj.shopId, visitId: obj.visitId, metaAt: Number(obj.metaAt) || Date.now() }), { merge: true }); // metaAt: 付け替えの時刻（v393〜 端末間で新しい方を採る）
         for (const vid of [obj.visitId, obj.prevVisitId]) if (vid && Store.visits().some(v => v.id === vid)) await publishPostForVisit(vid).catch(() => {});
         return;
       }
@@ -880,7 +899,7 @@ const Cloud = (() => {
           const remoteUrl = await photoDownloadUrl(m.path);
           let blob = null;
           try { blob = await fetchPhotoBlob(remoteUrl); } catch { /* 実体が取れなければURL参照で表示 */ }
-          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), remoteUrl, ...(blob ? { blob } : {}) });
+          await Store.putPhotoRaw({ id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish', hash: m.hash || '', createdAt: m.createdAt || Date.now(), metaAt: Number(m.metaAt) || 0, remoteUrl, ...(blob ? { blob } : {}) });
           down++;
         } catch (e) { fail++; noteErr(e); console.warn('写真ダウンロード失敗:', m.id, e); }
         report('download', ++doneDown, need.length);

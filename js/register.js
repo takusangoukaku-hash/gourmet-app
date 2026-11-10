@@ -38,7 +38,11 @@ const Register = (() => {
   // 予測検索の状態（入力が止まったら自動で候補を出す）
   let suggestSeq = 0;
   let suggestTimer = null;
-  let suggestRef = null; // 予測検索の基準位置（一度だけ取得して使い回す）
+  let suggestRef = null; // 予測検索の基準位置（写真の GPS が無いときの現在地。記録ごとに取り直す）
+  // v393: フォームの世代番号。resetForm() で進め、通信待ちから戻った処理が別の記録のフォームへ書き込まないようにする
+  let formSeq = 0;
+  // v393: lastGps が写真の EXIF 由来か（現在地のフォールバックは false）。手入力の新しい店に位置を付けてよいのは写真由来だけ
+  let lastGpsFromPhoto = false;
 
   // 現在地の取得（拒否・失敗時は null。検索精度向上のための任意情報）
   function getCurrentPos(timeout = 3500) {
@@ -208,13 +212,19 @@ const Register = (() => {
       if (selected && (autoPicked || selected.existingShopId) && val !== String(selected.name || '').trim()) {
         selected = null; autoPicked = false;
         document.querySelectorAll('#shop-candidates .candidate').forEach(x => x.classList.remove('selected', 'hidden'));
+        // v393: 前の候補から自動で入ったジャンルは、店を外したら一緒に外す（手動・AI 判定のものは残す）
+        if (autoFilledGenres && !userTouchedGenres && !aiClassified) {
+          selectedDishGenres.clear(); derivedShopGenre = ''; autoFilledGenres = false;
+          dishPicker.reset(); updateGenrePill();
+        }
       }
       updateSaveState(); updateStep(); updateDupHint();
     });
     updateSaveState();
 
-    // 訪問日の初期値 = 今日（写真を選ぶと撮影日に更新される）
-    visitDate = toLocalInput(new Date());
+    // 訪問日: 空のまま（保存時に当日を入れる。写真を選ぶと撮影日になる）
+    // v393: 起動時の日付を持ち続けると、日をまたいだ保存が前日の日付になっていた
+    visitDate = '';
 
     $('#save-btn').addEventListener('click', save);
     // 行きたい店として保存（店舗名だけでOK。訪問を記録すると自動で外れる）
@@ -329,7 +339,7 @@ const Register = (() => {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.dr-close').addEventListener('click', close);
     if (!drafts.length) {
-      body.innerHTML = '<div class="empty"><p>下書きはありません。</p></div>';
+      body.innerHTML = '<div class="empty"><p>下書きはありません</p></div>';
     } else {
       body.innerHTML = drafts.map(d => {
         const url = d.photos && d.photos[0] ? URL.createObjectURL(d.photos[0].blob) : '';
@@ -364,10 +374,11 @@ const Register = (() => {
     activeDraftId = id;
     for (const ph of (d.photos || [])) {
       const file = new File([ph.blob], 'draft.jpg', { type: 'image/jpeg' });
-      pendingPhotos.push({ file, url: URL.createObjectURL(ph.blob), type: 'dish', hash: ph.hash || '' });
+      // v393: 下書きの日付を exifTime に持たせ、写真を外したときの日付の再計算で消えないようにする
+      pendingPhotos.push({ file, url: URL.createObjectURL(ph.blob), type: 'dish', hash: ph.hash || '', exifTime: d.datetime ? new Date(d.datetime + 'T12:00:00') : null });
     }
-    visitDate = d.datetime || toLocalInput(new Date());
-    if (d.lat != null && d.lon != null) lastGps = { lat: d.lat, lon: d.lon };
+    visitDate = d.datetime || '';
+    if (d.lat != null && d.lon != null) { lastGps = { lat: d.lat, lon: d.lon }; lastGpsFromPhoto = false; } // v393: 下書きの位置の出どころは不明＝写真由来とは扱わない
     if (d.address) $('#f-address').value = d.address;
     if (d.station) $('#f-station').value = d.station;
     renderPreviews(); syncMeta();
@@ -423,6 +434,17 @@ const Register = (() => {
   function toLocalInput(d) {
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  // v393: いま選んでいる写真の撮影日のうち一番古いもの（YYYY-MM-DD）。使える日付が無ければ ''（保存時に当日）
+  function earliestPhotoDate() {
+    const limit = Date.now() + 86400000;
+    let e = null;
+    for (const p of pendingPhotos) {
+      const t = p.exifTime;
+      if (!(t instanceof Date) || isNaN(t) || t.getFullYear() < 2000 || t.getTime() > limit) continue;
+      if (!e || t < e) e = t;
+    }
+    return e ? toLocalInput(e) : '';
   }
 
   // 下のバー中央の＋から呼ぶ: 写真の撮影/選択画面（端末のカメラ・ライブラリ）を開く
@@ -494,7 +516,7 @@ const Register = (() => {
       dupBox.textContent = '' + dupMsgs.join(' ／ ');
       // 追加できた写真が1枚も無い（＝すべて重複）ときは登録画面に切り替わらず
       // #dup-status が見えないため、トーストでも知らせる
-      if (pendingPhotos.length === before) App.toast('この写真は登録されています。');
+      if (pendingPhotos.length === before) App.toast('この写真は登録されています'); // v393: トーストに「。」を付けない
     } else {
       dupBox.classList.add('hidden');
     }
@@ -534,7 +556,7 @@ const Register = (() => {
       hero.innerHTML = `<img src="${p.url}" alt="">
         <button type="button" class="reg-photo-x remove" aria-label="この写真を外す">${Views.icons.x}</button>
         <button type="button" class="reg-photo-chg">${Views.icons.camera} 写真を追加</button>`;
-      hero.querySelector('.remove').addEventListener('click', () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(0, 1); renderPreviews(); updateStep(); });
+      hero.querySelector('.remove').addEventListener('click', () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(0, 1); visitDate = earliestPhotoDate(); renderPreviews(); updateStep(); }); // v393: 外した写真の日付を残さない
       hero.querySelector('.reg-photo-chg').addEventListener('click', openCamera);
     }
     const box = $('#photo-previews');
@@ -549,6 +571,7 @@ const Register = (() => {
       div.querySelector('.remove').addEventListener('click', () => {
         URL.revokeObjectURL(p.url);
         pendingPhotos.splice(i, 1);
+        visitDate = earliestPhotoDate(); // v393
         renderPreviews();
       });
       // 写真をタップ: 1枚目（代表）にする／左右へ動かす／外す（v371〜）
@@ -558,7 +581,7 @@ const Register = (() => {
           { label: '1枚目（代表）にする', onClick: () => move(0) },
           ...(i > 1 ? [{ label: '左へ', onClick: () => move(i - 1) }] : []),
           ...(i < pendingPhotos.length - 1 ? [{ label: '右へ', onClick: () => move(i + 1) }] : []),
-          { label: '外す', danger: true, onClick: () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(i, 1); renderPreviews(); } },
+          { label: '外す', danger: true, onClick: () => { URL.revokeObjectURL(p.url); pendingPhotos.splice(i, 1); visitDate = earliestPhotoDate(); renderPreviews(); } } /* v393 */,
         ]);
       });
       box.appendChild(div);
@@ -582,26 +605,32 @@ const Register = (() => {
     status.classList.remove('warn');
     status.textContent = '写真を解析しています…';
 
-    let gps = null, earliest = null;
-    for (const p of pendingPhotos) {
+    const seq = formSeq; // v393: 解析中に記録が終わった・やめたら、結果は捨てる
+    let gps = null;
+    for (const p of pendingPhotos.slice()) {
       const ex = await Api.parseExif(p.file);
+      if (seq !== formSeq) return;
       if (!gps && ex.lat != null && ex.lon != null) gps = { lat: ex.lat, lon: ex.lon };
-      if (ex.date && (!earliest || ex.date < earliest)) earliest = ex.date;
+      p.exifTime = ex.date instanceof Date ? ex.date : null; // v393: 写真を外したときに日付を計算し直せるよう控える
     }
     lastGps = gps; // 名前検索の基準位置としても使う
+    lastGpsFromPhoto = !!gps;
 
     // 訪問日 = 撮影日として自動記録（あとから一覧の✏️編集で修正可能）
-    if (earliest) visitDate = toLocalInput(new Date(earliest));
+    // v393: 常にいまの写真から決める（使える撮影日が無ければ ''＝保存時に当日）
+    visitDate = earliestPhotoDate();
 
     if (gps) {
       status.classList.remove('hidden');
-      status.innerHTML = `位置情報から周辺の店舗候補を検索中…`;
+      status.innerHTML = `位置情報から周辺の店の候補を検索中…`;
       await loadCandidates(gps.lat, gps.lon);
+      if (seq !== formSeq) return;
       status.classList.add('hidden'); // 案内は消し、候補だけ表示する
     } else {
       status.classList.add('hidden'); // 位置情報なしの案内は表示しない
     }
 
+    if (seq !== formSeq) return;
     await classifyPhotos();
   }
 
@@ -613,8 +642,10 @@ const Register = (() => {
     if (!dishPhoto) return;
     if (!Api.canClassify()) return; // 自分のキーも開発者提供も無いときは何もしない
     if (!userTouchedGenres) updateGenrePill('判定中…');
+    const seq = formSeq; // v393
     try {
       const result = await Api.classifyDishPhoto(dishPhoto.file);
+      if (seq !== formSeq) return; // 別の記録のフォームに結果を入れない
       if (result && (result.dishGenres.length || result.shopGenre)) {
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         if (userTouchedGenres) {
@@ -636,6 +667,7 @@ const Register = (() => {
         updateGenrePill();
       }
     } catch (e) {
+      if (seq !== formSeq) return; // v393
       console.error('AI classification failed:', e);
       updateGenrePill();
       const relayMsg = /中継サーバー HTTP \d+ — (.+)$/.exec(e && e.message || ''); // Worker 経由の説明（上限など）
@@ -651,12 +683,13 @@ const Register = (() => {
   async function nearbyForNoPhoto() {
     const pos = await getCurrentPos(4000);
     if (!pos || !forceStep2 || pendingPhotos.length || $('#f-shop-name').value.trim() || selected) return;
-    lastGps = pos; // 候補の距離・重複の確認・位置の基準に（写真の GPS と同じ扱い）
+    lastGps = pos; lastGpsFromPhoto = false; // v393: 現在地は写真由来ではない。候補の距離・重複の確認・位置の基準に（写真の GPS と同じ扱い）
     await loadCandidates(pos.lat, pos.lon, { auto: false });
   }
   async function loadCandidates(lat, lon, opt) {
     const box = $('#shop-candidates');
     box.innerHTML = '<p class="hint">検索中…</p>';
+    const seq = formSeq; // v393
     try {
       // 登録済み店舗（200m以内）を先頭に表示
       const existing = Store.shops()
@@ -665,6 +698,7 @@ const Register = (() => {
         .sort((a, b) => a.distance - b.distance);
 
       const results = await Api.nearbyShops(lat, lon, 200);
+      if (seq !== formSeq) return; // v393: 記録が終わった・やめたあとの結果は捨てる
       results.forEach(c => { c.flow = 'nearby'; });
       existing.forEach(e => { e.flow = 'nearby'; });
       lastQuery = '';
@@ -672,8 +706,10 @@ const Register = (() => {
       // 利用者が自分で店を選んだあと（2枚目の写真の追加など）は、自動選択で上書きしない
       if (selected && !autoPicked) return;
       if (opt && opt.auto === false) return; // v378〜 写真なしのときはタップで選んでもらう
+      if ($('#f-shop-name').value.trim() && !autoPicked) return; // v393: 打ち始めた店名を遅れて届いた結果で上書きしない
       autoSelectBest(box, existing, results);
     } catch (e) {
+      if (seq !== formSeq) return; // v393
       box.innerHTML = '<p class="hint">店を探せませんでした（通信エラー）。店名を入れると名前で探せます</p>';
     }
   }
@@ -763,15 +799,21 @@ const Register = (() => {
       .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
       .map(s => ({ shop: s, distance: null })); // v377〜 3件に絞るのは距離で並べたあと（下）
 
-    // 基準位置: 写真のGPS → 現在地（1回だけ取得して以後使い回す）
-    if (!suggestRef) suggestRef = lastGps || await getCurrentPos(2500);
+    // 基準位置: 写真のGPS → 現在地（現在地は記録の間だけ使い回す）
+    // v393: いまの lastGps を優先（前の記録の基準位置を引きずらない）
+    let ref = lastGps || suggestRef;
+    if (!ref) {
+      ref = await getCurrentPos(2500);
+      if (mySeq !== suggestSeq) return;
+      suggestRef = ref;
+    }
     if (mySeq !== suggestSeq) return;
 
     let results = [];
-    try { results = await Api.suggestShops(q, suggestRef); } catch { /* 通信エラー時は登録済みのみ */ }
+    try { results = await Api.suggestShops(q, ref); } catch { /* 通信エラー時は登録済みのみ */ }
     if (mySeq !== suggestSeq) return;                        // 入力が進んだ・手動検索が始まった
     if ($('#f-shop-name').value.trim() !== q) return;        // 入力値が変わっていたら破棄
-    withDistances(existing, results, suggestRef); // v377〜 登録済みは近い順、候補にも距離
+    withDistances(existing, results, ref); // v377〜 登録済みは近い順、候補にも距離
     existing.splice(3); // 近い3件だけ
 
     if (!existing.length && !results.length) return; // 何もなければ表示を変えない
@@ -792,7 +834,8 @@ const Register = (() => {
     const q = $('#f-shop-name').value.trim();
     const box = $('#shop-candidates');
     if (!q) { box.innerHTML = '<p class="hint">店名を入れてから検索してください</p>'; return; }
-    box.innerHTML = '<p class="hint">検索中…（周辺の店舗情報も含めて探しています）</p>';
+    const seq = formSeq; // v393
+    box.innerHTML = '<p class="hint">検索中…（周辺の店の情報も含めて探しています）</p>';
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
     const existing = Store.shops()
@@ -806,6 +849,7 @@ const Register = (() => {
       const parts = q.split(/[\s　]+/);
       if (parts.length >= 2) {
         const loc = await Api.searchPlaces(parts[parts.length - 1]).catch(() => []);
+        if (seq !== formSeq) return; // v393
         if (loc.length && loc[0].lat != null) {
           ref = { lat: loc[0].lat, lon: loc[0].lon };
           nameQuery = parts.slice(0, -1).join(' ');
@@ -813,6 +857,7 @@ const Register = (() => {
       }
     }
     if (!ref) ref = await getCurrentPos();
+    if (seq !== formSeq) return; // v393
     withDistances(existing, [], ref); // v377〜 登録済みは近い順（検索結果の距離は結果が来てから）
 
     const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で探し直すか、そのまま店名だけで記録できます';
@@ -821,7 +866,7 @@ const Register = (() => {
     // まず高速な検索（Photon + Nominatim）を即表示
     let results = [];
     try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
-    if (mySeq !== searchSeq) return; // 新しい検索が始まっていたら破棄
+    if (mySeq !== searchSeq || seq !== formSeq) return; // 新しい検索が始まっていたら破棄（v393: 記録が変わっていても）
     withDistances(existing, results, ref); // v377〜 検索結果にも距離
     results.forEach(c => { c.flow = 'search'; });
     existing.forEach(e => { e.flow = 'search'; });
@@ -853,7 +898,7 @@ const Register = (() => {
       box.appendChild(note);
       const more = await Api.searchShopsNearby(nameQuery, ref).catch(() => []);
       note.remove();
-      if (mySeq !== searchSeq) return;      // 別の検索が始まった
+      if (mySeq !== searchSeq || seq !== formSeq) return;      // 別の検索が始まった
       if (selected) return;                  // すでに店舗選択済みなら邪魔しない
       if (more.length) {
         more.forEach(c => { c.flow = 'search-nearby'; });
@@ -914,11 +959,13 @@ const Register = (() => {
 
     const stationInput = $('#f-station');
     if (needStation) stationInput.placeholder = '最寄駅を検索中…';
+    const seq = formSeq; // v393
     try {
       const [geo, station] = await Promise.all([
         needGeo ? Api.reverseGeocode(shop.lat, shop.lon) : Promise.resolve({}),
         needStation ? Api.nearestStation(shop.lat, shop.lon) : Promise.resolve(''),
       ]);
+      if (seq !== formSeq) return; // v393: 別の記録のフォームに住所・駅を入れない
       // ユーザーが手入力済みの欄は上書きしない
       if (needStation && station && !stationInput.value) stationInput.value = station;
       if (geo.pref && !$('#f-pref').value) $('#f-pref').value = geo.pref;
@@ -940,6 +987,11 @@ const Register = (() => {
     // OSMタグからのジャンル推定（AIが判定済みの場合は上書きしない — §5）
     {
       const g = Api.guessGenres(c);
+      // v393: 前に選んだ候補から自動で入ったジャンルは、別の店を選んだら外す（スタバの「カフェ」が次の店に残らない）
+      if (autoFilledGenres && !userTouchedGenres && !aiClassified) {
+        selectedDishGenres.clear(); derivedShopGenre = ''; autoFilledGenres = false;
+        dishPicker.reset(); updateGenrePill();
+      }
       if (g.shop) derivedShopGenre = g.shop; // 内部保持のみ
       // 地図データからの推定は「まだ何も選ばれていないとき」だけ初期値として設定
       // （手動選択・AI判定を上書きしない）
@@ -947,6 +999,7 @@ const Register = (() => {
         selectedDishGenres.add(g.dish);
         autoFilledGenres = true;
         dishPicker.reset();
+        updateGenrePill(); // v393: 札に反映
       }
     }
     $('#selected-shop-note').classList.add('hidden'); // 選択後は候補行が確認になるため案内は出さない（画面内に収める）
@@ -1033,18 +1086,23 @@ const Register = (() => {
     let createdShopId = null, createdVisitId = null; // 途中で失敗したときに取り消すため
     try {
       // --- 店舗の確定（既存 → 照合 → 新規） ---
+      // v393: 候補から選ばず手で打った店は位置が無い。写真の EXIF の GPS（現在地のフォールバックは除く）があれば、その位置で照合・登録する
+      const selHasPos = !!(selected && selected.lat != null && selected.lon != null);
+      const gpsPos = !selHasPos && lastGpsFromPhoto && lastGps && lastGps.lat != null && lastGps.lon != null ? lastGps : null;
+      const qLat = selHasPos ? selected.lat : (gpsPos ? gpsPos.lat : null);
+      const qLon = selHasPos ? selected.lon : (gpsPos ? gpsPos.lon : null);
       let shop = selected && selected.existingShopId ? Store.getShop(selected.existingShopId) : null;
       if (!shop) {
         shop = Store.matchShop({
           osmId: selected ? selected.osmId : '',
           name,
-          lat: selected ? selected.lat : null,
-          lon: selected ? selected.lon : null,
+          lat: qLat,
+          lon: qLon,
         });
       }
       if (!shop) {
         // 照合（同じ名前＋50m）に掛からなくても、名前がよく似た登録済みの店があれば確かめる（二重登録を防ぐ。v365〜）
-        const sim = Views.similarShops(name, selected ? selected.lat : null, selected ? selected.lon : null);
+        const sim = Views.similarShops(name, qLat, qLon);
         if (sim.length) {
           const ans = await askSameShop(sim[0].shop);
           if (ans === undefined) return; // やめた
@@ -1063,7 +1121,8 @@ const Register = (() => {
       if (derivedShopGenre) shopData.shopGenre = derivedShopGenre;
       // 店の評価（3軸）: つけた値のみ反映（0のままなら既存値を消さない）
       for (const k of AXES) if (shopRatings[k] > 0) shopData[k] = shopRatings[k];
-      const pos = pickBestPos(selected, lastGps);
+      let pos = pickBestPos(selected, lastGps);
+      if (pos.lat == null && gpsPos) pos = { lat: gpsPos.lat, lon: gpsPos.lon, posLevel: 'gps' }; // v393
       if (shop) {
         // 候補から選ばずに既存の店へ記録するとき（名前の照合・「同じ店」の確認）は、店名はそのまま・空の欄で既存の値を消さない（v365〜）
         if (!(selected && selected.existingShopId)) {
@@ -1131,11 +1190,12 @@ const Register = (() => {
       if (createdShopId && !Store.visitsOf(createdShopId).length) { try { await Store.deleteShop(createdShopId); } catch { /* noop */ } }
       App.toast('保存に失敗しました: ' + e.message);
     } finally {
-      btn.disabled = false; btn.textContent = 'この内容で記録する';
+      btn.disabled = false; btn.textContent = '記録する'; // v393: index.html の表記に合わせる
     }
   }
 
   function resetForm() {
+    formSeq++; // v393: 通信待ちの処理の結果を新しいフォームに入れない
     setTimeout(updateDupHint, 0); // 店名を空にした後で隠す（v392。先に呼ぶと、保存した直後の店が「登録済み」として次の記録に残っていた）
     pendingPhotos.forEach(p => URL.revokeObjectURL(p.url));
     pendingPhotos = [];
@@ -1145,7 +1205,7 @@ const Register = (() => {
     currentRating = 0;
     aiClassified = false;
     autoPicked = false;
-    lastGps = null;
+    lastGps = null; lastGpsFromPhoto = false; suggestRef = null; // v393
     renderPreviews();
     $('#photo-input').value = '';
     $('#camera-input').value = '';
@@ -1164,7 +1224,7 @@ const Register = (() => {
     $('#detail-fields').classList.add('hidden'); $('#reg-comment').classList.add('hidden'); $('#reg-genres').classList.add('hidden');
     document.querySelectorAll('#record-card [data-reg-open]').forEach(b => b.classList.remove('open'));
     forceStep2 = false;
-    visitDate = toLocalInput(new Date());
+    visitDate = ''; // v393: 保存時に当日を入れる
     selectedDishGenres.clear();
     userTouchedGenres = false;
     autoFilledGenres = false;
