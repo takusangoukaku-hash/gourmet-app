@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v393'; // 見直しの続き: 登録（遅れて届く結果が別の記録に入る・日またぎの訪問日・GPS つき手入力の店の位置・前の候補のジャンルが残る）、写真の付け替えの端末間同期、公開投稿の時刻と消え残り、行き止まりになる駅のチップ、ユーザー名の変更 など
+const VERSION = 'v394'; // 同期の安全（削除の控えを先に読む・消し残しの掃除・失敗したら押し上げない・同期の排他）、地図タイルとライブラリのキャッシュを更新で消さない、取り込みの途中失敗・日付なし、登録の後追い（駅・県）・カメラ・検索、店の詳細の開き直し、統計・地図の細かな不具合 など
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -22,6 +22,20 @@ const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'tiles.openfreemap.org', 'ma
 // 地図タイル・グリフは増え続けるので上限を設ける（写真の保存領域を圧迫しないように）
 const TILE_HOSTS = ['tiles.openfreemap.org', 'maps.gsi.go.jp'];
 const TILE_CACHE_MAX = 1500;
+// v394: 地図のタイル・グリフと、版を固定した外部ライブラリは、版つきのキャッシュ（更新のたびに消える）とは別に持つ。
+// 以前は毎日の更新でタイルが全部消え、見たことのある範囲もオフラインで描けなくなっていた。
+// 入れてよいのは URL ごとに中身が変わらないものだけ（TileJSON や fonts.googleapis の CSS は版つきの方へ）
+const TILE_CACHE = 'gourmet-tiles';
+const LIB_CACHE = 'gourmet-libs';
+const KEEP_CACHES = [TILE_CACHE, LIB_CACHE];
+function longCacheFor(url) {
+  const h = url.hostname, path = url.pathname;
+  if (TILE_HOSTS.some(t => h.endsWith(t)) && (/\/\d+\/\d+\/\d+\.(pbf|mvt|png|jpe?g|webp)$/.test(path) || /\/fonts\/.+\.pbf$/.test(path))) return TILE_CACHE;
+  if ((h === 'unpkg.com' || h === 'cdn.jsdelivr.net') && /@\d/.test(path)) return LIB_CACHE;
+  if (h === 'www.gstatic.com' && /^\/firebasejs\/\d/.test(path)) return LIB_CACHE;
+  if (h === 'fonts.gstatic.com') return LIB_CACHE;
+  return null;
+}
 // Firebase（認証・DB・写真保存）は常にネットワークへ（キャッシュしない）
 const NETWORK_ONLY = ['overpass-api.de', 'overpass.kumi.systems', 'nominatim.openstreetmap.org', 'msearch.gsi.go.jp', 'api.anthropic.com', 'photon.komoot.io', 'places.googleapis.com', 'map.yahooapis.jp', 'webservice.recruit.co.jp', 'api.openpoiapi.com', 'workers.dev',
   'firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firebaseapp.com', 'firebasestorage.app'];
@@ -38,7 +52,7 @@ self.addEventListener('message', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.startsWith('gourmet-') && k !== CACHE).map(k => caches.delete(k)))) // 同じサイトの diet/ のキャッシュは巻き込まない
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('gourmet-') && k !== CACHE && !KEEP_CACHES.includes(k)).map(k => caches.delete(k)))) // 同じサイトの diet/ のキャッシュは巻き込まない。タイル・ライブラリは残す（v394）
       .then(() => self.clients.claim())
   );
 });
@@ -47,11 +61,12 @@ self.addEventListener('activate', (e) => {
 const cacheable = (res) => res && (res.ok || res.type === 'opaque');
 let tilePuts = 0;
 async function putCached(req, res) {
-  const c = await caches.open(CACHE);
+  const name = longCacheFor(new URL(req.url)) || CACHE;
+  const c = await caches.open(name);
   await c.put(req, res);
   // タイルは一定数ごとに古いものから間引く
-  if (TILE_HOSTS.some(h => new URL(req.url).hostname.endsWith(h)) && (++tilePuts % 50 === 0)) {
-    const keys = (await c.keys()).filter(r => TILE_HOSTS.some(h => new URL(r.url).hostname.endsWith(h)));
+  if (name === TILE_CACHE && (++tilePuts % 50 === 0)) {
+    const keys = await c.keys();
     for (const k of keys.slice(0, Math.max(0, keys.length - TILE_CACHE_MAX))) await c.delete(k);
   }
 }

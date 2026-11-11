@@ -21,12 +21,14 @@ const Import = (() => {
   let groups = [];        // 訪問候補
   let includeSkipped = false;
   let busy = false;
+  let runToken = 0;       // 開く・閉じる・「続けて写真を選ぶ」で進める。古い非同期の結果を捨てる印（v394〜）
 
   const loadSkipped = () => { try { return new Set(JSON.parse(localStorage.getItem(SKIP_LS) || '[]')); } catch { return new Set(); } };
   const saveSkipped = (set) => { try { localStorage.setItem(SKIP_LS, JSON.stringify([...set].slice(-5000))); } catch { /* noop */ } };
 
   const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
-  const fmtDay = (t) => new Date(t).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
+  // 「11月3日」（今年以外は「2025年11月3日」）。views.js の fmtDate と同じ形（Views からは公開されていないのでここに持つ）
+  const fmtDay = (t) => { const d = new Date(t); if (isNaN(d)) return ''; const y = d.getFullYear() !== new Date().getFullYear() ? `${d.getFullYear()}年` : ''; return `${y}${d.getMonth() + 1}月${d.getDate()}日`; };
   const fmtTime = (t) => new Date(t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   const toTime = (d) => { if (d instanceof Date && !isNaN(d)) return d.getTime(); const t = d ? new Date(d).getTime() : NaN; return isNaN(t) ? null : t; };
 
@@ -36,6 +38,7 @@ const Import = (() => {
   }
   function open() {
     if (ov) return;
+    runToken++;
     groups = [];
     ov = document.createElement('div');
     ov.className = 'modal import-modal';
@@ -73,6 +76,8 @@ const Import = (() => {
   }
   function close() {
     if (busy && !confirm('取り込みの途中です。閉じますか？')) return;
+    runToken++; // 読み込み・判定の途中の結果は捨てる
+    busy = false;
     groups.forEach(g => g.photos.forEach(p => { if (p.url) URL.revokeObjectURL(p.url); }));
     groups = [];
     if (ov) ov.remove();
@@ -83,6 +88,7 @@ const Import = (() => {
   async function handleFiles(all) {
     const files = all.filter(f => f.type.startsWith('image/')).slice(0, IMPORT_BATCH);
     if (all.length > IMPORT_BATCH) App.toast(`最初の${IMPORT_BATCH}枚だけ取り込みます。残りはもう一度「写真を選ぶ」から`);
+    const tok = runToken;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
     $('.im-intro', ov).classList.add('hidden');
@@ -96,13 +102,19 @@ const Import = (() => {
       bar.style.width = `${Math.round((i / files.length) * 60)}%`;
       ptext.textContent = `写真を読んでいます… ${i + 1}/${files.length}`;
       const hash = await Api.fileHash(f);
+      if (tok !== runToken) { dropItems(items); return; }
       if (hash && Store.findPhotoByHash(hash)) { already++; continue; }
       if (hash && !includeSkipped && skipped.has(hash)) { wasSkipped++; continue; }
       const ex = await Api.parseExif(f);
-      const time = toTime(ex.date) || f.lastModified || Date.now();
+      if (tok !== runToken) { dropItems(items); return; }
+      // EXIF の日付が無い写真は「日付なし」の候補にし、日付はファイルの更新日（2000年〜今）。無ければ今（v394〜）
+      const exT = toTime(ex.date);
+      const lm = Number(f.lastModified) || 0;
+      const time = exT || (lm >= Date.UTC(2000, 0, 1) && lm <= Date.now() ? lm : Date.now());
       let url = '';
       try { url = URL.createObjectURL(await Api.compressImage(f, 240, 0.6)); } catch { url = ''; }
-      items.push({ file: f, hash, lat: ex.lat ?? null, lon: ex.lon ?? null, time, url, hasExifDate: !!toTime(ex.date) });
+      if (tok !== runToken) { if (url) URL.revokeObjectURL(url); dropItems(items); return; }
+      items.push({ file: f, hash, lat: ex.lat ?? null, lon: ex.lon ?? null, time, url, hasExifDate: !!exT, noDate: !exT });
     }
     items.sort((a, b) => a.time - b.time);
     groups = groupItems(items);
@@ -113,13 +125,16 @@ const Import = (() => {
     if (already) head.push(`取り込み済み ${already}枚`);
     if (wasSkipped) head.push(`前に飛ばした ${wasSkipped}枚`);
     if (head.length) App.toast(head.join('・') + 'を除きました');
-    await suggestShops();
+    await suggestShops(tok);
+    if (tok !== runToken) return;
     bar.style.width = '100%';
     prog.classList.add('hidden');
     busy = false;
-    classifyAll(); // AI判定は裏で順に（終わった候補から表示が更新される）
+    classifyAll(tok); // AI判定は裏で順に（終わった候補から表示が更新される）
     updateFoot();
   }
+
+  function dropItems(items) { items.forEach(it => { if (it.url) URL.revokeObjectURL(it.url); }); }
 
   // 同じ日・近い場所（または近い時間）の写真を 1 つの訪問候補に
   function groupItems(items) {
@@ -129,12 +144,13 @@ const Import = (() => {
       let g = null;
       for (let i = out.length - 1; i >= 0; i--) {
         const c = out[i];
+        if (!!c.noDate !== !!it.noDate) continue; // 日付なしの写真は日付ありの訪問と混ぜない
         if (dayKey(c.end) !== dayKey(it.time)) break;
         const dt = it.time - c.end;
         if (c.lat != null && it.lat != null) { if (near(c, it) && dt <= 6 * 3600000) { g = c; break; } continue; }
         if (dt <= GROUP_HOURS * 3600000) { g = c; break; }
       }
-      if (!g) { g = { id: 'g' + out.length, photos: [], lat: null, lon: null, start: it.time, end: it.time, name: '', shop: null, cand: null, cands: [], rating: 0, genres: [], state: 'pending', ai: 'idle' }; out.push(g); }
+      if (!g) { g = { id: 'g' + out.length, photos: [], lat: null, lon: null, start: it.time, end: it.time, noDate: !!it.noDate, name: '', shop: null, cand: null, cands: [], rating: 0, genres: [], state: 'pending', ai: 'idle' }; out.push(g); }
       g.photos.push(it);
       g.end = Math.max(g.end, it.time);
       if (it.lat != null) {
@@ -148,7 +164,7 @@ const Import = (() => {
   }
 
   // 店の提案: 既存の自分の店 → 周辺検索（同じ場所は1回だけ検索）
-  async function suggestShops() {
+  async function suggestShops(tok) {
     const cache = new Map();
     const key = (g) => `${g.lat.toFixed(4)},${g.lon.toFixed(4)}`; // 約10m
     const queue = groups.filter(g => g.lat != null);
@@ -166,6 +182,7 @@ const Import = (() => {
         const k = key(g);
         if (!cache.has(k)) cache.set(k, Api.nearbyShops(g.lat, g.lon, SEARCH_RADIUS).catch(() => []));
         const res = await cache.get(k);
+        if (tok !== runToken) return;
         g.cands = (res || []).slice(0, 6);
         if (!g.shop && g.cands.length && !g.name) { g.cand = g.cands[0]; g.name = g.cands[0].name; }
         g.searched = true;
@@ -173,24 +190,27 @@ const Import = (() => {
       }
     };
     await Promise.all([worker(), worker()]);
+    if (tok !== runToken) return;
     groups.filter(g => g.lat == null).forEach(g => { g.searched = true; paintGroup(g); });
   }
 
   // AI判定（候補ごとに最初の写真だけ。bulk 枠）
-  async function classifyAll() {
+  async function classifyAll(tok) {
     if (!Api.canClassify()) { groups.forEach(g => { g.ai = 'off'; paintGroup(g); }); return; }
     let i = 0;
     const worker = async () => {
       while (i < groups.length) {
         const g = groups[i++];
-        if (!ov || g.state === 'skip') continue;
+        if (!ov || tok !== runToken) return;
+        if (g.state === 'skip') continue;
         g.ai = 'busy'; paintGroup(g);
         try {
           const r = await Api.classifyDishPhoto(g.photos[0].file, { bulk: true });
+          if (tok !== runToken) return;
           g.genres = (r && r.dishGenres) || [];
           if (r && r.shopGenre) g.shopGenre = r.shopGenre;
           g.ai = 'done';
-        } catch (e) { g.ai = 'error'; g.aiMsg = (e && e.message) || ''; if (/上限/.test(g.aiMsg)) { i = groups.length; } }
+        } catch (e) { if (tok !== runToken) return; g.ai = 'error'; g.aiMsg = (e && e.message) || ''; if (/上限/.test(g.aiMsg)) { i = groups.length; } }
         paintGroup(g);
       }
     };
@@ -218,7 +238,7 @@ const Import = (() => {
     if (!el) return;
     const thumbs = g.photos.slice(0, 4).map(p => `<span class="im-th">${p.url ? `<img src="${p.url}" alt="">` : Views.icons.dish}</span>`).join('')
       + (g.photos.length > 4 ? `<span class="im-th im-more">+${g.photos.length - 4}</span>` : '');
-    const when = fmtDay(g.start) + '　' + fmtTime(g.start) + (g.end - g.start > 60000 ? '〜' + fmtTime(g.end) : '');
+    const when = g.noDate ? '日付なし' : fmtDay(g.start) + '　' + fmtTime(g.start) + (g.end - g.start > 60000 ? '〜' + fmtTime(g.end) : '');
     // 店の選択肢: 自分の店 → 候補 → 入力
     const opts = [];
     (g.own || []).forEach((s, i) => opts.push({ v: 'own:' + i, t: `${s.name}（記録済み）` }));
@@ -266,60 +286,104 @@ const Import = (() => {
   async function saveAll() {
     const todo = groups.filter(ready);
     if (!todo.length) return;
+    const tok = runToken;
     busy = true;
     setStep(4);
     const btn = $('#im-save', ov); btn.disabled = true;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
     const skipped = loadSkipped();
-    let done = 0, photosN = 0, newShops = 0;
-    try {
-      for (const g of todo) {
-        ptext.textContent = `記録しています… ${done + 1}/${todo.length}`;
-        bar.style.width = `${Math.round((done / todo.length) * 100)}%`;
-        let shop = g.shop || null;
+    let done = 0, photosN = 0, newShops = 0, failed = 0;
+    const toFill = []; // 新しく作った店（保存後に駅・県・市を後追いで補う）
+    for (const g of todo) {
+      if (ov && tok === runToken) {
+        ptext.textContent = `記録しています… ${done + failed + 1}/${todo.length}`;
+        bar.style.width = `${Math.round(((done + failed) / todo.length) * 100)}%`;
+      }
+      // 候補ごとに保存。失敗したら、この候補で作ったものだけ元に戻す（保存済みの候補はそのまま。v394〜）
+      let shop = null, createdShop = null, visit = null, n = 0;
+      try {
+        shop = g.shop || null;
         if (!shop) shop = Store.matchShop({ osmId: g.cand ? g.cand.osmId : '', name: g.name, lat: g.lat, lon: g.lon });
         if (!shop) {
           const c = g.cand || {};
-          shop = Store.addShop({
-            name: g.name, lat: c.lat ?? g.lat, lon: c.lon ?? g.lon, address: c.address || '', pref: c.pref || '', city: c.city || '',
+          // 位置は登録画面と同じ決め方（粗い候補は写真の位置を優先）。候補が無ければ写真の位置
+          const gps = g.lat != null ? { lat: g.lat, lon: g.lon } : null;
+          let pos = (typeof Register !== 'undefined' && Register.pickBestPos) ? Register.pickBestPos(c, gps) : { lat: c.lat ?? null, lon: c.lon ?? null, posLevel: '' };
+          if (pos.lat == null && gps) pos = { lat: gps.lat, lon: gps.lon, posLevel: 'gps' };
+          shop = createdShop = Store.addShop({
+            name: g.name, lat: pos.lat, lon: pos.lon, posLevel: pos.posLevel || '', address: c.address || '', pref: c.pref || '', city: c.city || '',
             station: c.station ? (c.station.endsWith('駅') ? c.station : c.station + '駅') : '',
             osmId: c.osmId || '', shopGenre: g.shopGenre || (c.shopGenre || 'その他'),
             dataSource: c.dataSource || c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [],
             foundBy: 'import', foundQuery: '',
           });
-          newShops++;
         }
-        const visit = Store.addVisit({ shopId: shop.id, datetime: new Date(g.start).toISOString(), dishGenres: g.genres || [], rating: g.rating, comment: '', visitType: '店内飲食' });
+        visit = Store.addVisit({ shopId: shop.id, datetime: new Date(g.start).toISOString(), dishGenres: g.genres || [], rating: g.rating, comment: '', visitType: '店内飲食' });
         for (const p of g.photos) {
           const blob = await Api.compressImage(p.file);
           const pid = await Store.addPhoto(shop.id, visit.id, 'dish', blob, p.hash);
           Views.warmThumb(pid, blob); // 一覧用のサムネを今のうちに作る（v358〜）
-          photosN++;
+          n++;
         }
         g.state = 'saved';
         done++;
+        photosN += n;
+        if (createdShop) { newShops++; toFill.push(createdShop.id); }
+      } catch (e) {
+        console.error(e);
+        failed++;
+        g.state = 'failed';
+        // 半端な訪問と、この候補で作った（もう訪問の無い）店を消す。写真と指紋は deleteVisit が一緒に消すので、やり直せる
+        try { if (visit) await Store.deleteVisit(visit.id); } catch (e2) { console.error(e2); }
+        try { if (createdShop && !Store.rawVisits().some(v => v.shopId === createdShop.id)) await Store.deleteShop(createdShop.id); } catch (e2) { console.error(e2); }
       }
+    }
+    try {
       // 飛ばした写真は次回出さない
       groups.filter(g => g.state === 'skip').forEach(g => g.photos.forEach(p => { if (p.hash) skipped.add(p.hash); }));
       saveSkipped(skipped);
-    } catch (e) {
-      console.error(e);
-      App.toast('途中で保存に失敗しました: ' + (e && e.message || e));
-    }
-    busy = false;
-    prog.classList.add('hidden');
-    const rest = groups.filter(g => g.state !== 'saved' && g.state !== 'skip').length;
-    $('#im-list', ov).innerHTML = '';
-    $('#im-foot', ov).classList.add('hidden');
-    const sum = $('#im-summary', ov);
-    sum.classList.remove('hidden');
-    sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
-      <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
+    } catch (e) { console.error(e); }
+    if (tok === runToken) busy = false;
+    App.toast(`${done}件を記録しました${failed ? ` ・ ${failed}件は失敗` : ''}`);
+    if (ov && tok === runToken) {
+      prog.classList.add('hidden');
+      const rest = groups.filter(g => g.state !== 'saved' && g.state !== 'skip' && g.state !== 'failed').length;
+      $('#im-list', ov).innerHTML = '';
+      $('#im-foot', ov).classList.add('hidden');
+      const sum = $('#im-summary', ov);
+      sum.classList.remove('hidden');
+      sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
+      <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${failed ? `　${failed}件は保存に失敗しました（次回また出ます）` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
       <div class="im-sum-b"><button type="button" class="btn primary" id="im-again">続けて写真を選ぶ</button><button type="button" class="btn" id="im-done">閉じる</button></div>`;
-    $('#im-again', ov).addEventListener('click', () => { groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
-    $('#im-done', ov).addEventListener('click', close);
+      $('#im-again', ov).addEventListener('click', () => { runToken++; groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
+      $('#im-done', ov).addEventListener('click', close);
+    }
     if (typeof App !== 'undefined' && App.refreshCurrent) App.refreshCurrent();
+    fillShopInfo(toFill); // 裏で住所・県・市・最寄駅を補う（失敗は黙る）
+  }
+
+  // 取り込みで作った店の、空いている 住所・県・市・最寄駅 だけを位置から後追いで埋める（v394〜。入っている値は上書きしない）
+  async function fillShopInfo(ids) {
+    for (const id of ids) {
+      try {
+        const s0 = Store.getShop(id);
+        if (!s0 || s0.lat == null || s0.lon == null) continue;
+        const needGeo = !s0.address || !s0.pref || !s0.city;
+        const [geo, station] = await Promise.all([
+          needGeo ? Api.reverseGeocode(s0.lat, s0.lon) : Promise.resolve({}),
+          s0.station ? Promise.resolve('') : Api.nearestStation(s0.lat, s0.lon),
+        ]);
+        const s = Store.getShop(id); // 待っている間に編集されたかもしれないので取り直す
+        if (!s) continue;
+        const patch = {};
+        if (!s.address && geo && geo.address) patch.address = geo.address;
+        if (!s.pref && geo && geo.pref) patch.pref = geo.pref;
+        if (!s.city && geo && geo.city) patch.city = geo.city;
+        if (!s.station && station) patch.station = station.endsWith('駅') ? station : station + '駅';
+        if (Object.keys(patch).length) Store.updateShop(id, patch);
+      } catch { /* 後追いなので失敗は黙る */ }
+    }
   }
 
   return { init, open, groupItems };

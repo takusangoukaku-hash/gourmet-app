@@ -428,6 +428,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .modal.action-sheet { align-items: flex-end; padding: 0; }
 .as-box {
   width: 100%; max-width: 640px; margin: 0 auto;
+  max-height: 85vh; overflow-y: auto; overscroll-behavior: contain; /* v394: 項目が多いとき画面の外へはみ出さない */
   background: var(--card); border-radius: 18px 18px 0 0;
   padding: 6px 12px calc(14px + env(safe-area-inset-bottom, 0px));
   animation: asSlideUp .18s ease-out;
@@ -445,7 +446,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .as-item.as-cancel { border-radius: 14px; }
 .as-item:active { filter: brightness(.96); }
 /* 絞り込みのシート（v373〜。#list-detail-filters をここへ移して見せる） */
-.flt-sheet { max-height: 86vh; display: flex; flex-direction: column; padding-left: 16px; padding-right: 16px; }
+.flt-sheet { max-height: 86vh; overflow: hidden; display: flex; flex-direction: column; padding-left: 16px; padding-right: 16px; }
 .flt-head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 700; padding: 0 0 4px; }
 .sheet-x { width: 36px; height: 36px; border: none; border-radius: 50%; background: var(--field); color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; padding: 0; }
 .sheet-x .x-ic { width: 18px; height: 18px; }
@@ -453,7 +454,7 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 .flt-body .filter-row select { flex: 1 1 100%; }
 .flt-sheet .btn.big { margin-top: 6px; }
 /* ジャンルを選ぶシート（v373〜。#f-dish-genres をここへ移して見せる） */
-.gp-sheet { max-height: 86vh; display: flex; flex-direction: column; padding-left: 16px; padding-right: 16px; }
+.gp-sheet { max-height: 86vh; overflow: hidden; display: flex; flex-direction: column; padding-left: 16px; padding-right: 16px; }
 .gp-head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 700; padding: 0 0 8px; }
 .gp-q { width: 100%; box-sizing: border-box; height: 40px; border: none; border-radius: 10px; background: var(--field); padding: 0 12px; font-family: inherit; font-size: 15px; color: var(--text); }
 .gp-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 0 6px; }
@@ -1423,15 +1424,15 @@ body[data-tab="map"] #map-canvas { height: 100%; min-height: 0; }
 
 /* ---------- 初回案内（ようこそ画面） ---------- */
 .welcome-box { max-width: 380px; }
-.welcome-title { text-align: center; margin: 6px 0 4px; }
+.welcome-title { text-align: center; margin: 0 0 16px; } /* v394: ✕と同じ段に（上の余白で見出しが下がっていた） */
 
 .welcome-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 .w-step { display: flex; gap: 12px; align-items: flex-start; }
 .w-ic {
   flex: 0 0 40px; width: 40px; height: 40px; border-radius: 14px;
-  background: #f4f4f5; display: flex; align-items: center; justify-content: center;
+  background: var(--field); display: flex; align-items: center; justify-content: center; /* v394: 暗色で白い箱にならないよう */
 }
-.w-ic svg { width: 22px; height: 22px; color: #262626; }
+.w-ic svg { width: 22px; height: 22px; color: var(--text); }
 .w-step b { font-size: 15px; }
 .w-sub { color: var(--muted); font-size: 13px; line-height: 1.55; margin-top: 2px; }
 

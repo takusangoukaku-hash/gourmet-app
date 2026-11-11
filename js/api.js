@@ -149,7 +149,7 @@ const Api = (() => {
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
   ];
-  async function overpass(query, abortMs, endpoints) {
+  async function overpass(query, abortMs = 8000, endpoints) { // 応答が来ないときに登録画面が固まらないよう既定 8 秒で打ち切る
     let lastErr;
     for (const url of (endpoints || OVERPASS_ENDPOINTS)) {
       const ctrl = abortMs ? new AbortController() : null;
@@ -179,7 +179,7 @@ const Api = (() => {
   nwr(around:${radius},${lat},${lon})[amenity~"^(restaurant|cafe|fast_food|bar|pub|food_court|ice_cream)$"];
   nwr(around:${radius},${lat},${lon})[shop~"^(bakery|confectionery|deli|pastry)$"];
 );
-out center 40;`;
+out center 120;`; // id 順で返るため、近い店が切れないよう多めに取って距離で絞る
     // OSM（Overpass）と OpenPOI（営業許可データ）を並列に引いて統合する。片方が落ちても他方で続ける
     const [json, poi] = await Promise.all([
       overpass(q).catch(e => ({ elements: [], _err: e })),
@@ -201,7 +201,10 @@ out center 40;`;
     }).filter(s => s.lat != null && s.name !== '(名称不明)');
     if (json._err && !poi.length) throw json._err; // 両方だめなら従来どおりエラー
     // ジャンル情報のある OSM を先に（同じ店は統合される）。近い順
-    return mergeCandidates([osm, poi], { lat, lon }, 40).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    // 町丁目までの粗い位置（coarse）の距離は当てにならないので、並べるときだけ 300m 足して正確な候補を先にする
+    // （登録画面は先頭を自動選択するため。表示する distance は変えない）
+    const rank = (c) => (c.distance || 0) + (c.coarse ? 300 : 0);
+    return mergeCandidates([osm, poi], { lat, lon }, 120).sort((a, b) => rank(a) - rank(b)).slice(0, 40);
   }
 
   // ---------- Overpass: 最寄駅 ----------
@@ -478,7 +481,7 @@ out center 25;`;
     if (!res.ok) throw new Error('Nominatim error ' + res.status);
     const j = await res.json();
     return j.map(e => ({
-      osmId: (e.osm_type ? e.osm_type[0].toUpperCase() + e.osm_type.slice(1) : '') + '/' + e.osm_id,
+      osmId: (e.osm_type ? String(e.osm_type).toLowerCase() : '') + '/' + e.osm_id, // Overpass・Photon と同じ小文字（node/123）
       name: e.name || String(e.display_name || '').split(',')[0],
       address: (e.display_name || '').split(', ').reverse()
         .filter(p => p !== '日本' && !/^\d{3}-\d{4}$/.test(p)).join(''),
@@ -953,6 +956,7 @@ out center 25;`;
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(src, 0, 0, w, h);
+    if (src && src.close) { try { src.close(); } catch { /* noop */ } } // ImageBitmap のメモリを早く返す
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
     if (!blob) throw new Error('画像の圧縮に失敗しました');
     try { blob.aspect = h / w; } catch { /* noop */ } // 縦横比（縦/横）。Store.addPhoto が meta の ar に保存する（v331〜）
@@ -961,7 +965,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v393',
+    FILE_VERSION: 'v394',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, geocodeAddress, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,

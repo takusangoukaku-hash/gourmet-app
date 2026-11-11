@@ -129,9 +129,10 @@ const Register = (() => {
       paint();
     };
     for (const sel of ['.gp-fav', '.gp-hits']) ov.querySelector(sel).addEventListener('click', (e) => { const b = e.target.closest('.chip[data-g]'); if (b) toggle(b.dataset.g); });
-    picker.addEventListener('click', () => setTimeout(paint, 0)); // 全ジャンル側で選んだら「選択中」と「よく使う」にも反映
+    const onPickerClick = () => setTimeout(paint, 0);
+    picker.addEventListener('click', onPickerClick); // 全ジャンル側で選んだら「選択中」と「よく使う」にも反映
     q.addEventListener('input', paint);
-    const close = () => { home.appendChild(picker); ov.remove(); updateGenrePill(); };
+    const close = () => { picker.removeEventListener('click', onPickerClick); home.appendChild(picker); ov.remove(); updateGenrePill(); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.gp-done').addEventListener('click', close);
     ov.querySelector('.gp-x').addEventListener('click', close);
@@ -167,7 +168,7 @@ const Register = (() => {
 
     // 店舗検索（店舗名欄に統合: 店舗名を入力して検索 → 下に候補を表示）
     $('#shop-search-btn').addEventListener('click', doSearch);
-    $('#f-shop-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    $('#f-shop-name').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) doSearch(); });
 
     // 予測検索: 入力が止まったら自動で候補を表示（Chromeの検索補完風）
     // 日本語入力の変換中（composition中）は発火させず、確定したタイミングで検索する
@@ -344,7 +345,7 @@ const Register = (() => {
       body.innerHTML = drafts.map(d => {
         const url = d.photos && d.photos[0] ? URL.createObjectURL(d.photos[0].blob) : '';
         if (url) urls.push(url);
-        const when = d.datetime ? new Date(d.datetime).toLocaleDateString('ja-JP') : '';
+        const when = d.datetime ? Views.fmtDate(d.datetime) : ''; // v394: 日付の書き方を揃える（11月3日）
         return `<div class="draft-row" data-id="${d.id}">
             <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : Views.icons.dish}</div>
             <div class="draft-main">
@@ -459,8 +460,12 @@ const Register = (() => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       overlay.classList.add('hidden'); $('#camera-input').click(); return; // 非対応→端末カメラ
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-      .then(stream => { camStream = stream; video.srcObject = stream; video.play().catch(() => {}); })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false })
+      .then(stream => {
+        // 許可を待つ間に閉じられていたら、取れたストリームはすぐ止める（カメラの使用中表示が残る）
+        if (overlay.classList.contains('hidden')) { stream.getTracks().forEach(t => t.stop()); return; }
+        if (camStream) camStream.getTracks().forEach(t => t.stop());
+        camStream = stream; video.srcObject = stream; video.play().catch(() => {}); })
       .catch(() => {
         // 権限拒否・非対応 → 端末標準のカメラにフォールバック
         overlay.classList.add('hidden');
@@ -479,6 +484,7 @@ const Register = (() => {
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(video, 0, 0, w, h);
     canvas.toBlob((blob) => {
+      if (!blob) { App.toast('うまく撮れませんでした'); return; } // カメラは開いたまま撮り直せる
       stopCamera();
       const file = new File([blob], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' });
       addFiles([file]); // 記録の入力画面へ進む（addFiles内でタブ切替）
@@ -640,10 +646,12 @@ const Register = (() => {
     ai.classList.add('hidden');
     const dishPhoto = pendingPhotos.find(p => p.type === 'dish') || pendingPhotos[0];
     if (!dishPhoto) return;
+    if (dishPhoto.classified) return;
     if (!Api.canClassify()) return; // 自分のキーも開発者提供も無いときは何もしない
     if (!userTouchedGenres) updateGenrePill('判定中…');
     const seq = formSeq; // v393
     try {
+      dishPhoto.classified = true; // v394: 同じ写真を何度もAI判定しない
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (seq !== formSeq) return; // 別の記録のフォームに結果を入れない
       if (result && (result.dishGenres.length || result.shopGenre)) {
@@ -820,11 +828,7 @@ const Register = (() => {
     results.forEach(c => { c.flow = 'suggest'; });
     existing.forEach(e => { e.flow = 'suggest'; });
     lastQuery = q;
-    renderCandidates(box, existing, results, '');
-    const p = document.createElement('p');
-    p.className = 'hint';
-    p.textContent = '入力に合わせた予測候補です。見つからないときは「名前で検索」でさらに広く探せます。';
-    box.appendChild(p);
+    renderCandidates(box, existing, results, ''); // v394: 下の説明文はやめた（一画面の情報は少なく。v335 の方針）
   }
 
   // ---------- フローB: 名前検索（複数の情報源を統合、個人店対応） ----------
@@ -842,22 +846,11 @@ const Register = (() => {
       .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
       .map(s => ({ shop: s, distance: null }));
 
-    // 基準位置の決定: 写真のGPS →「店名 地名」の地名 → 現在地
-    let ref = lastGps;
+    // 基準位置: 写真のGPS → 現在地。まず入力そのままの文字列で探し、
+    // 何も見つからなかったときだけ「店名 地名」（最後の語を地名）に分けて探し直す（v394〜）
+    let ref = lastGps || await getCurrentPos();
+    if (seq !== formSeq) return;
     let nameQuery = q;
-    if (!ref) {
-      const parts = q.split(/[\s　]+/);
-      if (parts.length >= 2) {
-        const loc = await Api.searchPlaces(parts[parts.length - 1]).catch(() => []);
-        if (seq !== formSeq) return; // v393
-        if (loc.length && loc[0].lat != null) {
-          ref = { lat: loc[0].lat, lon: loc[0].lon };
-          nameQuery = parts.slice(0, -1).join(' ');
-        }
-      }
-    }
-    if (!ref) ref = await getCurrentPos();
-    if (seq !== formSeq) return; // v393
     withDistances(existing, [], ref); // v377〜 登録済みは近い順（検索結果の距離は結果が来てから）
 
     const emptyMsg = '見つかりませんでした。「店名 地名」（例: ○○軒 渋谷）で探し直すか、そのまま店名だけで記録できます';
@@ -866,7 +859,21 @@ const Register = (() => {
     // まず高速な検索（Photon + Nominatim）を即表示
     let results = [];
     try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
-    if (mySeq !== searchSeq || seq !== formSeq) return; // 新しい検索が始まっていたら破棄（v393: 記録が変わっていても）
+    if (mySeq !== searchSeq || seq !== formSeq) return;
+    if (!results.length && !lastGps) {
+      const parts = q.split(/[\s　]+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const loc = await Api.searchPlaces(parts[parts.length - 1]).catch(() => []);
+        if (mySeq !== searchSeq || seq !== formSeq) return;
+        if (loc.length && loc[0].lat != null) {
+          ref = { lat: loc[0].lat, lon: loc[0].lon };
+          nameQuery = parts.slice(0, -1).join(' ');
+          withDistances(existing, [], ref);
+          try { results = await Api.searchShopsFast(q, nameQuery, ref); } catch { /* 通信エラー時は登録済みのみ */ }
+          if (mySeq !== searchSeq || seq !== formSeq) return; // 新しい検索が始まっていたら破棄（v393: 記録が変わっていても）
+        }
+      }
+    }
     withDistances(existing, results, ref); // v377〜 検索結果にも距離
     results.forEach(c => { c.flow = 'search'; });
     existing.forEach(e => { e.flow = 'search'; });
@@ -1074,6 +1081,33 @@ const Register = (() => {
   }
 
   // ---------- 保存 ----------
+  // 保存後の後追い（v394〜）: 通信が間に合わず駅・県・市・住所が空のまま保存された店に、空の欄だけ補う。
+  // 保存先は店 id なので formSeq では捨てない（フォームは既にリセットされている）。失敗しても何も出さない
+  async function fillMissingAfterSave(shopId, pos) {
+    try {
+      const sh = Store.getShop(shopId);
+      if (!sh) return;
+      const lat = sh.lat != null ? sh.lat : (pos && pos.lat);
+      const lon = sh.lon != null ? sh.lon : (pos && pos.lon);
+      if (lat == null || lon == null) return;
+      const needStation = !sh.station;
+      const needGeo = !sh.pref || !sh.city || !sh.address;
+      if (!needStation && !needGeo) return;
+      const [geo, station] = await Promise.all([
+        needGeo ? Api.reverseGeocode(lat, lon).catch(() => ({})) : Promise.resolve({}),
+        needStation ? Api.nearestStation(lat, lon).catch(() => '') : Promise.resolve(''),
+      ]);
+      const cur = Store.getShop(shopId); // 待っている間に直された値を上書きしないよう、書く直前に読み直す
+      if (!cur) return;
+      const patch = {};
+      if (station && !cur.station) patch.station = station;
+      if (geo && geo.pref && !cur.pref) patch.pref = geo.pref;
+      if (geo && geo.city && !cur.city) patch.city = geo.city;
+      if (geo && geo.address && !cur.address) patch.address = geo.address;
+      if (Object.keys(patch).length) Store.updateShop(shopId, patch);
+    } catch { /* 静かに諦める */ }
+  }
+
   async function save() {
     const name = $('#f-shop-name').value.trim();
     // 訪問日は自動記録（写真の撮影日→なければ当日）。編集画面から修正可能
@@ -1180,6 +1214,7 @@ const Register = (() => {
       }
 
       App.toast(`「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
+      fillMissingAfterSave(shop.id, pos); // v394: 駅・県・市の取得が間に合わなかった分を後追い
       resetForm();
       App.switchTab('list');
       document.dispatchEvent(new CustomEvent('bitemap:saved'));

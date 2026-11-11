@@ -71,6 +71,8 @@ const Store = (() => {
     persistDeleted();
   }
   const deletedIds = (kind) => new Set(deleted.filter(d => d && d.kind === kind).map(d => d.id));
+  // v394: 削除した時刻つき（クラウドへの再送で控えの時刻を「今」に進めないため）
+  const deletedList = (kind) => deleted.filter(d => d && d.kind === kind && d.id).map(d => ({ id: d.id, at: Number(d.at) || 0 }));
   function clearDeleted(kind, id) {
     const n = deleted.length;
     deleted = deleted.filter(d => !(d && d.kind === kind && d.id === id));
@@ -660,6 +662,21 @@ const Store = (() => {
       }
     } finally { remoteApply = false; }
   }
+  // v394: まとめて取り込む（1件ごとに localStorage へ書き出さない。店・訪問・行きたい）
+  function applyRemoteMany(kind, list) {
+    if (!list || !list.length) return;
+    const arr = kind === 'shop' ? shops : kind === 'visit' ? visits : kind === 'wish' ? wishes : null;
+    if (!arr) return;
+    remoteApply = true;
+    try {
+      const idx = new Map(arr.map((x, i) => [x.id, i]));
+      for (const obj of list) {
+        const i = idx.get(obj.id);
+        if (i != null) arr[i] = obj; else { idx.set(obj.id, arr.length); arr.push(obj); }
+      }
+      if (kind === 'wish') persistWishes(); else persist();
+    } finally { remoteApply = false; }
+  }
 
   // 店の無い訪問・訪問の無い写真を消す（v370〜。同期で記録を取り込んだ後と、設定の「店の無い記録を掃除」から）。
   // 消したものはクラウドにも伝える（通常の削除と同じ）
@@ -791,10 +808,10 @@ const Store = (() => {
     wishes: () => wishes.filter(w => !isDone(w) && !pendingDel.wish.has(w.id)), allWishes: () => wishes.filter(w => !pendingDel.wish.has(w.id)), doneWishes: () => wishes.filter(w => isDone(w) && !pendingDel.wish.has(w.id)),
     addWish, removeWish, undoWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
-    setSyncHook, applyRemote, applyRemoteDelete, putPhotoRaw, photoIds,
+    setSyncHook, applyRemote, applyRemoteMany, applyRemoteDelete, putPhotoRaw, photoIds,
     putBackup, listBackups, getBackup, // 端末内の自動バックアップ（v379〜）
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
-    deletedIds, clearDeleted, wipeLocal, rev: () => rev,
+    deletedIds, deletedList, clearDeleted, wipeLocal, rev: () => rev,
     addHit, hitLog, hitSummary, mergeHits,
   };
 })();

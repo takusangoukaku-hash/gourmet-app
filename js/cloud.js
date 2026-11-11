@@ -58,6 +58,9 @@ const Cloud = (() => {
         if (u) {
           // 同じ端末で別のアカウントにログインした場合は、前のアカウントの記録・写真・APIキー・
           // 他人の投稿の控えを消してから同期する（前の人のデータが新しいアカウントへ流れ込まないように）
+          // v394: 前のアカウント（またはログアウト前）の同期が止まるのを待ってから消す・始める（assertUser で途中で抜ける）
+          if (syncRun) await syncRun.catch(() => {});
+          if (!user || user.uid !== u.uid) return;
           const LAST_UID = 'gourmet.lastUid';
           let last = null;
           try { last = localStorage.getItem(LAST_UID); } catch { /* noop */ }
@@ -74,25 +77,34 @@ const Cloud = (() => {
           try { localStorage.setItem(LAST_UID, u.uid); } catch { /* noop */ }
           Store.setSyncHook(onLocalChange);
           setStatus('syncing');
-          try {
-            // 記録（店・訪問・プロフィール）を先に同期し、この時点で「同期済み」にする
-            await syncRecords();
-            await Store.cleanupOrphans().catch(() => {}); // 取り込みが済んだ後に、店の無い訪問・訪問の無い写真を消す（v370〜）
-            setStatus('synced');
-            App.refreshCurrent();
-            // 写真は容量が大きいのでバックグラウンドで取得（失敗しても同期状態は固めない）
-            syncPhotos()
-              .then(() => {
-                lastSweepAt = Date.now(); // 起動時に全同期したので自動バックアップの間引き起点にする
-                App.refreshCurrent();
-                // 投稿化は負荷が高いので1セッション1回だけ
-                if (!postsPublishedThisSession) { postsPublishedThisSession = true; return publishAllPosts(); }
-              })
-              .catch(e => console.warn('写真同期に失敗:', e))
-              // 写真URLが欠けた投稿を埋め直す。写真同期が途中で失敗しても必ず実行する
-              // （欠けが無ければ即終了で軽い。相手のプロフィールで写真が出ない問題の自動修復）
-              .finally(() => { backfillPostPhotos().catch(() => {}); });
-          } catch (e) { console.error('sync error:', e); setStatus('error', e); }
+          const uid = u.uid;
+          // v394: 写真の取り込みまでを1つの同期として排他にする（sweep と重ねない）
+          const run = runExclusive(async () => {
+            try {
+              // 記録（店・訪問・プロフィール）を先に同期し、この時点で「同期済み」にする
+              await syncRecords();
+              await Store.cleanupOrphans().catch(() => {}); // 取り込みが済んだ後に、店の無い訪問・訪問の無い写真を消す（v370〜）
+              setStatus('synced');
+              App.refreshCurrent();
+            } catch (e) { console.error('sync error:', e); setStatus('error', e); return; }
+            // 写真は容量が大きいので記録の後で取得（失敗しても同期状態は固めない）
+            try {
+              assertUser(uid);
+              await syncPhotos();
+              lastSweepAt = Date.now(); // 起動時に全同期したので自動バックアップの間引き起点にする
+              App.refreshCurrent();
+              return true;
+            } catch (e) { console.warn('写真同期に失敗:', e); return false; }
+          });
+          // 公開投稿の出し直しは時間がかかるので排他の外で（引っ張って更新を待たせない）
+          run.then((photosOk) => {
+            if (!user || user.uid !== uid) return;
+            // 投稿化は負荷が高いので1セッション1回だけ
+            const pub = (photosOk && !postsPublishedThisSession) ? (postsPublishedThisSession = true, publishAllPosts()) : Promise.resolve();
+            // 写真URLが欠けた投稿を埋め直す。写真同期が途中で失敗しても必ず実行する
+            // （欠けが無ければ即終了で軽い。相手のプロフィールで写真が出ない問題の自動修復）
+            pub.catch(() => {}).finally(() => { if (user && user.uid === uid) backfillPostPhotos().catch(() => {}); });
+          }).catch(() => {});
         } else {
           Store.setSyncHook(null);
           try { pending.clear(); } catch { /* noop */ } // v392: 書き込み待ちを次のアカウントへ持ち越さない
@@ -100,6 +112,7 @@ const Cloud = (() => {
         }
       });
     })();
+    ready.catch(() => { ready = null; }); // v394: SDK の読み込みに失敗したら次のログインで読み直す（失敗を持ち続けない）
     return ready;
   }
 
@@ -152,33 +165,67 @@ const Cloud = (() => {
   // 削除の控え（v365〜）: 消した記録の id を users/{uid}/deleted/{kind_id} にも残し、別端末はそれを見て同じ記録を消す。
   // 90 日たった控えは取り込むときに掃除する
   const TOMB_KEEP = 90 * 24 * 3600 * 1000;
-  function putTombstone(kind, id) {
-    return fb.fs.setDoc(dref('deleted', `${kind}_${id}`), { kind, id, at: Date.now() }).catch(() => {});
+  // 控えを書く。失敗は呼び元へ投げる（v394〜。以前は握りつぶしていたので、届かなくても端末の墓標を消していた）。
+  // at は削除した時刻（再送でも元の時刻のまま。「今」にすると、その後に別端末で直した・戻した記録まで消してしまう）
+  function putTombstone(kind, id, at) {
+    return fb.fs.setDoc(dref('deleted', `${kind}_${id}`), { kind, id, at: Number(at) || Date.now() });
   }
-  async function pullDeleted() {
-    let snap;
-    try { snap = await fb.fs.getDocs(cref('deleted')); } catch { return 0; }
-    const tombs = [];
-    snap.forEach(d => tombs.push({ docId: d.id, ...d.data() }));
+  // v394: 控えは取り込みより先に読み、読めなければ同期ごと止める（読めないまま全件を押し上げると、別端末で消した記録をクラウドへ戻してしまう）。
+  // 返り値: kind → Map(id → at)
+  let lastTombs = null; // 直近に読んだ控え（写真の同期で使う）
+  // オフラインの getDocs はサーバーではなく端末の控え（fromCache）で答えることがあるので、それも「読めなかった」とみなす
+  const assertFresh = (snap, what) => { if (snap && snap.metadata && snap.metadata.fromCache) throw new Error(what + 'をサーバーから読めませんでした（オフライン）'); };
+  async function fetchTombs() {
+    const snap = await fb.fs.getDocs(cref('deleted'));
+    assertFresh(snap, '削除の控え');
+    const byKind = { shop: new Map(), visit: new Map(), wish: new Map(), photo: new Map() };
     const now = Date.now(), old = [];
-    let n = 0;
-    for (const t of tombs) {
-      if (typeof t.id !== 'string' || !['shop', 'visit', 'wish', 'photo'].includes(t.kind)) continue;
-      if (!(Number(t.at) > now - TOMB_KEEP)) { old.push(t.docId); continue; }
-      try { if (await Store.applyRemoteDelete(t.kind, t.id, Number(t.at) || 0)) n++; } catch { /* noop */ }
-    }
+    snap.forEach(d => {
+      const t = d.data() || {};
+      if (typeof t.id !== 'string' || !byKind[t.kind]) return;
+      const at = Number(t.at) || 0;
+      if (!(at > now - TOMB_KEEP)) { old.push(d.id); return; }
+      byKind[t.kind].set(t.id, at);
+    });
     if (old.length) runPool(old.slice(0, 50), 4, (id) => fb.fs.deleteDoc(dref('deleted', id)).catch(() => {}));
+    lastTombs = byKind;
+    return byKind;
+  }
+  // 控えに合わせてこちらの記録を消す（v365〜）。控えより後に直した・バックアップから戻した記録は残し、
+  // そのときはクラウドの控えを消す（残しておくと、次の同期でクラウドの記録とずっと食い違う。v394〜）
+  async function applyTombs(tombs) {
+    let n = 0;
+    const local = {
+      shop: new Map(Store.rawShops().map(x => [x.id, x])),
+      visit: new Map(Store.rawVisits().map(x => [x.id, x])),
+      wish: new Map(Store.rawWishes().map(x => [x.id, x])),
+    };
+    const stale = [];
+    for (const kind of ['shop', 'visit', 'wish', 'photo']) {
+      for (const [id, at] of tombs[kind]) {
+        try { if (await Store.applyRemoteDelete(kind, id, at)) { n++; continue; } } catch { continue; }
+        const r = local[kind] && local[kind].get(id);
+        if (r && (Number(r.updatedAt) || 0) > at) { stale.push(`${kind}_${id}`); tombs[kind].delete(id); }
+      }
+    }
+    if (stale.length) await runPool(stale, 4, (docId) => fb.fs.deleteDoc(dref('deleted', docId)).catch(() => {}));
     return n;
   }
+  // 同期の途中でログアウト・別アカウントへの切り替えがあったら止める（前の人の記録を次の人の場所へ書かない）
+  function assertUser(uid) { if (!user || user.uid !== uid) throw new Error('アカウントが変わったため同期を中止しました'); }
   async function syncRecords() {
+    const uid = user.uid;
     let n = 0;
-    n += await pullCollection('shops', 'shop');
-    n += await pullCollection('visits', 'visit');
-    n += await pullWishes();
-    n += await pullDeleted(); // 別端末で消した記録（店・訪問・行きたい・写真）をこちらでも消す（v365〜）
+    const tombs = await fetchTombs();
+    n += await pullCollection('shops', 'shop', tombs.shop);
+    n += await pullCollection('visits', 'visit', tombs.visit);
+    n += await pullCollection('wishes', 'wish', tombs.wish);
+    assertUser(uid);
+    n += await applyTombs(tombs); // 別端末で消した記録（店・訪問・行きたい・写真）をこちらでも消す（v365〜）
     await pullProfile();
     await syncApiKeys();
     await syncPrefs(); // 表示の好み（v390〜）
+    assertUser(uid);
     await pushAllRecords();
     return n; // 別端末から取り込んだ記録の数
   }
@@ -229,37 +276,26 @@ const Cloud = (() => {
     await fb.fs.deleteDoc(dref('meta', 'keys')).catch(() => {});
   }
 
-  // 行きたい店リスト: クラウド → ローカル（新しい方を採用）
-  async function pullWishes() {
-    let n = 0;
-    try {
-      const snap = await fb.fs.getDocs(cref('wishes'));
-      const localMap = new Map(Store.rawWishes().map(w => [w.id, w]));
-      const gone = Store.deletedIds('wish');
-      snap.forEach(docSnap => {
-        const remote = docSnap.data();
-        if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
-        const local = localMap.get(remote.id);
-        if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) { Store.applyRemote('wish', remote); n++; }
-      });
-    } catch (e) { console.warn('行きたい店の同期に失敗:', e); }
-    return n;
-  }
-
-  // クラウド → ローカル（新しい方を採用）
-  async function pullCollection(name, kind) {
+  // クラウド → ローカル（新しい方を採用）。店・訪問・行きたい（v394〜 行きたいも同じ関数。以前は失敗を握りつぶしたまま押し上げていた）。
+  // 読めなければ投げる（同期ごと止める）。控え（tombs: id → at）より古い記録はクラウドの消し残しなので取り込まず、クラウドから消す
+  async function pullCollection(name, kind, tombs) {
     const snap = await fb.fs.getDocs(cref(name));
-    const localMap = new Map((kind === 'shop' ? Store.rawShops() : Store.rawVisits()).map(x => [x.id, x]));
+    assertFresh(snap, name);
+    const localMap = new Map((kind === 'shop' ? Store.rawShops() : kind === 'visit' ? Store.rawVisits() : Store.rawWishes()).map(x => [x.id, x]));
     const gone = Store.deletedIds(kind);
-    let n = 0;
+    const take = [], zombies = [];
     snap.forEach(docSnap => {
       const remote = docSnap.data();
       if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
+      const tAt = tombs && tombs.get(remote.id);
+      if (tAt != null && (Number(remote.updatedAt) || 0) <= tAt) { zombies.push(remote.id); return; }
       const local = localMap.get(remote.id);
       // 新しい方を採用。同じ時刻は同じ内容とみなして触らない（毎回の書き戻しを避ける）
-      if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) { Store.applyRemote(kind, remote); n++; }
+      if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) take.push(remote);
     });
-    return n;
+    Store.applyRemoteMany(kind, take);
+    if (zombies.length) await runPool(zombies, 4, (id) => fb.fs.deleteDoc(dref(name, id)).catch(() => {}));
+    return take.length;
   }
   async function pullProfile() {
     const snap = await fb.fs.getDoc(dref('meta', 'profile'));
@@ -310,6 +346,7 @@ const Cloud = (() => {
   // 別端末でログインしたときも写真の実体ごとダウンロードして端末に保存する（本当の復元）。
   // 転送は数件ずつ並列で行い、1回あたりの取り込み上限を超えた分は次の自動同期で続きから
   async function syncPhotos() {
+    const uid = user.uid;
     const metaSnap = await fb.fs.getDocs(cref('photos'));
     const cloudMetas = [];
     metaSnap.forEach(d => cloudMetas.push(d.data()));
@@ -325,7 +362,16 @@ const Cloud = (() => {
     // ダウンロード対象: ①クラウドにあってローカルに無い写真（新規取り込み）
     //                  ②URL参照だけで実体が無い写真（実体の取り直し）
     const gonePhotos = Store.deletedIds('photo');
-    const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id));
+    // v394: クラウドに削除の控えがある写真は取り込まず、消し残しのメタと本体をクラウドから消す
+    const photoTombs = (lastTombs && lastTombs.photo) || new Map();
+    const zombieMetas = cloudMetas.filter(m => photoTombs.has(m.id));
+    if (zombieMetas.length) {
+      runPool(zombieMetas, 3, async (m) => {
+        await fb.fs.deleteDoc(dref('photos', m.id)).catch(() => {});
+        await fb.st.deleteObject(fb.st.ref(storage, m.path || `users/${user.uid}/photos/${m.id}.jpg`)).catch(() => {});
+      }).catch(() => {});
+    }
+    const newTargets = cloudMetas.filter(m => !localIds.has(m.id) && !gonePhotos.has(m.id) && !photoTombs.has(m.id));
     const hydrTargets = localPhotos.filter(p => !p.hasBlob && cloudIds.has(p.id));
     // 別端末で店を統合した写真（クラウドのメタの店 id が違う）は、こちらでも付け替える（v364〜）
     // v393: 付け替えの時刻 metaAt を比べて新しい方を採る。
@@ -353,15 +399,17 @@ const Cloud = (() => {
     // v359〜 60 枚ごとに区切って最後まで取り込む（以前は 60 枚で打ち切り、残りは次の起動に回していた）。
     // 区切りごとに画面を描き直し、届いた写真から順に見えるようにする
     for (let i = 0; i < allTargets.length && fails < MAX_FAIL; i += MAX_PULL) {
+      assertUser(uid);
       const before = changed;
       await runPool(allTargets.slice(i, i + MAX_PULL), 5, async (t) => {
-        if (fails >= MAX_FAIL) return;
+        if (fails >= MAX_FAIL || !user || user.uid !== uid) return;
       try {
         if (t.kind === 'new') {
           const m = t.m;
           const remoteUrl = await photoDownloadUrl(m.path);
           let blob = null;
           try { blob = await fetchPhotoBlob(remoteUrl); } catch { fails++; }
+          if (!user || user.uid !== uid) return; // 取り込み中にアカウントが変わった
           await Store.putPhotoRaw({
             id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
             hash: m.hash || '', createdAt: m.createdAt || Date.now(), metaAt: Number(m.metaAt) || 0, remoteUrl, ar: Number(m.ar) || 0,
@@ -376,6 +424,7 @@ const Cloud = (() => {
             url = await photoDownloadUrl((m && m.path) || `users/${user.uid}/photos/${p.id}.jpg`);
             blob = await fetchPhotoBlob(url);
           }
+          if (!user || user.uid !== uid) return;
           await Store.putPhotoRaw({ ...p, remoteUrl: url, blob });
         }
         changed++;
@@ -386,6 +435,7 @@ const Cloud = (() => {
 
     // ローカルにあってクラウドに無い写真 → 並列アップロード。
     // 投稿の公開は1枚ごとに行わず、アップロード後に訪問単位でまとめて行う（重複した通信を削減）
+    assertUser(uid);
     const ups = localPhotos.filter(p => !cloudIds.has(p.id) && p.hasBlob);
     const okVisits = new Set();
     await runPool(ups, 3, async (p) => {
@@ -665,47 +715,65 @@ const Cloud = (() => {
   //  （前回から2分以内なら間引く。ログイン中のみ）
   //  v359〜 記録（店・訪問・行きたい）もクラウドから取り込む。以前は押し上げだけで、別端末で付けた記録は
   //  再起動するまで届かなかった。写真は差分を最後まで取り込む
-  let sweepRunning = false, lastSweepAt = 0;
-  async function autoBackupSweep(force) {
-    if (!user || sweepRunning) return;
-    if (!force && Date.now() - lastSweepAt < 2 * 60 * 1000) return;
-    sweepRunning = true;
-    try {
-      await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
-      const recs = await syncRecords(); // 取り込み＋全件の押し上げ（差分ではなく全件上書き＝確実）
-      await Store.cleanupOrphans().catch(() => {}); // v370〜
-      if (recs) App.refreshCurrent(); // 別端末からの記録をすぐ画面に
-      const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
-      lastSweepAt = Date.now();
-      setStatus('synced');
-      if (got) App.refreshCurrent(); // 別端末から届いた写真をすぐ画面に反映
-    } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
-    finally { sweepRunning = false; }
+  // v394: 同期の排他。ログイン時の全同期（写真の取り込みまで）・sweep・引っ張って更新は同時に1つだけ走らせる
+  // （以前はログイン直後の写真の取り込み中に前面復帰・オンライン復帰の sweep が重なり、同じ写真を二重に取り込んでいた）
+  let syncRun = null, lastSweepAt = 0;
+  function runExclusive(fn) {
+    const p = (async () => { try { return await fn(); } finally { if (syncRun === p) syncRun = null; } })();
+    syncRun = p;
+    return p;
   }
-  // 端末で削除済み（墓標あり）の記録がクラウドに残っていれば削除する。成功したら墓標を消す
+  async function autoBackupSweep(force) {
+    if (!user) return;
+    if (syncRun) {
+      if (!force) return;
+      // 引っ張って更新は、走っている同期が終わるのを待ってから（長い写真の取り込み中は 8 秒で諦め、二重には走らせない）
+      const cur = syncRun;
+      await Promise.race([cur.catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
+      if (syncRun || !user) return;
+    }
+    if (!force && Date.now() - lastSweepAt < 2 * 60 * 1000) return;
+    const uid = user.uid;
+    return runExclusive(async () => {
+      try {
+        await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
+        const recs = await syncRecords(); // 取り込み＋全件の押し上げ（差分ではなく全件上書き＝確実）
+        await Store.cleanupOrphans().catch(() => {}); // v370〜
+        if (recs) App.refreshCurrent(); // 別端末からの記録をすぐ画面に
+        assertUser(uid);
+        const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
+        lastSweepAt = Date.now();
+        setStatus('synced');
+        if (got) App.refreshCurrent(); // 別端末から届いた写真をすぐ画面に反映
+      } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
+    });
+  }
+  // 端末で削除済み（墓標あり）の記録がクラウドに残っていれば削除する。控えと本体の両方が書けたときだけ墓標を消す
   async function retryDeletes() {
     if (!user) return;
+    const uid = user.uid;
     const jobs = [];
-    for (const id of Store.deletedIds('visit')) jobs.push(['visit', id]);
-    for (const id of Store.deletedIds('shop')) jobs.push(['shop', id]);
-    for (const id of Store.deletedIds('wish')) jobs.push(['wish', id]);
-    for (const id of Store.deletedIds('photo')) jobs.push(['photo', id]);
-    await runPool(jobs, 4, async ([kind, id]) => {
+    for (const kind of ['visit', 'shop', 'wish', 'photo']) for (const d of Store.deletedList(kind)) jobs.push([kind, d.id, d.at]);
+    await runPool(jobs, 4, async ([kind, id, at]) => {
       try {
-        await applyOneToCloud({ kind, action: 'del', obj: { id } });
+        assertUser(uid);
+        await applyOneToCloud({ kind, action: 'del', obj: { id, delAt: at } });
         Store.clearDeleted(kind, id);
       } catch (e) { console.warn('削除の再送に失敗:', kind, id, e); }
     });
   }
+  // 削除（del）は控え → 本体の順に書き、どちらかが失敗したら投げる（v394〜。呼び元は端末の墓標を残し、次の sweep の retryDeletes で再送する）。
+  // 公開投稿・Storage の本体は、もう無いと権限エラー・not-found になるので従来どおり握りつぶす
   async function applyOneToCloud({ kind, action, obj }) {
+    const delAt = Number(obj && obj.delAt) || Date.now();
     if (kind === 'shop') {
-      if (action === 'del') { await putTombstone('shop', obj.id); return fb.fs.deleteDoc(dref('shops', obj.id)); }
+      if (action === 'del') { await putTombstone('shop', obj.id, delAt); return fb.fs.deleteDoc(dref('shops', obj.id)); }
       return fb.fs.setDoc(dref('shops', obj.id), clean(obj));
     }
     if (kind === 'visit') {
       if (action === 'del') {
-        await putTombstone('visit', obj.id);
-        await fb.fs.deleteDoc(dref('visits', obj.id)).catch(() => {});
+        await putTombstone('visit', obj.id, delAt);
+        await fb.fs.deleteDoc(dref('visits', obj.id));
         await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', obj.id)).catch(() => {}); // フィード投稿も削除
         return;
       }
@@ -718,14 +786,14 @@ const Cloud = (() => {
       // 行きたい店は公開プロフィールにも載せているため、変更が落ち着いたら公開側も更新する
       clearTimeout(wishPubTimer);
       wishPubTimer = setTimeout(() => publishPublicProfile().catch(() => {}), 3000);
-      if (action === 'del') { await putTombstone('wish', obj.id); return fb.fs.deleteDoc(dref('wishes', obj.id)).catch(() => {}); }
+      if (action === 'del') { await putTombstone('wish', obj.id, delAt); return fb.fs.deleteDoc(dref('wishes', obj.id)); }
       return fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
     }
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
       if (action === 'del') {
-        await putTombstone('photo', obj.id);
-        await fb.fs.deleteDoc(dref('photos', obj.id)).catch(() => {});
+        await putTombstone('photo', obj.id, delAt);
+        await fb.fs.deleteDoc(dref('photos', obj.id));
         await fb.st.deleteObject(fb.st.ref(storage, `users/${user.uid}/photos/${obj.id}.jpg`)).catch(() => {});
         if (obj.visitId && Store.visits().some(v => v.id === obj.visitId)) await publishPostForVisit(obj.visitId).catch(() => {}); // 残った写真で投稿を出し直す（v366〜）
         return;

@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v393'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v394'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -44,13 +44,18 @@ const App = (() => {
 
   // キーボード（IME）の高さを CSS 変数 --kb に（v355〜 Edge-to-Edge の作法: 下に固定した「記録する」やトーストをキーボードの上に出す）。
   // iOS はキーボードが出ても position: fixed の基準（レイアウトビューポート）が縮まないので、visualViewport との差で求める
+  let kbApply = null;
   function watchKeyboard() {
     const vv = window.visualViewport;
     if (!vv) return;
     const apply = () => {
       const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      document.documentElement.style.setProperty('--kb', kb > 40 ? kb + 'px' : '0px'); // 40px 未満はアドレスバー等の揺れとみなす
+      // v394: --kb を使う部品（トースト・記録する・更新の帯）は文字の大きさの zoom の中にあり、値も拡縮されるので、先に割っておく
+      // （以前は 特大 1.22 倍でキーボードの高さの 1.22 倍だけ上に浮き、小 0.92 倍ではキーボードに隠れていた）
+      const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom')) || 1;
+      document.documentElement.style.setProperty('--kb', kb > 40 ? Math.round(kb / z) + 'px' : '0px'); // 40px 未満はアドレスバー等の揺れとみなす
     };
+    kbApply = apply;
     vv.addEventListener('resize', apply);
     vv.addEventListener('scroll', apply);
     apply();
@@ -104,6 +109,7 @@ const App = (() => {
     try { pref = localStorage.getItem('gourmet.fontScale') || 'auto'; } catch { /* noop */ }
     const scale = pref === 'auto' ? systemFontScale() : (FONT_SCALES[pref] || 1);
     document.documentElement.style.setProperty('--ui-zoom', String(scale));
+    if (kbApply) kbApply();
     const sel = $('#set-font');
     if (sel) sel.value = pref;
     const sub = $('#sub-font'); // v381〜 行の下に倍率と見本（画面ごと拡縮されるので、この行がそのまま見本になる）
@@ -156,7 +162,7 @@ const App = (() => {
     const mo = $('#map-offline'); if (mo) mo.classList.toggle('hidden', navigator.onLine); // 地図の上の小さな帯（v377〜）
     const bar = $('#net-bar');
     if (!bar) return;
-    if (!navigator.onLine) { bar.textContent = '接続なし ・ 記録は端末に保存され、つながると同期します'; bar.classList.remove('hidden'); return; }
+    if (!navigator.onLine) { const inCloud = typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser(); bar.textContent = inCloud ? '接続なし ・ 記録は端末に保存され、つながると同期します' : '接続なし ・ 記録は端末に保存されます'; bar.classList.remove('hidden'); return; } // v394: 未ログインに「同期します」と言わない
     if (netSyncing) { bar.textContent = '同期しています…'; bar.classList.remove('hidden'); return; }
     bar.classList.add('hidden');
   }
