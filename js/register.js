@@ -1261,7 +1261,7 @@ const Register = (() => {
       // 写真の保存で失敗したときは、先に作った訪問（と新規の店）を取り消して、再送で二重にならないようにする
       if (createdVisitId) { try { await Store.deleteVisit(createdVisitId); } catch { /* noop */ } }
       if (createdShopId && !Store.visitsOf(createdShopId).length) { try { await Store.deleteShop(createdShopId); } catch { /* noop */ } }
-      App.toast('保存に失敗しました: ' + e.message);
+      App.toast(Store.isQuotaError(e) ? Store.QUOTA_MSG : '保存に失敗しました: ' + e.message, Store.isQuotaError(e) ? 6000 : undefined);
     } finally {
       btn.disabled = false; btn.textContent = '記録する'; // v393: index.html の表記に合わせる
     }

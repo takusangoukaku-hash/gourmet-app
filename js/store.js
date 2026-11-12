@@ -43,13 +43,19 @@ const Store = (() => {
   }
   // localStorage への保存。容量超過のときは、再取得できる控え（他人の投稿）を捨てて空きを作り、
   // それでも入らなければ利用者に知らせて例外を投げる（黙って記録が消えないように）
+  // v405: 端末の空きが足りないときのエラーか（localStorage・IndexedDB とも）。お知らせの文は1つにそろえる
+  const QUOTA_MSG = '端末の空きが足りず保存できませんでした ・ 写真を減らすか、端末の空きを増やしてください';
+  function isQuotaError(e) {
+    if (!e) return false;
+    return e.name === 'QuotaExceededError' || e.code === 22 || /quota|exceeded the quota|容量/i.test(String(e.message || ''));
+  }
   function setItemSafe(k, v) {
     try { localStorage.setItem(k, v); return; }
     catch (e) {
       for (const c of SOCIAL_KEYS) { try { localStorage.removeItem(c); } catch { /* noop */ } }
       try { localStorage.setItem(k, v); return; }
       catch (e2) {
-        try { App.toast('⚠️ 端末の保存領域がいっぱいで記録を保存できません。空き容量を確保してください'); } catch { /* noop */ }
+        try { App.toast(QUOTA_MSG, 6000); } catch { /* noop */ }
         throw e2;
       }
     }
@@ -858,6 +864,7 @@ const Store = (() => {
     // クラウド同期用
     setSyncHook, applyRemote, applyRemoteMany, applyRemoteDelete, putPhotoRaw, photoIds, photoMeta,
     putBackup, listBackups, getBackup, // 端末内の自動バックアップ（v379〜）
+    isQuotaError, QUOTA_MSG,
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
     deletedIds, deletedList, clearDeleted, wipeLocal, rev: () => rev,
     addHit, hitLog, hitSummary, mergeHits,

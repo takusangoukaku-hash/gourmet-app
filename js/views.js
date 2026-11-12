@@ -5644,17 +5644,18 @@ const Views = (() => {
   async function addPhotosToVisit(v, files) {
     if (!files || !files.length) return 0;
     App.toast('写真を保存しています…', 2000);
-    let n = 0;
+    let n = 0, quota = false;
     for (const f of files) {
       try {
         const blob = await Api.compressImage(f);
         const pid = await Store.addPhoto(v.shopId, v.id, 'dish', blob, await Api.fileHash(f));
         warmThumb(pid, blob); n++;
-      } catch (e) { console.warn('写真を足せませんでした', e); }
+      } catch (e) { console.warn('写真を足せませんでした', e); if (Store.isQuotaError(e)) { quota = true; break; } }
     }
-    if (!n) { App.toast('写真を保存できませんでした'); return 0; }
+    if (quota) App.toast((n ? `写真を${n}枚足しました ・ ` : '') + Store.QUOTA_MSG, 6000);
+    if (!n) { if (!quota) App.toast('写真を保存できませんでした'); return 0; }
     if (typeof Cloud !== 'undefined' && Cloud.getUser()) Cloud.publishPostForVisit(v.id).catch(() => {});
-    App.toast(`写真を${n}枚足しました`);
+    if (!quota) App.toast(`写真を${n}枚足しました`);
     exploreItems = null; // 探すの写真を拾い直す
     return n;
   }

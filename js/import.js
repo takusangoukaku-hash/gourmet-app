@@ -314,7 +314,7 @@ const Import = (() => {
       if (tok !== runToken || !ov) return;
     }
     const skipped = loadSkipped();
-    let done = 0, photosN = 0, newShops = 0, failed = 0;
+    let done = 0, photosN = 0, newShops = 0, failed = 0, quotaFull = false;
     const toFill = []; // 新しく作った店（保存後に駅・県・市を後追いで補う）
     for (const g of todo) {
       if (ov && tok === runToken) {
@@ -360,9 +360,11 @@ const Import = (() => {
         console.error(e);
         failed++;
         g.state = 'failed';
+        if (Store.isQuotaError(e)) quotaFull = true; // v405: 空きが無ければ残りも入らないので、ここで止める（残りは次に取り込める）
         // 半端な訪問と、この候補で作った（もう訪問の無い）店を消す。写真と指紋は deleteVisit が一緒に消すので、やり直せる
         try { if (visit) await Store.deleteVisit(visit.id); } catch (e2) { console.error(e2); }
         try { if (createdShop && !Store.rawVisits().some(v => v.shopId === createdShop.id)) await Store.deleteShop(createdShop.id); } catch (e2) { console.error(e2); }
+        if (quotaFull) break;
       }
     }
     try {
@@ -371,7 +373,8 @@ const Import = (() => {
       saveSkipped(skipped);
     } catch (e) { console.error(e); }
     if (tok === runToken) busy = false;
-    App.toast(`${done}件を記録しました${failed ? ` ・ ${failed}件は失敗` : ''}`);
+    if (quotaFull) App.toast(`${done}件を記録しました ・ ${Store.QUOTA_MSG}`, 7000);
+    else App.toast(`${done}件を記録しました${failed ? ` ・ ${failed}件は失敗` : ''}`);
     if (ov && tok === runToken) {
       prog.classList.add('hidden');
       const rest = groups.filter(g => g.state !== 'saved' && g.state !== 'skip' && g.state !== 'failed').length;
