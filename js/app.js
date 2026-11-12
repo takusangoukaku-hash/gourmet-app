@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v408'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v409'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
@@ -177,14 +177,24 @@ const App = (() => {
     const bar = $('#net-bar');
     if (!bar) return;
     if (!navigator.onLine) { const inCloud = typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser(); bar.textContent = inCloud ? '接続なし ・ 記録は端末に保存され、つながると同期します' : '接続なし ・ 記録は端末に保存されます'; bar.classList.remove('hidden'); return; } // v394: 未ログインに「同期します」と言わない
+    // v409: つながっているのに同期が2回続けて失敗したら知らせる（以前は設定の中にしか出ず、ルールの拒否・ログイン切れに気づけなかった）
+    if (syncErrs >= 2 && typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser()) {
+      bar.textContent = '同期できていません ・ ';
+      const a = document.createElement('button'); a.type = 'button'; a.className = 'nb-link'; a.textContent = '設定で確かめる';
+      a.addEventListener('click', () => { const sb = $('#settings-btn'); if (sb) sb.click(); });
+      bar.appendChild(a); bar.classList.remove('hidden'); return;
+    }
     if (netSyncing) { bar.textContent = '同期しています…'; bar.classList.remove('hidden'); return; }
     bar.classList.add('hidden');
   }
+  let syncErrs = 0; // v409: 続けて失敗した同期の回数（同期できたら 0）
   function watchNet() {
     window.addEventListener('online', updateNetBar);
     window.addEventListener('offline', updateNetBar);
     if (typeof Cloud !== 'undefined' && Cloud.onStatus) Cloud.onStatus((s) => {
       clearTimeout(netSyncTimer);
+      if (s === 'error' && navigator.onLine) syncErrs++;
+      else if (s === 'synced' || s === 'signedout') syncErrs = 0;
       if (s === 'syncing') { netSyncTimer = setTimeout(() => { netSyncing = true; updateNetBar(); }, 2000); }
       else { netSyncing = false; updateNetBar(); }
     });

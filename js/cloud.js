@@ -845,7 +845,11 @@ const Cloud = (() => {
         lastSweepAt = Date.now();
         setStatus('synced');
         if (got) App.refreshCurrent(); // 別端末から届いた写真をすぐ画面に反映
-      } catch (e) { console.warn('自動バックアップに失敗（次回に再試行）:', e); }
+      } catch (e) {
+        console.warn('自動バックアップに失敗（次回に再試行）:', e);
+        // v409: 失敗を状態に出す（以前は「同期済み」のままで、設定にも帯にも出なかった）。アカウントが変わって止めたときは出さない
+        if (user && user.uid === uid && !/アカウントが変わった/.test(String(e && e.message || ''))) setStatus('error', e);
+      }
     });
   }
   // 端末で削除済み（墓標あり）の記録がクラウドに残っていれば削除する。控えと本体の両方が書けたときだけ墓標を消す
