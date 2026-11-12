@@ -187,24 +187,47 @@ const Views = (() => {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   };
 
-  // object URL のキャッシュ（photoId → url）
+  // object URL のキャッシュ（photoId → url）。v403: 本体（大きい画像）の URL は新しい順に FULL_URL_MAX 枚まで。
+  //   以前は一度作ると閉じるまで手放さず、全画面で何百枚も送るとメモリを使い続けた。
+  //   古いものは、画面のどの <img> も使っていなければ手放す（使っている URL を消すと iOS が描き直すときに写真が消える）
   const urlCache = new Map();
+  const FULL_URL_MAX = 24;
+  const urlPinned = new Set(); // 同期版 photoUrl() で渡した URL は投稿のデータに残るので手放さない
+  function cacheGet(id) {
+    const u = urlCache.get(id);
+    if (u) { urlCache.delete(id); urlCache.set(id, u); } // 使ったものを新しい側へ
+    return u;
+  }
+  function cachePut(id, blob) {
+    const u = URL.createObjectURL(blob);
+    urlCache.set(id, u);
+    if (urlCache.size > FULL_URL_MAX) {
+      const inUse = new Set([...document.images].map(i => i.src));
+      for (const [k, v] of urlCache) {
+        if (urlCache.size <= FULL_URL_MAX) break;
+        if (k === id || inUse.has(v) || urlPinned.has(k)) continue;
+        urlCache.delete(k);
+        setTimeout(() => URL.revokeObjectURL(v), 4000); // 読み込み途中の先読みがあっても間に合うよう少し待つ
+      }
+    }
+    return u;
+  }
   // 同期版: 本体を持つレコード、または既に作ったURLがあるときだけ返す（一覧用のメタ情報では非同期版を使う）
   function photoUrl(rec) {
     if (!rec) return null;
-    if (urlCache.has(rec.id)) return urlCache.get(rec.id);
-    if (rec.blob) { urlCache.set(rec.id, URL.createObjectURL(rec.blob)); return urlCache.get(rec.id); }
+    if (urlCache.has(rec.id)) { urlPinned.add(rec.id); return cacheGet(rec.id); }
+    if (rec.blob) { urlPinned.add(rec.id); return cachePut(rec.id, rec.blob); }
     // 別端末から取り込んだ写真はローカルにblobが無く、クラウドの公開URLで表示する
     return rec.remoteUrl || null;
   }
   // 非同期版: 本体（元画像）のURL。必要なときだけ IndexedDB から1枚読む（拡大表示・大きい表示用）
   async function fullPhotoUrl(rec) {
     if (!rec) return null;
-    if (urlCache.has(rec.id)) return urlCache.get(rec.id);
+    if (urlCache.has(rec.id)) return cacheGet(rec.id);
     if (rec.blob) return photoUrl(rec);
     if (rec.hasBlob) {
       const blob = await Store.getPhotoBlob(rec.id).catch(() => null);
-      if (blob) { if (!urlCache.has(rec.id)) urlCache.set(rec.id, URL.createObjectURL(blob)); return urlCache.get(rec.id); }
+      if (blob) return urlCache.has(rec.id) ? cacheGet(rec.id) : cachePut(rec.id, blob);
     }
     return rec.remoteUrl || null;
   }
@@ -271,11 +294,12 @@ const Views = (() => {
   // 大きく表示する写真用: サムネイルを即出ししつつ、フル解像度が読めたら差し替える
   function setFullPhoto(img, rec) {
     img._fullId = '';
+    img._fullReq = rec.id; // v403: 途中で取り下げられたら（全画面の遠い写真をサムネに戻した）本体を入れない
     setThumb(img, rec);
     fullPhotoUrl(rec).then(full => {
       if (!full) return;
       const pre = new Image();
-      pre.onload = () => { if (img.isConnected !== false) { img._fullId = rec.id; img.src = full; } };
+      pre.onload = () => { if (img.isConnected !== false && img._fullReq === rec.id) { img._fullId = rec.id; img.src = full; } };
       pre.src = full;
     });
   }
@@ -3377,8 +3401,11 @@ const Views = (() => {
     const loaded = new Set();
     let cur = Math.max(0, Math.min(items.length - 1, index || 0));
     const load = (i) => { if (i < 0 || i >= items.length || loaded.has(i)) return; loaded.add(i); const im = slides[i].querySelector('img'); if (items[i].ph) setFullPhoto(im, items[i].ph); else im.src = items[i].url || ''; }; // v385〜 他人の投稿は url
+    // v403: 今の写真から 3 枚より離れた写真は本体を手放してサムネに戻す（何十枚も送ると大きい画像を持ち続けていた）。戻れば読み直す
+    const unload = (i) => { const it = items[i]; if (!it.ph) return; const im = slides[i].querySelector('img'); im._fullReq = ''; im._fullId = ''; loaded.delete(i); setThumb(im, it.ph); };
     const update = () => {
       for (let i = cur - 1; i <= cur + 1; i++) load(i);
+      for (const i of [...loaded]) if (Math.abs(i - cur) > 3) unload(i);
       ov.querySelector('.pv-count').textContent = items.length > 1 ? `${cur + 1} / ${items.length}` : '';
       const it = items[cur];
       ov.querySelector('.pv-cap').textContent = [it.date, it.rating ? `★${fmtR(it.rating)}` : ''].filter(Boolean).join(' ・ ');
