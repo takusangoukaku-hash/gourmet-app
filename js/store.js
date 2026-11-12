@@ -321,6 +321,15 @@ const Store = (() => {
   }
   async function draftCount() { return (await getDrafts()).length; }
 
+  // v397: 写真1枚のメタ（無ければ null）。同期で取り込みを書く直前に今の値を読み直すため
+  async function photoMeta(id) {
+    const d = await db();
+    return new Promise((resolve) => {
+      const req = d.transaction('meta').objectStore('meta').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  }
   async function photoIds() {
     const d = await db();
     return new Promise((resolve, reject) => {
@@ -847,7 +856,7 @@ const Store = (() => {
     wishes: () => wishes.filter(w => !isDone(w) && !pendingDel.wish.has(w.id)), allWishes: () => wishes.filter(w => !pendingDel.wish.has(w.id)), doneWishes: () => wishes.filter(w => isDone(w) && !pendingDel.wish.has(w.id)),
     addWish, removeWish, undoWish, findWish, wishProgress, undoWishForVisit,
     // クラウド同期用
-    setSyncHook, applyRemote, applyRemoteMany, applyRemoteDelete, putPhotoRaw, photoIds,
+    setSyncHook, applyRemote, applyRemoteMany, applyRemoteDelete, putPhotoRaw, photoIds, photoMeta,
     putBackup, listBackups, getBackup, // 端末内の自動バックアップ（v379〜）
     rawShops: () => shops, rawVisits: () => visits, rawWishes: () => wishes,
     deletedIds, deletedList, clearDeleted, wipeLocal, rev: () => rev,

@@ -207,6 +207,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   - **ルール**: `firebase/firestore.rules` を変えたら、利用者に Firebase コンソールへの貼り付けを頼む（自動では反映されない）
   - 重複した店の判定（`isSimilarShop`）は、名前が同じでも 2km より離れていれば別の店
   - 回帰テストは scratchpad の `test-v396.js`（偽の Firebase で押し上げの数・差分の読み込み・削除の保留・他人の URL を確かめる）
+- v397: 写真のメタも差分で読む（`syncPhotos` の `photoCache`。30分に1回の全件以外は `updatedAt` の差分）。**写真のメタ（`users/{uid}/photos`）に書くときは必ず `updatedAt` を付け、`notePhotoCache()` で控えも直す**。取り込みで書く前は `Store.photoMeta(id)` で今の値を読み直す。**引っ張って更新（`Cloud.syncNow()`）と `syncFull()` は記録も写真も全件を読む**（差分は定期の同期と保存後だけ。差分は書いた端末の時計で切るので、遅れて届いた別端末の記録を最大30分見落とす）。取り込みで打った店名は 150m 以内の似た店（`Views.similarShops`、一致率 0.8 以上）に合わせる。maskable アイコンは `icons/icon-maskable-512.png`。回帰テストは `test-v397.js`
 - 地図のテスト: この環境では `tiles.openfreemap.org/planet` の TileJSON が取れず style が load しない（ピンの層が無い）。Playwright では TileJSON を偽の JSON で返し、タイル・グリフは 404 にすると `load` が来てピンが描ける（`test-v371.js` の route）。
 - 店舗の詳細の写真の帯（v365〜）: `#d-visits` の先頭に `.visit-block.d-photoblock`（店の写真を新しい順に全幅・左右スワイプ・点。`buildOwnShopPost` → タップで `showPostDetail`）を戻した（v338〜v363 と同じ。写真が無ければ出さない）。その下に v364 の訪問ごとの `.sfs`。
 - 店舗の詳細の訪問（v364〜）: `showShop` の `#d-visits` は、訪問の一覧 `showVisitList` と同じ部品 `buildVisitSection(shopId, v, {editVisit, delVisit})` を `.pf-shopfeed.d-visitfeed`（モーダルの余白 20px の外まで広げる）に新しい順で縦に並べる。写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›。「訪問記録」の見出しと ✎（`#d-visitlist`）は廃止。…の「編集」は v367〜 `openVisitEdit` のシート。v338〜v363 の店の写真カルーセルは v365 で帯として戻し、訪問履歴のサムネは無い。

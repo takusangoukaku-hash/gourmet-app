@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v396'; // 2回目の全体の見直し: 同期の押し上げは変わったものだけ・読み込みは差分、削除の保留を端末に控える、他人の画像 URL を制限、登録で前の店の住所が残る・下書きの日付が消える、取り込みの自信なしのジャンル、画面の描き直し・選択モード・古い現在地 ほか
+const VERSION = 'v397'; // 写真の同期も差分で読む（読み込み数。引っ張って更新は全件）、取り込み中に移した・消した写真が戻らない、取り込みで打った店名を近くの似た店に合わせる、Android のアイコン（maskable）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -15,7 +15,7 @@ const SHELL = [
   ...['store', 'api', 'cloud', 'register', 'import', 'views', 'app'].map(n => `./js/${n}.js?v=${VN}`),
   './js/vendor/anthropic-sdk.js?v=330', // api.js が import する URL と同じにする（v392。以前は ?v=版 で、使われない方を毎回取りに行っていた）
   './manifest.webmanifest',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png', './icons/icon-maskable-512.png',
 ];
 
 const CDN_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'tiles.openfreemap.org', 'maps.gsi.go.jp', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];

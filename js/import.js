@@ -326,6 +326,11 @@ const Import = (() => {
       try {
         shop = g.shop || null;
         if (!shop) shop = Store.matchShop({ osmId: g.cand ? g.cand.osmId : '', name: g.name, lat: g.lat, lon: g.lon });
+        // v397: 手で打った店名が、写真の位置から 150m 以内のよく似た登録済みの店（「麺屋こがね」と「麺屋 こがね 本店」など）なら、その店に記録する（二重登録を防ぐ）
+        if (!shop && !g.cand && typeof Views !== 'undefined' && Views.similarShops) {
+          const hit = Views.similarShops(g.name, g.lat, g.lon).find(x => x.dist != null && x.dist < 150 && x.sim >= 0.8);
+          if (hit) shop = hit.shop;
+        }
         if (!shop) {
           const c = g.cand || {};
           // 位置は登録画面と同じ決め方（粗い候補は写真の位置を優先）。候補が無ければ写真の位置

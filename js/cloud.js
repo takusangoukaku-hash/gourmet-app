@@ -409,16 +409,25 @@ const Cloud = (() => {
   // 写真: クラウド↔ローカルの差分を埋める。
   // 別端末でログインしたときも写真の実体ごとダウンロードして端末に保存する（本当の復元）。
   // 転送は数件ずつ並列で行い、1回あたりの取り込み上限を超えた分は次の自動同期で続きから
+  // v397: クラウドの写真のメタの控え（id → メタ）。記録と同じく、30分に1回の全件以外は updatedAt の差分だけ読む
+  // （以前は同期のたびに写真のメタを全部読んでいた。300枚で1回300件）。こちらで書いたメタも控えに入れる
+  let photoCache = null, photoCacheUid = '', photoFullAt = 0, photoPullAt = 0;
+  const notePhotoCache = (id, patch) => { if (photoCache && user && photoCacheUid === user.uid) { if (patch === null) photoCache.delete(id); else photoCache.set(id, { ...(photoCache.get(id) || {}), ...patch, id }); } };
   async function syncPhotos() {
     const uid = user.uid;
-    const metaSnap = await fb.fs.getDocs(cref('photos'));
-    const cloudMetas = [];
+    const t0 = Date.now();
+    const fullP = !photoCache || photoCacheUid !== uid || !photoFullAt || t0 - photoFullAt > PULL_FULL_EVERY;
+    const metaSnap = await fb.fs.getDocs(fullP ? cref('photos') : fb.fs.query(cref('photos'), fb.fs.where('updatedAt', '>', photoPullAt - PULL_SKEW)));
+    assertFresh(metaSnap, '写真');
+    if (fullP) { photoCache = new Map(); photoCacheUid = uid; }
     // v396: 本体の場所（path）の無いメタ（付け替えだけ先に届いた写真）は「クラウドにある」と数えない（こちらから上げ直す）。id は文書の id で補う
-    metaSnap.forEach(d => { const m = d.data() || {}; if (!m.id) m.id = d.id; if (typeof m.path === 'string' && m.path) cloudMetas.push(m); });
+    metaSnap.forEach(d => { const m = d.data() || {}; if (!m.id) m.id = d.id; if (typeof m.path === 'string' && m.path) photoCache.set(m.id, m); else if (!photoCache.has(m.id) || !photoCache.get(m.id).path) photoCache.delete(m.id); });
+    const cloudMetas = [...photoCache.values()];
     const cloudIds = new Set(cloudMetas.map(m => m.id));
-    { // v396: こちらに無い記録・店の写真があれば、記録の読み込みに見落としがある（次は全件）
+    { // v396: こちらに無い記録・店の写真があれば、記録の読み込みに見落としがある（次は全件）。v397: 今回読んだ分だけ見る（取り込めない1枚のせいで毎回全件にならない）
       const vIds = new Set(Store.rawVisits().map(v => v.id));
-      if (cloudMetas.some(m => m.visitId && !vIds.has(m.visitId) && !(lastTombs && lastTombs.visit && lastTombs.visit.has(m.visitId)))) lastFullPullAt = 0;
+      const got = []; metaSnap.forEach(d => got.push(d.data() || {}));
+      if (got.some(m => m.visitId && !vIds.has(m.visitId) && !(lastTombs && lastTombs.visit && lastTombs.visit.has(m.visitId)))) lastFullPullAt = 0;
     }
     const metaById = new Map(cloudMetas.map(m => [m.id, m]));
     const localIds = await Store.photoIds();
@@ -436,6 +445,7 @@ const Cloud = (() => {
     const zombieMetas = cloudMetas.filter(m => photoTombs.has(m.id));
     if (zombieMetas.length) {
       runPool(zombieMetas, 3, async (m) => {
+        notePhotoCache(m.id, null);
         await fb.fs.deleteDoc(dref('photos', m.id)).catch(() => {});
         await fb.st.deleteObject(fb.st.ref(storage, m.path || `users/${user.uid}/photos/${m.id}.jpg`)).catch(() => {});
       }).catch(() => {});
@@ -455,7 +465,7 @@ const Cloud = (() => {
       if (!shopDiff && !visitDiff) continue;
       const cAt = Number(m.metaAt) || 0, lAt = Number(p.metaAt) || 0;
       if (lAt > cAt) {
-        try { await fb.fs.setDoc(dref('photos', p.id), clean({ shopId: p.shopId, visitId: p.visitId, metaAt: lAt }), { merge: true }); } catch { /* 次の同期でもう一度 */ }
+        try { const patch = { shopId: p.shopId, visitId: p.visitId, metaAt: lAt, updatedAt: Date.now() }; await fb.fs.setDoc(dref('photos', p.id), clean(patch), { merge: true }); notePhotoCache(p.id, patch); } catch { /* 次の同期でもう一度 */ }
         continue;
       }
       if (!shopDiff && cAt === lAt) continue;
@@ -479,6 +489,7 @@ const Cloud = (() => {
           let blob = null;
           try { blob = await fetchPhotoBlob(remoteUrl); } catch { fails++; }
           if (!user || user.uid !== uid) return; // 取り込み中にアカウントが変わった
+          if (Store.deletedIds('photo').has(m.id)) return; // v397: 取り込んでいる間にこちらで消した
           await Store.putPhotoRaw({
             id: m.id, shopId: m.shopId, visitId: m.visitId, type: m.type || 'dish',
             hash: m.hash || '', createdAt: m.createdAt || Date.now(), metaAt: Number(m.metaAt) || 0, remoteUrl, ar: Number(m.ar) || 0,
@@ -494,7 +505,10 @@ const Cloud = (() => {
             blob = await fetchPhotoBlob(url);
           }
           if (!user || user.uid !== uid) return;
-          await Store.putPhotoRaw({ ...p, remoteUrl: url, blob });
+          // v397: 取り込みを始めた時点の写しで書かない（その間に移した・消した写真が戻っていた）。今のメタに本体だけ足す
+          const cur = await Store.photoMeta(p.id);
+          if (!cur) return;
+          await Store.putPhotoRaw({ ...cur, remoteUrl: url, blob });
         }
         changed++;
       } catch (e) { fails++; console.warn('写真取り込み失敗:', e); }
@@ -514,6 +528,8 @@ const Cloud = (() => {
       } catch (e) { console.warn('写真アップロード失敗:', p.id, e); }
     });
     await runPool([...okVisits], 4, (vid) => publishPostForVisit(vid, null).catch(() => {}));
+    photoPullAt = t0;
+    if (fullP) photoFullAt = t0;
     return changed;
   }
 
@@ -525,7 +541,9 @@ const Cloud = (() => {
     if (!body) throw new Error('写真の本体が端末にありません: ' + p.id);
     await fb.st.uploadBytes(fb.st.ref(storage, path), body, { contentType: 'image/jpeg' });
     const { blob, thumb, hasBlob, thumbV, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
-    await fb.fs.setDoc(dref('photos', p.id), clean({ ...meta, path }));
+    const doc = clean({ ...meta, path, updatedAt: Date.now() }); // v397: updatedAt（別端末が差分で読めるように）
+    await fb.fs.setDoc(dref('photos', p.id), doc);
+    notePhotoCache(p.id, doc);
     // フィード用の公開投稿も更新（@ユーザー名を設定している人のみ）
     if (!skipPublish) {
       try { await publishPostForVisit(p.visitId, path); } catch (e) { console.warn('投稿の公開に失敗:', e); }
@@ -875,13 +893,15 @@ const Cloud = (() => {
     if (kind === 'photo') {
       if (action === 'del') {
         await putTombstone('photo', obj.id, delAt);
-        await fb.fs.deleteDoc(dref('photos', obj.id));
+        await fb.fs.deleteDoc(dref('photos', obj.id)); notePhotoCache(obj.id, null);
         await fb.st.deleteObject(fb.st.ref(storage, `users/${user.uid}/photos/${obj.id}.jpg`)).catch(() => {});
         if (obj.visitId && Store.visits().some(v => v.id === obj.visitId)) await publishPostForVisit(obj.visitId).catch(() => {}); // 残った写真で投稿を出し直す（v366〜）
         return;
       }
       if (action === 'meta') { // 店の統合・写真の付け替えなど、メタ情報（店・訪問）だけの変更（v364〜）
-        await fb.fs.setDoc(dref('photos', obj.id), clean({ id: obj.id, shopId: obj.shopId, visitId: obj.visitId, metaAt: Number(obj.metaAt) || Date.now() }), { merge: true }); // metaAt: 付け替えの時刻（v393〜 端末間で新しい方を採る）。v396: id も書く
+        const patch = { id: obj.id, shopId: obj.shopId, visitId: obj.visitId, metaAt: Number(obj.metaAt) || Date.now(), updatedAt: Date.now() };
+        await fb.fs.setDoc(dref('photos', obj.id), clean(patch), { merge: true }); // metaAt: 付け替えの時刻（v393〜 端末間で新しい方を採る）。v396: id も書く。v397: updatedAt も
+        if (photoCache && photoCache.has(obj.id)) notePhotoCache(obj.id, patch);
         for (const vid of [obj.visitId, obj.prevVisitId]) if (vid && Store.visits().some(v => v.id === vid)) await publishPostForVisit(vid).catch(() => {});
         return;
       }
@@ -1088,6 +1108,7 @@ const Cloud = (() => {
     fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
     publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep, syncPrefs,
-    syncNow: () => autoBackupSweep(true), // 引っ張って更新（v363〜）
-    syncFull: async () => { const t0 = Date.now(); lastFullPullAt = 0; await autoBackupSweep(true); return lastPullWasFull && lastFullPullAt >= t0; } }; // v396: 全件を読み直す（設定の「店の無い記録を掃除」の前）。読み直せたら true
+    // 引っ張って更新（v363〜）。v397: 利用者が自分で頼んだ同期は全件を読む（差分では、別端末で書いてから遅れて届いた記録を最大 30 分見落とす）
+    syncNow: () => { lastFullPullAt = 0; photoFullAt = 0; return autoBackupSweep(true); },
+    syncFull: async () => { const t0 = Date.now(); lastFullPullAt = 0; photoFullAt = 0; await autoBackupSweep(true); return lastPullWasFull && lastFullPullAt >= t0; } }; // v396: 全件を読み直す（設定の「店の無い記録を掃除」の前）。読み直せたら true
 })();
