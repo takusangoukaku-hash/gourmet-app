@@ -2439,7 +2439,7 @@ const Views = (() => {
   }
   function refreshPrefOptions() {
     const cur = $('#flt-pref').value;
-    const prefs = [...new Set(Store.shops().map(s => s.pref).filter(Boolean))].sort();
+    const prefs = [...new Set(Store.shops().map(s => prefKey(s.pref)).filter(Boolean))].sort(); // v412: 「東京」と「東京都」を1つに
     $('#flt-pref').innerHTML = '<option value="">都道府県</option>' + prefs.map(p => `<option>${esc(p)}</option>`).join('');
     $('#flt-pref').value = cur;
   }
@@ -2451,7 +2451,7 @@ const Views = (() => {
     const minR = +($('#flt-rating').value || 0);
 
     return Store.shops().filter(s => {
-      if (pref && s.pref !== pref) return false;
+      if (pref && prefKey(s.pref) !== pref) return false;
       const vs = Store.visitsOf(s.id);
       if (dg && !vs.some(v => (v.dishGenres || []).includes(dg))) return false;
       // 星の絞り込みは平均だけでなく、1回でも★minR以上の記録があれば表示する
@@ -3324,7 +3324,7 @@ const Views = (() => {
         const shop = Store.getShop(it.ph.shopId) || {};
         const v = vById.get(it.ph.visitId) || {};
         if (st && !sameStation(shop.station, st)) return false;
-        if (pref && shop.pref !== pref) return false;
+        if (pref && prefKey(shop.pref) !== pref) return false;
         if (minR && (v.rating || 0) < minR) return false;
         if (kw) {
           const hay = searchHay([shop.name, shop.station, shop.station ? stationKey(shop.station) + '駅' : '', shop.pref, shop.city, shop.address,
@@ -3336,7 +3336,7 @@ const Views = (() => {
       // フォロー中の人の投稿
       const p = it.p;
       if (st && !sameStation(p.station, st)) return false;
-      if (pref && (p.pref || '') !== pref) return false;
+      if (pref && prefKey(p.pref) !== pref) return false;
       if (minR && (p.rating || 0) < minR) return false;
       if (kw) {
         const hay = searchHay([p.shopName, p.station, p.pref, p.city, p.comment, p.username,
@@ -4508,6 +4508,7 @@ const Views = (() => {
     '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県',
     '大分県', '宮崎県', '鹿児島県', '沖縄県'];
   // 「東京」「東京都渋谷区…」などの表記ゆれ → 正式名（該当なしは ''）
+  const prefKey = (p) => normPref(p) || String(p || '').trim(); // v412: 絞り込みの都道府県（「東京」→「東京都」。47 に無い表記はそのまま）
   function normPref(p) {
     const t = String(p || '').replace(/^日本[、,]?\s*/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '').trim();
     if (!t) return '';
