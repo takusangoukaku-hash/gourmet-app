@@ -4079,6 +4079,7 @@ const Views = (() => {
         const t = document.createElement('button');
         t.type = 'button';
         t.className = 'dvt';
+        t.setAttribute('aria-label', '店の詳細を開く');
         t.innerHTML = `<span class="dvt-ph"><img alt="" loading="lazy" decoding="async"></span>`;
         setThumb(t.querySelector('img'), ph);
         t.addEventListener('click', () => showShop(g.shopId)); // v372〜 訪問の一覧は店舗の詳細に統合
@@ -5563,7 +5564,7 @@ const Views = (() => {
         <div class="ve-row">味の評価 <span class="stars small ve-stars"></span><span class="ve-rword">${esc(ratingWord(v.rating))}</span></div>
         <div class="ve-sub">料理ジャンル</div>
         <div class="ve-genres"></div>
-        <div class="ve-row">訪問日 <input type="date" class="ve-date" value="${toDateInput(v.datetime)}"></div>
+        <div class="ve-row">訪問日 <input type="date" class="ve-date" aria-label="訪問日" value="${toDateInput(v.datetime)}"></div>
         <div class="ve-row ve-photos">写真 <span class="ve-pn">…</span><button type="button" class="btn small ve-addphoto">${IC_PLUS} 写真を足す</button><input type="file" class="ve-file" accept="image/*" multiple hidden></div>
         <textarea rows="2" class="ve-comment" placeholder="ひとこと">${esc(v.comment || '')}</textarea>
         <div class="v-btns ve-btns">
@@ -5862,7 +5863,7 @@ const Views = (() => {
       it.innerHTML = `
         <div class="vl-tldate">${esc(fmtDate(v.datetime))}<span>${relTime(v.datetime)}</span></div>
         <div class="vl-tlrow">
-          <button type="button" class="vl-tlph">${IC_DISH}</button>
+          <button type="button" class="vl-tlph" aria-label="写真を大きく見る">${IC_DISH}</button>
           <div class="vl-tlinfo">
             <div class="vl-tlstars">${starSvg(v.rating, 14)}${v.rating ? `<b>${fmtR(v.rating)}</b>` : ''}</div>
             ${gtxt ? `<div class="vl-tlg">${esc(gtxt)}</div>` : ''}

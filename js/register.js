@@ -577,7 +577,7 @@ const Register = (() => {
       div.className = 'photo-preview';
       div.innerHTML = `
         <img src="${p.url}" alt="">
-        <button type="button" class="remove" data-i="${i}">${Views.icons.x}</button>`;
+        <button type="button" class="remove" data-i="${i}" aria-label="この写真を外す">${Views.icons.x}</button>`;
       div.querySelector('.remove').addEventListener('click', () => {
         URL.revokeObjectURL(p.url);
         pendingPhotos.splice(i, 1);
