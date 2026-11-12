@@ -63,11 +63,14 @@ const Store = (() => {
   // 削除がクラウドへ届く前に通信が切れても、次回の同期で「クラウドにだけ残っている記録」として
   // 復活しないように、削除した id を30日間覚えておく
   function persistDeleted() { try { setItemSafe(DELETED_KEY, JSON.stringify(deleted)); } catch { /* noop */ } }
-  function markDeleted(kind, id) {
-    if (!id) return;
-    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
-    deleted = deleted.filter(d => d && d.at > cutoff && !(d.kind === kind && d.id === id));
-    deleted.push({ kind, id, at: Date.now() });
+  function markDeleted(kind, id) { markDeletedMany(kind, [id]); }
+  // v396: まとめて控える（店や記録を消して写真が数百枚あると、1枚ごとに控え全体を書き直していた）
+  function markDeletedMany(kind, ids) {
+    const set = new Set((ids || []).filter(Boolean));
+    if (!set.size) return;
+    const now = Date.now(), cutoff = now - 30 * 24 * 3600 * 1000;
+    deleted = deleted.filter(d => d && d.at > cutoff && !(d.kind === kind && set.has(d.id)));
+    for (const id of set) deleted.push({ kind, id, at: now });
     persistDeleted();
   }
   const deletedIds = (kind) => new Set(deleted.filter(d => d && d.kind === kind).map(d => d.id));
@@ -214,10 +217,10 @@ const Store = (() => {
     const d = await db();
     return new Promise((resolve, reject) => {
       const tx = d.transaction(['thumbs', 'meta'], 'readwrite');
-      tx.objectStore('thumbs').put({ id, blob: thumbBlob, v: thumbV || 1 });
       const ms = tx.objectStore('meta');
       const req = ms.get(id);
-      req.onsuccess = () => { const m = req.result; if (m) { m.thumbV = thumbV || 1; if (Number(ar) > 0) m.ar = Number(ar); ms.put(m); } };
+      // v396: 写真がもう無ければサムネも書かない（作っている間に消された写真のサムネが残り続けていた）
+      req.onsuccess = () => { const m = req.result; if (m) { tx.objectStore('thumbs').put({ id, blob: thumbBlob, v: thumbV || 1 }); m.thumbV = thumbV || 1; if (Number(ar) > 0) m.ar = Number(ar); ms.put(m); } };
       tx.oncomplete = () => resolve();
       tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
     });
@@ -396,7 +399,8 @@ const Store = (() => {
         // 削除が確定してから指紋を消す（失敗時に「写真は残っているのに再登録できる」状態を防ぐ）
         for (const p of removed) { if (p.hash) delete photoHashes[p.hash]; }
         if (removed.length) { try { persistHashes(); } catch { /* noop */ } }
-        for (const p of removed) { markDeleted('photo', p.id); emit('photo', 'del', { id: p.id, hash: p.hash, visitId: p.visitId }); } // visitId は公開投稿の出し直し用（v366〜）
+        markDeletedMany('photo', removed.map(p => p.id));
+        for (const p of removed) emit('photo', 'del', { id: p.id, hash: p.hash, visitId: p.visitId }); // visitId は公開投稿の出し直し用（v366〜）
         for (const p of removed) pendingDel.photo.delete(p.id); // 確定したので保留から外す
         resolve();
       };
@@ -633,7 +637,40 @@ const Store = (() => {
   }
   // 削除の保留（v375〜）: 「削除」を押してから数秒は本当には消さず、一覧からだけ外す（トーストの「元に戻す」で戻せる）。
   // visits()/visitsOf()/wishes()/allPhotos()/photosOfVisit()/photosOfShop() が保留中のものを除く。確定は呼び元が deleteVisit 等を呼ぶ
-  const pendingDel = { visit: new Set(), photo: new Set(), wish: new Set() };
+  // v396: 削除の保留（元に戻すの 5 秒）は端末にも控える。その間にアプリを閉じた・新版へ切り替わった・iOS に落とされたとき、
+  // 写真の削除（IndexedDB）が途中で止まったり、確定そのものが走らなかったりして、消したはずのものが次に開くと戻っていた。
+  // 次の起動で控えに残っているものを確定する（その間も一覧からは外しておく）
+  const PEND_KEY = 'gourmet.pendingDel.v1';
+  let pendLoading = true;
+  const savePend = () => {
+    if (pendLoading) return;
+    try {
+      const list = [];
+      for (const k of Object.keys(pendingDel)) for (const id of pendingDel[k]) list.push([k, id]);
+      if (list.length) localStorage.setItem(PEND_KEY, JSON.stringify(list)); else localStorage.removeItem(PEND_KEY);
+    } catch { /* noop */ }
+  };
+  class PendSet extends Set {
+    add(v) { super.add(v); savePend(); return this; }
+    delete(v) { const r = super.delete(v); if (r) savePend(); return r; }
+    clear() { super.clear(); savePend(); }
+  }
+  const pendingDel = { visit: new PendSet(), photo: new PendSet(), wish: new PendSet() };
+  {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(PEND_KEY) || '[]'); } catch { saved = []; }
+    for (const e of Array.isArray(saved) ? saved : []) if (Array.isArray(e) && pendingDel[e[0]] && typeof e[1] === 'string') pendingDel[e[0]].add(e[1]);
+    pendLoading = false;
+    if (saved.length) {
+      setTimeout(async () => {
+        for (const id of [...pendingDel.wish]) { try { removeWish(id); } catch { /* noop */ } }
+        for (const id of [...pendingDel.visit]) { try { await deleteVisit(id); } catch { /* noop */ } }
+        for (const id of [...pendingDel.photo]) { try { await deletePhoto(id); } catch { /* noop */ } }
+        pendingDel.photo.clear(); // 本体が無くて消えなかった id も残さない
+        try { if (typeof App !== 'undefined' && App.refreshCurrent) App.refreshCurrent(); } catch { /* noop */ }
+      }, 1500);
+    }
+  }
   const deferDelete = (kind, id) => { if (pendingDel[kind]) pendingDel[kind].add(id); };
   const undoDelete = (kind, id) => { if (pendingDel[kind]) pendingDel[kind].delete(id); };
   const isPending = (kind, id) => !!(pendingDel[kind] && pendingDel[kind].has(id));

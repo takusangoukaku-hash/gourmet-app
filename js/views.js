@@ -313,7 +313,14 @@ const Views = (() => {
   const mapContrib = new Map(); // 自分の店ピンに合算されたフォロワー（shopId → [{username, avatar}]）
 
   // 店名の表記ゆれを吸収して比較（全角半角・空白・大文字小文字の違いを無視）
-  const normShopName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  // v396: 店×投稿の照合で何万回も呼ばれるので結果を覚えておく（NFKC の正規化が重い）
+  const normNameMemo = new Map();
+  const normShopName = (x) => {
+    const k = String(x || '');
+    let v = normNameMemo.get(k);
+    if (v === undefined) { v = k.normalize('NFKC').replace(/\s+/g, '').toLowerCase(); if (normNameMemo.size > 5000) normNameMemo.clear(); normNameMemo.set(k, v); }
+    return v;
+  };
   // 店名が同じ店を指しているか。完全一致に加えて「片方がもう片方を含む」も同一とみなす
   // （Google検索は「〇〇 渋谷店」、OSM検索は「〇〇」のように登録経路で名前の形式が違うため）
   function shopNamesMatch(x, y) {
@@ -324,7 +331,10 @@ const Views = (() => {
   // フォロー中の人の投稿がこの店のものか（店名が同一視でき＋300m以内）
   // 座標が無い場合だけは、誤結合を防ぐため完全一致のみ
   function postMatchesShop(p, s) {
-    if (!p || !s || !shopNamesMatch(p.shopName, s.name)) return false;
+    if (!p || !s) return false;
+    // v396: 位置が両方あれば先に距離で外す（安い判定を先に。名前の照合はその後）
+    if (p.lat != null && p.lon != null && s.lat != null && s.lon != null && Store.distMeters(s.lat, s.lon, p.lat, p.lon) >= 300) return false;
+    if (!shopNamesMatch(p.shopName, s.name)) return false;
     if (p.lat == null || p.lon == null || s.lat == null || s.lon == null) {
       return normShopName(p.shopName) === normShopName(s.name);
     }
@@ -1362,7 +1372,7 @@ const Views = (() => {
     renderRows();
 
     // 初期は現在地を試す（取れなければ駅・地名の指定を促す）
-    try { const p = await currentPosition(); locateUser(false); setOrigin(p.lat, p.lon, '現在地'); }
+    try { const p = await currentPosition(); locateUser(false); if (!origin) setOrigin(p.lat, p.lon, '現在地'); } // v396: 待っている間に駅・地名を選んでいたら上書きしない
     catch { /* 現在地が取れなければユーザーが駅・地名を指定 */ }
   }
 
@@ -1417,7 +1427,7 @@ const Views = (() => {
   // ---------- 店シートの共通部品（v336〜。モック: 写真→店名→駅→タイル4つ→要点行） ----------
   // 現在地（控え）からの徒歩の目安（分）。控えが無ければ 0
   function walkMinutes(lat, lon) {
-    if (!lastKnownPos || lat == null || lon == null) return 0;
+    if (!posFresh(LAST_POS_TTL) || lat == null || lon == null) return 0; // v396: 30分より古い現在地では出さない
     return Math.max(1, Math.round(haversine(lastKnownPos, { lat, lon }) / 80));
   }
   const IC_SHARE_S = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M8 7l4-3.5L16 7"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/></svg>';
@@ -1553,7 +1563,7 @@ const Views = (() => {
     const updateHeader = () => {
       const pair2 = ratingPair({ name: s.name, lat: s.lat, lon: s.lon });
       const facts = ov.querySelector('.msh-facts');
-      if (!pair2.raters || !facts || [...facts.querySelectorAll('.k')].some(k => k.textContent === 'みんな')) return;
+      if (pair2.conf === 'none' || !facts || [...facts.querySelectorAll('.k')].some(k => k.textContent === 'みんな')) return; // v396: 自分だけの評価で「みんな」を出さない（v392 の決めごと）
       const el = document.createElement('div'); el.className = 'msh-fact';
       el.innerHTML = `<div class="k">みんな</div><div class="v">${starIc('full', 13)}${esc(fmtR(pair2.overall))}</div>`;
       const last = facts.lastElementChild;
@@ -1567,7 +1577,7 @@ const Views = (() => {
       ov.querySelector('.msh-fn').textContent = '';
       ov.querySelector('.msh-frows').innerHTML = SKEL_FROWS;
     }
-    ensureNetworkLoaded(() => { renderFollow(); updateHeader(); });
+    ensureNetworkLoaded(() => { if (!ov.isConnected) return; renderFollow(); updateHeader(); }); // v396: 閉じた後は描かない
 
     document.body.classList.add('msh-open');
     document.body.appendChild(ov);
@@ -1698,10 +1708,10 @@ const Views = (() => {
       refreshWishData();
       $('#map-filter-count').textContent = '';
       const pts = Store.wishes().filter(w => w.lat != null && w.lon != null).map(w => [w.lon, w.lat]);
-      if (fit && pts.length) {
+      if (fit && pts.length && !mapHasView) { // v396: 行きたい店だけの表示でも、見ている範囲を勝手に変えない（外す・元に戻すで全体へ飛んでいた）
         const b = new maplibregl.LngLatBounds();
         pts.forEach(c => b.extend(c));
-        try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); } catch { /* noop */ }
+        try { map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 0 }); mapHasView = true; } catch { /* noop */ }
       }
       return;
     }
@@ -2210,7 +2220,7 @@ const Views = (() => {
   function openWishlist() { App.switchTab('profile'); showProfileTab('wishes'); }
   function renderWishlist(body) {
     const all = Store.allWishes();
-    const pos = lastKnownPos;
+    const pos = posFresh(LAST_POS_TTL) ? lastKnownPos : null; // v396: 古い現在地で「近く」を出さない
     const dist = (w) => (pos && w.lat != null && w.lon != null) ? Store.distMeters(pos.lat, pos.lon, w.lat, w.lon) : null;
     const fmtDist = (d) => d == null ? '' : (d < 1000 ? `${Math.round(d)}m` : `${(d / 1000).toFixed(1)}km`);
     let wishes = all.filter(w => !w.doneAt);
@@ -2400,7 +2410,7 @@ const Views = (() => {
       personal: () => keyed(s => ratingPair({ name: s.name, lat: s.lat, lon: s.lon }).personal),
       // 現在地から近い順（現在地が未取得なら★順に落とす）
       distance: () => {
-        if (!lastKnownPos) return keyed(s => Store.avgRating(s.id));
+        if (!posFresh(LAST_POS_TTL)) return keyed(s => Store.avgRating(s.id)); // v396: 古い現在地では近い順にしない
         const d = (s) => (s.lat != null && s.lon != null)
           ? Store.distMeters(lastKnownPos.lat, lastKnownPos.lon, s.lat, s.lon) : Infinity;
         return keyed(s => -d(s));
@@ -2606,6 +2616,7 @@ const Views = (() => {
     $('#explore-grid').classList.add('hidden');
   }
   function showExploreCats() {
+    mzSelEnd(); // v396: 選択モードを残さない（‹ で戻ったとき、見えない格子の選択が残っていた）
     exploreSub = null;
     exploreGenre = null;
     $('#shop-list').classList.add('hidden');
@@ -2659,6 +2670,16 @@ const Views = (() => {
     return exploreLoading;
   }
   async function loadExploreItems0() {
+    // v396: フォロー中の投稿（通信）を先に待ち、自分の写真はその後で読む（待っている間に消した写真が一覧に戻らないように）
+    let net = [];
+    try {
+      if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
+        if (!exploreNetCache || Date.now() - exploreNetCache.time > 60000) {
+          exploreNetCache = { posts: await Cloud.fetchNetworkPosts(), time: Date.now() };
+        }
+        net = exploreNetCache.posts;
+      }
+    } catch { /* 未ログイン・通信失敗時は自分の写真のみ */ }
     const photos = await Store.allPhotos();
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     const items = photos.map(ph => {
@@ -2668,11 +2689,8 @@ const Views = (() => {
         genres: (v && v.dishGenres) || [] };
     });
     try {
-      if (typeof Cloud !== 'undefined' && Cloud.getUser()) {
-        if (!exploreNetCache || Date.now() - exploreNetCache.time > 60000) {
-          exploreNetCache = { posts: await Cloud.fetchNetworkPosts(), time: Date.now() };
-        }
-        for (const p of exploreNetCache.posts) {
+      {
+        for (const p of net) {
           if (p.photoUrl) items.push({ kind: 'net', p,
             time: p.datetime ? new Date(p.datetime).getTime() : 0,
             genres: genresFromStr(p.genre) });
@@ -2764,6 +2782,7 @@ const Views = (() => {
 
   // 大きなくくりを開く → 中の詳しいジャンル（ラーメン・うどん…）。0件のジャンルも表示
   async function openExploreSub(catName) {
+    mzSelEnd();
     const cat = Api.DISH_CATEGORIES.find(c => c.name === catName);
     if (!cat) { showExploreCats(); return; }
     exploreSub = catName;
@@ -2792,6 +2811,7 @@ const Views = (() => {
 
   // ジャンルを開く → 写真グリッド（戻ると開いていたくくりのジャンル一覧へ）
   function openExploreCat(genre, label) {
+    mzSelEnd();
     exploreGenre = { genre, label };
     $('#explore-cats').classList.add('hidden');
     const back = exploreSub;
@@ -3203,6 +3223,7 @@ const Views = (() => {
   let photoSort = 'new'; // 写真モードの並び替え（v387〜。new 新しい順／rating ★が高い順／old 古い順。探すを開き直すと new）
   const PHOTO_SORTS = [['new', '新しい順'], ['rating', '★が高い順'], ['old', '古い順']];
   async function renderSearchPhotos() {
+    mzSelEnd(); // v396: 駅のチップ・並び替えで描き直したときも
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
     box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
@@ -3799,7 +3820,9 @@ const Views = (() => {
   }
   function openRegisterFor(shopId) {
     closeMapSheets();
-    document.querySelectorAll('.modal.shopfeed-modal, .modal.visitlist-modal, .modal.postdetail-modal, .modal.action-sheet').forEach(m => m.remove());
+    document.querySelectorAll('.modal.shopfeed-modal, .modal.visitlist-modal, .modal.postdetail-modal').forEach(m => m.remove());
+    // v396: シートは取り消しのボタンで閉じる（ただ外すと、保存の確認の Promise が終わらず「保存中…」のまま固まる・ジャンルの選択肢が戻らない）
+    document.querySelectorAll('.modal.action-sheet').forEach(m => { const c = m.querySelector('.as-cancel, .gp-x'); if (c) c.click(); else m.remove(); });
     closeModal();
     App.switchTab('register');
     Register.preselectShop(shopId);
@@ -3836,6 +3859,7 @@ const Views = (() => {
   function wireSocial(root, postId, o) {
     const likeBtn = root.querySelector('.pd-like');
     const cmtBtn = root.querySelector('.pd-cmt-btn');
+    if (!postId) { likeBtn.classList.add('hidden'); cmtBtn.classList.add('hidden'); } // v396: 写真の無い店（公開投稿が無い）では いいね・コメントを出さない
     const applyStats = (st) => {
       likeBtn.querySelector('.fa-like-n').textContent = st.likes || '';
       likeBtn.classList.toggle('liked', !!st.liked);
@@ -3843,7 +3867,7 @@ const Views = (() => {
     };
     const cached = feedStats.get(postId);
     if (cached) applyStats(cached);
-    else if (postId && socialReady()) {
+    else if (postId && socialReady() && !(o && o.noStats)) { // noStats: 探すの一覧（数を出さない）では読まない（v396。12件ごとに数十回の読み込みになっていた）
       Promise.all([Cloud.getLikeInfo(postId), Cloud.commentCount(postId).catch(() => 0)])
         .then(([info, n]) => { const st = { likes: info.count, liked: info.liked, comments: n || 0 }; feedStats.set(postId, st); applyStats(st); })
         .catch(() => {});
@@ -3895,7 +3919,7 @@ const Views = (() => {
       if (typeof Cloud === 'undefined' || !Cloud.getUser()) { App.toast('コメントするにはログインが必要です'); return; }
       input.value = '';
       try { await Cloud.addComment(postId, t); await loadComments(); }
-      catch (e) { App.toast('' + (e && e.message || e)); }
+      catch (e) { if (!input.value) input.value = t; App.toast('コメントを送れませんでした'); } // v396: 送れなかったら打った文を戻す
     };
     root.querySelector('.pd-csend').addEventListener('click', sendComment);
     root.querySelector('.pd-cinput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendComment(); } });
@@ -3979,7 +4003,7 @@ const Views = (() => {
       slide.addEventListener('click', () => {
         if (o.lite) { showShop(g.shopId); return; }
         openPhotoViewer(g.photos.map(x => { const v2 = vByIdSec.get(x.visitId) || {}; return { ph: x, rating: v2.rating || 0, date: v2.datetime ? fmtDate(v2.datetime) : '' }; }), i,
-          { shop: Store.getShop(g.shopId) || {}, onChange: () => App.refreshCurrent() });
+          { shop: Store.getShop(g.shopId) || {}, onChange: () => { document.querySelectorAll('.modal.shopfeed-modal').forEach(m => m.remove()); App.refreshCurrent(); } }); // 移した・消した写真が残らないよう、お店の記録は閉じる
       });
       car.appendChild(slide);
       return slide;
@@ -4029,6 +4053,7 @@ const Views = (() => {
     el.querySelector('.sfs-name').addEventListener('click', () => showShop(g.shopId));
     el.querySelector('.sfs-revisit').addEventListener('click', () => openRegisterFor(g.shopId));
     wireSocial(el, postId, {
+      noStats: !!o.lite,
       nav: () => openNav(s),
       shareTitle: s.name || '',
       shareText: `${s.name || ''}${s.station ? ` / ${s.station}` : ''} - BITEMAP`,
@@ -5065,11 +5090,11 @@ const Views = (() => {
     const myToken = ++shopModalToken; // 別の店を開いたり編集に入ったりしたら、この描画は古いものとして扱う
 
     // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
-    if (!networkLoaded) {
+    if (!networkLoaded || networkLoading) { // v396: 読み込み中に開いたときも、届いたら描き直す
       ensureNetworkLoaded(() => {
         // 読み込み中に編集画面へ移った・別の店へ移った・閉じた場合は描き直さない（入力中の内容を消さないため）
         if (shopModalToken !== myToken) return;
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId);
+        if (isShopOpen(shopId)) showShop(shopId);
       });
     }
     // 店舗詳細は「店」が主役: 地図の表示切替に関係なく、この店に行った
@@ -5167,7 +5192,7 @@ const Views = (() => {
       const navBtn = $('#d-nav');
       if (navBtn) navBtn.addEventListener('click', () => openNav(s));
       $('#d-revisit').addEventListener('click', () => openRegisterFor(shopId)); // v350〜 店を選んだ状態の登録画面へ
-      wireLongPress($('#d-revisit'), () => quickRevisit(shopId, () => { showShop(shopId); App.refreshCurrent(); })); // v382〜 長押しで写真なしの記録
+      wireLongPress($('#d-revisit'), () => quickRevisit(shopId, () => { if (isShopOpen(shopId)) showShop(shopId); App.refreshCurrent(); })); // v382〜 長押しで写真なしの記録。v396: 閉じた後の「元に戻す」で開き直さない
       $('#d-share').addEventListener('click', () => shareShop(shopId, `${s.name}${s.station ? ` / ${s.station}` : ''} - BITEMAP`)); // v381〜 店のまとめ（画像）か文字
       const posFix = $('#d-posfix');
       if (posFix) posFix.addEventListener('click', () => openShopEdit(shopId, () => showShop(shopId)));
@@ -5293,7 +5318,7 @@ const Views = (() => {
   // 2店が同じ店らしいか（統合の候補・登録時の重複の確認で共用。v365〜）
   function isSimilarShop(na, nb, dist) {
     const sim = bigramDice(na, nb);
-    const same = !!na && na === nb;
+    const same = !!na && na === nb && (dist == null || dist < 2000); // v396: 名前が同じでも 2km より離れていればチェーン店の別の店舗とみなす
     const near = dist != null && dist < 80 && sim >= 0.5;
     const alike = sim >= 0.8 && (dist == null || dist < 500);
     return (same || near || alike) ? sim : 0;
@@ -5478,7 +5503,7 @@ const Views = (() => {
       if (hit) {
         Store.updateShop(shopId, { lat: +hit.lat, lon: +hit.lon, posLevel: hit.level || 'geocode' });
         if (typeof maplibregl !== 'undefined' && map && mapLoaded) refreshMapData();
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId);
+        if (isShopOpen(shopId)) showShop(shopId); // v396: 位置を求めている間に別の店を開いていたら描き直さない
         App.toast(`位置を更新しました（${hit.name || '住所から'}）`);
       } else {
         App.toast('住所から位置が見つかりませんでした。店の情報の「住所から探す」か「地図で指定」で直してください');
@@ -5962,6 +5987,12 @@ const Views = (() => {
       bar.style.height = h + 'px';
       bar.classList.toggle('ready', h >= 58);
     }, { passive: true });
+    // v396: OS が指を取り消した（端からの操作・通知など）ときも閉じる。以前は引っ張った帯が開いたまま残った
+    document.addEventListener('touchcancel', () => {
+      if (!pulling) return;
+      pulling = false;
+      if (bar) { bar.classList.remove('ready'); bar.style.height = '0px'; }
+    }, { passive: true });
     document.addEventListener('touchend', () => {
       if (!pulling) return;
       pulling = false;
@@ -6280,7 +6311,7 @@ const Views = (() => {
     const photo = card.querySelector('.fpin-photo');
     photo.addEventListener('click', (e) => { if (e.target.closest('button')) return; openDetail(); });
     photo.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); } });
-    card.querySelector('.pd-author').addEventListener('click', () => showPublicProfile(p.username));
+    card.querySelector('.pd-author').addEventListener('click', () => { if (p.username) showPublicProfile(p.username); }); // v396: ユーザー名の無い人は開かない
     // v384〜 長押し: この人の投稿を見る／行きたい店に保存（外す）／店を地図で見る
     wireLongPress(photo, () => openActionSheet([
       ...(p.username ? [{ label: `${p.displayName || '@' + p.username} の投稿を見る`, onClick: () => showPublicProfile(p.username) }] : []),
@@ -6418,7 +6449,7 @@ const Views = (() => {
           ${cmtBoxHtml()}
         </div>`;
     const author = sect.querySelector('.pd-author');
-    if (author) author.addEventListener('click', () => { close(); showPublicProfile(p.username); });
+    if (author) author.addEventListener('click', () => { if (!p.username) return; close(); showPublicProfile(p.username); });
     // 「詳細 ›」で住所・お店の評価を開閉
     const moreBtn = sect.querySelector('.pd-more');
     if (moreBtn) moreBtn.addEventListener('click', () => {
@@ -6658,10 +6689,12 @@ const Views = (() => {
         });
       });
       // フォローバックボタンの状態を設定
-      for (const btn of body.querySelectorAll('.nt-follow')) {
+      // v396: フォロー状態はまとめて聞く（1件ずつ待っていたので、多いと「…」が順に埋まっていった）
+      const btns = [...body.querySelectorAll('.nt-follow')];
+      const states = await Promise.all(btns.map(b => Cloud.isFollowing(b.dataset.uid).catch(() => false)));
+      for (const [bi, btn] of btns.entries()) {
         const uid = btn.dataset.uid;
-        let following = false;
-        try { following = await Cloud.isFollowing(uid); } catch { /* noop */ }
+        let following = !!states[bi];
         const paint = () => { btn.textContent = following ? 'フォロー中' : '＋ フォローバック'; btn.classList.toggle('following', following); };
         paint();
         btn.addEventListener('click', async (e) => {
@@ -6931,6 +6964,7 @@ const Views = (() => {
   function clearSocialCaches() {
     feedCache = null; feedStats.clear(); feedPosts.clear();
     networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
+    exploreNetCache = null; exploreItems = null; // v396: 発見・写真モードに前のアカウントのフォロー中の写真を残さない
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
   return { fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,

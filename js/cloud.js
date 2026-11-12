@@ -26,6 +26,21 @@ const Cloud = (() => {
   function setStatus(s, detail) { status = s; statusCbs.forEach(cb => { try { cb(s, user, detail); } catch { /* noop */ } }); }
   function onStatus(cb) { statusCbs.push(cb); cb(status, user); }
   const getUser = () => user;
+  // v396: 他人の公開データ（投稿・コメント・通知・プロフィール）を画面へ渡す前に整える。
+  // 画像は data:image か Firebase Storage の URL だけ（ほかの URL を <img> に入れると、見た人の IP などが外へ漏れる）。数値は数に
+  const SAFE_IMG = /^(data:image\/[a-z0-9.+-]+;base64,|https:\/\/firebasestorage\.googleapis\.com\/)/i;
+  const safeImg = (u) => (typeof u === 'string' && SAFE_IMG.test(u) ? u : '');
+  const numIn = (v, lo, hi) => { const n = Number(v); return v != null && v !== '' && isFinite(n) && n >= lo && n <= hi ? n : null; };
+  function cleanPub(d) {
+    if (!d || typeof d !== 'object') return d;
+    const o = { ...d };
+    for (const k of ['photoUrl', 'avatar', 'fromAvatar']) if (k in o) o[k] = safeImg(o[k]);
+    if ('lat' in o || 'lon' in o) { o.lat = numIn(o.lat, -90, 90); o.lon = numIn(o.lon, -180, 180); if (o.lat == null || o.lon == null) o.lat = o.lon = null; }
+    if ('rating' in o) o.rating = numIn(o.rating, 0, 5) || 0;
+    if ('ar' in o) o.ar = numIn(o.ar, 0, 10) || 0;
+    if (typeof o.username !== 'string') o.username = '';
+    return o;
+  }
   const isSupported = () => !!(window.indexedDB && window.fetch);
 
   // Firebase SDK を esm.sh から動的読み込みして初期化（初回のみ）
@@ -83,8 +98,9 @@ const Cloud = (() => {
           const run = runExclusive(async () => {
             try {
               // 記録（店・訪問・プロフィール）を先に同期し、この時点で「同期済み」にする
+              await retryDeletes(); // v396: 前回送れなかった削除を先に（以前は最初の sweep まで待っていた）
               await syncRecords();
-              await Store.cleanupOrphans().catch(() => {}); // 取り込みが済んだ後に、店の無い訪問・訪問の無い写真を消す（v370〜）
+              await cleanupAfterPull(); // 取り込みが済んだ後に、店の無い訪問・訪問の無い写真を消す（v370〜。v396: 全件を読んだときだけ）
               setStatus('synced');
               App.refreshCurrent();
             } catch (e) { console.error('sync error:', e); setStatus('error', e); return; }
@@ -202,8 +218,11 @@ const Cloud = (() => {
       wish: new Map(Store.rawWishes().map(x => [x.id, x])),
     };
     const stale = [];
+    // v396: 写真の控えは 90 日残るので、端末にある写真だけを相手にする（以前は控え1件ごとに写真の一覧を全部読んでいた）
+    const localPhotoIds = tombs.photo.size ? await Store.photoIds() : new Set();
     for (const kind of ['shop', 'visit', 'wish', 'photo']) {
       for (const [id, at] of tombs[kind]) {
+        if (kind === 'photo' ? !localPhotoIds.has(id) : !local[kind].has(id)) continue;
         try { if (await Store.applyRemoteDelete(kind, id, at)) { n++; continue; } } catch { continue; }
         const r = local[kind] && local[kind].get(id);
         if (r && (Number(r.updatedAt) || 0) > at) { stale.push(`${kind}_${id}`); tombs[kind].delete(id); }
@@ -217,10 +236,14 @@ const Cloud = (() => {
   async function syncRecords() {
     const uid = user.uid;
     let n = 0;
+    if (!remoteAt || remoteAtUid !== uid) { remoteAt = { shop: new Map(), visit: new Map(), wish: new Map() }; remoteAtUid = uid; lastFullPullAt = 0; }
+    const startedAt = Date.now();
+    const full = !lastFullPullAt || startedAt - lastFullPullAt > PULL_FULL_EVERY;
+    const since = full ? 0 : lastPullAt;
     const tombs = await fetchTombs();
-    n += await pullCollection('shops', 'shop', tombs.shop);
-    n += await pullCollection('visits', 'visit', tombs.visit);
-    n += await pullCollection('wishes', 'wish', tombs.wish);
+    n += await pullCollection('shops', 'shop', tombs.shop, since);
+    n += await pullCollection('visits', 'visit', tombs.visit, since);
+    n += await pullCollection('wishes', 'wish', tombs.wish, since);
     assertUser(uid);
     n += await applyTombs(tombs); // 別端末で消した記録（店・訪問・行きたい・写真）をこちらでも消す（v365〜）
     await pullProfile();
@@ -228,6 +251,9 @@ const Cloud = (() => {
     await syncPrefs(); // 表示の好み（v390〜）
     assertUser(uid);
     await pushAllRecords();
+    lastPullAt = startedAt; // 読み込みを始めた時刻（この後に直されたものは次の差分で拾う）
+    if (full) lastFullPullAt = startedAt;
+    lastPullWasFull = full;
     return n; // 別端末から取り込んだ記録の数
   }
 
@@ -288,17 +314,33 @@ const Cloud = (() => {
 
   // クラウド → ローカル（新しい方を採用）。店・訪問・行きたい（v394〜 行きたいも同じ関数。以前は失敗を握りつぶしたまま押し上げていた）。
   // 読めなければ投げる（同期ごと止める）。控え（tombs: id → at）より古い記録はクラウドの消し残しなので取り込まず、クラウドから消す
-  async function pullCollection(name, kind, tombs) {
-    const snap = await fb.fs.getDocs(cref(name));
+  // v396: クラウドにある記録の updatedAt の控え（kind → Map(id → updatedAt)）。押し上げは「クラウドに無い／こちらが新しい」ものだけにする
+  // （以前は毎回の同期で全件を書き直し、150店・400記録で1回 600 件、数時間で Firestore の無料枠の書き込み数を超えていた）。
+  // 読み込みも、30分に1回の全件以外は「前回の読み込みから後に直されたもの」だけ（updatedAt の範囲。端末の時計のずれに 10 分の余裕）
+  let remoteAt = null, remoteAtUid = '', lastFullPullAt = 0, lastPullAt = 0;
+  // v396: 差分の読み込みは「書いた端末の時計」で切るので、オフラインで書いて後から届いた別端末の記録を見落とすことがある。
+  // 見落としたまま「店の無い記録・記録の無い写真」を掃除すると、別端末の記録を消して全端末から消してしまうので、掃除は全件を読んだ直後だけにする。
+  // 写真の同期で、こちらに無い記録の写真が見つかったら、次の読み込みを全件にする
+  let lastPullWasFull = false;
+  const cleanupAfterPull = () => (lastPullWasFull ? Store.cleanupOrphans().catch(() => {}) : Promise.resolve());
+  const noteRemote = (kind, r) => { if (remoteAt && user && remoteAtUid === user.uid && r && r.id) remoteAt[kind].set(r.id, Number(r.updatedAt) || 0); };
+  const PULL_FULL_EVERY = 30 * 60 * 1000, PULL_SKEW = 10 * 60 * 1000;
+  async function pullCollection(name, kind, tombs, since) {
+    const q = since ? fb.fs.query(cref(name), fb.fs.where('updatedAt', '>', since - PULL_SKEW)) : cref(name);
+    const snap = await fb.fs.getDocs(q);
     assertFresh(snap, name);
+    const atMap = remoteAt[kind];
+    if (!since) atMap.clear();
     const localMap = new Map((kind === 'shop' ? Store.rawShops() : kind === 'visit' ? Store.rawVisits() : Store.rawWishes()).map(x => [x.id, x]));
     const gone = Store.deletedIds(kind);
     const take = [], zombies = [];
     snap.forEach(docSnap => {
       const remote = docSnap.data();
-      if (!remote || typeof remote.id !== 'string' || gone.has(remote.id)) return; // この端末で削除済み → 復活させない
+      if (!remote || typeof remote.id !== 'string') return;
+      atMap.set(remote.id, Number(remote.updatedAt) || 0);
+      if (gone.has(remote.id)) return; // この端末で削除済み → 復活させない
       const tAt = tombs && tombs.get(remote.id);
-      if (tAt != null && (Number(remote.updatedAt) || 0) <= tAt) { zombies.push(remote.id); return; }
+      if (tAt != null && (Number(remote.updatedAt) || 0) <= tAt) { zombies.push(remote.id); atMap.delete(remote.id); return; }
       const local = localMap.get(remote.id);
       // 新しい方を採用。同じ時刻は同じ内容とみなして触らない（毎回の書き戻しを避ける）
       if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) take.push(remote);
@@ -307,28 +349,40 @@ const Cloud = (() => {
     if (zombies.length) await runPool(zombies, 4, (id) => fb.fs.deleteDoc(dref(name, id)).catch(() => {}));
     return take.length;
   }
+  let remoteProfileAt = -1; // クラウドのプロフィールの updatedAt（-1 = 無い）
   async function pullProfile() {
     const snap = await fb.fs.getDoc(dref('meta', 'profile'));
+    remoteProfileAt = -1;
     if (snap.exists()) {
       const remote = snap.data();
+      remoteProfileAt = Number(remote.updatedAt) || 0;
       const local = Store.getProfile();
       if ((remote.updatedAt || 0) >= (local.updatedAt || 0)) Store.applyRemote('profile', remote);
     }
   }
 
   // ローカル → クラウド（全レコードをupsert）
+  // ローカル → クラウド。v396: クラウドに無い記録と、こちらの方が新しい記録だけ（remoteAt と比べる）
   async function pushAllRecords() {
     const writes = [];
-    for (const s of Store.rawShops()) writes.push(['shops', s.id, clean(s)]);
-    for (const v of Store.rawVisits()) writes.push(['visits', v.id, clean(v)]);
-    for (const w of Store.rawWishes()) writes.push(['wishes', w.id, clean(w)]);
-    // 500件ずつバッチ書き込み（Firestoreの上限対策）
+    const need = (kind, r) => { const at = remoteAt[kind].get(r.id); return at === undefined || (Number(r.updatedAt) || 0) > at; };
+    for (const s of Store.rawShops()) if (need('shop', s)) writes.push(['shops', 'shop', s]);
+    for (const v of Store.rawVisits()) if (need('visit', v)) writes.push(['visits', 'visit', v]);
+    for (const w of Store.rawWishes()) if (need('wish', w)) writes.push(['wishes', 'wish', w]);
+    // 400件ずつバッチ書き込み（Firestoreの上限 500 件対策）
     for (let i = 0; i < writes.length; i += 400) {
+      const chunk = writes.slice(i, i + 400);
       const batch = fb.fs.writeBatch(db);
-      for (const [name, id, data] of writes.slice(i, i + 400)) batch.set(dref(name, id), data);
+      for (const [name, , r] of chunk) batch.set(dref(name, r.id), clean(r));
       await batch.commit();
+      for (const [, kind, r] of chunk) remoteAt[kind].set(r.id, Number(r.updatedAt) || 0);
     }
-    await fb.fs.setDoc(dref('meta', 'profile'), clean(Store.getProfile()));
+    const prof = Store.getProfile();
+    if (remoteProfileAt < 0 || (Number(prof.updatedAt) || 0) > remoteProfileAt) {
+      await fb.fs.setDoc(dref('meta', 'profile'), clean(prof));
+      remoteProfileAt = Number(prof.updatedAt) || 0;
+    }
+    return writes.length;
   }
 
   // 公開URLから画像の実体（バイト）を取得する。Firebaseの v0 ダウンロードURLは
@@ -359,8 +413,13 @@ const Cloud = (() => {
     const uid = user.uid;
     const metaSnap = await fb.fs.getDocs(cref('photos'));
     const cloudMetas = [];
-    metaSnap.forEach(d => cloudMetas.push(d.data()));
+    // v396: 本体の場所（path）の無いメタ（付け替えだけ先に届いた写真）は「クラウドにある」と数えない（こちらから上げ直す）。id は文書の id で補う
+    metaSnap.forEach(d => { const m = d.data() || {}; if (!m.id) m.id = d.id; if (typeof m.path === 'string' && m.path) cloudMetas.push(m); });
     const cloudIds = new Set(cloudMetas.map(m => m.id));
+    { // v396: こちらに無い記録・店の写真があれば、記録の読み込みに見落としがある（次は全件）
+      const vIds = new Set(Store.rawVisits().map(v => v.id));
+      if (cloudMetas.some(m => m.visitId && !vIds.has(m.visitId) && !(lastTombs && lastTombs.visit && lastTombs.visit.has(m.visitId)))) lastFullPullAt = 0;
+    }
     const metaById = new Map(cloudMetas.map(m => [m.id, m]));
     const localIds = await Store.photoIds();
     let changed = 0;            // 取り込めた枚数（呼び出し側で画面を描き直す判断に使う）
@@ -503,18 +562,20 @@ const Cloud = (() => {
     }
     const post = clean({
       id: visitId, uid: user.uid, username: prof.username,
-      displayName: prof.name || 'BITEMAP',
+      displayName: String(prof.name || 'BITEMAP').slice(0, 50),
       avatar: (prof.avatar && prof.avatar.length < 60000) ? prof.avatar : '',
-      shopName: shop.name || '', shopId: visit.shopId,
-      rating: visit.rating || 0, genre: (visit.dishGenres || []).join('・'),
-      comment: visit.comment || '', photoUrl, ar: (p0 && Number(p0.ar) > 0) ? Number(p0.ar) : 0,
+      shopName: String(shop.name || '').slice(0, 200), shopId: visit.shopId, // v396: ルールの長さの上限を超えると黙って公開されなかった
+      rating: visit.rating || 0, genre: (visit.dishGenres || []).join('・').slice(0, 300),
+      comment: String(visit.comment || '').slice(0, 2000), photoUrl, ar: (p0 && Number(p0.ar) > 0) ? Number(p0.ar) : 0,
       // 詳細表示・ナビ用の店舗情報
       shopGenre: shop.shopGenre || '', pref: shop.pref || '', city: shop.city || '',
-      station: shop.station || '', address: shop.address || '',
+      station: shop.station || '', address: String(shop.address || '').slice(0, 500),
       casual: shop.casual || 0, atmosphere: shop.atmosphere || 0, speed: shop.speed || 0,
       lat: (shop.lat != null ? shop.lat : null), lon: (shop.lon != null ? shop.lon : null),
       datetime: visit.datetime, createdAt: Number(visit.createdAt) || new Date(visit.datetime).getTime() || Date.now(), // v393: 記録を作った時刻。以前は出し直すたびに「今」になり、フォロワーのホームの新しい60件が「最後にアプリを開いた人の古い投稿」で埋まっていた
     });
+    // v396: 写真はあるのに URL が取れなかった（通信の失敗）ときは、前の投稿の写真を消さないよう photoUrl を書かずに重ねる
+    if (!photoUrl && ps && ps.length) { delete post.photoUrl; await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post, { merge: true }); return; }
     await fb.fs.setDoc(fb.fs.doc(db, 'publicPosts', visitId), post);
   }
 
@@ -539,7 +600,7 @@ const Cloud = (() => {
   async function getComments(postId) {
     await ensureLoaded();
     const snap = await fb.fs.getDocs(fb.fs.collection(db, 'publicPosts', postId, 'comments'));
-    const arr = []; snap.forEach(d => arr.push(Object.assign({ cid: d.id }, d.data())));
+    const arr = []; snap.forEach(d => arr.push(cleanPub(Object.assign({ cid: d.id }, d.data()))));
     arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     return arr;
   }
@@ -572,7 +633,7 @@ const Cloud = (() => {
     await ensureLoaded();
     if (!user) return [];
     const snap = await fb.fs.getDocs(fb.fs.collection(db, 'notifications', user.uid, 'items'));
-    const arr = []; snap.forEach(d => arr.push(d.data()));
+    const arr = []; snap.forEach(d => arr.push(cleanPub(d.data())));
     arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return arr;
   }
@@ -663,7 +724,7 @@ const Cloud = (() => {
       const batch = uids.slice(i, i + 30);
       jobs.push(fb.fs.getDocs(fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch))));
     }
-    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(d.data()));
+    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(cleanPub(d.data())));
     return posts.filter(p => p.lat != null && p.lon != null);
   }
 
@@ -674,7 +735,7 @@ const Cloud = (() => {
     const q = fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', '==', uid));
     const snap = await fb.fs.getDocs(q);
     const posts = [];
-    snap.forEach(d => posts.push(d.data()));
+    snap.forEach(d => posts.push(cleanPub(d.data())));
     posts.sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
     return posts;
   }
@@ -694,7 +755,7 @@ const Cloud = (() => {
       const batch = uids.slice(i, i + 30);
       jobs.push(fb.fs.getDocs(fb.fs.query(fb.fs.collection(db, 'publicPosts'), fb.fs.where('uid', 'in', batch))));
     }
-    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(d.data()));
+    for (const snap of await Promise.all(jobs)) snap.forEach(d => posts.push(cleanPub(d.data())));
     posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return posts.slice(0, 60);
   }
@@ -704,7 +765,16 @@ const Cloud = (() => {
   let flushTimer = null;
   function onLocalChange(kind, action, obj) {
     if (!user) return;
-    pending.set(kind + ':' + (obj.id || 'profile'), { kind, action, obj });
+    const key = kind + ':' + (obj.id || 'profile');
+    const prev = pending.get(key);
+    // v396: 写真の追加（put）がまだ送られていないうちの付け替え（meta）は、put に店・記録を写して put のまま送る
+    // （以前は meta が put を置き換え、本体の無い・id の無い写真のメタがクラウドにできていた）
+    if (prev && prev.action === 'put' && action === 'meta' && kind === 'photo') {
+      prev.obj = { ...prev.obj, shopId: obj.shopId, visitId: obj.visitId, metaAt: obj.metaAt };
+      clearTimeout(flushTimer); flushTimer = setTimeout(flush, 900);
+      return;
+    }
+    pending.set(key, { kind, action, obj, uid: user.uid });
     clearTimeout(flushTimer);
     flushTimer = setTimeout(flush, 900);
   }
@@ -713,6 +783,8 @@ const Cloud = (() => {
     const items = [...pending.values()]; pending.clear();
     setStatus('syncing');
     for (const it of items) {
+      // v396: 送っている途中でアカウントが変わったら、残りを次の人の場所へ書かない（作った人の uid と比べる）
+      if (!user || (it.uid && it.uid !== user.uid)) break;
       try { await applyOneToCloud(it); } catch (e) { console.warn('同期の反映に失敗:', it.kind, e); }
     }
     setStatus('synced');
@@ -748,7 +820,7 @@ const Cloud = (() => {
       try {
         await retryDeletes();    // 通信切れなどで届かなかった削除をクラウドへ反映し直す
         const recs = await syncRecords(); // 取り込み＋全件の押し上げ（差分ではなく全件上書き＝確実）
-        await Store.cleanupOrphans().catch(() => {}); // v370〜
+        await cleanupAfterPull(); // v370〜。v396: 全件を読んだときだけ
         if (recs) App.refreshCurrent(); // 別端末からの記録をすぐ画面に
         assertUser(uid);
         const got = await syncPhotos(); // 写真はクラウドとの差分だけアップロード/取り込み
@@ -778,7 +850,7 @@ const Cloud = (() => {
     const delAt = Number(obj && obj.delAt) || Date.now();
     if (kind === 'shop') {
       if (action === 'del') { await putTombstone('shop', obj.id, delAt); return fb.fs.deleteDoc(dref('shops', obj.id)); }
-      return fb.fs.setDoc(dref('shops', obj.id), clean(obj));
+      return fb.fs.setDoc(dref('shops', obj.id), clean(obj)).then(() => noteRemote('shop', obj));
     }
     if (kind === 'visit') {
       if (action === 'del') {
@@ -787,7 +859,7 @@ const Cloud = (() => {
         await fb.fs.deleteDoc(fb.fs.doc(db, 'publicPosts', obj.id)).catch(() => {}); // フィード投稿も削除
         return;
       }
-      await fb.fs.setDoc(dref('visits', obj.id), clean(obj));
+      await fb.fs.setDoc(dref('visits', obj.id), clean(obj)); noteRemote('visit', obj);
       // 保存と同時にフィード投稿も公開・更新（写真なしの記録も相手の地図の合算に届くように）
       await publishPostForVisit(obj.id).catch(() => {});
       return;
@@ -797,7 +869,7 @@ const Cloud = (() => {
       clearTimeout(wishPubTimer);
       wishPubTimer = setTimeout(() => publishPublicProfile().catch(() => {}), 3000);
       if (action === 'del') { await putTombstone('wish', obj.id, delAt); return fb.fs.deleteDoc(dref('wishes', obj.id)); }
-      return fb.fs.setDoc(dref('wishes', obj.id), clean(obj));
+      return fb.fs.setDoc(dref('wishes', obj.id), clean(obj)).then(() => noteRemote('wish', obj));
     }
     if (kind === 'profile') return fb.fs.setDoc(dref('meta', 'profile'), clean(obj));
     if (kind === 'photo') {
@@ -809,7 +881,7 @@ const Cloud = (() => {
         return;
       }
       if (action === 'meta') { // 店の統合・写真の付け替えなど、メタ情報（店・訪問）だけの変更（v364〜）
-        await fb.fs.setDoc(dref('photos', obj.id), clean({ shopId: obj.shopId, visitId: obj.visitId, metaAt: Number(obj.metaAt) || Date.now() }), { merge: true }); // metaAt: 付け替えの時刻（v393〜 端末間で新しい方を採る）
+        await fb.fs.setDoc(dref('photos', obj.id), clean({ id: obj.id, shopId: obj.shopId, visitId: obj.visitId, metaAt: Number(obj.metaAt) || Date.now() }), { merge: true }); // metaAt: 付け替えの時刻（v393〜 端末間で新しい方を採る）。v396: id も書く
         for (const vid of [obj.visitId, obj.prevVisitId]) if (vid && Store.visits().some(v => v.id === vid)) await publishPostForVisit(vid).catch(() => {});
         return;
       }
@@ -881,7 +953,7 @@ const Cloud = (() => {
     const qq = fb.fs.query(col, fb.fs.orderBy('username'),
       fb.fs.startAt(term), fb.fs.endAt(term + String.fromCharCode(0xf8ff)), fb.fs.limit(20));
     const snap = await fb.fs.getDocs(qq);
-    const res = []; snap.forEach(d => res.push(d.data()));
+    const res = []; snap.forEach(d => res.push(cleanPub(d.data())));
     return res;
   }
 
@@ -939,7 +1011,7 @@ const Cloud = (() => {
     const uids = []; snap.forEach(d => uids.push(d.data().uid));
     const profs = await Promise.all(uids.map(async u => {
       const p = await fb.fs.getDoc(fb.fs.doc(db, 'publicProfiles', u));
-      return p.exists() ? p.data() : null;
+      return p.exists() ? cleanPub(p.data()) : null;
     }));
     return profs.filter(Boolean);
   }
@@ -948,6 +1020,12 @@ const Cloud = (() => {
   //  （Storageルール未設定で画像本体だけ欠けたケースの穴埋め用。メタ情報の有無に関わらず上げ直す）
   async function resyncPhotos(onProgress) {
     await ensureLoaded();
+    if (!user) throw new Error('ログインが必要です');
+    // v396: ほかの同期（ログイン時・sweep）と重ねない
+    if (syncRun) await syncRun.catch(() => {});
+    return runExclusive(() => resyncPhotos0(onProgress));
+  }
+  async function resyncPhotos0(onProgress) {
     if (!user) throw new Error('ログインが必要です');
     setStatus('syncing');
     let up = 0, down = 0, fail = 0, error = null;
@@ -998,7 +1076,10 @@ const Cloud = (() => {
     if (!nameSnap.exists()) return null;
     const uid = nameSnap.data().uid;
     const pSnap = await fb.fs.getDoc(fb.fs.doc(db, 'publicProfiles', uid));
-    return pSnap.exists() ? pSnap.data() : null;
+    if (!pSnap.exists()) return null;
+    const prof = cleanPub(pSnap.data());
+    if (Array.isArray(prof.wishes)) prof.wishes = prof.wishes.map(cleanPub);
+    return prof;
   }
 
   return { init, login, logout, onStatus, getUser, isSupported,
@@ -1007,5 +1088,6 @@ const Cloud = (() => {
     fetchFeed, fetchNetworkPosts, fetchUserPosts, fetchNotifications, unreadNotifCount, markNotificationsRead,
     getLikeInfo, toggleLike, getComments, commentCount, addComment, deleteComment,
     publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep, syncPrefs,
-    syncNow: () => autoBackupSweep(true) }; // 引っ張って更新（v363〜）
+    syncNow: () => autoBackupSweep(true), // 引っ張って更新（v363〜）
+    syncFull: async () => { const t0 = Date.now(); lastFullPullAt = 0; await autoBackupSweep(true); return lastPullWasFull && lastFullPullAt >= t0; } }; // v396: 全件を読み直す（設定の「店の無い記録を掃除」の前）。読み直せたら true
 })();

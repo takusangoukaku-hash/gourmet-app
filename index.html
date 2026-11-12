@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=395">
+<link rel="stylesheet" href="css/style.css?v=396">
 </head>
 <body>
 
@@ -104,7 +104,7 @@
       </div>
       <button type="button" class="reg-row full" data-reg-open="comment"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9 9 0 0 1-4-1L3 20l1.2-4.3A8.4 8.4 0 1 1 21 11.5z"/></svg>ひとこと</span><span class="chev">›</span></button>
       <div id="reg-comment" class="full reg-fold hidden">
-        <textarea id="f-comment" rows="2" aria-label="ひとこと" placeholder="味の感想、おすすめメニューなど"></textarea>
+        <textarea id="f-comment" rows="2" maxlength="2000" aria-label="ひとこと" placeholder="味の感想、おすすめメニューなど"></textarea>
       </div>
       <button type="button" id="detail-toggle" class="reg-row full" data-reg-open="detail"><span class="ri"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>住所・最寄駅</span><span class="chev">›</span></button>
       <div id="detail-fields" class="full detail-fields reg-fold hidden">
@@ -676,12 +676,12 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=395"></script>
-<script src="js/api.js?v=395"></script>
-<script src="js/cloud.js?v=395"></script>
-<script src="js/register.js?v=395"></script>
-<script src="js/import.js?v=395"></script>
-<script src="js/views.js?v=395"></script>
-<script src="js/app.js?v=395"></script>
+<script src="js/store.js?v=396"></script>
+<script src="js/api.js?v=396"></script>
+<script src="js/cloud.js?v=396"></script>
+<script src="js/register.js?v=396"></script>
+<script src="js/import.js?v=396"></script>
+<script src="js/views.js?v=396"></script>
+<script src="js/app.js?v=396"></script>
 </body>
 </html>

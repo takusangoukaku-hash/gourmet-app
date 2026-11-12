@@ -362,7 +362,12 @@ out center 25;`;
     const isDup = (c) => out.find(o => {
       if (o.lat == null || c.lat == null || Store.distMeters(o.lat, o.lon, c.lat, c.lon) >= 150) return false;
       const a = nn(o.name), b = nn(c.name);
-      return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+      if (!a || !b) return false;
+      if (a === b) return true;
+      // v396: 含む側の短い名前が短すぎると（「珈琲」「ひろ」など）別の店まで1つにまとめていた。3文字以上かつ長い方の半分以上のときだけ
+      const short = a.length <= b.length ? a : b, long = short === a ? b : a;
+      // 「ドトール」と「ドトールコーヒーショップ渋谷1丁目店」のように頭が同じものは長さの差を問わない
+      return short.length >= 3 && (long.startsWith(short) || (short.length * 2 >= long.length && long.includes(short)));
     }) || null;
     for (const list of lists) {
       for (const c of list) {
@@ -431,7 +436,8 @@ out center 25;`;
   }
 
   async function searchShopsFast(fullQuery, nameQuery, ref) {
-    if (proxyOn() && proxyServices == null) await refreshProxyStatus(); // 初回のみ: 中継が提供するサービスを確認
+    // 初回のみ: 中継が提供するサービスを確認。v396: 待つのは最大 1.5 秒（中継が落ちていると毎回 6 秒待たされていた。届かなければ「ある」とみなして進む）
+    if (proxyOn() && proxyServices == null) await Promise.race([refreshProxyStatus(), new Promise(r => setTimeout(r, 1500))]);
     lastSources = {};
     const lat = ref && ref.lat, lon = ref && ref.lon;
     const [poi, yahoo, hp, photon, nomi] = await Promise.all([
@@ -631,9 +637,9 @@ out center 25;`;
     if (!proxyOn()) return Promise.resolve(null);
     if (!proxyStatusPromise) {
       proxyStatusPromise = fetchT(SEARCH_PROXY + '/status', {}, 6000)
-        .then(r => r.ok ? r.json() : null)
+        .then(r => { if (!r.ok) throw new Error('status ' + r.status); return r.json(); }) // v396: 一時的な 500 で「何も無い」と決めつけない（再読み込みまで AI 判定などが消えていた）
         .then(j => { proxyServices = (j && j.services) || { yahoo: false, hotpepper: false, google: false }; return proxyServices; })
-        .catch(() => { proxyStatusPromise = null; return null; });
+        .catch(() => { setTimeout(() => { proxyStatusPromise = null; }, 60000); return null; }); // 失敗は 60 秒覚えてから聞き直す
     }
     return proxyStatusPromise;
   }
@@ -965,7 +971,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v395',
+    FILE_VERSION: 'v396',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, geocodeAddress, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,

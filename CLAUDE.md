@@ -200,13 +200,20 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
   - **画面**: 店の詳細の描き直しは `isShopOpen(shopId)`（`modalShopId`。showShop で入れ、closeModal と他のモーダル（凡例・行きたいの追加・県の店）で外す）で判定し、「モーダルが開いている」だけで開き直さない。下の店の詳細は `refreshOpenShop()`。フォロー／解除は `onFollowChanged()`。`ensureNetworkLoaded(cb)` は読み込み中なら cb を後に繋ぐ。現在地の控えは `posFresh(ms)`（経路の出発地は10分、`currentPosition()` の即答は2分以内）。`.as-box` は `max-height: 85vh` でスクロール
   - 回帰テストは scratchpad の `test-v394.js`（偽の Firebase `fakefb.js` を gstatic の代わりに route で返す。本番の Firebase には一切つながない）と `test-v394-views.js`・`-register.js`・`-import.js`・`-api.js`（後の4つは `run-tests.js` の対象外の名前なので個別に回す）
 - 見直しの残り（v395）: 一致率は `matchOfPosts(posts, myShops)` 1つ（ホーム・店・公開プロフィール共通。別の式を書かない）。行きたい店の達成の日（`doneAt`）は入れた日（`createdAt`）より前にしない（`addVisit`）。お店の記録（`buildShopFeedSection` の lite でない方）の写真のタップは写真だけの全画面、探すの一覧（lite）は店の詳細。maplibre の操作ボタンの見た目は `.maplibregl-map` を前に付けて強くする（maplibre-gl.css が後から読まれる）。APIキーの削除は `gourmet.keysClearPending` で次の同期まで持ち越す。店送り（`bindShopNavOnce`）は削除し、`showShop(shopId)` は引数1つ。`docs/review-v392.md` の指摘は API キーの一部を除いて対応済み。回帰テストは scratchpad の `test-v395.js`
+- 2回目の全体の見直し（v396。指摘と対応は `docs/review-v396.md`）。今後の決めごと:
+  - **押し上げと読み込み**: `pushAllRecords()` はクラウドに無い／こちらが新しい記録だけ（`remoteAt` と比べる）。読み込みは 30 分に1回の全件、それ以外は `updatedAt` の差分（`pullCollection(name, kind, tombs, since)`）。全件を書き直す処理を新しく書かない（Firestore の無料枠）。**孤児の掃除（`cleanupOrphans`）は全件を読んだ直後だけ**（差分では別端末の遅れて届いた記録を見落とすので、消すと全端末から消える）。手動の掃除は `Cloud.syncFull()` が true のときだけ
+  - **他人のデータ**: cloud.js の取得（投稿・コメント・通知・プロフィール）は `cleanPub()` を通す（画像は data:image か Firebase Storage の URL だけ、数値は数）。views.js 側も他人の URL をそのまま `<img>` に入れない
+  - **削除の保留**: `Store.deferDelete` は `gourmet.pendingDel.v1` に控え、次の起動で確定する
+  - **ルール**: `firebase/firestore.rules` を変えたら、利用者に Firebase コンソールへの貼り付けを頼む（自動では反映されない）
+  - 重複した店の判定（`isSimilarShop`）は、名前が同じでも 2km より離れていれば別の店
+  - 回帰テストは scratchpad の `test-v396.js`（偽の Firebase で押し上げの数・差分の読み込み・削除の保留・他人の URL を確かめる）
 - 地図のテスト: この環境では `tiles.openfreemap.org/planet` の TileJSON が取れず style が load しない（ピンの層が無い）。Playwright では TileJSON を偽の JSON で返し、タイル・グリフは 404 にすると `load` が来てピンが描ける（`test-v371.js` の route）。
 - 店舗の詳細の写真の帯（v365〜）: `#d-visits` の先頭に `.visit-block.d-photoblock`（店の写真を新しい順に全幅・左右スワイプ・点。`buildOwnShopPost` → タップで `showPostDetail`）を戻した（v338〜v363 と同じ。写真が無ければ出さない）。その下に v364 の訪問ごとの `.sfs`。
 - 店舗の詳細の訪問（v364〜）: `showShop` の `#d-visits` は、訪問の一覧 `showVisitList` と同じ部品 `buildVisitSection(shopId, v, {editVisit, delVisit})` を `.pf-shopfeed.d-visitfeed`（モーダルの余白 20px の外まで広げる）に新しい順で縦に並べる。写真（★）→ 操作行（♥・コメント・経路・共有 … ＋・…）→ 日付 → ジャンル ・ 詳細 ›。「訪問記録」の見出しと ✎（`#d-visitlist`）は廃止。…の「編集」は v367〜 `openVisitEdit` のシート。v338〜v363 の店の写真カルーセルは v365 で帯として戻し、訪問履歴のサムネは無い。
 - 今年のまとめ（v364〜）: 統計の「もっと見る」の先頭 `#stat-year`（`renderYearCard()`、`renderRecordCards()` の最初）。`yearSummary(year)` が今年の訪問から 店数・回数・新しい店（初訪問が今年）・都道府県数・よく行った店3・★が高かった店3（評価ありのみ）・よく食べたジャンル3 を出す。今年の訪問が無ければカードごと出さない。「画像で共有」は `buildYearCard(d)`（canvas 1080×1350）→ `shareImageBlob(blob, filename, text, title)`（Web Share → 無ければ保存モーダル。記録カード `shareRecordCard` も同じ関数）。
 - 新しい版（v359〜）: sw.js は install で skipWaiting しない。app.js が 起動時・前面復帰時・30分ごとに `reg.update()` し、新版が待機に入ったら
   起動 20 秒以内なら黙って切り替え（SKIP_WAITING → controllerchange → 再読み込み）、使用中なら下の帯 `.update-bar`「新しい版があります ・ 更新」を出してタップで切り替える。記録の入力中は保存後に切り替える。
-- Service Worker: `?v=` 付きのファイルはキャッシュ優先（内容は版ごとに固定）。index.html だけネットワーク優先。
+- Service Worker: `?v=` 付きのファイルと画面（index.html）はキャッシュ優先（v370〜。版の切り替えは新しい SW の install のプリキャッシュで行う）。アイコンなど ?v= の無い自分のファイルはネットワーク優先。
 - 速さの計測（v358〜）: 店150・写真300 を入れて CPU 4倍遅で測る台本がある（scratchpad の `perf-scale.js`／`perf-prof.js`。CDP の Profiler で関数ごとの時間を出す）。
   直した所: ①写真の並び `mzFit()` は読み取り（高さ）と書き込み（行数）を rAF 1回にまとめる（1枚ごとに getBoundingClientRect でレイアウトを強制しない。ResizeObserver は `contentRect.height` を使う）。
   ②検索の「お店」一覧 `renderListSections()` は 12 件ずつ描き、残りはスクロールで近づいたら足す（IntersectionObserver）。③写真の保存直後に `Views.warmThumb(id, blob)` でサムネを作る（登録・取り込み）。

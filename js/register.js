@@ -41,6 +41,7 @@ const Register = (() => {
   let suggestRef = null; // 予測検索の基準位置（写真の GPS が無いときの現在地。記録ごとに取り直す）
   // v393: フォームの世代番号。resetForm() で進め、通信待ちから戻った処理が別の記録のフォームへ書き込まないようにする
   let formSeq = 0;
+  let exifRun = 0; // v396: analyzeExif の世代（写真を続けて足したとき古い解析を捨てる）
   // v393: lastGps が写真の EXIF 由来か（現在地のフォールバックは false）。手入力の新しい店に位置を付けてよいのは写真由来だけ
   let lastGpsFromPhoto = false;
 
@@ -496,9 +497,11 @@ const Register = (() => {
   async function addFiles(fileList) {
     const before = pendingPhotos.length;
     const dupMsgs = [];
+    const seq = formSeq; // v396: 指紋を取っている間に記録が終わった・やめたら、前の写真を新しいフォームへ入れない
     for (const f of fileList) {
       if (!f.type.startsWith('image/')) continue;
       const hash = await Api.fileHash(f);
+      if (seq !== formSeq) return;
       // 二重登録の防止: 登録済みの写真・選択済みの写真は追加しない
       if (hash) {
         const dup = Store.findPhotoByHash(hash);
@@ -613,15 +616,20 @@ const Register = (() => {
     status.textContent = '写真を解析しています…';
 
     const seq = formSeq; // v393: 解析中に記録が終わった・やめたら、結果は捨てる
+    const run = ++exifRun; // v396: 写真を続けて足したとき、古い解析の結果で上書きしない
     let gps = null;
     for (const p of pendingPhotos.slice()) {
-      const ex = await Api.parseExif(p.file);
-      if (seq !== formSeq) return;
-      if (!gps && ex.lat != null && ex.lon != null) gps = { lat: ex.lat, lon: ex.lon };
-      p.exifTime = ex.date instanceof Date ? ex.date : null; // v393: 写真を外したときに日付を計算し直せるよう控える
+      // v396: 解析済みの写真（下書きの写真＝圧縮済みで EXIF が無い、を含む）は読み直さない。以前は下書きに写真を足すと下書きの日付・位置が消えた
+      if (p.exifTime === undefined) {
+        const ex = await Api.parseExif(p.file);
+        if (seq !== formSeq || run !== exifRun) return;
+        p.gps = ex.lat != null && ex.lon != null ? { lat: ex.lat, lon: ex.lon } : null;
+        p.exifTime = ex.date instanceof Date ? ex.date : null; // v393: 写真を外したときに日付を計算し直せるよう控える
+      }
+      if (!gps && p.gps) gps = p.gps;
     }
-    lastGps = gps; // 名前検索の基準位置としても使う
-    lastGpsFromPhoto = !!gps;
+    if (gps) { lastGps = gps; lastGpsFromPhoto = true; } // 名前検索の基準位置としても使う
+    else if (lastGpsFromPhoto) { lastGps = null; lastGpsFromPhoto = false; } // 位置のあった写真を外した。下書き・現在地の位置は残す
 
     // 訪問日 = 撮影日として自動記録（あとから一覧の✏️編集で修正可能）
     // v393: 常にいまの写真から決める（使える撮影日が無ければ ''＝保存時に当日）
@@ -635,6 +643,16 @@ const Register = (() => {
       status.classList.add('hidden'); // 案内は消し、候補だけ表示する
     } else {
       status.classList.add('hidden'); // 位置情報なしの案内は表示しない
+      // v396: 位置の無い写真（アプリ内のカメラ・位置を切った写真）でも、撮ったばかりなら今いる場所の周辺の店を出す（自動では選ばない）
+      // 撮影日が2時間以内の写真か、アプリ内のカメラで撮った写真（camera-…）だけ。日付の無い画像（スクリーンショットなど）では現在地を聞かない
+      const recent = pendingPhotos.every(p => (p.exifTime && Math.abs(Date.now() - p.exifTime.getTime()) < 2 * 3600 * 1000) || (!p.exifTime && p.file && /^camera-/.test(p.file.name || '')));
+      if (recent && !lastGps && !selected && !$('#f-shop-name').value.trim()) {
+        getCurrentPos(4000).then(pos => {
+          if (!pos || seq !== formSeq || lastGps || selected || $('#f-shop-name').value.trim()) return;
+          lastGps = pos; lastGpsFromPhoto = false; // 写真由来ではない（手入力の店の位置には使わない。v393）
+          return loadCandidates(pos.lat, pos.lon, { auto: false });
+        }).catch(() => {});
+      }
     }
 
     if (seq !== formSeq) return;
@@ -940,6 +958,11 @@ const Register = (() => {
 
   // ---------- 店舗の選択 ----------
   function chooseExisting(shop) {
+    // v396: 前の候補から自動で入ったジャンルは外す（chooseCandidate と同じ。v393 の決めごと）
+    if (autoFilledGenres && !userTouchedGenres && !aiClassified) {
+      selectedDishGenres.clear(); derivedShopGenre = ''; autoFilledGenres = false;
+      dishPicker.reset(); updateGenrePill();
+    }
     selected = { existingShopId: shop.id, osmId: shop.osmId, name: shop.name, address: shop.address, lat: shop.lat, lon: shop.lon, pref: shop.pref, city: shop.city, station: shop.station, country: shop.country };
     $('#f-shop-name').value = shop.name;
     $('#f-address').value = shop.address || '';
@@ -987,7 +1010,7 @@ const Register = (() => {
       if (geo.pref && !shop.pref) patch.pref = geo.pref;
       if (geo.city && !shop.city) patch.city = geo.city;
       if (geo.address && !shop.address) patch.address = geo.address;
-      if (Object.keys(patch).length) Store.updateShop(shop.id, patch);
+      if (shop.id && Object.keys(patch).length) Store.updateShop(shop.id, patch); // 行きたい店から来たとき（店がまだ無い）はフォームの欄だけ
     } finally {
       stationInput.placeholder = '自動入力されます';
     }
@@ -1017,8 +1040,11 @@ const Register = (() => {
   }
 
   async function applyLocation(c) {
+    // v396: 前に選んだ店（登録済み・別の候補）の住所・駅・県・市が残らないよう、選び直したら空にしてから入れる
+    if (selected) for (const id of ['#f-address', '#f-station', '#f-pref', '#f-city']) $(id).value = '';
     selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '',
-      coarse: !!c.coarse, posLevel: c.posLevel || (c.lat != null ? 'block' : ''), // 位置の精度（v340〜。町丁目までなら写真の位置を優先する） station: '', country: '日本',
+      coarse: !!c.coarse, posLevel: c.posLevel || (c.lat != null ? 'block' : ''), // 位置の精度（v340〜。町丁目までなら写真の位置を優先する）
+      station: '', country: '日本',
       // 出どころと利用条件（OpenPOI 由来の店は licenses / attributions を記録と一緒に保存する）
       // 出典（ライセンス）付きのデータを出した情報源を優先（OSM と OpenPOI の両方で見つかった店は OpenPOI。v317〜）
       dataSource: c.dataSource || c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [] };
@@ -1129,6 +1155,7 @@ const Register = (() => {
       const qLat = selHasPos ? selected.lat : (gpsPos ? gpsPos.lat : null);
       const qLon = selHasPos ? selected.lon : (gpsPos ? gpsPos.lon : null);
       let shop = selected && selected.existingShopId ? Store.getShop(selected.existingShopId) : null;
+      let asked = false;
       if (!shop) {
         shop = Store.matchShop({
           osmId: selected ? selected.osmId : '',
@@ -1136,8 +1163,16 @@ const Register = (() => {
           lat: qLat,
           lon: qLon,
         });
+        // v396: 位置が無いと名前だけで照合する（別の町の同じ名前の店＝チェーン店の別の店舗に黙って記録していた）。位置のある店なら確かめる
+        const osmHit = shop && selected && selected.osmId && shop.osmId === selected.osmId;
+        if (shop && qLat == null && !osmHit && shop.lat != null) {
+          asked = true;
+          const ans = await askSameShop(shop);
+          if (ans === undefined) return; // やめた
+          shop = ans;
+        }
       }
-      if (!shop) {
+      if (!shop && !asked) {
         // 照合（同じ名前＋50m）に掛からなくても、名前がよく似た登録済みの店があれば確かめる（二重登録を防ぐ。v365〜）
         const sim = Views.similarShops(name, qLat, qLon);
         if (sim.length) {
@@ -1298,10 +1333,12 @@ const Register = (() => {
     if (!resetFormConfirmed()) return;
     const m = Store.matchShop({ name: w.name, lat: w.lat, lon: w.lon });
     if (m) { chooseExisting(m); return; } // すでに登録済みの店なら訪問の追加になる
-    selected = { name: w.name, lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null };
+    selected = { name: w.name, lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null, address: w.address || '' };
     $('#f-shop-name').value = w.name || '';
+    if (w.address) $('#f-address').value = w.address; // v396: 行きたい店の住所も入れる
+    if (w.genre && !derivedShopGenre) derivedShopGenre = w.genre;
     forceStep2 = true; updateStep();
-    backfillMissing(selected); // 最寄駅・住所を自動補完
+    backfillMissing(selected); // 最寄駅・住所を自動補完（フォームの欄に入る。保存で店に入る）
   }
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));

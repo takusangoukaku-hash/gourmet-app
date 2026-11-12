@@ -21,6 +21,20 @@ service cloud.firestore {
     }
     function str(v, max) { return v is string && v.size() <= max; }
     function avatarOk(a) { return a == '' || (a is string && a.size() < 60000 && a.matches('^data:image/[a-z]+;base64,.*')); }
+    function photoOk(u) { return u == '' || (u is string && u.size() < 2000 && u.matches('^https://firebasestorage[.]googleapis[.]com/.*')); }
+    function postOk(postId) {
+      return isOwner(request.resource.data.uid)
+        && request.resource.data.id == postId
+        && ownsHandle(request.resource.data.username)
+        && str(request.resource.data.comment, 2000)
+        && str(request.resource.data.shopName, 200)
+        && str(request.resource.data.get('displayName', ''), 50)
+        && str(request.resource.data.get('genre', ''), 300)
+        && str(request.resource.data.get('address', ''), 500)
+        && photoOk(request.resource.data.get('photoUrl', ''))
+        && request.resource.data.rating is number
+        && avatarOk(request.resource.data.avatar);
+    }
 
     // 本人の記録（店・訪問・行きたい・写真メタ・プロフィール・APIキーの控え）
     match /users/{uid}/{doc=**} {
@@ -31,13 +45,9 @@ service cloud.firestore {
     match /publicPosts/{postId} {
       // 共有リンク(?u=)を未ログインでも見せたい場合は `if true` に緩める
       allow read: if signedIn();
-      allow create, update: if isOwner(request.resource.data.uid)
-        && request.resource.data.id == postId
-        && ownsHandle(request.resource.data.username)
-        && str(request.resource.data.comment, 2000)
-        && str(request.resource.data.shopName, 200)
-        && request.resource.data.rating is number
-        && avatarOk(request.resource.data.avatar);
+      // v396: 作るのは本人、直すのは「今の持ち主」だけ（以前は他人の投稿の id で上書きできた）。写真は Firebase Storage の URL か空だけ
+      allow create: if postOk(postId);
+      allow update: if isOwner(resource.data.uid) && postOk(postId);
       allow delete: if isOwner(resource.data.uid);
 
       match /likes/{likeUid} {
@@ -63,7 +73,8 @@ service cloud.firestore {
     // 公開プロフィール（誰でも読める・本人だけ書ける）
     match /publicProfiles/{uid} {
       allow read: if true;
-      allow write: if isOwner(uid)
+      allow delete: if isOwner(uid); // v396: 自分の公開プロフィールは消せる（以前は write の条件が request.resource を読むので消せなかった）
+      allow create, update: if isOwner(uid)
         && request.resource.data.uid == uid
         && ownsHandle(request.resource.data.username)
         && request.resource.data.shopCount is int

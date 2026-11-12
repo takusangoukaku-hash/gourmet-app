@@ -3,7 +3,9 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v395'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v396'; // sw.js の VERSION・index.html の ?v= と合わせる
+  // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -67,16 +69,28 @@ const App = (() => {
     const bar = document.createElement('div');
     bar.className = 'update-bar';
     bar.innerHTML = '<span>新しい版があります</span><button type="button" class="btn small primary">更新</button>';
-    bar.querySelector('button').addEventListener('click', () => { bar.querySelector('button').disabled = true; bar.querySelector('span').textContent = '切り替えています…'; onUpdate(); });
+    bar.querySelector('button').addEventListener('click', () => {
+      const btn = bar.querySelector('button');
+      btn.disabled = true; bar.querySelector('span').textContent = '切り替えています…';
+      userWantsUpdate = true;
+      onUpdate();
+      // v396: 待機中の版が無くなっていた（さらに新しい版が来た等）と切り替えが起きないので、4 秒で帯を戻して取り直す
+      setTimeout(() => {
+        if (!bar.isConnected) return;
+        btn.disabled = false; bar.querySelector('span').textContent = '新しい版があります';
+        if (swReg) swReg.update().catch(() => {});
+      }, 4000);
+    });
     document.body.appendChild(bar);
   }
 
   // 引っ張って更新（v363〜）: クラウドと同期 → 新しい版があればその場で切り替え → いまの画面を描き直す
   let swReg = null, swActivate = null;
+  let userWantsUpdate = false; // v396: 利用者が自分で切り替えを頼んだ（帯の「更新」・引っ張って更新）。それ以外の切り替えは入力中を避けて待つ
   async function checkUpdate() {
     if (!swReg) return false;
     try { await swReg.update(); } catch { /* noop */ }
-    if (swReg.waiting && navigator.serviceWorker.controller && swActivate) { swActivate(swReg.waiting); return true; }
+    if (swReg.waiting && navigator.serviceWorker.controller && swActivate) { userWantsUpdate = true; swActivate(swReg.waiting); return true; }
     return false;
   }
   async function refreshAll() {
@@ -107,7 +121,7 @@ const App = (() => {
   function applyFontScale() {
     let pref = 'auto';
     try { pref = localStorage.getItem('gourmet.fontScale') || 'auto'; } catch { /* noop */ }
-    const scale = pref === 'auto' ? systemFontScale() : (FONT_SCALES[pref] || 1);
+    const scale = pref === 'auto' ? systemFontScale() : ((Object.prototype.hasOwnProperty.call(FONT_SCALES, pref) && FONT_SCALES[pref]) || 1);
     document.documentElement.style.setProperty('--ui-zoom', String(scale));
     if (kbApply) kbApply();
     const sel = $('#set-font');
@@ -134,7 +148,7 @@ const App = (() => {
   // クラウドの値をこの端末に写す（値は検証してから）。画面の選択肢と見た目も合わせる
   function applyDisplayPrefs(p) {
     const o = p || {};
-    const fs = (o.fontScale === 'auto' || FONT_SCALES[o.fontScale]) ? o.fontScale : 'auto';
+    const fs = (o.fontScale === 'auto' || (typeof o.fontScale === 'string' && Object.prototype.hasOwnProperty.call(FONT_SCALES, o.fontScale))) ? o.fontScale : 'auto'; // v396: 継承したキー（constructor など）を通さない
     try {
       localStorage.setItem(PREF_KEYS.fontScale, fs);
       if (o.homeSquare) localStorage.setItem(PREF_KEYS.homeSquare, '1'); else localStorage.removeItem(PREF_KEYS.homeSquare);
@@ -146,8 +160,8 @@ const App = (() => {
     if (currentTab === 'feed') Views.renderFeed();
   }
   function syncPrefControls() {
-    const hs = $('#set-home-square'); if (hs) hs.value = localStorage.getItem(PREF_KEYS.homeSquare) ? '1' : '';
-    const pn = $('#set-pv-nav'); if (pn) pn.value = localStorage.getItem(PREF_KEYS.pvNavOff) ? '1' : '';
+    const hs = $('#set-home-square'); if (hs) hs.value = lsGet(PREF_KEYS.homeSquare) ? '1' : '';
+    const pn = $('#set-pv-nav'); if (pn) pn.value = lsGet(PREF_KEYS.pvNavOff) ? '1' : '';
   }
   // 設定で変えたとき: 時刻を控え、ログイン中ならすぐクラウドへ
   function prefChanged() {
@@ -184,9 +198,9 @@ const App = (() => {
     applyFontScale();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) applyFontScale(); }); // 端末の文字サイズを変えて戻ってきたとき
     const hs = $('#set-home-square'); // ホームの写真を正方形に（v378〜）
-    if (hs) { hs.value = localStorage.getItem('gourmet.homeSquare') ? '1' : ''; hs.addEventListener('change', () => { try { if (hs.value) localStorage.setItem('gourmet.homeSquare', '1'); else localStorage.removeItem('gourmet.homeSquare'); } catch { /* noop */ } prefChanged(); if (currentTab === 'feed') Views.renderFeed(); }); }
+    if (hs) { hs.value = lsGet('gourmet.homeSquare') ? '1' : ''; hs.addEventListener('change', () => { try { if (hs.value) localStorage.setItem('gourmet.homeSquare', '1'); else localStorage.removeItem('gourmet.homeSquare'); } catch { /* noop */ } prefChanged(); if (currentTab === 'feed') Views.renderFeed(); }); }
     const pn = $('#set-pv-nav'); // 写真の全画面の ‹ ›（v389〜）
-    if (pn) { pn.value = localStorage.getItem('gourmet.pvNavOff') ? '1' : ''; pn.addEventListener('change', () => { try { if (pn.value) localStorage.setItem('gourmet.pvNavOff', '1'); else localStorage.removeItem('gourmet.pvNavOff'); } catch { /* noop */ } prefChanged(); }); }
+    if (pn) { pn.value = lsGet('gourmet.pvNavOff') ? '1' : ''; pn.addEventListener('change', () => { try { if (pn.value) localStorage.setItem('gourmet.pvNavOff', '1'); else localStorage.removeItem('gourmet.pvNavOff'); } catch { /* noop */ } prefChanged(); }); }
     $('#set-font').addEventListener('change', () => { try { localStorage.setItem('gourmet.fontScale', $('#set-font').value); } catch { /* noop */ } prefChanged(); applyFontScale(); });
     Register.init();
     if (typeof Import !== 'undefined') Import.init(); // 過去の写真のまとめて取り込み（v326〜）
@@ -329,8 +343,8 @@ const App = (() => {
     const fmtWhen = (ts) => { const d = new Date(+ts || 0); if (!+ts) return ''; const now = new Date(); const same = d.toDateString() === now.toDateString(); const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; return same ? `今日 ${hm}` : (d.getFullYear() === now.getFullYear() ? `${d.getMonth() + 1}月${d.getDate()}日` : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`); };
     const noteRow = (id, text) => { const el = $(id); if (el) el.textContent = text || ''; };
     const renderDataRows = () => {
-      const ex = localStorage.getItem('gourmet.lastBackupAt'); noteRow('#sub-backup-export', ex ? `前回 ${fmtWhen(ex)}` : '');
-      const im = localStorage.getItem('gourmet.lastRestoreAt'); noteRow('#sub-backup-import', im ? `前回 ${fmtWhen(im)}` : '');
+      const ex = lsGet('gourmet.lastBackupAt'); noteRow('#sub-backup-export', ex ? `前回 ${fmtWhen(ex)}` : '');
+      const im = lsGet('gourmet.lastRestoreAt'); noteRow('#sub-backup-import', im ? `前回 ${fmtWhen(im)}` : '');
       let cl = null; try { cl = JSON.parse(localStorage.getItem('gourmet.lastCleanup') || 'null'); } catch { cl = null; }
       noteRow('#sub-cleanup', cl && cl.at ? `前回 ${fmtWhen(cl.at)}${cl.visits || cl.photos ? ` ・ 記録 ${cl.visits}件・写真 ${cl.photos}枚` : ' ・ 無し'}` : '');
       noteRow('#sub-merge', `店 ${Store.shops().length}件`);
@@ -341,7 +355,7 @@ const App = (() => {
     const autoBackupLocal = async () => {
       try {
         if (!Store.shops().length) return;
-        const last = +localStorage.getItem('gourmet.lastAutoBackupAt') || 0;
+        const last = +lsGet('gourmet.lastAutoBackupAt') || 0;
         if (Date.now() - last < AUTO_BACKUP_MS) return;
         await Store.putBackup(await buildBackup(false));
         localStorage.setItem('gourmet.lastAutoBackupAt', String(Date.now()));
@@ -389,6 +403,13 @@ const App = (() => {
     $('#backup-import').addEventListener('click', () => $('#backup-file').click());
     $('#merge-shops').addEventListener('click', () => Views.openMergeShops()); // 重複した店の統合（v364〜）
     $('#cleanup-orphans').addEventListener('click', async () => { // 店の無い記録の掃除（v370〜）
+      // v396: ログイン中は先にクラウドを全件読み直す（別端末の、まだ届いていない店・記録を「無い」とみなして消さない）
+      if (typeof Cloud !== 'undefined' && Cloud.getUser && Cloud.getUser() && Cloud.syncFull) {
+        toast('クラウドと照らし合わせています…');
+        let full = false;
+        try { full = await Cloud.syncFull(); } catch { full = false; }
+        if (!full) { toast('クラウドと照らし合わせられませんでした。つながってからもう一度'); return; }
+      }
       const r = await Store.cleanupOrphans().catch(() => null);
       if (!r) { toast('掃除できませんでした'); return; }
       try { localStorage.setItem('gourmet.lastCleanup', JSON.stringify({ at: Date.now(), visits: r.visits || 0, photos: r.photos || 0 })); } catch { /* noop */ }
@@ -454,11 +475,18 @@ const App = (() => {
         document.addEventListener('keydown', acted, { capture: true });
         // 新しいSWに切り替わったら一度だけ再読み込みして、全ファイルを最新に揃える
         let reloaded = false, reloadPending = false;
+        let reloadWait = 0;
         const tryReload = () => {
           if (reloaded) return;
           // 記録の入力中（写真・店名・評価あり）は保存が終わるまでリロードを待つ
           if (typeof Register !== 'undefined' && Register.isDirty && Register.isDirty()) {
             if (!reloadPending) { reloadPending = true; toast('新しい版があります ・ 記録を保存すると切り替わります'); }
+            return;
+          }
+          // v396: 別のタブで切り替えた等、自分で頼んでいない切り替えは、文字を打っている・シートを開いている間は待つ（打った内容が消えていた）
+          const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+          if (!userWantsUpdate && (typing || document.querySelector('.modal:not(.hidden)'))) {
+            if (!reloadWait) reloadWait = setInterval(() => { const t = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName); if (!t && !document.querySelector('.modal:not(.hidden)')) { clearInterval(reloadWait); reloadWait = 0; tryReload(); } }, 3000);
             return;
           }
           reloaded = true;
@@ -513,10 +541,10 @@ const App = (() => {
     // ※「見た」フラグは閉じた時に立てる。初回はSW登録直後の自動リロードが入るため、
     //   表示した時に立てるとリロード後に消えてしまう
     const welcome = $('#welcome-modal');
-    if (!shareUser && !localStorage.getItem('bm-welcomed')) {
+    if (!shareUser && !lsGet('bm-welcomed')) {
       welcome.classList.remove('hidden');
     }
-    const welcomeDone = () => localStorage.setItem('bm-welcomed', '1');
+    const welcomeDone = () => { try { localStorage.setItem('bm-welcomed', '1'); } catch { /* 保存できなくても閉じる */ } };
     welcome.addEventListener('click', (e) => {
       // ✕ボタンや背景タップで閉じた場合もフラグを立てる
       if (e.target === welcome || e.target.closest('[data-close]')) welcomeDone();
@@ -754,18 +782,21 @@ const App = (() => {
     let added = 0;
     const merge = (kind, locals, list) => {
       const map = new Map(locals.map(x => [x.id, x]));
+      const take = []; // v396: まとめて書き出す（1件ごとに全件を保存していた）
       for (const raw of (Array.isArray(list) ? list : [])) {
         const r = sanitizeRecord(kind, raw);
         if (!r) continue;
+        if ('lat' in r && (r.lat == null || r.lon == null)) { r.lat = null; r.lon = null; } // v396: 緯度か経度の片方だけの位置は捨てる
         const l = map.get(r.id);
         if (!l) {
           // v392: こちらに無い記録を戻すときは「今」直したことにし、端末の削除の控えも外す。元の updatedAt のままだと、
           // 消したときのクラウドの控え（削除の時刻）より古いので、次の同期でまた消えていた
           r.updatedAt = Date.now();
           try { Store.clearDeleted(kind, r.id); } catch { /* noop */ }
-          Store.applyRemote(kind, r); added++;
-        } else if ((r.updatedAt || 0) > (l.updatedAt || 0)) { Store.applyRemote(kind, r); added++; }
+          take.push(r); added++;
+        } else if ((r.updatedAt || 0) > (l.updatedAt || 0)) { take.push(r); added++; }
       }
+      Store.applyRemoteMany(kind, take);
     };
     merge('shop', Store.rawShops(), data.shops);
     merge('visit', Store.rawVisits(), data.visits);
@@ -824,6 +855,13 @@ const App = (() => {
             const d = p.photoUrl && data.socialPhotos[p.photoUrl];
             if (typeof d === 'string' && d.length < MAX_PHOTO_CHARS && DATA_IMG_RE.test(d)) p.photoUrl = d;
           }
+        }
+        // v396: 画像は data:image か Firebase Storage の URL だけ（ファイルに書かれた任意の URL を読み込ませない）。数値は数に
+        const okImg = (u) => typeof u === 'string' && (DATA_IMG_RE.test(u) || /^https:\/\/firebasestorage\.googleapis\.com\//.test(u));
+        for (const p of obj.posts) {
+          if (!okImg(p.photoUrl)) p.photoUrl = '';
+          if (p.avatar && !(typeof p.avatar === 'string' && DATA_IMG_RE.test(p.avatar))) p.avatar = '';
+          for (const f of ['lat', 'lon', 'rating', 'ar']) if (f in p) p[f] = (typeof p[f] === 'number' && isFinite(p[f])) ? p[f] : (f === 'lat' || f === 'lon' ? null : 0);
         }
         try { localStorage.setItem(k, JSON.stringify({ posts: obj.posts, time: 0 })); } catch { /* 容量超過なら控えは諦める */ }
       }

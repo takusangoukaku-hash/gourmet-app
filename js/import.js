@@ -21,7 +21,8 @@ const Import = (() => {
   let groups = [];        // 訪問候補
   let includeSkipped = false;
   let busy = false;
-  let runToken = 0;       // 開く・閉じる・「続けて写真を選ぶ」で進める。古い非同期の結果を捨てる印（v394〜）
+  let runToken = 0;
+  let classifyPromise = null; // v396: 裏の AI 判定。記録するときに終わるのを待つ（待たずに保存するとジャンルが空になっていた）       // 開く・閉じる・「続けて写真を選ぶ」で進める。古い非同期の結果を捨てる印（v394〜）
 
   const loadSkipped = () => { try { return new Set(JSON.parse(localStorage.getItem(SKIP_LS) || '[]')); } catch { return new Set(); } };
   const saveSkipped = (set) => { try { localStorage.setItem(SKIP_LS, JSON.stringify([...set].slice(-5000))); } catch { /* noop */ } };
@@ -117,6 +118,14 @@ const Import = (() => {
       items.push({ file: f, hash, lat: ex.lat ?? null, lon: ex.lon ?? null, time, url, hasExifDate: !!exT, noDate: !exT });
     }
     items.sort((a, b) => a.time - b.time);
+    if (!items.length) { // v396: 全部が取り込み済み・前に飛ばした写真だったら、最初の画面に戻す（以前は空の画面のまま進めなかった）
+      busy = false; prog.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1);
+      const head0 = [];
+      if (already) head0.push(`取り込み済み ${already}枚`);
+      if (wasSkipped) head0.push(`前に飛ばした ${wasSkipped}枚`);
+      App.toast(head0.length ? head0.join('・') + 'で、新しい写真はありませんでした' : '取り込める写真がありませんでした');
+      return;
+    }
     groups = groupItems(items);
     bar.style.width = '70%';
     ptext.textContent = `${groups.length}回の訪問にまとめました。店の候補を探しています…`;
@@ -130,7 +139,7 @@ const Import = (() => {
     bar.style.width = '100%';
     prog.classList.add('hidden');
     busy = false;
-    classifyAll(tok); // AI判定は裏で順に（終わった候補から表示が更新される）
+    classifyPromise = classifyAll(tok).catch(() => {}); // AI判定は裏で順に（終わった候補から表示が更新される）
     updateFoot();
   }
 
@@ -207,7 +216,8 @@ const Import = (() => {
         try {
           const r = await Api.classifyDishPhoto(g.photos[0].file, { bulk: true });
           if (tok !== runToken) return;
-          g.genres = (r && r.dishGenres) || [];
+          // v396: 自信なしの判定は記録に入れない（登録画面では「参考」止まり。v329 の決めごと）
+          g.genres = (r && r.confident !== false && r.dishGenres) || [];
           if (r && r.shopGenre) g.shopGenre = r.shopGenre;
           g.ai = 'done';
         } catch (e) { if (tok !== runToken) return; g.ai = 'error'; g.aiMsg = (e && e.message) || ''; if (/上限/.test(g.aiMsg)) { i = groups.length; } }
@@ -236,6 +246,12 @@ const Import = (() => {
     if (!ov) return;
     const el = $(`.im-group[data-id="${g.id}"]`, ov);
     if (!el) return;
+    // v396: 店名を打っている・選択肢を開いている最中に描き直すと入力（変換中の文字）が消えるので、離れてから描く
+    const act = document.activeElement;
+    if (act && el.contains(act) && /^(INPUT|SELECT|TEXTAREA)$/.test(act.tagName)) {
+      if (!el.__repaintLater) { el.__repaintLater = true; act.addEventListener('blur', () => { el.__repaintLater = false; setTimeout(() => paintGroup(g), 0); }, { once: true }); }
+      return;
+    }
     const thumbs = g.photos.slice(0, 4).map(p => `<span class="im-th">${p.url ? `<img src="${p.url}" alt="">` : Views.icons.dish}</span>`).join('')
       + (g.photos.length > 4 ? `<span class="im-th im-more">+${g.photos.length - 4}</span>` : '');
     const when = g.noDate ? '日付なし' : fmtDay(g.start) + '　' + fmtTime(g.start) + (g.end - g.start > 60000 ? '〜' + fmtTime(g.end) : '');
@@ -292,6 +308,11 @@ const Import = (() => {
     const btn = $('#im-save', ov); btn.disabled = true;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
+    if (classifyPromise && todo.some(g => g.ai === 'busy' || g.ai === 'idle')) {
+      ptext.textContent = 'ジャンルの判定を待っています…';
+      await Promise.race([classifyPromise, new Promise(r => setTimeout(r, 20000))]);
+      if (tok !== runToken || !ov) return;
+    }
     const skipped = loadSkipped();
     let done = 0, photosN = 0, newShops = 0, failed = 0;
     const toFill = []; // 新しく作った店（保存後に駅・県・市を後追いで補う）
@@ -314,7 +335,7 @@ const Import = (() => {
           shop = createdShop = Store.addShop({
             name: g.name, lat: pos.lat, lon: pos.lon, posLevel: pos.posLevel || '', address: c.address || '', pref: c.pref || '', city: c.city || '',
             station: c.station ? (c.station.endsWith('駅') ? c.station : c.station + '駅') : '',
-            osmId: c.osmId || '', shopGenre: g.shopGenre || (c.shopGenre || 'その他'),
+            osmId: c.osmId || '', shopGenre: g.shopGenre || c.shopGenre || (Api.guessGenres(c) || {}).shop || 'その他', // v396: 候補の種類からも推定（登録画面と同じ）
             dataSource: c.dataSource || c.source || (c.osmId ? 'osm' : ''), dataLicenses: c.licenses || [], dataAttributions: c.attributions || [],
             foundBy: 'import', foundQuery: '',
           });
