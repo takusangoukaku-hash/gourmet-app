@@ -13,6 +13,7 @@ const Register = (() => {
   // 訪問日（YYYY-MM-DD）: 入力欄は廃止し、写真の撮影日→なければ当日を自動記録
   let visitDate = '';
   let currentRating = 0; // 味の評価（訪問ごと・必須）
+  let saving = false; // v408: 保存の途中（自動の下書きを書かない）
   // 店の性質の評価（任意・店舗に1つ）: 0 = 未評価
   const AXES = ['casual', 'atmosphere', 'speed'];
   let shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
@@ -236,8 +237,50 @@ const Register = (() => {
       ...(pendingPhotos.length ? [{ label: 'あとで記録（写真だけ保存）', onClick: saveLater }] : []),
     ]));
     $('#drafts-btn').addEventListener('click', openDrafts);
-    refreshDraftsBanner();
+    // v408: 入力の途中で裏に回ったら自動で下書きを残す（iPhone は裏のアプリを黙って終わらせるので、戻ると入力が消えていた）。
+    //   前面に戻ってアプリが生きていれば消す（入力はそのまま残っている）。終わらされていたら次の起動で戻す（restoreAutoDraft）
+    document.addEventListener('visibilitychange', () => { if (document.hidden) autoDraftSave(); else autoDraftClear(); });
+    window.addEventListener('pagehide', autoDraftSave);
+    restoreAutoDraft().finally(() => { autoDraftReady = true; refreshDraftsBanner(); });
     renderPreviews(); // 初期表示から「＋写真」タイルを出す
+  }
+
+  // ---------- 入力の途中の自動の下書き（v408〜） ----------
+  const AUTO_DRAFT = 'auto';
+  const AUTO_DRAFT_RESUME_MS = 12 * 3600 * 1000; // これより古いものは戻さず、普通の下書きの一覧へ
+  let autoDraftChain = Promise.resolve(), autoDraftReady = false;
+  function autoDraftSave() {
+    if (!autoDraftReady || !isDirty() || saving) return;
+    const data = {
+      id: AUTO_DRAFT, auto: true, createdAt: Date.now(),
+      datetime: visitDate || toLocalInput(new Date()),
+      lat: lastGps ? lastGps.lat : null, lon: lastGps ? lastGps.lon : null,
+      address: $('#f-address').value.trim(), station: $('#f-station').value.trim(),
+      name: $('#f-shop-name').value.trim(), rating: currentRating || 0,
+      comment: $('#f-comment').value, genres: [...selectedDishGenres],
+      photos: pendingPhotos.map(p => ({ blob: p.file, hash: p.hash || '' })), // 圧縮はせずそのまま（裏に回る間に終わらせるため）
+    };
+    autoDraftChain = autoDraftChain.then(() => Store.addDraft(data)).catch(() => {});
+  }
+  function autoDraftClear() {
+    if (!autoDraftReady) return;
+    autoDraftChain = autoDraftChain.then(() => Store.deleteDraft(AUTO_DRAFT)).catch(() => {});
+  }
+  async function restoreAutoDraft() {
+    let d = null;
+    try { d = await Store.getDraft(AUTO_DRAFT); } catch { return; }
+    if (!d) return;
+    try {
+      if (Date.now() - (Number(d.createdAt) || 0) > AUTO_DRAFT_RESUME_MS) {
+        const { id, auto, ...rest } = d; // 古いものは普通の下書きとして残す（「下書き N 件」から完成できる）
+        await Store.addDraft(rest);
+      } else {
+        await loadDraft(AUTO_DRAFT, true);
+        activeDraftId = null; // フォームに戻したので控えは消す（次に裏へ回ったら書き直す）
+        App.toast('入力の途中から再開しました');
+      }
+      await Store.deleteDraft(AUTO_DRAFT);
+    } catch (e) { console.warn('入力の途中の下書きを戻せませんでした', e); }
   }
 
   // ---------- 登録済みの店との重複（v365〜） ----------
@@ -352,7 +395,7 @@ const Register = (() => {
             <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : Views.icons.dish}</div>
             <div class="draft-main">
               <div class="draft-when">${when}${(d.photos || []).length > 1 ? '　写真' + d.photos.length + '枚' : ''}</div>
-              <div class="draft-sub">${d.station ? esc(d.station) + '　' : ''}評価はまだ未入力</div>
+              <div class="draft-sub">${d.name ? esc(String(d.name).slice(0, 40)) + '　' : ''}${d.station ? esc(d.station) + '　' : ''}${Number(d.rating) > 0 ? '★' + Number(d.rating).toFixed(1) : '評価はまだ未入力'}</div>
             </div>
             <button type="button" class="btn small primary dr-do" data-id="${d.id}">記録する</button>
             <button type="button" class="btn small danger dr-del" data-id="${d.id}">削除</button>
@@ -370,9 +413,9 @@ const Register = (() => {
   }
 
   // 下書きを読み込んで記録画面へ（保存すると下書きは削除される）
-  async function loadDraft(id) {
+  async function loadDraft(id, silent) {
     const d = await Store.getDraft(id);
-    if (!d) { App.toast('下書きが見つかりません'); return; }
+    if (!d) { if (!silent) App.toast('下書きが見つかりません'); return; }
     if (!resetFormConfirmed()) return;
     activeDraftId = id;
     for (const ph of (d.photos || [])) {
@@ -384,6 +427,12 @@ const Register = (() => {
     if (d.lat != null && d.lon != null) { lastGps = { lat: d.lat, lon: d.lon }; lastGpsFromPhoto = false; } // v393: 下書きの位置の出どころは不明＝写真由来とは扱わない
     if (d.address) $('#f-address').value = d.address;
     if (d.station) $('#f-station').value = d.station;
+    // v408: 自動の下書きは店名・★・ひとこと・ジャンルも戻す
+    if (d.name) { $('#f-shop-name').value = String(d.name).slice(0, 100); forceStep2 = true; }
+    if (Number(d.rating) > 0) mountTasteStars(Math.min(5, Number(d.rating)));
+    if (d.comment) { $('#f-comment').value = String(d.comment).slice(0, 2000); $('#reg-comment').classList.remove('hidden'); }
+    if (Array.isArray(d.genres) && d.genres.length) { d.genres.forEach(g => selectedDishGenres.add(String(g))); userTouchedGenres = true; dishPicker.render(); updateGenrePill(); }
+    updateSaveState(); updateStep(); setTimeout(updateDupHint, 0);
     renderPreviews(); syncMeta();
     App.switchTab('register');
     window.scrollTo({ top: 0 });
@@ -403,14 +452,16 @@ const Register = (() => {
 
   // 店の評価3軸のスターを（再）描画する
   // 味の評価（0.5刻み）。選んだ値を星の右に数字でも出して、.5 が入ったか分かるようにする
-  function mountTasteStars() {
+  function mountTasteStars(initial) {
     const val = $('#f-rating-val');
     const show = (v) => { if (val) val.innerHTML = v ? `${v.toFixed(1)}<small>${Views.ratingWord(v)}</small>` : ''; }; // v374〜 意味を1語で
     const old = $('#f-rating');
     const el = old.cloneNode(false); // リスナーを持たない空の要素に差し替える
     old.replaceWith(el);
-    Views.mountRatingStars(el, 0, v => { currentRating = v; show(v); updateSaveState(); });
-    show(0);
+    const v0 = Number(initial) || 0; // v408: 自動の下書きから戻すときの★
+    currentRating = v0;
+    Views.mountRatingStars(el, v0, v => { currentRating = v; show(v); updateSaveState(); });
+    show(v0);
   }
 
   function mountAxisStars() {
@@ -1145,7 +1196,7 @@ const Register = (() => {
     if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
 
     const btn = $('#save-btn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    btn.disabled = true; btn.textContent = '保存中…'; saving = true;
     let createdShopId = null, createdVisitId = null; // 途中で失敗したときに取り消すため
     try {
       // --- 店舗の確定（既存 → 照合 → 新規） ---
@@ -1263,11 +1314,13 @@ const Register = (() => {
       if (createdShopId && !Store.visitsOf(createdShopId).length) { try { await Store.deleteShop(createdShopId); } catch { /* noop */ } }
       App.toast(Store.isQuotaError(e) ? Store.QUOTA_MSG : '保存に失敗しました: ' + e.message, Store.isQuotaError(e) ? 6000 : undefined);
     } finally {
+      saving = false;
       btn.disabled = false; btn.textContent = '記録する'; // v393: index.html の表記に合わせる
     }
   }
 
   function resetForm() {
+    autoDraftClear(); // v408: 保存した・やめたあとに古い入力が戻らないように
     formSeq++; // v393: 通信待ちの処理の結果を新しいフォームに入れない
     setTimeout(updateDupHint, 0); // 店名を空にした後で隠す（v392。先に呼ぶと、保存した直後の店が「登録済み」として次の記録に残っていた）
     pendingPhotos.forEach(p => URL.revokeObjectURL(p.url));
