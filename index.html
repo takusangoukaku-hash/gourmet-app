@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=403">
+<link rel="stylesheet" href="css/style.css?v=404">
 </head>
 <body>
 
@@ -605,6 +605,7 @@
     <div class="set-section-title">このアプリ</div>
     <div class="set-about">
       <p class="set-version" id="settings-status"></p>
+      <p class="set-version" id="settings-storage" hidden></p>
       <p class="set-version">店のデータの出典: <a href="https://openpoiapi.com/attribution.html" target="_blank" rel="noopener">OpenPOI API</a>（Overture Maps Foundation ／ 各自治体・厚生労働省の食品営業許可・届出オープンデータ）、© OpenStreetMap contributors</p>
     </div>
     <div class="set-list set-dev"><!-- v382〜 開発者向けはヘルプから外して最下段の小さな行に -->
@@ -676,12 +677,12 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=403"></script>
-<script src="js/api.js?v=403"></script>
-<script src="js/cloud.js?v=403"></script>
-<script src="js/register.js?v=403"></script>
-<script src="js/import.js?v=403"></script>
-<script src="js/views.js?v=403"></script>
-<script src="js/app.js?v=403"></script>
+<script src="js/store.js?v=404"></script>
+<script src="js/api.js?v=404"></script>
+<script src="js/cloud.js?v=404"></script>
+<script src="js/register.js?v=404"></script>
+<script src="js/import.js?v=404"></script>
+<script src="js/views.js?v=404"></script>
+<script src="js/app.js?v=404"></script>
 </body>
 </html>

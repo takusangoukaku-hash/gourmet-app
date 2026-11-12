@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v403'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v404'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
@@ -362,6 +362,15 @@ const App = (() => {
       } catch (e) { console.warn('自動バックアップ:', e); }
     };
     setTimeout(autoBackupLocal, 20000); // 起動の 20 秒後（起動を遅らせない）
+    // v404: 端末のデータ（記録・写真）をブラウザに勝手に消されないよう頼む（容量が減ったときの自動の削除の対象から外す）。
+    //   記録が1件でもあるときだけ。断られても何も変わらない
+    const persistStorage = async () => {
+      try {
+        if (!(navigator.storage && navigator.storage.persist) || !Store.rawShops().length) return;
+        if (!(await navigator.storage.persisted())) await navigator.storage.persist();
+      } catch { /* noop */ }
+    };
+    setTimeout(persistStorage, 8000);
     setInterval(autoBackupLocal, 6 * 3600 * 1000); // 開きっぱなしでも1日に数回は確かめる
     $('#auto-backups').addEventListener('click', async () => {
       const list = await Store.listBackups().catch(() => []);
@@ -381,6 +390,16 @@ const App = (() => {
       Views.openActionSheet(acts);
     });
     settingsHooks.push(renderDataRows);
+    // v404: 設定の「このアプリ」に端末で使っている容量（と、自動で消されない設定になっているか）
+    settingsHooks.push(async () => {
+      const el = $('#settings-storage'); if (!el || !(navigator.storage && navigator.storage.estimate)) return;
+      try {
+        const [est, kept] = await Promise.all([navigator.storage.estimate(), navigator.storage.persisted ? navigator.storage.persisted() : false]);
+        const mb = (Number(est.usage) || 0) / 1048576;
+        el.textContent = `端末で使っている容量 ${mb >= 10 ? Math.round(mb) : mb.toFixed(1)}MB` + (kept ? ' ・ 自動では消されない設定' : '');
+        el.hidden = false;
+      } catch { el.hidden = true; }
+    });
     $('#backup-export').addEventListener('click', async () => {
       downloadJson(await buildBackup(false), backupName(''));
       try { localStorage.setItem('gourmet.lastBackupAt', String(Date.now())); } catch { /* noop */ }
