@@ -11,7 +11,7 @@
   --bg: #FFFFFF;            /* ヘッダー（BITEMAPのバー）と同じ白 */
   --card: #FFFFFF;
   --text: #1F1E1D;          /* 墨色 */
-  --muted: #87867F;         /* 温かみのあるグレー */
+  --muted: #706F68;         /* 温かみのあるグレー（v402: #87867F から。白地・入力欄の地で文字の濃さの目安 4.5:1 を超えるように） */
   --border: #DAD8CE;        /* ヘアライン */
   --border-lite: #EAE8DF;   /* さらに薄い区切り線 */
   --field: #F5F3EC;         /* 入力欄の下地（薄いクリーム） */
@@ -1452,7 +1452,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 #list-detail-filters .map-filter { margin-bottom: 8px; }
 .lf-stars { align-items: center; }
 .lf-stars select { flex: 1; min-width: 110px; }
-.star-chip { color: #b8860b; }
+.star-chip { color: #8C6508; } /* v402: #b8860b から濃く（白地で 3.25:1 → 5:1。暗色は元の明るい金のまま） */
 .star-chip.on { color: #fff; }
 
 /* ---------- 地図の絞り込みパネル: 見出し＋星チップ（検索タブと統一） ---------- */
@@ -2197,3 +2197,9 @@ body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いてい�
 .yc-shop::after { inset: -6px -2px; }
 .genre-pill::after, .list-sort::after { inset: -8px -4px; }
 .reg-photo-chg::after { inset: -6px; }
+/* v402: 暗色で「削除」など危ない操作の赤が地に沈んでいた（文字の濃さ 2.75:1）。暗色だけ明るい赤に（5:1 以上） */
+@media (prefers-color-scheme: dark) {
+  .btn.danger, .as-item.danger, .set-row-danger .set-label { color: #E07A6C; }
+  .btn.danger:hover { border-color: #E07A6C; }
+}
+@media (prefers-color-scheme: dark) { .star-chip:not(.on) { color: #b8860b; } }

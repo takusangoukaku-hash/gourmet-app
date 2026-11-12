@@ -4713,7 +4713,7 @@ const Views = (() => {
     // 名前
     g.fillStyle = '#1F1E1D';
     g.font = F(800, 58); g.fillText(fit(p.name || 'BITEMAP', 900, 800, 58), 72, 390);
-    g.fillStyle = '#87867F'; g.font = F(500, 30);
+    g.fillStyle = '#706F68'; g.font = F(500, 30);
     g.fillText([p.username ? '@' + p.username : '', first ? new Date(first).getFullYear() + '年から記録' : ''].filter(Boolean).join('　'), 72, 440);
     // 数字（4つ）
     const stats = [[String(shops.length), '店'], [String(visits.length), '回 来店'], [visited + '/47', '都道府県'], [pg.total ? `${pg.done}/${pg.total}` : '－', '行きたい達成']];
@@ -4724,7 +4724,7 @@ const Views = (() => {
       g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = '#C6613F'; g.textAlign = 'center';
       g.font = F(800, v.length > 5 ? 46 : 60); g.fillText(v, x + cw / 2, 590);
-      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 636);
+      g.fillStyle = '#706F68'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 636);
       g.textAlign = 'left';
     });
     // 制覇マップ（左下）
@@ -4749,17 +4749,17 @@ const Views = (() => {
     const rx = 630;
     g.fillStyle = '#1F1E1D'; g.font = F(800, 34); g.fillText('よく行く店', rx, 760);
     const MC = ['#E2B33C', '#B9BCC2', '#C98A55'];
-    if (!top.length) { g.fillStyle = '#87867F'; g.font = F(500, 26); g.fillText('まだ記録がありません', rx, 820); }
+    if (!top.length) { g.fillStyle = '#706F68'; g.font = F(500, 26); g.fillText('まだ記録がありません', rx, 820); }
     top.forEach((x, i) => {
       const y = 830 + i * 120;
       g.fillStyle = MC[i]; g.beginPath(); g.arc(rx + 26, y - 10, 26, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#FFFFFF'; g.font = F(800, 28); g.textAlign = 'center'; g.fillText(String(i + 1), rx + 26, y);
       g.textAlign = 'left';
       g.fillStyle = '#1F1E1D'; g.fillText(fit(x.s.name, 330, 700, 30), rx + 68, y - 6);
-      g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(`${x.n}回`, rx + 68, y + 30);
+      g.fillStyle = '#706F68'; g.font = F(500, 24); g.fillText(`${x.n}回`, rx + 68, y + 30);
     });
     // フッター
-    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillStyle = '#706F68'; g.font = F(500, 22);
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 40);
     if (geo) { g.textAlign = 'right'; g.font = F(400, 18); g.fillText('地図: 国土数値情報を加工', W - 72, H - 40); g.textAlign = 'left'; }
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
@@ -4864,24 +4864,24 @@ const Views = (() => {
       g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = '#C6613F'; g.textAlign = 'center';
       g.font = F(800, v.length > 4 ? 46 : 60); g.fillText(v, x + cw / 2, 530);
-      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
+      g.fillStyle = '#706F68'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
       g.textAlign = 'left';
     });
     const section = (title, rows, x, y, w) => {
       g.fillStyle = '#1F1E1D'; g.font = F(800, 32); g.fillText(title, x, y);
-      if (!rows.length) { g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText('－', x, y + 54); return; }
+      if (!rows.length) { g.fillStyle = '#706F68'; g.font = F(500, 24); g.fillText('－', x, y + 54); return; }
       rows.forEach((r, i) => {
         const yy = y + 52 + i * 52; // 行の基線（3行で 1 区画 ≒ 210px に収める）
         g.fillStyle = ['#E2B33C', '#B9BCC2', '#C98A55'][i] || '#DDD'; g.beginPath(); g.arc(x + 17, yy - 9, 17, 0, Math.PI * 2); g.fill();
         g.fillStyle = '#FFFFFF'; g.font = F(800, 20); g.textAlign = 'center'; g.fillText(String(i + 1), x + 17, yy - 2); g.textAlign = 'left';
         g.fillStyle = '#1F1E1D'; g.fillText(fit(r[0], w - 180, 700, 28), x + 50, yy - 2);
-        g.fillStyle = '#87867F'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(r[1], x + w, yy - 2); g.textAlign = 'left';
+        g.fillStyle = '#706F68'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(r[1], x + w, yy - 2); g.textAlign = 'left';
       });
     };
     section('よく行った店', d.top.map(x => [x.s.name, `${x.n}回`]), 72, 690, 936);
     section('★が高かった店', d.rated.map(x => [x.s.name, `★${fmtR(x.avg)}`]), 72, 905, 936);
     section('よく食べた', d.genres.map(([gn, n]) => [gn, `${n}回`]), 72, 1120, 936);
-    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillStyle = '#706F68'; g.font = F(500, 22);
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
@@ -4918,7 +4918,7 @@ const Views = (() => {
       g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = star ? '#1F1E1D' : '#C6613F'; g.textAlign = 'center';
       g.font = F(800, 56); g.fillText((star ? '★' : '') + val, x + cw / 2, 375);
-      g.fillStyle = '#87867F'; g.font = F(600, 24); g.fillText(l, x + cw / 2, 418);
+      g.fillStyle = '#706F68'; g.font = F(600, 24); g.fillText(l, x + cw / 2, 418);
       g.textAlign = 'left';
     });
     // 写真: 1枚目は全幅、2〜4枚目は下に3つ。読めない写真は飛ばす
@@ -4944,7 +4944,7 @@ const Views = (() => {
     const gap = 15, cell = (936 - gap * 2) / 3;
     imgs.slice(1).forEach((img, i) => cover(img, 72 + i * (cell + gap), y0 + bigH + gap, cell, cell));
     g.fillStyle = '#C6613F'; g.font = F(800, 36); g.textAlign = 'right'; g.fillText('BITEMAP', W - 72, H - 28); g.textAlign = 'left';
-    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillStyle = '#706F68'; g.font = F(500, 22);
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
@@ -4990,7 +4990,7 @@ const Views = (() => {
       g.strokeStyle = '#EAE8DF'; g.lineWidth = 2; g.stroke();
       g.fillStyle = '#C6613F'; g.textAlign = 'center';
       g.font = F(800, val.length > 4 ? 46 : 60); g.fillText(val, x + cw / 2, 530);
-      g.fillStyle = '#87867F'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
+      g.fillStyle = '#706F68'; g.font = F(600, 26); g.fillText(l, x + cw / 2, 576);
       g.textAlign = 'left';
     });
     // 写真: 新しい順に6枚まで。読めない写真（他端末の写真の CORS など）は飛ばす
@@ -5021,10 +5021,10 @@ const Views = (() => {
         g.fillStyle = ['#E2B33C', '#B9BCC2', '#C98A55'][i] || '#DDD'; g.beginPath(); g.arc(89, yy - 9, 17, 0, Math.PI * 2); g.fill();
         g.fillStyle = '#FFFFFF'; g.font = F(800, 20); g.textAlign = 'center'; g.fillText(String(i + 1), 89, yy - 2); g.textAlign = 'left';
         g.fillStyle = '#1F1E1D'; g.font = F(700, 28); g.fillText(fit(r.s.name, 756, 700, 28), 122, yy - 2);
-        g.fillStyle = '#87867F'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(`${r.n}回`, 1008, yy - 2); g.textAlign = 'left';
+        g.fillStyle = '#706F68'; g.font = F(600, 24); g.textAlign = 'right'; g.fillText(`${r.n}回`, 1008, yy - 2); g.textAlign = 'left';
       });
     }
-    g.fillStyle = '#87867F'; g.font = F(500, 22);
+    g.fillStyle = '#706F68'; g.font = F(500, 22);
     g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 640, 500, 22), 72, H - 28);
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
@@ -5086,9 +5086,9 @@ const Views = (() => {
     y += square ? 66 : 80;
     const loc = [info.station, [info.pref, info.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ');
     if (loc) { g.fillStyle = '#6B6964'; g.font = F(600, square ? 32 : 36); g.fillText(fit(loc, pw - (square ? 220 : 0), 600, square ? 32 : 36), px, y); y += square ? 50 : 60; }
-    if (info.date) { g.fillStyle = '#87867F'; g.font = F(500, square ? 28 : 32); g.fillText(info.date, px, y); }
+    if (info.date) { g.fillStyle = '#706F68'; g.font = F(500, square ? 28 : 32); g.fillText(info.date, px, y); }
     g.fillStyle = '#C6613F'; g.font = F(800, 40); g.textAlign = 'right'; g.fillText('BITEMAP', W - px, square ? H - 60 : H - 90); g.textAlign = 'left';
-    if (!square) { g.fillStyle = '#87867F'; g.font = F(500, 24); g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 600, 500, 24), px, H - 90); }
+    if (!square) { g.fillStyle = '#706F68'; g.font = F(500, 24); g.fillText(fit(location.host + location.pathname.replace(/index\.html$/, ''), 600, 500, 24), px, H - 90); }
     return new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('画像を作れませんでした'))), 'image/png'));
   }
   function roundRect(g, x, y, w, h, r) {
