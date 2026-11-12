@@ -2459,7 +2459,7 @@ const Views = (() => {
       if (minR && (Store.avgRating(s.id) || 0) < minR
         && !vs.some(v => (v.rating || 0) >= minR)) return false;
       if (kw) {
-        const hay = searchHay([s.name, s.station, s.pref, s.city, s.address, ...vs.map(v => v.comment || '')]);
+        const hay = searchHay([s.name, s.station, s.station ? stationKey(s.station) + '駅' : '', s.pref, s.city, s.address, ...vs.map(v => v.comment || '')]); // v412: 「渋谷」と入れた店も「渋谷駅」で見つかる
         if (!hay.includes(kw)) return false;
       }
       return true;
@@ -2842,10 +2842,20 @@ const Views = (() => {
     }));
   }
   // よく行く駅（訪問の多い順に n 個）
+  // v412: 駅の名前の比べ方（全角半角・空白・大文字小文字・末尾の「駅」の有無を無視）。「渋谷駅」と手で打った「渋谷」を同じ駅に
+  const stationKey = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase().replace(/駅$/, '');
+  const sameStation = (a, b) => !!a && !!b && stationKey(a) === stationKey(b);
   function topStations(n) {
-    const byStation = new Map();
-    for (const v of Store.visits()) { const s = Store.getShop(v.shopId); const st = s && s.station; if (st) byStation.set(st, (byStation.get(st) || 0) + 1); }
-    return [...byStation.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+    const byKey = new Map(); // key → { n, names: Map(表記 → 回数) }
+    for (const v of Store.visits()) {
+      const s = Store.getShop(v.shopId); const st = s && s.station; if (!st) continue;
+      const k = stationKey(st); if (!k) continue;
+      const e = byKey.get(k) || { n: 0, names: new Map() };
+      e.n++; e.names.set(st, (e.names.get(st) || 0) + 1); byKey.set(k, e);
+    }
+    // 表記は多いもの（同じ数なら「駅」付き）を出す
+    const label = (e) => [...e.names.entries()].sort((a, b) => b[1] - a[1] || (/駅$/.test(b[0]) ? 1 : 0) - (/駅$/.test(a[0]) ? 1 : 0))[0][0];
+    return [...byKey.values()].map(e => [label(e), e.n]).sort((a, b) => b[1] - a[1]).slice(0, n);
   }
   // よく行く駅（訪問の多い順に8つ）。駅の無い記録ばかりなら出さない
   function stationRowHtml() {
@@ -3213,15 +3223,14 @@ const Views = (() => {
   }
   // キーワードと一致する駅名（登録済みの店の最寄駅。空白・全角半角・大文字小文字と末尾の「駅」の有無は無視）
   function stationOfKeyword(kw) {
-    const norm = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase().replace(/駅$/, '');
-    const k = norm(kw);
+    const k = stationKey(kw);
     if (!k) return '';
-    const s = Store.shops().find(x => x.station && norm(x.station) === k);
+    const s = Store.shops().find(x => x.station && stationKey(x.station) === k);
     return s ? s.station : '';
   }
   // その駅の店（位置のあるもの）に地図を合わせる（v380〜）。地図はその店の範囲に寄せる
   function showStationOnMap(st) {
-    const shops = Store.shops().filter(s => s.station === st && s.lat != null && s.lon != null);
+    const shops = Store.shops().filter(s => sameStation(s.station, st) && s.lat != null && s.lon != null);
     if (!shops.length) { App.toast('位置のある店がありません'); return; }
     pendingMapFocus = { bounds: shops.map(s => [s.lon, s.lat]) };
     App.switchTab('map');
@@ -3314,11 +3323,11 @@ const Views = (() => {
       if (it.kind === 'mine') {
         const shop = Store.getShop(it.ph.shopId) || {};
         const v = vById.get(it.ph.visitId) || {};
-        if (st && (shop.station || '') !== st) return false;
+        if (st && !sameStation(shop.station, st)) return false;
         if (pref && shop.pref !== pref) return false;
         if (minR && (v.rating || 0) < minR) return false;
         if (kw) {
-          const hay = searchHay([shop.name, shop.station, shop.pref, shop.city, shop.address,
+          const hay = searchHay([shop.name, shop.station, shop.station ? stationKey(shop.station) + '駅' : '', shop.pref, shop.city, shop.address,
             v.comment, ...it.genres]);
           if (!hay.includes(kw)) return false;
         }
@@ -3326,7 +3335,7 @@ const Views = (() => {
       }
       // フォロー中の人の投稿
       const p = it.p;
-      if (st && (p.station || '') !== st) return false;
+      if (st && !sameStation(p.station, st)) return false;
       if (pref && (p.pref || '') !== pref) return false;
       if (minR && (p.rating || 0) < minR) return false;
       if (kw) {
@@ -3342,8 +3351,8 @@ const Views = (() => {
       if (!stTop.length) return null;
       const row = document.createElement('div');
       row.className = 'ex-station-row ph-stations';
-      row.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === st ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
-      row.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { photoStation = photoStation === b.dataset.st ? '' : b.dataset.st; renderSearchPhotos(); }));
+      row.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${sameStation(name, st) ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
+      row.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { photoStation = sameStation(photoStation, b.dataset.st) ? '' : b.dataset.st; renderSearchPhotos(); }));
       return row;
     };
     if (!list.length) {
@@ -3689,11 +3698,11 @@ const Views = (() => {
     stRow.classList.remove('hidden'); // v393: 写真が0枚のときに隠したものを戻す
     const stTop = topStations(8);
     stRow.classList.toggle('hidden', !stTop.length);
-    stRow.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${name === pfStation ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
-    stRow.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { pfStation = pfStation === b.dataset.st ? '' : b.dataset.st; renderProfilePhotos(); }));
+    stRow.innerHTML = stTop.map(([name, n]) => `<button type="button" class="chip ex-station${sameStation(name, pfStation) ? ' on' : ''}" data-st="${esc(name)}">${esc(name)}<span>${n}</span></button>`).join('');
+    stRow.querySelectorAll('.ex-station').forEach(b => b.addEventListener('click', () => { pfStation = sameStation(pfStation, b.dataset.st) ? '' : b.dataset.st; renderProfilePhotos(); }));
     const shown = (!q && !pfStation) ? groups : groups.filter(g => {
       const shop = Store.getShop(g.shopId) || {};
-      if (pfStation && (shop.station || '') !== pfStation) return false;
+      if (pfStation && !sameStation(shop.station, pfStation)) return false;
       if (!q) return true;
       const vs = Store.visitsOf(g.shopId);
       const hay = searchHay([shop.name, shopLabelGenre(shop), shop.pref, normPref(shop.pref), shop.city, shop.station, shop.address,
