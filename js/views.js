@@ -5613,7 +5613,7 @@ const Views = (() => {
         <div class="ve-row">味の評価 <span class="stars small ve-stars"></span><span class="ve-rword">${esc(ratingWord(v.rating))}</span></div>
         <div class="ve-sub">料理ジャンル</div>
         <div class="ve-genres"></div>
-        <div class="ve-row">訪問日 <input type="date" class="ve-date" aria-label="訪問日" value="${toDateInput(v.datetime)}"></div>
+        <div class="ve-row">訪問日 <input type="date" class="ve-date" aria-label="訪問日" value="${toDateInput(v.datetime)}" max="${toDateInput(new Date())}" min="2000-01-01"></div>
         <div class="ve-row ve-photos">写真 <span class="ve-pn">…</span><button type="button" class="btn small ve-addphoto">${IC_PLUS} 写真を足す</button><input type="file" class="ve-file" accept="image/*" multiple hidden></div>
         <textarea rows="2" class="ve-comment" placeholder="ひとこと">${esc(v.comment || '')}</textarea>
         <div class="v-btns ve-btns">
@@ -5643,6 +5643,7 @@ const Views = (() => {
     ov.querySelector('.ve-save').addEventListener('click', () => {
       const dateVal = ov.querySelector('.ve-date').value;
       if (!dateVal) { App.toast('訪問日を入力してください'); return; }
+      if (dateVal > toDateInput(new Date())) { App.toast('先の日付は選べません'); return; } // v414: 未来の訪問は今年の数・月の振り返りを狂わせる
       Store.updateVisit(v.id, {
         // v392: 日付だけを差し替え、時刻は元のまま（以前は保存のたびに 12:00 になり、同じ日の並びが変わっていた）
         datetime: (() => { const [y, m, d] = dateVal.split('-').map(Number); const nd = new Date(v.datetime); if (isNaN(nd)) return new Date(dateVal + 'T12:00:00').toISOString(); nd.setFullYear(y, m - 1, d); return nd.toISOString(); })(),

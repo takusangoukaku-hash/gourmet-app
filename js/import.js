@@ -109,7 +109,8 @@ const Import = (() => {
       const ex = await Api.parseExif(f);
       if (tok !== runToken) { dropItems(items); return; }
       // EXIF の日付が無い写真は「日付なし」の候補にし、日付はファイルの更新日（2000年〜今）。無ければ今（v394〜）
-      const exT = toTime(ex.date);
+      const exT0 = toTime(ex.date);
+      const exT = exT0 && exT0 >= Date.UTC(2000, 0, 1) && exT0 <= Date.now() + 864e5 ? exT0 : null; // v414: 時計が狂ったカメラの日付（1970年・未来）は使わない（登録と同じ）
       const lm = Number(f.lastModified) || 0;
       const time = exT || (lm >= Date.UTC(2000, 0, 1) && lm <= Date.now() ? lm : Date.now());
       let url = '';

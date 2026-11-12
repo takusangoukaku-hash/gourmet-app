@@ -253,12 +253,14 @@ const Register = (() => {
     if (!autoDraftReady || !isDirty() || saving) return;
     const data = {
       id: AUTO_DRAFT, auto: true, createdAt: Date.now(),
-      datetime: visitDate || toLocalInput(new Date()),
+      // v414: 日付は決まっていなければ ''（以前は裏に回った日で固定し、写真ごとの撮影日も消えていた）。写真ごとの撮影日は t（0＝なし）
+      datetime: visitDate || '',
+      fromDraftId: activeDraftId && activeDraftId !== AUTO_DRAFT ? activeDraftId : null, // v414: 普通の下書きから開いていたら、戻したあとの保存でその下書きも消す
       lat: lastGps ? lastGps.lat : null, lon: lastGps ? lastGps.lon : null,
       address: $('#f-address').value.trim(), station: $('#f-station').value.trim(),
       name: $('#f-shop-name').value.trim(), rating: currentRating || 0,
       comment: $('#f-comment').value, genres: [...selectedDishGenres],
-      photos: pendingPhotos.map(p => ({ blob: p.file, hash: p.hash || '' })), // 圧縮はせずそのまま（裏に回る間に終わらせるため）
+      photos: pendingPhotos.map(p => ({ blob: p.file, hash: p.hash || '', ...(p.exifTime !== undefined ? { t: p.exifTime ? p.exifTime.getTime() : 0 } : {}) })), // 圧縮はせずそのまま（裏に回る間に終わらせるため）
     };
     autoDraftChain = autoDraftChain.then(() => Store.addDraft(data)).catch(() => {});
   }
@@ -275,9 +277,14 @@ const Register = (() => {
         const { id, auto, ...rest } = d; // 古いものは普通の下書きとして残す（「下書き N 件」から完成できる）
         await Store.addDraft(rest);
       } else {
-        await loadDraft(AUTO_DRAFT, true);
-        activeDraftId = null; // フォームに戻したので控えは消す（次に裏へ回ったら書き直す）
-        App.toast('入力の途中から再開しました');
+        // v414: 起動の直後に入力を始めていて「破棄しますか」をやめたときは、戻さずに普通の下書きとして残す（以前は黙って消えた）
+        if (!(await loadDraft(AUTO_DRAFT, true))) { const { id, auto, ...rest } = d; await Store.addDraft(rest); }
+        else {
+          // フォームに戻したので控えは消す（次に裏へ回ったら書き直す）。普通の下書きから開いていたら、その下書きを保存で消せるよう戻す
+          activeDraftId = null;
+          if (d.fromDraftId) { try { if (await Store.getDraft(d.fromDraftId)) activeDraftId = d.fromDraftId; } catch {} }
+          App.toast('入力の途中から再開しました');
+        }
       }
       await Store.deleteDraft(AUTO_DRAFT);
     } catch (e) { console.warn('入力の途中の下書きを戻せませんでした', e); }
@@ -390,7 +397,7 @@ const Register = (() => {
       body.innerHTML = drafts.map(d => {
         const url = d.photos && d.photos[0] ? URL.createObjectURL(d.photos[0].blob) : '';
         if (url) urls.push(url);
-        const when = d.datetime ? Views.fmtDate(d.datetime) : ''; // v394: 日付の書き方を揃える（11月3日）
+        const when = d.datetime ? Views.fmtDate(d.datetime) : (d.createdAt ? Views.fmtDate(new Date(d.createdAt).toISOString()) : ''); // v414: 日付の決まっていない下書きは残した日 // v394: 日付の書き方を揃える（11月3日）
         return `<div class="draft-row" data-id="${d.id}">
             <div class="draft-thumb">${url ? `<img src="${url}" alt="">` : Views.icons.dish}</div>
             <div class="draft-main">
@@ -415,15 +422,18 @@ const Register = (() => {
   // 下書きを読み込んで記録画面へ（保存すると下書きは削除される）
   async function loadDraft(id, silent) {
     const d = await Store.getDraft(id);
-    if (!d) { if (!silent) App.toast('下書きが見つかりません'); return; }
-    if (!resetFormConfirmed()) return;
+    if (!d) { if (!silent) App.toast('下書きが見つかりません'); return false; }
+    if (!resetFormConfirmed()) return false;
     activeDraftId = id;
+    const dd = /^\d{4}-\d{2}-\d{2}/.test(String(d.datetime || '')) ? String(d.datetime).slice(0, 10) : ''; // v414: 日付は YYYY-MM-DD だけ（違う形だと保存の日付が作れない）
     for (const ph of (d.photos || [])) {
       const file = new File([ph.blob], 'draft.jpg', { type: 'image/jpeg' });
       // v393: 下書きの日付を exifTime に持たせ、写真を外したときの日付の再計算で消えないようにする
-      pendingPhotos.push({ file, url: URL.createObjectURL(ph.blob), type: 'dish', hash: ph.hash || '', exifTime: d.datetime ? new Date(d.datetime + 'T12:00:00') : null });
+      // v414: 自動の下書きは写真ごとの撮影日（t）を持つ
+      const exifTime = ph.t != null ? (ph.t ? new Date(ph.t) : null) : (dd ? new Date(dd + 'T12:00:00') : null);
+      pendingPhotos.push({ file, url: URL.createObjectURL(ph.blob), type: 'dish', hash: ph.hash || '', exifTime });
     }
-    visitDate = d.datetime || '';
+    visitDate = dd || earliestPhotoDate();
     if (d.lat != null && d.lon != null) { lastGps = { lat: d.lat, lon: d.lon }; lastGpsFromPhoto = false; } // v393: 下書きの位置の出どころは不明＝写真由来とは扱わない
     if (d.address) $('#f-address').value = d.address;
     if (d.station) $('#f-station').value = d.station;
@@ -438,6 +448,7 @@ const Register = (() => {
     window.scrollTo({ top: 0 });
     // 位置情報があれば周辺の店舗候補を出す（入力の手間を減らす）
     if (lastGps) loadCandidates(lastGps.lat, lastGps.lon).catch(() => {});
+    return true;
   }
 
   // お気に入りハート（店名右）の表示を #f-fav の状態に合わせる

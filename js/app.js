@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v413'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v414'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
@@ -345,8 +345,8 @@ const App = (() => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     };
-    const backupName = (suffix) => {
-      const d = new Date();
+    const backupName = (suffix, at) => {
+      const d = at ? new Date(at) : new Date(); // v414: 自動バックアップはその世代の日付（端末の時刻で）
       return `bitemap-backup${suffix}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
     };
     // データの行の下に前回の実行（v376〜）。日時は端末に控える
@@ -385,7 +385,7 @@ const App = (() => {
     $('#auto-backups').addEventListener('click', async () => {
       const list = await Store.listBackups().catch(() => []);
       const pick = (b) => Views.openActionSheet([
-        { label: 'ファイルに書き出す', onClick: async () => { const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; } downloadJson(data, backupName('-auto-' + new Date(b.at).toISOString().slice(0, 10).replace(/-/g, ''))); toast('書き出しました'); } },
+        { label: 'ファイルに書き出す', onClick: async () => { const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; } downloadJson(data, backupName('-auto', b.at)); toast('書き出しました'); } },
         { label: 'この内容を復元する（今の記録は消えません）', onClick: async () => {
           const data = await Store.getBackup(b.at); if (!data) { toast('見つかりませんでした'); return; }
           // v384〜 何が戻るかを先に出す（無ければ確認を出さない）
