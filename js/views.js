@@ -345,7 +345,7 @@ const Views = (() => {
   const normShopName = (x) => {
     const k = String(x || '');
     let v = normNameMemo.get(k);
-    if (v === undefined) { v = k.normalize('NFKC').replace(/\s+/g, '').toLowerCase(); if (normNameMemo.size > 5000) normNameMemo.clear(); normNameMemo.set(k, v); }
+    if (v === undefined) { v = searchNorm(k); if (normNameMemo.size > 5000) normNameMemo.clear(); normNameMemo.set(k, v); }
     return v;
   };
   // 店名が同じ店を指しているか。完全一致に加えて「片方がもう片方を含む」も同一とみなす
@@ -5381,7 +5381,7 @@ const Views = (() => {
   // 同じ店が名前違い・位置違いで二重に登録されているものを探す。
   //  候補: 正規化した名前が同じ ／ 80m 以内で名前の似た店（二文字の一致率 0.5 以上）／ 名前がかなり似ていて（0.8 以上）500m 以内か位置なし
   const MERGE_IGN_KEY = 'gourmet.mergeIgnored';
-  const mergeNorm = (n) => String(n || '').normalize('NFKC').toLowerCase()
+  const mergeNorm = (n) => searchNorm(n) // v411: ひらがな→カタカナもそろえる（「らーめん大和」と「ラーメン大和」）
     .replace(/[\s　・･\-ー－—–~〜/／()（）「」『』【】\[\]'’"”!！?？.。,、&＆]/g, '');
   function bigramDice(a, b) {
     if (!a || !b) return 0;

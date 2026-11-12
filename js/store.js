@@ -548,7 +548,7 @@ const Store = (() => {
   const isDone = (w) => !!(w && w.doneAt);
   // 同じ店の判定: 店名が同じ（空白・全角半角・大文字小文字は無視。v334〜）、または「100m以内 かつ 店名の一方が他方を含む」。
   // 位置だけで同一視すると、同じビルの別の店の「行きたい」を消してしまうため。未達成の中から探す
-  const normName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  const normName = (x) => String(x || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase().replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60)); // v411: ひらがな→カタカナも
   function findWish({ name, lat, lon }) {
     const near = (w) => lat != null && lon != null && w.lat != null && w.lon != null && distMeters(lat, lon, w.lat, w.lon) < 100;
     const n = normName(name);
