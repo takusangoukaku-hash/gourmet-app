@@ -605,8 +605,10 @@ const Store = (() => {
     const s = getShop(visit.shopId);
     if (s) {
       const w = findWish({ name: s.name, lat: s.lat, lon: s.lon });
+      const vAt = new Date(visit.datetime).getTime() || Date.now();
       if (w) {
-        try { markWishDone(w, s.id, visit.id, new Date(visit.datetime).getTime() || Date.now()); } catch { /* 達成の記録は任意 */ }
+        // v395: 達成の日は行きたい店に入れた日より前にしない（過去の写真の取り込みで「入れる前に達成」になっていた）
+        try { markWishDone(w, s.id, visit.id, Math.max(vAt, Number(w.createdAt) || 0)); } catch { /* 達成の記録は任意 */ }
         // 店に位置が無く、行きたい店には位置がある → 行きたい店の位置を店に写す（地図にピンが出るように。v334〜）
         if (s.lat == null && w.lat != null && w.lon != null) {
           try { updateShop(s.id, Object.assign({ lat: w.lat, lon: w.lon }, !s.address && w.address ? { address: w.address } : {})); } catch { /* noop */ }

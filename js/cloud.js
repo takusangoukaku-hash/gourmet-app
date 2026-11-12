@@ -69,6 +69,7 @@ const Cloud = (() => {
               await Store.wipeLocal();
               Api.setApiKey(''); Api.setGoogleKey(''); Api.setYahooKey(''); Api.setHotpepperKey('');
               try { localStorage.removeItem('gourmet.prefsAt'); } catch { /* noop */ } // v390〜 表示の好みは新しいアカウントのクラウド側を採用
+              try { localStorage.removeItem('gourmet.keysClearPending'); } catch { /* noop */ } // v395: 前のアカウントで消し損ねた印で、次のアカウントのキーを消さない
               if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
               App.toast('別のアカウントでログインしたため、前のアカウントの端末内データを消去しました');
               App.refreshCurrent();
@@ -236,6 +237,12 @@ const Cloud = (() => {
   async function syncApiKeys() {
     try {
       const ref = dref('meta', 'keys');
+      let pendingClear = false;
+      try { pendingClear = !!localStorage.getItem(KEYS_CLEAR); } catch { /* noop */ }
+      if (pendingClear) { // 前に消し損ねた控えを消す。消すまでは復元しない（消したはずのキーが戻るのを防ぐ）
+        await fb.fs.deleteDoc(ref);
+        try { localStorage.removeItem(KEYS_CLEAR); } catch { /* noop */ }
+      }
       const snap = await fb.fs.getDoc(ref);
       const remote = snap.exists() ? snap.data() : {};
       // ローカルに無ければクラウドから復元
@@ -270,10 +277,13 @@ const Cloud = (() => {
   }
 
   // 設定の「キーを削除」用: クラウド側の控えも消す（残っていると次回ログインで復活してしまう）
+  // v395: 消せなかったとき（オフラインなど）は印を残し、次の同期で消し直す（印があるうちはクラウドから復元しない）
+  const KEYS_CLEAR = 'gourmet.keysClearPending';
   async function clearApiKeys() {
+    try { localStorage.setItem(KEYS_CLEAR, '1'); } catch { /* noop */ }
     await ensureLoaded();
     if (!user) return;
-    await fb.fs.deleteDoc(dref('meta', 'keys')).catch(() => {});
+    try { await fb.fs.deleteDoc(dref('meta', 'keys')); localStorage.removeItem(KEYS_CLEAR); } catch { /* 次の syncApiKeys で */ }
   }
 
   // クラウド → ローカル（新しい方を採用）。店・訪問・行きたい（v394〜 行きたいも同じ関数。以前は失敗を握りつぶしたまま押し上げていた）。
@@ -960,7 +970,8 @@ const Cloud = (() => {
       const metas = []; metaSnap.forEach(d => metas.push(d.data()));
       const localIds = await Store.photoIds();
       const urlOnly = new Set((await Store.allPhotos()).filter(p => !p.hasBlob).map(p => p.id));
-      const need = metas.filter(m => !localIds.has(m.id) || urlOnly.has(m.id));
+      const gone = Store.deletedIds('photo'), ptombs = (lastTombs && lastTombs.photo) || new Map();
+      const need = metas.filter(m => (!localIds.has(m.id) || urlOnly.has(m.id)) && !gone.has(m.id) && !ptombs.has(m.id)); // v395: 消した写真は取り直さない
       let doneDown = 0;
       await runPool(need, 5, async (m) => {
         try {

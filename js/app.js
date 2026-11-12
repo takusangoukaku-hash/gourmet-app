@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v394'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v395'; // sw.js の VERSION・index.html の ?v= と合わせる
   let currentTab = 'register';
 
   // ---------- 外部ライブラリの遅延読み込み ----------
@@ -686,6 +686,8 @@ const App = (() => {
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const num = (v, lo, hi, dflt) => (typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : dflt);
   const numOrNull = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+  const latOrNull = (v) => { const n = numOrNull(v); return n != null && Math.abs(n) <= 90 ? n : null; };  // v395: 範囲外の位置は捨てる
+  const lonOrNull = (v) => { const n = numOrNull(v); return n != null && Math.abs(n) <= 180 ? n : null; };
   // 既知の項目だけを型を確かめて写し取る（__proto__ 等の余計なキーは捨てる）
   function sanitizeRecord(kind, r) {
     if (!isPlain(r) || typeof r.id !== 'string' || !ID_RE.test(r.id)) return null;
@@ -693,7 +695,7 @@ const App = (() => {
     const base = { id: r.id, createdAt: num(r.createdAt, 0, 1e13, Date.now()), updatedAt: num(r.updatedAt, 0, 1e13, 0) };
     if (kind === 'shop') {
       return Object.assign(base, {
-        name: str(r.name, 200), address: str(r.address, 500), lat: numOrNull(r.lat), lon: numOrNull(r.lon),
+        name: str(r.name, 200), address: str(r.address, 500), lat: latOrNull(r.lat), lon: lonOrNull(r.lon),
         country: str(r.country, 50) || '日本', pref: str(r.pref, 50), city: str(r.city, 100), station: str(r.station, 100),
         shopGenre: str(r.shopGenre, 50) || 'その他', favorite: !!r.favorite, status: str(r.status, 20) || 'open', osmId: str(r.osmId, 80),
         casual: num(r.casual, 0, 5, 0), atmosphere: num(r.atmosphere, 0, 5, 0), speed: num(r.speed, 0, 5, 0),
@@ -714,7 +716,7 @@ const App = (() => {
     }
     if (kind === 'wish') {
       return Object.assign(base, {
-        name: str(r.name, 200), lat: numOrNull(r.lat), lon: numOrNull(r.lon), genre: str(r.genre, 100), address: str(r.address, 200),
+        name: str(r.name, 200), lat: latOrNull(r.lat), lon: lonOrNull(r.lon), genre: str(r.genre, 100), address: str(r.address, 200),
         fromUsername: str(r.fromUsername, 30), postId: str(r.postId, 80),
         // 達成（行けた）記録。v303〜
         ...(num(r.doneAt, 1, 1e13, 0) ? { doneAt: r.doneAt,

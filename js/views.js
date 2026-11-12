@@ -338,46 +338,47 @@ const Views = (() => {
   //  - あなた向け評価: 一致率が高い人の評価ほど重くした加重平均（自分の実体験は最重視）
   let tasteKey = '';
   let tasteRates = new Map(); // username → { rate, common }
+  // 1人ぶんの投稿と自分の店から味覚一致率を出す（v394 まではホームの一致率と公開プロフィールの「食の一致度」が別の式だった。v395〜 同じ関数）。
+  // myShops = [{ s, avg }]（自分の評価のある店）。返り値 { rate, common, conf }
+  function matchOfPosts(posts, myShops) {
+    const pairs = []; // 共通店舗ごとに [自分の平均, その人の平均]
+    for (const { s, avg } of myShops) {
+      const rs = posts.filter(p => p.rating && postMatchesShop(p, s)).map(p => Number(p.rating) || 0).filter(Boolean);
+      if (!rs.length) continue;
+      pairs.push([avg, rs.reduce((a, b) => a + b, 0) / rs.length]);
+    }
+    const n = pairs.length;
+    if (!n) return { rate: null, common: 0, conf: 'none' };
+    // 仕様: ピアソン相関係数を基本に0〜1へ正規化。相関は「上下の付け方の一致」を見るので、
+    // 評価水準のずれ（常に+2上に付ける等）を拾うため評価差の近さも3割混ぜる
+    const avgDiff = pairs.reduce((a, [x, y]) => a + Math.abs(x - y), 0) / n;
+    const closeness = 1 - avgDiff / 4; // 差0→1、真逆(差4)→0
+    let sim = closeness;
+    if (n >= 3) {
+      const mx = pairs.reduce((a, p) => a + p[0], 0) / n;
+      const my = pairs.reduce((a, p) => a + p[1], 0) / n;
+      let sxy = 0, sxx = 0, syy = 0;
+      for (const [x, y] of pairs) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; syy += (y - my) ** 2; }
+      if (sxx > 0 && syy > 0) sim = ((sxy / Math.sqrt(sxx * syy) + 1) / 2) * 0.7 + closeness * 0.3;
+    }
+    // 信頼度: 共通5件未満は非表示・5〜19件は薄く・20件以上で通常表示（仕様書4-3）
+    const conf = n < 5 ? 'low' : n < 20 ? 'mid' : 'high';
+    return { rate: Math.max(0, Math.min(100, Math.round(sim * 100))), common: n, conf };
+  }
+  const myRatedShops = () => Store.shops().map(s => ({ s, avg: Store.avgRating(s.id) })).filter(x => x.avg);
   function tasteData() {
     const key = networkPosts.length + ':' + ((networkPosts[0] || {}).id || '') + ':' + Store.visits().length + ':' + (Store.rev ? Store.rev() : 0);
     if (key === tasteKey) return tasteRates;
     tasteKey = key;
     tasteRates = new Map();
-    const myShops = Store.shops()
-      .map(s => ({ s, avg: Store.avgRating(s.id) }))
-      .filter(x => x.avg);
+    const myShops = myRatedShops();
     const byUser = new Map();
     for (const p of networkPosts) {
       if (!p.username || !p.rating) continue;
       if (!byUser.has(p.username)) byUser.set(p.username, []);
       byUser.get(p.username).push(p);
     }
-    for (const [name, posts] of byUser) {
-      // 共通店舗ごとに [自分の平均, その人の平均] を集める
-      const pairs = [];
-      for (const { s, avg } of myShops) {
-        const rs = posts.filter(p => postMatchesShop(p, s)).map(p => p.rating);
-        if (!rs.length) continue;
-        pairs.push([avg, rs.reduce((a, b) => a + b, 0) / rs.length]);
-      }
-      const n = pairs.length;
-      if (!n) { tasteRates.set(name, { rate: null, common: 0, conf: 'none' }); continue; }
-      // 仕様: ピアソン相関係数を基本に0〜1へ正規化。相関は「上下の付け方の一致」を見るので、
-      // 評価水準のずれ（常に+2上に付ける等）を拾うため評価差の近さも3割混ぜる
-      const avgDiff = pairs.reduce((a, [x, y]) => a + Math.abs(x - y), 0) / n;
-      const closeness = 1 - avgDiff / 4; // 差0→1、真逆(差4)→0
-      let sim = closeness;
-      if (n >= 3) {
-        const mx = pairs.reduce((a, p) => a + p[0], 0) / n;
-        const my = pairs.reduce((a, p) => a + p[1], 0) / n;
-        let sxy = 0, sxx = 0, syy = 0;
-        for (const [x, y] of pairs) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; syy += (y - my) ** 2; }
-        if (sxx > 0 && syy > 0) sim = ((sxy / Math.sqrt(sxx * syy) + 1) / 2) * 0.7 + closeness * 0.3;
-      }
-      // 信頼度: 共通5件未満は非表示・5〜19件は薄く・20件以上で通常表示（仕様書4-3）
-      const conf = n < 5 ? 'low' : n < 20 ? 'mid' : 'high';
-      tasteRates.set(name, { rate: Math.max(0, Math.min(100, Math.round(sim * 100))), common: n, conf });
-    }
+    for (const [name, posts] of byUser) tasteRates.set(name, matchOfPosts(posts, myShops));
     return tasteRates;
   }
   function tasteMatch(username) {
@@ -2167,7 +2168,7 @@ const Views = (() => {
         cands.innerHTML = list.map((c, i) => `<button type="button" class="wa-cand" data-i="${i}"><b>${esc(c.name || '')}</b><span>${esc(c.address || '')}${c.distance != null && isFinite(c.distance) ? `　${Math.round(c.distance)}m` : ''}</span></button>`).join('');
         cands.querySelectorAll('.wa-cand').forEach(b => b.addEventListener('click', () => {
           const c = list[+b.dataset.i];
-          picked = { name: c.name || '', lat: c.lat ?? pos.lat, lon: c.lon ?? pos.lon, address: c.address || '', genre: (Api.guessGenres(c) || {}).shopGenre || '' };
+          picked = { name: c.name || '', lat: c.lat ?? pos.lat, lon: c.lon ?? pos.lon, address: c.address || '', genre: (Api.guessGenres(c) || {}).shop || c.shopGenre || '' };
           cands.querySelectorAll('.wa-cand').forEach(x => x.classList.toggle('on', x === b));
           paint();
         }));
@@ -2185,7 +2186,7 @@ const Views = (() => {
       cands.innerHTML = list.map((c, i) => `<button type="button" class="wa-cand" data-i="${i}"><b>${esc(c.name || '')}</b><span>${esc(c.address || '')}${c.distance != null ? `　${c.distance < 1000 ? Math.round(c.distance) + 'm' : (c.distance / 1000).toFixed(1) + 'km'}` : ''}</span></button>`).join('');
       cands.querySelectorAll('.wa-cand').forEach(b => b.addEventListener('click', () => {
         const c = list[+b.dataset.i];
-        picked = { name: c.name || cur.name, lat: c.lat ?? null, lon: c.lon ?? null, address: c.address || '', genre: (Api.guessGenres(c) || {}).shopGenre || '' };
+        picked = { name: c.name || cur.name, lat: c.lat ?? null, lon: c.lon ?? null, address: c.address || '', genre: (Api.guessGenres(c) || {}).shop || c.shopGenre || '' };
         cands.querySelectorAll('.wa-cand').forEach(x => x.classList.toggle('on', x === b));
         paint();
       }));
@@ -2714,10 +2715,14 @@ const Views = (() => {
     });
   }
   // 最初の画面: 「すべて」＋大きなくくり（麺類・和食…）。0件のくくりは畳む
+  // v395: 発見の描画の順番。読み込みを待つ間に別のくくり・ジャンル・戻るへ移ったら、遅れて届いた結果で上書きしない
+  let exploreSeq = 0;
   async function renderExploreCats() {
     const box = $('#explore-cats');
+    const seq = ++exploreSeq;
     box.innerHTML = SKEL_CATS; // v375〜 文字ではなく骨組み
     const items = await loadExploreItems();
+    if (seq !== exploreSeq) return;
     if (!items.length) {
       box.innerHTML = emptyBox(EMPTY_IC_PHOTO, 'まだ写真がありません<br>最初の一皿を記録してみましょう', // v393: 文末の。を外す
         '<button class="btn primary empty-add">写真を登録する</button>');
@@ -2770,8 +2775,10 @@ const Views = (() => {
     head.innerHTML = `<button type="button" class="ex-back" aria-label="カテゴリーへ戻る">‹</button><span class="ex-head-title">${esc(catName)}</span>`;
     head.querySelector('.ex-back').addEventListener('click', showExploreCats);
     const box = $('#explore-cats');
+    const seq = ++exploreSeq;
     box.innerHTML = SKEL_CATS; // v375〜 文字ではなく骨組み
     const items = await loadExploreItems();
+    if (seq !== exploreSeq) return;
     const count = genreCounts(items);
     const total = cat.genres.reduce((s, g) => s + (count.get(g) || 0), 0);
     const gs = cat.genres.map((g, i) => ({ g, i, n: count.get(g) || 0 })).sort((a, b) => b.n - a.n || a.i - b.i); // v368〜 多い順・0件は後ろ
@@ -3011,8 +3018,10 @@ const Views = (() => {
 
   async function renderExploreGrid(genre) {
     const box = $('#explore-grid');
+    const seq = ++exploreSeq;
     box.innerHTML = SKEL_GRID;
     const items = exploreItems || await loadExploreItems();
+    if (seq !== exploreSeq) return;
     const keys = String(genre || '').split(GKEY_SEP).filter(Boolean);
     const list = keys.length ? items.filter(it => it.genres.some(g => keys.includes(g))) : items;
     if (!list.length) {
@@ -3962,11 +3971,16 @@ const Views = (() => {
       const slide = document.createElement('button');
       slide.type = 'button';
       slide.className = 'sfs-slide';
-      slide.setAttribute('aria-label', '店の詳細を開く');
+      slide.setAttribute('aria-label', o.lite ? '店の詳細を開く' : '写真を大きく見る');
       slide.innerHTML = `<img alt="" loading="lazy" decoding="async">${r ? `<span class="pd-photo-star">★${fmtR(r)}</span>` : ''}`;
       if (i === 0 && !o.lite) { setFullPhoto(slide.querySelector('img'), ph); slide.dataset.full = '1'; }
       else setThumb(slide.querySelector('img'), ph);
-      slide.addEventListener('click', () => showShop(g.shopId));
+      // 探すの一覧（lite）は店の詳細へ。お店の記録は写真だけの全画面（v385 の決めごと。v395 まで店の詳細を開いていた）
+      slide.addEventListener('click', () => {
+        if (o.lite) { showShop(g.shopId); return; }
+        openPhotoViewer(g.photos.map(x => { const v2 = vByIdSec.get(x.visitId) || {}; return { ph: x, rating: v2.rating || 0, date: v2.datetime ? fmtDate(v2.datetime) : '' }; }), i,
+          { shop: Store.getShop(g.shopId) || {}, onChange: () => App.refreshCurrent() });
+      });
       car.appendChild(slide);
       return slide;
     });
@@ -5038,68 +5052,16 @@ const Views = (() => {
   // 編集モードの料理ジャンル選択状態（vid → Set）
   let editGenreSets = new Map();
 
-  // 店舗詳細の上下スクロールでの店舗送り: 最下部でさらに下へスワイプ→次の店舗、
-  // 最上部で下へ引っ張る→前の店舗（プロフィールの写真カードの並び順）
-  let shopNavState = null, shopNavBound = false;
   let shopVisitMode = 'list'; // 店舗の詳細の訪問: 'list'（写真主役）| 'tl'（タイムライン）。v372〜（訪問の一覧の画面から移した）
-  function bindShopNavOnce() {
-    if (shopNavBound) return;
-    shopNavBound = true;
-    const modal = $('#modal');
-    const go = (dir) => {
-      const { list, index } = shopNavState;
-      const ni = index + dir;
-      if (ni < 0 || ni >= list.length) return false;
-      showShop(list[ni], false, null, { list, index: ni });
-      modal.scrollTop = 0;
-      return true;
-    };
-    // スマホ: 「端に張り付いた状態で、さらに動かした量」だけを差分で積算して判定する。
-    // 指を置いた時点からの累計にすると、勢いよく端まで届いた瞬間に発火して
-    // 普通のスクロールが途切れてしまう。端以外での動きが混ざったら積算はリセット
-    let lastY = null, swipeAcc = 0, fired = false;
-    modal.addEventListener('touchstart', (e) => { lastY = e.touches[0].clientY; swipeAcc = 0; fired = false; }, { passive: true });
-    modal.addEventListener('touchmove', (e) => {
-      if (!shopNavState || lastY == null) return;
-      const y = e.touches[0].clientY;
-      const dy = lastY - y; // 正=指を上へ（下方向へのスクロール）
-      lastY = y;
-      if (fired) return;
-      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 4;
-      const atTop = modal.scrollTop <= 4;
-      if (atBottom && dy > 0) swipeAcc = Math.max(0, swipeAcc) + dy;       // 最下部でさらに下へ
-      else if (atTop && dy < 0) swipeAcc = Math.min(0, swipeAcc) + dy;     // 最上部でさらに引っ張る
-      else { swipeAcc = 0; return; }                                       // 通常のスクロールはリセット
-      if (swipeAcc > 90) { fired = true; go(1); }
-      else if (swipeAcc < -90) { fired = true; go(-1); }
-    }, { passive: true });
-    // PC: 端に到達した後もホイールを回し続けたら切り替え
-    let wheelAcc = 0, wheelTimer = null;
-    modal.addEventListener('wheel', (e) => {
-      if (!shopNavState) return;
-      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 4;
-      const atTop = modal.scrollTop <= 4;
-      if ((e.deltaY > 0 && atBottom) || (e.deltaY < 0 && atTop)) {
-        wheelAcc += e.deltaY;
-        clearTimeout(wheelTimer);
-        wheelTimer = setTimeout(() => { wheelAcc = 0; }, 400);
-        if (wheelAcc > 260) { wheelAcc = 0; go(1); }
-        else if (wheelAcc < -260) { wheelAcc = 0; go(-1); }
-      } else wheelAcc = 0;
-    }, { passive: true });
-  }
+  // v395: 上下スクロールでの店送り（bindShopNavOnce／shopNavState）は入口が無くなっていたので削除（v386 でマイページのカードが全画面に変わった）
 
   let shopModalToken = 0;
-  async function showShop(shopId, _editMode = false, _editVid = null, nav = null) { // v368〜 第2・第3引数は使わない（店舗情報は openShopEdit、記録は openVisitEdit）
+  async function showShop(shopId) { // v368〜 第2引数以降は使わない（店舗情報は openShopEdit、記録は openVisitEdit。v395 で店送りも削除）
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
     const body = $('#modal-body');
-    // 上下スクロールでの店舗送り（プロフィールの写真カードから開いたとき）。
-    // 編集中は誤って切り替わらないよう無効にする
-    shopNavState = nav || null;
     modalShopId = shopId; // v394: いま店の詳細に出している店（削除の確定などで、別の画面に変わっていたら描き直さない）
-    bindShopNavOnce();
     const myToken = ++shopModalToken; // 別の店を開いたり編集に入ったりしたら、この描画は古いものとして扱う
 
     // フォロー中の人のこの店の記録（未読込なら読み込んでから描き直す）
@@ -5107,7 +5069,7 @@ const Views = (() => {
       ensureNetworkLoaded(() => {
         // 読み込み中に編集画面へ移った・別の店へ移った・閉じた場合は描き直さない（入力中の内容を消さないため）
         if (shopModalToken !== myToken) return;
-        if (!$('#modal').classList.contains('hidden')) showShop(shopId, false, null, nav);
+        if (!$('#modal').classList.contains('hidden')) showShop(shopId);
       });
     }
     // 店舗詳細は「店」が主役: 地図の表示切替に関係なく、この店に行った
@@ -5170,18 +5132,11 @@ const Views = (() => {
     // 編集モードは「店舗情報のみ」。各訪問の編集は表示モードの訪問カードから個別に行う
     // ここへ行く＋♥は一番下（スクロール中も画面下に張り付く）。
     // 訪問記録の見出しの右に✎（記録を見る）を置く
-    // 店舗送りが有効なとき、前/次の店名のヒントを上下に出す
-    const navPrev = shopNavState && shopNavState.index > 0
-      ? (Store.getShop(shopNavState.list[shopNavState.index - 1]) || {}).name : '';
-    const navNext = shopNavState && shopNavState.index < shopNavState.list.length - 1
-      ? (Store.getShop(shopNavState.list[shopNavState.index + 1]) || {}).name : '';
     body.innerHTML = `
-      ${navPrev ? `<div class="d-swipehint">︿ 下に引っ張って前の店舗: ${esc(navPrev)}</div>` : ''}
       ${headHtml}
       ${tilesHtml}
       ${axisHtml}
       <div id="d-visits"></div>
-      ${navNext ? `<div class="d-swipehint">さらにスクロールで次の店舗: ${esc(navNext)} ﹀</div>` : ''}
       ${actionsHtml}`;
 
     // 「詳細」ボタンでお店の評価（3軸）を開閉
@@ -5226,6 +5181,7 @@ const Views = (() => {
           if (!confirm(`「${s.name}」と訪問記録・写真をすべて削除します。よろしいですか？`)) return;
           await Store.deleteShop(shopId);
           closeModal();
+          closeMapSheets(); // v395: 下に開いていた地図の店シート（消した店）も閉じる
           App.refreshCurrent();
           App.toast('削除しました');
         } },
@@ -5394,12 +5350,12 @@ const Views = (() => {
     const close = () => ov.remove();
     ov.querySelector('.mg-close').addEventListener('click', close);
     const list = ov.querySelector('.mg-list');
-    const all = await Store.allPhotos().catch(() => []);
+    let all = await Store.allPhotos().catch(() => []);
     const photoN = (id) => all.filter(p => p.shopId === id).length;
     const shopLine = (sh) => `<div class="mg-shop"><b>${esc(sh.name)}</b><span>${esc([sh.station, [sh.pref, sh.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ '))}</span><span>${Store.visitCount(sh.id)}回 ・ 写真${photoN(sh.id)}枚${sh.address ? ' ・ ' + esc(sh.address) : ''}</span></div>`;
     const render = () => {
       const cs = findDuplicateShops();
-      if (!cs.length) { list.innerHTML = '<div class="empty"><p>重複した店はありません。</p></div>'; return; }
+      if (!cs.length) { list.innerHTML = '<div class="empty"><p>重複した店はありません</p></div>'; return; }
       list.innerHTML = '';
       cs.forEach((c) => {
         const row = document.createElement('div');
@@ -5419,6 +5375,7 @@ const Views = (() => {
           try { await Store.mergeShops(keep.id, drop.id); } catch (e) { App.toast('まとめられませんでした: ' + (e && e.message || e)); return; }
           App.toast(`「${keep.name}」にまとめました`);
           App.refreshCurrent();
+          all = await Store.allPhotos().catch(() => all); // v395: 移した写真の枚数を数え直す（以前はまとめる前の枚数のまま）
           render();
         };
         row.querySelector('.mg-merge').addEventListener('click', () => doMerge(c.keep, c.drop));
@@ -5672,7 +5629,7 @@ const Views = (() => {
         list.innerHTML = '';
         const shops = Store.shops().filter(s => s.id !== ph.shopId && (!q || (s.name || '').toLowerCase().includes(q)))
           .sort((a, b) => (lastAt.get(b.id) || 0) - (lastAt.get(a.id) || 0)).slice(0, 60);
-        if (!shops.length) { list.innerHTML = '<div class="empty"><p>店がありません。</p></div>'; return; }
+        if (!shops.length) { list.innerHTML = '<div class="empty"><p>店がありません</p></div>'; return; }
         for (const s of shops) list.appendChild(row(esc(s.name), esc([s.station, [s.pref, s.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ')), () => {
           const vs = Store.visitsOf(s.id);
           if (vs.length === 1) move(s.id, vs[0].id); else if (!vs.length) App.toast('この店には記録がありません'); else { ov.querySelector('.vl-title').textContent = `${s.name} の訪問`; visitRows(s.id); }
@@ -6679,7 +6636,7 @@ const Views = (() => {
     let list = [];
     try { list = await Cloud.fetchNotifications(); } catch { list = []; }
     if (!list.length) {
-      body.innerHTML = `<div class="empty"><p>まだお知らせはありません。</p></div>`;
+      body.innerHTML = `<div class="empty"><p>まだお知らせはありません</p></div>`;
     } else {
       body.innerHTML = list.map((n, i) => {
         const av = n.fromAvatar ? `<img src="${esc(n.fromAvatar)}" alt="">` : IC_BOWL;
@@ -6687,7 +6644,7 @@ const Views = (() => {
             <div class="ur-avatar">${av}</div>
             <div class="ur-main">
               <div class="nt-text"><b>${esc(n.fromDisplayName || 'BITEMAP')}</b> さんがあなたをフォローしました</div>
-              <div class="ur-username">@${esc(n.fromUsername)}</div>
+              ${n.fromUsername ? `<div class="ur-username">@${esc(n.fromUsername)}</div>` : ''}
             </div>
             <button type="button" class="btn small nt-follow" data-uid="${esc(n.fromUid)}" data-u="${esc(n.fromUsername)}">…</button>
           </div>`;
@@ -6696,6 +6653,7 @@ const Views = (() => {
       body.querySelectorAll('.nt-row').forEach(row => {
         row.addEventListener('click', (e) => {
           if (e.target.closest('.nt-follow')) return;
+          if (!row.dataset.u) return; // v395: ユーザー名の無い人のプロフィールは開けない（空の名前で開いていた）
           close(); showPublicProfile(row.dataset.u);
         });
       });
@@ -6744,7 +6702,7 @@ const Views = (() => {
     try { prof = (typeof Cloud !== 'undefined') ? await Cloud.fetchPublicProfile(username) : null; }
     catch (e) { prof = null; }
     if (!prof) {
-      body.innerHTML = `<div class="empty"><p>@${esc(username)} のプロフィールが見つかりませんでした。</p></div>`;
+      body.innerHTML = `<div class="empty"><p>@${esc(username)} のプロフィールが見つかりませんでした</p></div>`;
       return;
     }
     const avatar = prof.avatar ? `<img src="${esc(prof.avatar)}" alt="">` : IC_BOWL;
@@ -6767,7 +6725,7 @@ const Views = (() => {
           <div class="pp-stats">
             <button type="button" class="pp-stat" data-social="following"><b class="pp-following">–</b> フォロー</button>
             <button type="button" class="pp-stat" data-social="followers"><b class="pp-followers">–</b> フォロワー</button>
-            <span class="pp-stat"><b>${Number(prof.shopCount) || 0}</b> 店舗</span>
+            <span class="pp-stat"><b>${Number(prof.shopCount) || 0}</b> 店</span>
           </div>
           <div class="pp-match hidden"></div>
         </div>
@@ -6802,27 +6760,18 @@ const Views = (() => {
       try { posts = (typeof Cloud !== 'undefined') ? await Cloud.fetchUserPosts(prof.uid) : []; }
       catch { posts = []; }
 
-      // 食の趣味の一致度（Match%）: 相手の評価付き投稿と自分の記録で同じ店を照合し、
-      // ★の近さ（1 - 差/4）を平均して%に。共通の店が無い場合は表示しない
+      // 食の一致度: ホームの味覚一致率と同じ式（matchOfPosts。v395〜）。共通の店が無ければ出さない、5店未満は店数だけ
       if (!isMe) {
-        const myShops = Store.shops();
-        let sum = 0, n = 0;
-        for (const p of posts) {
-          if (!p.rating) continue;
-          const mine = myShops.find(s => postMatchesShop(p, s));
-          if (!mine) continue;
-          const my = Store.avgRating(mine.id);
-          if (!my) continue;
-          sum += 1 - Math.abs(my - p.rating) / 4;
-          n++;
-        }
-        if (n) {
-          const pct = Math.round((sum / n) * 100);
-          const el = body.querySelector('.pp-match');
-          if (el) {
-            el.classList.remove('hidden');
-            el.classList.add(pct >= 70 ? 'hi' : pct >= 40 ? 'mid' : 'lo');
-            el.innerHTML = `食の一致度 <b>${pct}%</b> <span class="pp-match-n">共通${n}店</span>`;
+        const m = matchOfPosts(posts.map(p => ({ ...p, rating: Number(p.rating) || 0 })), myRatedShops());
+        const el = body.querySelector('.pp-match');
+        if (m.common && el) {
+          el.classList.remove('hidden');
+          if (m.rate == null || m.conf === 'low') {
+            el.classList.add('lo');
+            el.innerHTML = `<span class="pp-match-n">共通${m.common}店</span>`;
+          } else {
+            el.classList.add(m.rate >= 70 ? 'hi' : m.rate >= 40 ? 'mid' : 'lo');
+            el.innerHTML = `味覚一致 <b>${m.rate}%</b> <span class="pp-match-n">共通${m.common}店${m.conf === 'mid' ? '・参考' : ''}</span>`;
           }
         }
       }
@@ -6845,7 +6794,7 @@ const Views = (() => {
         });
       } else {
         grid.className = 'pp-shops'; // 写真が無ければ従来の「よく行くお店」リスト
-        grid.innerHTML = (shops ? `<h3 class="pp-h3">よく行くお店</h3>${shops}` : '<div class="empty"><p>まだ公開された投稿がありません。</p></div>');
+        grid.innerHTML = (shops ? `<h3 class="pp-h3">よく行く店</h3>${shops}` : '<div class="empty"><p>まだ公開された投稿がありません</p></div>');
       }
     })();
 
@@ -6903,7 +6852,7 @@ const Views = (() => {
     document.body.appendChild(ov);
     let list = [];
     try { list = await Cloud.followProfiles(uid, type); } catch { list = []; }
-    if (!list.length) { body.innerHTML = `<div class="empty"><p>まだいません。</p></div>`; return; }
+    if (!list.length) { body.innerHTML = `<div class="empty"><p>まだいません</p></div>`; return; }
     body.innerHTML = list.map(p => userRow(p)).join('');
     body.querySelectorAll('.user-row').forEach(r =>
       r.addEventListener('click', () => { close(); showPublicProfile(r.dataset.u); }));
@@ -6934,7 +6883,7 @@ const Views = (() => {
       body.innerHTML = '<div class="empty"><p>検索中…</p></div>';
       let res = [];
       try { res = await Cloud.searchUsers(q); } catch (e) { body.innerHTML = `<div class="empty"><p>検索に失敗しました</p></div>`; return; }
-      if (!res.length) { body.innerHTML = '<div class="empty"><p>見つかりませんでした。</p></div>'; return; }
+      if (!res.length) { body.innerHTML = '<div class="empty"><p>見つかりませんでした</p></div>'; return; }
       body.innerHTML = res.map(p => userRow(p)).join('');
       body.querySelectorAll('.user-row').forEach(r =>
         r.addEventListener('click', () => { close(); showPublicProfile(r.dataset.u); }));
@@ -6952,7 +6901,7 @@ const Views = (() => {
         <div class="ur-avatar">${av}</div>
         <div class="ur-main">
           <div class="ur-name">${esc(p.displayName || 'BITEMAP')}</div>
-          <div class="ur-username">@${esc(p.username)}　${Number(p.shopCount) || 0}店舗</div>
+          <div class="ur-username">@${esc(p.username)}　${Number(p.shopCount) || 0}店</div>
         </div>
       </div>`;
   }
@@ -6965,13 +6914,12 @@ const Views = (() => {
   function refreshOpenShop() {
     const id = modalShopId;
     if (!id || !isShopOpen(id)) return;
-    if (Store.getShop(id)) showShop(id, false, null, shopNavState);
+    if (Store.getShop(id)) showShop(id);
     else closeModal();
   }
   function closeModal() {
     modalShopId = null;
     $('#modal').classList.add('hidden');
-    shopNavState = null; // 店舗送りの状態も解除（次に地図などから開いたとき誤作動しない）
   }
 
   // フォロー／解除の後: ホーム・地図・発見の他人の投稿を次に開いたとき取り直す（v394。以前は再起動まで古いまま）

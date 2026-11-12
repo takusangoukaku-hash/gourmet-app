@@ -251,6 +251,7 @@ const Register = (() => {
     const hits = Views.similarShops(name, pos.lat != null ? pos.lat : null, pos.lon != null ? pos.lon : null);
     if (!hits.length) { hide(); return; }
     const s = hits[0].shop;
+    if (document.querySelector(`#shop-candidates .candidate:not(.hidden)[data-shop-id="${CSS.escape(s.id)}"]`)) { hide(); return; }
     box.innerHTML = `<span>登録済み: <b>${esc(s.name)}</b>${s.station ? ' ・ ' + esc(s.station) : ''} ・ ${Store.visitCount(s.id)}回</span><button type="button" class="btn small reg-dup-use">この店にする</button>`;
     box.classList.remove('hidden');
     box.querySelector('.reg-dup-use').addEventListener('click', () => { autoPicked = false; chooseExisting(s); $('#shop-candidates').innerHTML = ''; });
@@ -747,6 +748,7 @@ const Register = (() => {
       if (shop.osmId) seenOsm.add(shop.osmId);
       const div = document.createElement('div');
       div.className = 'candidate';
+      div.dataset.shopId = shop.id;
       div.innerHTML = `
         <div class="c-main">
           <div class="c-name">${esc(shop.name)}<span class="badge">登録済み・再訪</span></div>
@@ -772,6 +774,7 @@ const Register = (() => {
     }
 
     if (!box.children.length) box.innerHTML = `<p class="hint">${emptyMsg}</p>`;
+    updateDupHint(); // v395: 同じ店が候補の一覧に「登録済み」で出ているなら、上の案内は出さない（二重になる）
   }
 
   // 一番近い候補を自動選択する（操作を最小化 — 写真と★評価だけで登録できる導線）
