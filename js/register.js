@@ -115,10 +115,10 @@ const Register = (() => {
     const paint = () => {
       ov.querySelector('.gp-sel').textContent = selectedDishGenres.size ? '選択中: ' + [...selectedDishGenres].join('・') : '';
       ov.querySelector('.gp-fav').innerHTML = favs.map(chip).join('');
-      const kw = q.value.trim().toLowerCase();
+      const kw = Views.searchNorm(q.value);
       const hits = ov.querySelector('.gp-hits');
       if (kw) {
-        const list = Api.DISH_GENRES.filter(g => g.toLowerCase().includes(kw));
+        const list = Api.DISH_GENRES.filter(g => Views.searchNorm(g).includes(kw));
         hits.innerHTML = list.length ? list.map(chip).join('') : '<span class="hint">見つかりません</span>';
       }
       hits.classList.toggle('hidden', !kw);
@@ -876,7 +876,7 @@ const Register = (() => {
 
     // 登録済み店舗は即時に出せる（再訪の最短導線）
     const existing = Store.shops()
-      .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
+      .filter(s => Views.searchNorm(s.name).includes(Views.searchNorm(q))) // v410: ひらがな・カタカナ・全角半角をそろえる
       .map(s => ({ shop: s, distance: null })); // v377〜 3件に絞るのは距離で並べたあと（下）
 
     // 基準位置: 写真のGPS → 現在地（現在地は記録の間だけ使い回す）
@@ -915,7 +915,7 @@ const Register = (() => {
 
     // 登録済み店舗を先に（§4.3: 再訪の登録を最短に）
     const existing = Store.shops()
-      .filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
+      .filter(s => Views.searchNorm(s.name).includes(Views.searchNorm(q))) // v410: ひらがな・カタカナ・全角半角をそろえる
       .map(s => ({ shop: s, distance: null }));
 
     // 基準位置: 写真のGPS → 現在地。まず入力そのままの文字列で探し、

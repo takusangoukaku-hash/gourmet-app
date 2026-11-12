@@ -337,6 +337,9 @@ const Views = (() => {
   const mapContrib = new Map(); // 自分の店ピンに合算されたフォロワー（shopId → [{username, avatar}]）
 
   // 店名の表記ゆれを吸収して比較（全角半角・空白・大文字小文字の違いを無視）
+  // v410: 検索の文字をそろえる（全角半角・大文字小文字・ひらがな→カタカナ・空白）。「らーめん」で「ラーメン」、「ﾗｰﾒﾝ」でも見つかる
+  const searchNorm = (x) => String(x || '').normalize('NFKC').toLowerCase().replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60)).replace(/\s+/g, '');
+  const searchHay = (arr) => arr.map(searchNorm).join('\u0000'); // 欄ごとにそろえてからつなぐ（欄をまたいで一致させない）
   // v396: 店×投稿の照合で何万回も呼ばれるので結果を覚えておく（NFKC の正規化が重い）
   const normNameMemo = new Map();
   const normShopName = (x) => {
@@ -699,10 +702,10 @@ const Views = (() => {
   // 地図上の検索バーによるキーワード絞り込み（店名・駅・地名・ジャンル）
   let mapKeyword = '';
   function shopMatchesKeyword(s) {
-    const kw = mapKeyword.toLowerCase();
+    const kw = searchNorm(mapKeyword);
     if (!kw) return true;
-    const hay = [s.name, s.station, s.city, s.pref, s.address, s.shopGenre,
-      ...Store.visitsOf(s.id).flatMap(v => v.dishGenres || [])].join(' ').toLowerCase();
+    const hay = searchHay([s.name, s.station, s.city, s.pref, s.address, s.shopGenre,
+      ...Store.visitsOf(s.id).flatMap(v => v.dishGenres || [])]);
     return hay.includes(kw);
   }
 
@@ -1822,7 +1825,7 @@ const Views = (() => {
     networkById.clear();
     const bounds = shops.map(s => [s.lon, s.lat]);
     if (mapScope === 'all') {
-      const kw = mapKeyword.toLowerCase();
+      const kw = searchNorm(mapKeyword);
       const netGroups = [];
       for (const p of networkPosts) {
         // フィルタ: ジャンル・キーワード・味の星（他人の投稿にある情報の範囲で）
@@ -1830,7 +1833,7 @@ const Views = (() => {
         const minT = +($('#mf-taste').value || 0);
         if (minT && (p.rating || 0) < minT) continue;
         if (kw) {
-          const hay = [p.shopName, p.username, p.displayName, p.comment].join(' ').toLowerCase();
+          const hay = searchHay([p.shopName, p.username, p.displayName, p.comment]);
           if (!hay.includes(kw)) continue;
         }
         // 自分も行った店なら自分のピンへ合算（1つのピン・全員の平均になる）
@@ -2442,7 +2445,7 @@ const Views = (() => {
   }
 
   function filteredShops() {
-    const kw = $('#flt-keyword').value.trim().toLowerCase();
+    const kw = searchNorm($('#flt-keyword').value);
     const pref = $('#flt-pref').value;
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
@@ -2456,7 +2459,7 @@ const Views = (() => {
       if (minR && (Store.avgRating(s.id) || 0) < minR
         && !vs.some(v => (v.rating || 0) >= minR)) return false;
       if (kw) {
-        const hay = [s.name, s.station, s.pref, s.city, s.address, ...vs.map(v => v.comment || '')].join(' ').toLowerCase();
+        const hay = searchHay([s.name, s.station, s.pref, s.city, s.address, ...vs.map(v => v.comment || '')]);
         if (!hay.includes(kw)) return false;
       }
       return true;
@@ -3298,7 +3301,7 @@ const Views = (() => {
     const seq = ++searchPhotoSeq;
     const box = $('#shop-list');
     box.innerHTML = `<div class="explore-grid">${SKEL_GRID}</div>`;
-    const kw = $('#flt-keyword').value.trim().toLowerCase();
+    const kw = searchNorm($('#flt-keyword').value);
     const st = photoStation;
     const dg = $('#flt-dish-genre').value;
     const minR = +($('#flt-rating').value || 0);
@@ -3315,8 +3318,8 @@ const Views = (() => {
         if (pref && shop.pref !== pref) return false;
         if (minR && (v.rating || 0) < minR) return false;
         if (kw) {
-          const hay = [shop.name, shop.station, shop.pref, shop.city, shop.address,
-            v.comment, ...it.genres].map(x => x || '').join(' ').toLowerCase();
+          const hay = searchHay([shop.name, shop.station, shop.pref, shop.city, shop.address,
+            v.comment, ...it.genres]);
           if (!hay.includes(kw)) return false;
         }
         return true;
@@ -3327,8 +3330,8 @@ const Views = (() => {
       if (pref && (p.pref || '') !== pref) return false;
       if (minR && (p.rating || 0) < minR) return false;
       if (kw) {
-        const hay = [p.shopName, p.station, p.pref, p.city, p.comment, p.username,
-          p.displayName, ...it.genres].map(x => x || '').join(' ').toLowerCase();
+        const hay = searchHay([p.shopName, p.station, p.pref, p.city, p.comment, p.username,
+          p.displayName, ...it.genres]);
         if (!hay.includes(kw)) return false;
       }
       return true;
@@ -3693,9 +3696,9 @@ const Views = (() => {
       if (pfStation && (shop.station || '') !== pfStation) return false;
       if (!q) return true;
       const vs = Store.visitsOf(g.shopId);
-      const hay = [shop.name, shopLabelGenre(shop), shop.pref, normPref(shop.pref), shop.city, shop.station, shop.address,
-        ...vs.flatMap(v => [v.comment, ...(v.dishGenres || [])])].map(x => x || '').join(' ').toLowerCase();
-      return q.split(/\s+/).every(w => hay.includes(w));
+      const hay = searchHay([shop.name, shopLabelGenre(shop), shop.pref, normPref(shop.pref), shop.city, shop.station, shop.address,
+        ...vs.flatMap(v => [v.comment, ...(v.dishGenres || [])])]);
+      return q.split(/\s+/).map(searchNorm).filter(Boolean).every(w => hay.includes(w)); // v410: ひらがな・カタカナ・全角半角をそろえる
     });
     const nEl = $('#pf-photo-n');
     if (nEl) nEl.textContent = (q || pfStation) ? `${shown.length}店` : '';
@@ -5726,9 +5729,9 @@ const Views = (() => {
       const lastAt = new Map();
       for (const v of Store.visits()) { const t = new Date(v.datetime).getTime() || 0; if (t > (lastAt.get(v.shopId) || 0)) lastAt.set(v.shopId, t); }
       const render = () => {
-        const q = input.value.trim().toLowerCase();
+        const q = searchNorm(input.value);
         list.innerHTML = '';
-        const shops = Store.shops().filter(s => s.id !== ph.shopId && (!q || (s.name || '').toLowerCase().includes(q)))
+        const shops = Store.shops().filter(s => s.id !== ph.shopId && (!q || searchNorm(s.name).includes(q)))
           .sort((a, b) => (lastAt.get(b.id) || 0) - (lastAt.get(a.id) || 0)).slice(0, 60);
         if (!shops.length) { list.innerHTML = '<div class="empty"><p>店がありません</p></div>'; return; }
         for (const s of shops) list.appendChild(row(esc(s.name), esc([s.station, [s.pref, s.city].filter(Boolean).join(' ')].filter(Boolean).join(' ・ ')), () => {
@@ -7043,7 +7046,7 @@ const Views = (() => {
     exploreNetCache = null; exploreItems = null; // v396: 発見・写真モードに前のアカウントのフォロー中の写真を残さない
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { searchNorm, fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
