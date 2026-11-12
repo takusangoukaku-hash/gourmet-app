@@ -2186,3 +2186,14 @@ body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いてい�
   .maplibregl-map .maplibregl-ctrl-group:not(:empty) button + button { border-top-color: var(--border); }
   .maplibregl-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
 }
+
+/* v401: 小さいボタンの押せる範囲を広げる（見た目は変えない）。透明な ::after を外側へはみ出させる。
+   横に並ぶもの（切り替え・星）は上下だけ広げて、となりのボタンの範囲を取らない */
+.pd-cdel, .vl-seg, .yc-shop, .genre-pill, .list-sort, .stars.small button { position: relative; }
+.pd-cdel::after, .photo-preview .remove::after, .vl-seg::after, .yc-shop::after, .genre-pill::after,
+.list-sort::after, .stars.small button::after, .reg-photo-chg::after { content: ''; position: absolute; }
+.pd-cdel::after, .photo-preview .remove::after { inset: -10px; }
+.vl-seg::after, .stars.small button::after { inset: -8px 0; }
+.yc-shop::after { inset: -6px -2px; }
+.genre-pill::after, .list-sort::after { inset: -8px -4px; }
+.reg-photo-chg::after { inset: -6px; }
