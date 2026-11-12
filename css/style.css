@@ -2192,10 +2192,13 @@ body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いてい�
 .pd-cdel, .vl-seg, .yc-shop, .genre-pill, .list-sort, .stars.small button { position: relative; }
 .pd-cdel::after, .photo-preview .remove::after, .vl-seg::after, .yc-shop::after, .genre-pill::after,
 .list-sort::after, .stars.small button::after, .reg-photo-chg::after { content: ''; position: absolute; }
-.pd-cdel::after, .photo-preview .remove::after { inset: -10px; }
-.vl-seg::after, .stars.small button::after { inset: -8px 0; }
+.pd-cdel::after { inset: -10px; }
+/* v406: となりの部品にかからない広さに（写真の ✕ は写真のタップ＝並べ替えのシートを取らないよう 6px、札・切り替えは上下 4px） */
+.photo-preview .remove::after { inset: -6px; }
+.vl-seg::after, .stars.small button::after { inset: -4px 0; }
+.yc-shop { display: inline-block; } /* 折り返すと ::after が全部の行の外枠になっていた */
 .yc-shop::after { inset: -6px -2px; }
-.genre-pill::after, .list-sort::after { inset: -8px -4px; }
+.genre-pill::after, .list-sort::after { inset: -4px -4px; }
 .reg-photo-chg::after { inset: -6px; }
 /* v402: 暗色で「削除」など危ない操作の赤が地に沈んでいた（文字の濃さ 2.75:1）。暗色だけ明るい赤に（5:1 以上） */
 @media (prefers-color-scheme: dark) {

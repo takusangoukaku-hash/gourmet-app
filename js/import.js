@@ -377,13 +377,16 @@ const Import = (() => {
     else App.toast(`${done}件を記録しました${failed ? ` ・ ${failed}件は失敗` : ''}`);
     if (ov && tok === runToken) {
       prog.classList.add('hidden');
-      const rest = groups.filter(g => g.state !== 'saved' && g.state !== 'skip' && g.state !== 'failed').length;
+      // v406: 空きが足りず止めたときは、まだ保存していない候補を「★や店名が無かった」と数えない（理由を取り違えていた）
+      const notTried = quotaFull ? todo.filter(g => g.state !== 'saved' && g.state !== 'failed').length : 0;
+      const notTriedSet = quotaFull ? new Set(todo.filter(g => g.state !== 'saved' && g.state !== 'failed')) : new Set();
+      const rest = groups.filter(g => g.state !== 'saved' && g.state !== 'skip' && g.state !== 'failed' && !notTriedSet.has(g)).length;
       $('#im-list', ov).innerHTML = '';
       $('#im-foot', ov).classList.add('hidden');
       const sum = $('#im-summary', ov);
       sum.classList.remove('hidden');
       sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
-      <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${failed ? `　${failed}件は保存に失敗しました（次回また出ます）` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
+      <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${quotaFull ? `　${esc(Store.QUOTA_MSG)}（失敗 ${failed}件・残り ${notTried}件は次回また出ます）` : failed ? `　${failed}件は保存に失敗しました（次回また出ます）` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
       <div class="im-sum-b"><button type="button" class="btn primary" id="im-again">続けて写真を選ぶ</button><button type="button" class="btn" id="im-done">閉じる</button></div>`;
       $('#im-again', ov).addEventListener('click', () => { runToken++; groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
       $('#im-done', ov).addEventListener('click', close);

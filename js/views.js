@@ -751,20 +751,27 @@ const Views = (() => {
     clusterPulseOn = true;
     const PERIOD = 2400, R0 = 15, R1 = 39, OP0 = 0.5;
     let last = 0, hasClusters = false, checkedAt = 0, idle = true;
+    // v406: 地図を開いていない・裏に回ったときはループごと止める（以前は描かないだけで毎フレーム起きていた）。
+    //   再開は地図タブに入ったとき（enterMapTab）と前面に戻ったとき。まとまりが無いあいだは 1 秒に1回の見回りだけ
     const frame = (now) => {
       if (!map || !map.getLayer('cluster-pulse')) { clusterPulseOn = false; return; }
-      requestAnimationFrame(frame);
-      if (now - last < 50) return;
-      last = now;
       const active = document.body.dataset.tab === 'map' && !document.hidden;
-      if (active && now - checkedAt > 1000) { // まとまりが見えているか（1 秒に1回だけ数える）
+      if (!active) {
+        if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-opacity', 0); idle = true; }
+        clusterPulseOn = false; return;
+      }
+      if (now - checkedAt > 1000) { // まとまりが見えているか（1 秒に1回だけ数える）
         checkedAt = now;
         try { hasClusters = map.queryRenderedFeatures({ layers: ['clusters'] }).length > 0; } catch { hasClusters = false; }
       }
-      if (!active || !hasClusters) {
+      if (!hasClusters) {
         if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-opacity', 0); idle = true; }
+        setTimeout(() => requestAnimationFrame(frame), 1000);
         return;
       }
+      requestAnimationFrame(frame);
+      if (now - last < 50) return;
+      last = now;
       idle = false;
       const t = (now % PERIOD) / PERIOD;
       const e = 1 - (1 - t) * (1 - t); // ease-out（現在地の波紋と同じ）
@@ -773,6 +780,7 @@ const Views = (() => {
     };
     requestAnimationFrame(frame);
   }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && document.body.dataset.tab === 'map') startClusterPulse(); });
 
   function initMap() {
     if (map) return;
@@ -2028,6 +2036,7 @@ const Views = (() => {
     const wb = $('#map-wish-btn');
     if (wb) wb.classList.remove('on'); // 「行きたいのみ」も解除
     refreshMap();
+    setTimeout(startClusterPulse, 0); // v406: 地図を離れると波紋のループは止まるので、入るたびに再開（タブの切り替えが済んでから）
   }
 
   // フォロー中の人の訪問記録を自動で読み込む（ログイン中・初回のみ）。cbで読み込み後の再描画もできる
