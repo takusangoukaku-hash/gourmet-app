@@ -90,7 +90,7 @@ const Register = (() => {
     ov.innerHTML = `<div class="as-box gp-sheet">
         <div class="as-handle"></div>
         <div class="gp-head"><span>料理ジャンル</span><button type="button" class="sheet-x gp-x" aria-label="閉じる">${Views.icons.x}</button></div>
-        <input type="search" class="gp-q" placeholder="ジャンルを検索" autocomplete="off" enterkeyhint="search">
+        <input type="search" class="gp-q" maxlength="50" placeholder="ジャンルを検索" autocomplete="off" enterkeyhint="search">
         <div class="gp-body">
           <div class="gp-sel"></div>
           <div class="gp-hits chips hidden"></div>

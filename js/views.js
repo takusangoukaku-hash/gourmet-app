@@ -2217,7 +2217,7 @@ const Views = (() => {
     const body = $('#modal-body');
     modalShopId = null;
     body.innerHTML = `<h2 class="wish-title">${IC_BOOKMARK} 行きたい店を追加</h2>
-      <textarea id="wa-text" class="wa-text" rows="3" placeholder="店名、または Google／Apple マップの共有リンクを貼り付け"></textarea>
+      <textarea id="wa-text" class="wa-text" rows="3" maxlength="2000" placeholder="店名、または Google／Apple マップの共有リンクを貼り付け"></textarea>
       <div id="wa-parsed" class="wa-parsed hidden"></div>
       <div id="wa-cands" class="wa-cands"></div>
       <div class="wa-actions">
@@ -2276,7 +2276,7 @@ const Views = (() => {
       const p = picked || cur;
       if (!p.name) return;
       if (Store.matchShop({ name: p.name, lat: p.lat, lon: p.lon })) { App.toast('この店はすでに記録があります'); return; }
-      const w = Store.addWish({ name: p.name, lat: p.lat, lon: p.lon, genre: p.genre || '', address: p.address || '' });
+      const w = Store.addWish({ name: String(p.name).slice(0, 100), lat: p.lat, lon: p.lon, genre: p.genre || '', address: String(p.address || '').slice(0, 300) }); // v407: 貼り付けた長い文がそのまま店名にならないよう
       App.toast(w.lat != null ? '行きたい店に保存しました。地図に紫のピンで表示されます' : '行きたい店に保存しました（位置なし）', 4000);
       closeModal();
       refreshWishData();
@@ -5504,11 +5504,11 @@ const Views = (() => {
         <button type="button" class="modal-close ve-close" aria-label="閉じる">${IC_X}</button>
         <div class="ve-head"><b>店の情報</b></div>
         <div class="form-grid se-grid">
-          <label class="full">店名<input type="text" id="de-name" value="${esc(s.name)}"></label>
-          <label>最寄駅<input type="text" id="de-station" value="${esc(s.station || '')}"></label>
-          <label>都道府県<input type="text" id="de-pref" value="${esc(s.pref || '')}"></label>
-          <label>市区町村<input type="text" id="de-city" value="${esc(s.city || '')}"></label>
-          <label class="full">住所<input type="text" id="de-address" value="${esc(s.address || '')}"></label>
+          <label class="full">店名<input type="text" id="de-name" maxlength="100" value="${esc(s.name)}"></label>
+          <label>最寄駅<input type="text" id="de-station" maxlength="50" value="${esc(s.station || '')}"></label>
+          <label>都道府県<input type="text" id="de-pref" maxlength="10" value="${esc(s.pref || '')}"></label>
+          <label>市区町村<input type="text" id="de-city" maxlength="50" value="${esc(s.city || '')}"></label>
+          <label class="full">住所<input type="text" id="de-address" maxlength="300" value="${esc(s.address || '')}"></label>
           <div class="full de-pos">
             <span class="de-pos-l">位置${POS_LEVEL_LABEL[s.posLevel] ? `: ${POS_LEVEL_LABEL[s.posLevel]}` : (s.lat != null ? '' : ': 未設定')}</span>
             <button type="button" class="btn small" id="de-pos-addr">住所から探す</button>

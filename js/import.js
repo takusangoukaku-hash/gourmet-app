@@ -272,7 +272,7 @@ const Import = (() => {
         <div class="im-when">${esc(when)}${g.lat == null ? '<span class="im-nogps">場所の情報なし</span>' : ''}</div>
         <div class="im-shop">
           ${(opts.length > 1 && g.searched) ? `<select class="im-sel" aria-label="店">${opts.map(o => `<option value="${esc(o.v)}"${o.v === curV ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select>` : (g.searched ? '' : '<span class="im-ai dim">候補を探しています…</span>')}
-          <input type="text" class="im-name${(curV === 'manual' && g.searched) ? '' : ' hidden'}" placeholder="店名" value="${esc(g.name)}">
+          <input type="text" maxlength="100" class="im-name${(curV === 'manual' && g.searched) ? '' : ' hidden'}" placeholder="店名" value="${esc(g.name)}">
         </div>
         <div class="im-row"><div class="im-stars stars"></div>${ai}</div>
       </div>

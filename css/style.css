@@ -34,6 +34,7 @@ body {
     "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
   background: var(--bg); color: var(--text); font-size: 15px;
   overflow-x: hidden; /* 横スクロール・横はみ出しの防止（保険） */
+  overflow-wrap: break-word; /* v407: 空白の無い長い英数字（URL など）は、はみ出すときだけ途中で折り返す（住所・ひとことが右端で切れていた） */
 }
 
 /* 見出し・店名もゴシック（v335〜。明朝は廃止。ブランドロゴの Poppins だけ別書体） */
