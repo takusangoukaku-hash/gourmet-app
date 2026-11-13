@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v419'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v420'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
@@ -512,6 +512,11 @@ const App = (() => {
             if (!reloadPending) { reloadPending = true; toast('新しい版があります ・ 記録を保存すると切り替わります'); }
             return;
           }
+          // v420: 復元・まとめて取り込みの書き込み中は、頼んだ切り替えでも終わるまで待つ（途中で再読み込みすると取り込みが半端になる）
+          if (writingBusy()) {
+            if (!reloadWait) reloadWait = setInterval(() => { if (!writingBusy()) { clearInterval(reloadWait); reloadWait = 0; tryReload(); } }, 2000);
+            return;
+          }
           // v396: 別のタブで切り替えた等、自分で頼んでいない切り替えは、文字を打っている・シートを開いている間は待つ（打った内容が消えていた）
           const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
           if (!userWantsUpdate && (typing || document.querySelector('.modal:not(.hidden)'))) {
@@ -805,13 +810,21 @@ const App = (() => {
     const f = (x) => [x.missing ? `無い ${x.missing}` : '', x.older ? `古い ${x.older}` : ''].filter(Boolean).join('・') || 'なし';
     return `店: ${f(d.shop)}\n記録: ${f(d.visit)}\n行きたい: ${f(d.wish)}`;
   }
+  // v420: 復元・取り込みの書き込み中は、新しい版への切り替え（再読み込み）を待つ
+  let restoring = 0;
+  const writingBusy = () => restoring > 0 || (typeof Import !== 'undefined' && Import.isSaving && Import.isSaving());
   async function restoreBackup(data) {
+    restoring++;
+    try { return await restoreBackupInner(data); } finally { restoring--; }
+  }
+  async function restoreBackupInner(data) {
     if (!isPlain(data) || data.app !== 'BITEMAP') throw new Error('BITEMAPのバックアップファイルではありません');
     // 新しい方を採用して取り込む（既存の記録は消さない）
     let added = 0;
     const merge = (kind, locals, list) => {
       const map = new Map(locals.map(x => [x.id, x]));
       const take = []; // v396: まとめて書き出す（1件ごとに全件を保存していた）
+      const revived = [];
       for (const raw of (Array.isArray(list) ? list : [])) {
         const r = sanitizeRecord(kind, raw);
         if (!r) continue;
@@ -821,11 +834,12 @@ const App = (() => {
           // v392: こちらに無い記録を戻すときは「今」直したことにし、端末の削除の控えも外す。元の updatedAt のままだと、
           // 消したときのクラウドの控え（削除の時刻）より古いので、次の同期でまた消えていた
           r.updatedAt = Date.now();
-          try { Store.clearDeleted(kind, r.id); } catch { /* noop */ }
+          revived.push(r.id); // v420: 削除の控えを外すのは書けたあと（書く途中で空き不足になると、控えだけ消えて記録が無かった）
           take.push(r); added++;
         } else if ((r.updatedAt || 0) > (l.updatedAt || 0)) { take.push(r); added++; }
       }
       Store.applyRemoteMany(kind, take);
+      for (const id of revived) { try { Store.clearDeleted(kind, id); } catch { /* noop */ } }
     };
     merge('shop', Store.rawShops(), data.shops);
     merge('visit', Store.rawVisits(), data.visits);
@@ -856,19 +870,22 @@ const App = (() => {
     const PHOTO_TYPES = ['dish', 'exterior', 'interior', 'menu'];
     for (const p of (Array.isArray(data.photos) ? data.photos : [])) {
       if (!isPlain(p) || typeof p.visitId !== 'string' || typeof p.shopId !== 'string' || !ID_RE.test(p.visitId) || !ID_RE.test(p.shopId)) continue;
-      if (!Store.visits().some(v => v.id === p.visitId)) continue;
+      const pv = Store.visits().find(v => v.id === p.visitId);
+      if (!pv) continue;
+      const pShop = pv.shopId; // v420: 店は訪問の店に合わせる（ファイルの店 id が訪問と食い違っていても別の店に付けない）
+      const pCreated = num(p.createdAt, 0, 1e13, 0); // v420: 数でない・範囲外の時刻は入れない
       // 写真データは画像のデータURLだけを受け付ける（外部URLへ通信させない・巨大データを入れない）
       if (typeof p.data !== 'string' || p.data.length > MAX_PHOTO_CHARS || !DATA_IMG_RE.test(p.data)) continue;
       const have = await Store.photosOfVisit(p.visitId);
-      if (have.some(x => (p.hash && x.hash === p.hash) || (p.createdAt && x.createdAt === p.createdAt))) continue;
+      if (have.some(x => (p.hash && x.hash === p.hash) || (pCreated && x.createdAt === pCreated))) continue;
       let blob = null;
       try { blob = await (await fetch(p.data)).blob(); } catch { blob = null; }
       if (!blob || !blob.type.startsWith('image/')) continue;
       const ptype = PHOTO_TYPES.includes(p.type) ? p.type : 'dish';
       const phash = (typeof p.hash === 'string' && /^[0-9a-f]{0,64}$/.test(p.hash)) ? p.hash : '';
-      const newId = await Store.addPhoto(p.shopId, p.visitId, ptype, blob, phash);
+      const newId = await Store.addPhoto(pShop, p.visitId, ptype, blob, phash);
       // 取り込んだ写真の登録時刻を元の値に揃える（並び順を保つ）
-      if (p.createdAt && newId) { try { await Store.setPhotoCreatedAt(newId, p.createdAt); } catch { /* 任意 */ } }
+      if (pCreated && newId) { try { await Store.setPhotoCreatedAt(newId, pCreated); } catch { /* 任意 */ } }
       photos++;
     }
     // 他人の投稿の控え: 決まった2つのキーだけ、投稿配列の形をしているものだけ取り込む

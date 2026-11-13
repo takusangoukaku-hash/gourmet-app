@@ -435,5 +435,5 @@ const Import = (() => {
     }
   }
 
-  return { init, open, groupItems };
+  return { init, open, groupItems, isSaving: () => saving }; // v420: 保存中は新しい版への切り替えを待つ（app.js）
 })();
