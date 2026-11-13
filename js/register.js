@@ -213,6 +213,7 @@ const Register = (() => {
       // 打った名前に改名されたり、新しい店が別の候補の位置・ID を引き継いだりしていた
       const val = $('#f-shop-name').value.trim();
       if (selected && (autoPicked || selected.existingShopId) && val !== String(selected.name || '').trim()) {
+        if (selected.existingShopId) resetShopExtras(); // v422
         selected = null; autoPicked = false;
         document.querySelectorAll('#shop-candidates .candidate').forEach(x => x.classList.remove('selected', 'hidden'));
         // v393: 前の候補から自動で入ったジャンルは、店を外したら一緒に外す（手動・AI 判定のものは残す）
@@ -241,6 +242,8 @@ const Register = (() => {
     //   前面に戻ってアプリが生きていれば消す（入力はそのまま残っている）。終わらされていたら次の起動で戻す（restoreAutoDraft）
     document.addEventListener('visibilitychange', () => { if (document.hidden) autoDraftSave(); else autoDraftClear(); });
     window.addEventListener('pagehide', autoDraftSave);
+    // v422: 裏に回ったらカメラを止める（動いたままだとカメラ使用中の表示が残り、iOS では戻ると映像が止まっていた）
+    document.addEventListener('visibilitychange', () => { if (document.hidden && camStream) stopCamera(); });
     window.addEventListener('pageshow', (e) => { if (e.persisted) autoDraftClear(); }); // v416: 戻る・進むのキャッシュから戻ったときも、生きている入力があるので控えを消す
     restoreAutoDraft().finally(() => { autoDraftReady = true; refreshDraftsBanner(); });
     renderPreviews(); // 初期表示から「＋写真」タイルを出す
@@ -543,6 +546,13 @@ const Register = (() => {
         $('#camera-input').click();
       });
   }
+  // v422: 登録済みの店を選んだときに引き継いだ「店の評価3軸」と「お気に入り」を、別の店に変えたら戻す（前の店の値が次の店に書かれていた）
+  function resetShopExtras() {
+    shopRatings = { casual: 0, atmosphere: 0, speed: 0 };
+    mountAxisStars();
+    $('#f-fav').checked = false;
+    updateFavStar();
+  }
   function stopCamera() {
     if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
     $('#cam-video').srcObject = null;
@@ -704,7 +714,9 @@ const Register = (() => {
     // v393: 常にいまの写真から決める（使える撮影日が無ければ ''＝保存時に当日）
     visitDate = earliestPhotoDate();
 
-    if (gps) {
+    // v422: 店を選んだあと（自動の選択も）に写真を足しても候補を取り直さない（自動で選び直して、直した住所・駅が消えていた）
+    if (gps && selected) { status.classList.add('hidden'); }
+    else if (gps) {
       status.classList.remove('hidden');
       status.innerHTML = `位置情報から周辺の店の候補を検索中…`;
       await loadCandidates(gps.lat, gps.lon);
@@ -742,6 +754,7 @@ const Register = (() => {
       dishPhoto.classified = true; // v394: 同じ写真を何度もAI判定しない
       const result = await Api.classifyDishPhoto(dishPhoto.file);
       if (seq !== formSeq) return; // 別の記録のフォームに結果を入れない
+      if (!pendingPhotos.includes(dishPhoto)) { if (!userTouchedGenres) updateGenrePill(); return; } // v422: 判定中にその写真を外したら結果は使わない
       if (result && (result.dishGenres.length || result.shopGenre)) {
         if (result.shopGenre) derivedShopGenre = result.shopGenre; // 内部保持のみ
         if (userTouchedGenres) {
@@ -1062,12 +1075,13 @@ const Register = (() => {
     const stationInput = $('#f-station');
     if (needStation) stationInput.placeholder = '最寄駅を検索中…';
     const seq = formSeq; // v393
+    const mine = selected; // v422: 待っている間に別の店を選んだら、この店の住所・駅を入れない
     try {
       const [geo, station] = await Promise.all([
         needGeo ? Api.reverseGeocode(shop.lat, shop.lon) : Promise.resolve({}),
         needStation ? Api.nearestStation(shop.lat, shop.lon) : Promise.resolve(''),
       ]);
-      if (seq !== formSeq) return; // v393: 別の記録のフォームに住所・駅を入れない
+      if (seq !== formSeq || selected !== mine) return; // v393: 別の記録のフォームに住所・駅を入れない。v422: 別の店を選んだあとも
       // ユーザーが手入力済みの欄は上書きしない
       if (needStation && station && !stationInput.value) stationInput.value = station;
       if (geo.pref && !$('#f-pref').value) $('#f-pref').value = geo.pref;
@@ -1111,6 +1125,7 @@ const Register = (() => {
   async function applyLocation(c) {
     // v396: 前に選んだ店（登録済み・別の候補）の住所・駅・県・市が残らないよう、選び直したら空にしてから入れる
     if (selected) for (const id of ['#f-address', '#f-station', '#f-pref', '#f-city']) $(id).value = '';
+    if (selected && selected.existingShopId) resetShopExtras(); // v422
     selected = { existingShopId: null, osmId: c.osmId || '', name: c.name || '', address: c.address || '', lat: c.lat, lon: c.lon, pref: '', city: '',
       coarse: !!c.coarse, posLevel: c.posLevel || (c.lat != null ? 'block' : ''), // 位置の精度（v340〜。町丁目までなら写真の位置を優先する）
       station: '', country: '日本',
