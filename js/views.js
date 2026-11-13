@@ -963,6 +963,7 @@ const Views = (() => {
       // タップ: ピン → 店舗ポップアップ / クラスター → ズームイン / 行きたい → 行きたいポップアップ
       // ピンが重なっているとき（同じビルの店など）は一覧から選ぶ（v371〜）
       map.on('click', 'pins', (e) => {
+        if (mapPick) return; // v423: 位置を指定している間はピンのシートを開かない（指定の印と決定のボタンが隠れていた）
         // 描かれているピンだけでなく、重なって隠れているピン（同じ座標の店）も元データから拾う
         const q = map.project(e.features[0].geometry.coordinates);
         const near = map.querySourceFeatures('shops').filter(x => !x.properties.cluster && x.geometry && x.geometry.type === 'Point')
@@ -971,11 +972,12 @@ const Views = (() => {
         if (uniq.length > 1) { openClusterList(uniq); return; }
         openPinPopup(e.features[0]);
       });
-      map.on('click', 'wish-pins', (e) => openWishPopup(e.features[0]));
+      map.on('click', 'wish-pins', (e) => { if (!mapPick) openWishPopup(e.features[0]); });
       const zoomCluster = (e) => {
         const f = e.features[0];
         const src = map.getSource('shops');
         src.getClusterExpansionZoom(f.properties.cluster_id).then(z => {
+          if (mapPick) { map.easeTo({ center: f.geometry.coordinates, zoom: z }); return; } // v423: 位置の指定中は一覧を出さず寄せるだけ
           // ズームしても分かれないほど近いまとまりは、中の店の一覧を出す（v371〜）。
           // v394: clusterMaxZoom が 11 なので展開の z は 12 までしか返らず、以前の「z15 以上」は一度も成り立たなかった。
           // 中の店が 120m 以内に収まっていれば一覧、それ以外はズーム
@@ -1543,11 +1545,14 @@ const Views = (() => {
       <div class="msh-tiles">${tiles.map(t => `<button type="button" class="msh-tile ${t.cls}${t.primary ? ' pri' : ''}">${t.icon}<span>${esc(t.label)}</span></button>`).join('')}</div>
       ${facts.length ? `<div class="msh-facts">${facts.map(f => `<div class="msh-fact"><div class="k">${esc(f.k)}</div><div class="v">${f.star ? starIc('full', 13) : ''}${esc(f.v)}</div></div>`).join('')}</div>` : ''}`;
   }
+  let mapSheetSeq = 0;
   async function showMapShopSheet(shopId) {
     const s = Store.getShop(shopId);
     if (!s) return;
     const vs = Store.visitsOf(shopId);
+    const mySeq = ++mapSheetSeq;
     const photos = (await Store.allPhotos()).filter(p => p.shopId === shopId);
+    if (mySeq !== mapSheetSeq) return; // v423: 読み込みの間に別のピンを押したら、後の方だけ開く（シートが2枚重なっていた）
     const vById = new Map(vs.map(v => [v.id, v]));
     const shotTime = (p) => {
       const v = vById.get(p.visitId);
@@ -2006,10 +2011,16 @@ const Views = (() => {
     } catch { /* noop */ }
   }
   async function loadNetworkPosts() {
+    const gen = socialGen;
     try {
-      networkPosts = cleanNetPosts((typeof Cloud !== 'undefined') ? await Cloud.fetchNetworkPosts() : []);
+      const got = cleanNetPosts((typeof Cloud !== 'undefined') ? await Cloud.fetchNetworkPosts() : []);
+      if (gen !== socialGen) return; // v423: 取得中にアカウント・フォローが変わったら前の人の投稿を入れない
+      networkPosts = got;
       try { localStorage.setItem(NET_LS, JSON.stringify({ posts: networkPosts, time: Date.now() })); } catch { /* noop */ }
-    } catch { loadCachedNetwork(); /* 取得失敗時は前回の控えを使う */ }
+    } catch {
+      loadCachedNetwork(); // 取得失敗時は前回の控えを使う
+      if (gen === socialGen) { networkLoaded = false; netFailAt = Date.now(); } // v423: 次に地図・店を開いたとき取り直す（以前は起動中ずっと古い控えのまま）
+    }
   }
 
   function refreshMap() {
@@ -2046,17 +2057,19 @@ const Views = (() => {
   }
 
   // フォロー中の人の訪問記録を自動で読み込む（ログイン中・初回のみ）。cbで読み込み後の再描画もできる
+  let netFailAt = 0; // v423: フォロー中の投稿の取得に失敗した時刻
   let networkLoading = null; // v394: 読み込み中の Promise（読み込み中に開いたシートも、届いたら描き直す）
   function ensureNetworkLoaded(cb) {
     if (networkLoading) { if (cb) networkLoading.then(cb, cb); return; }
     if (networkLoaded || typeof Cloud === 'undefined' || !Cloud.getUser()) return;
+    if (Date.now() - netFailAt < 60000) return; // v423: 失敗したら1分は取り直さない（店の詳細の描き直しと繰り返さないため）
     networkLoaded = true;
     // 前回の控えがあれば、取得を待たずまず地図へ反映（体感を速くする）
     loadCachedNetwork();
     if (networkPosts.length && mapLoaded) refreshMapData(false);
-    networkLoading = loadNetworkPosts().then(() => {
+    const pr = networkLoading = loadNetworkPosts().then(() => {
       if (mapLoaded) refreshMapData(false);
-    }).catch(() => {}).finally(() => { networkLoading = null; });
+    }).catch(() => {}).finally(() => { if (networkLoading === pr) networkLoading = null; }); // v423: 切り替えで捨てた読み込みが新しい方を消さない
     if (cb) networkLoading.then(cb, cb); // 失敗しても骨組み表示のままにしない
   }
 
@@ -2268,8 +2281,10 @@ const Views = (() => {
       if (!cur.name) return;
       searchBtn.disabled = true; cands.innerHTML = '<p class="hint">探しています…</p>';
       let list = [];
+      const asked = ta.value;
       try { list = await Api.searchShopsFast(cur.name + (cur.address ? ' ' + cur.address : ''), cur.name, cur.lat != null ? { lat: cur.lat, lon: cur.lon } : lastKnownPos); } catch { list = []; }
       searchBtn.disabled = false;
+      if (ta.value !== asked || !cands.isConnected) { paint(); return; } // v423: 探している間に店名を打ち替えた・閉じたら、古い候補を出さない
       list = (list || []).slice(0, 6);
       if (!list.length) { cands.innerHTML = '<p class="hint">候補が見つかりませんでした。このまま保存すると、位置なしの行きたい店になります。</p>'; return; }
       cands.innerHTML = list.map((c, i) => `<button type="button" class="wa-cand" data-i="${i}"><b>${esc(c.name || '')}</b><span>${esc(c.address || '')}${c.distance != null ? `　${c.distance < 1000 ? Math.round(c.distance) + 'm' : (c.distance / 1000).toFixed(1) + 'km'}` : ''}</span></button>`).join('');
@@ -2940,16 +2955,18 @@ const Views = (() => {
   }
   // 画面外の項目は後から描く（v359〜）: 先頭 CHUNK 件だけ作り、末尾の番兵が近づいたら次の CHUNK 件を足す。
   // grid に番兵（全列ぶん）を置く。make(i) が i 番目の要素を返す。並び順の計算は呼び出し側で先に済ませる
-  function appendChunked(grid, total, make, chunk) {
+  function appendChunked(grid, total, make, chunk, initial) {
     const CH = chunk || 40;
     let pos = 0;
+    let first = Math.max(CH, initial || 0); // v423: 描き直しでは前に描いていた数まで最初に描く
     if (grid.__chunkIO) { grid.__chunkIO.disconnect(); grid.__chunkIO = null; } // v394: 同じ格子に描き直したら前の監視を切る
     const sentinel = document.createElement('div');
     sentinel.className = 'mz-more';
     grid.appendChild(sentinel);
     const fill = () => {
       const frag = document.createDocumentFragment();
-      for (let n = 0; n < CH && pos < total; n++, pos++) frag.appendChild(make(pos));
+      const lim = first || CH; first = 0;
+      for (let n = 0; n < lim && pos < total; n++, pos++) frag.appendChild(make(pos));
       grid.insertBefore(frag, sentinel);
       if (pos >= total) sentinel.remove();
     };
@@ -3038,6 +3055,7 @@ const Views = (() => {
     const n = mzSel.bar && mzSel.bar.querySelector('.mz-seln');
     if (n) n.textContent = `${mzSel.items.size}枚を選択`;
   }
+  const isSelecting = () => !!(mzSel.grid && mzSel.grid.isConnected);
   function mzSelEnd() {
     if (mzSel.grid) { mzSel.grid.classList.remove('mz-selecting'); mzSel.grid.querySelectorAll('.mz-sel').forEach(x => x.classList.remove('mz-sel')); }
     if (mzSel.bar) mzSel.bar.remove();
@@ -3412,6 +3430,7 @@ const Views = (() => {
   // ========== 写真ギャラリー ==========
   // 写真だけの全画面（v384〜 店の詳細の写真の帯から）: 左右送り（スナップ）・ピンチと2回タップで拡大・下に日付と★・「記録を見る」
   // items: [{ph, rating, date}]。opts.onRecord(i) があれば「記録を見る」を出す
+  const pvNavOff = () => { try { return !!localStorage.getItem('gourmet.pvNavOff'); } catch { return false; } };
   function openPhotoViewer(items, index, opts) {
     if (!items || !items.length) return;
     const o = opts || {};
@@ -3420,7 +3439,7 @@ const Views = (() => {
     ov.innerHTML = `<button type="button" class="pv-close" aria-label="閉じる">${IC_X}</button>
       <div class="pv-count"></div>
       <div class="pv-track">${items.map(() => '<div class="pv-slide"><img class="pv-img" alt="" decoding="async"></div>').join('')}</div>
-      ${items.length > 1 && !localStorage.getItem('gourmet.pvNavOff') ? `<button type="button" class="pv-nav pv-prev" aria-label="前の写真">‹</button><button type="button" class="pv-nav pv-next" aria-label="次の写真">›</button>` : ''}
+      ${items.length > 1 && !pvNavOff() ? `<button type="button" class="pv-nav pv-prev" aria-label="前の写真">‹</button><button type="button" class="pv-nav pv-next" aria-label="次の写真">›</button>` : ''}
       <div class="pv-foot"><span class="pv-cap"></span><span class="pv-btns">${o.shop ? `<button type="button" class="btn small pv-share">${IC_SHARE_S} 共有</button>` : ''}${o.onRecord ? '<button type="button" class="btn small pv-rec">記録を見る</button>' : ''}${items.some(it => it.ph) ? `<button type="button" class="btn small icon-only pv-more" aria-label="メニュー">${IC_MORE}</button>` : ''}</span></div>`;
     const track = ov.querySelector('.pv-track');
     const slides = [...track.children];
@@ -3547,9 +3566,10 @@ const Views = (() => {
         loginLabel().textContent = 'ログイン中…';
         try { await Cloud.login(); }
         catch (e) {
-          loginLabel().textContent = 'Googleでログインして同期';
           App.toast('ログインに失敗しました: ' + (e && e.message || e));
         }
+        // v423: ポップアップを閉じたとき（Cloud.login は投げずに戻る）も「ログイン中…」のままにしない
+        if (!Cloud.getUser()) loginLabel().textContent = 'Googleでログインして同期';
       });
       $('#pf-logout').addEventListener('click', () => Cloud.logout());
       // 写真の強制再同期（Storageルール修正後の穴埋め・別端末への取り込み）
@@ -3657,11 +3677,16 @@ const Views = (() => {
   }
 
   // プロフィールの写真グリッド（全写真・撮影日の新しい順・タップで拡大）
+  let pfPhotoSeq = 0;
   async function renderProfilePhotos() {
     const box = $('#pf-photo-grid');
-    box.className = 'photo-grid'; // 骨組み・空表示はグリッド、カード一覧のときだけ切り替える
-    box.innerHTML = SKEL_GRID;
-    const photos = await Store.allPhotos();
+    const seq = ++pfPhotoSeq;
+    // v423: 描き直し（同期の refreshCurrent など）では骨組みに戻さず、描いていた枚数まで一度に描く（スクロールが先頭へ戻っていた）
+    const prevN = box.classList.contains('pf-mz') ? box.querySelectorAll(':scope > :not(.mz-more)').length : 0;
+    if (!prevN) { box.className = 'photo-grid'; box.innerHTML = SKEL_GRID; } // 骨組み・空表示はグリッド、カード一覧のときだけ切り替える
+    let photos;
+    try { photos = await Store.allPhotos(); } catch { photos = []; }
+    if (seq !== pfPhotoSeq) return; // 後から始めた描き直しに任せる
     // 撮影日（訪問日）の新しい順。日付が無ければ登録順で補完
     const vById = new Map(Store.visits().map(v => [v.id, v]));
     const shotTime = (p) => {
@@ -3737,7 +3762,7 @@ const Views = (() => {
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
       return card;
-    });
+    }, 40, prevN);
   }
 
   // 「上への継ぎ足し」や「写真の非同期読み込み」で前方の内容が伸び縮みしても、
@@ -3980,7 +4005,9 @@ const Views = (() => {
       }).join('') : '<div class="pd-cempty">まだコメントはありません</div>';
       const st = feedStats.get(postId); if (st) { st.comments = arr.length; applyStats(st); }
       list.querySelectorAll('.pd-cdel').forEach(b => b.addEventListener('click', async () => {
-        await Cloud.deleteComment(postId, b.dataset.cid); loadComments();
+        b.disabled = true;
+        try { await Cloud.deleteComment(postId, b.dataset.cid); } catch (e) { b.disabled = false; App.toast('コメントを削除できませんでした'); return; }
+        loadComments();
       }));
     };
     let loaded = false;
@@ -4035,7 +4062,7 @@ const Views = (() => {
       } catch (e) { console.warn('画像カードを作れませんでした（文字で共有）:', e); await shareText(); }
     };
     if (!card) { await shareText(); return; }
-    const last = localStorage.getItem('gourmet.shareShape') || '';
+    let last = ''; try { last = localStorage.getItem('gourmet.shareShape') || ''; } catch { /* noop */ }
     const remember = (k, fn) => () => { try { localStorage.setItem('gourmet.shareShape', k); } catch { /* noop */ } fn(); };
     const acts = [
       { k: 'story', label: '縦長の画像（ストーリー向け）', onClick: remember('story', () => shareImage('story')) },
@@ -4159,7 +4186,7 @@ const Views = (() => {
       const latest = vs[0];
       openActionSheet([
         { label: '店の詳細を見る', onClick: () => showShop(g.shopId) },
-        ...(latest ? [{ label: '最新の記録を編集', onClick: () => openVisitEdit(latest.id, () => App.refreshCurrent()) }] : []), // v372〜 シートで直す（訪問の一覧は廃止）
+        ...(latest ? [{ label: '最新の記録を編集', onClick: () => openVisitEdit(latest.id, () => { document.querySelectorAll('.modal.shopfeed-modal').forEach(m => m.remove()); App.refreshCurrent(); }) }] : []), // v372〜 シートで直す（訪問の一覧は廃止）
         ...(hasPos ? [{ label: '地図で見る', onClick: () => focusMapAt(s.lat, s.lon) }] : []),
       ]);
     });
@@ -5187,13 +5214,20 @@ const Views = (() => {
       ensureNetworkLoaded(() => {
         // 読み込み中に編集画面へ移った・別の店へ移った・閉じた場合は描き直さない（入力中の内容を消さないため）
         if (shopModalToken !== myToken) return;
-        if (isShopOpen(shopId)) showShop(shopId);
+        if (!isShopOpen(shopId)) return;
+        // v423: この店のフォロー中の投稿が変わったときだけ描き直す（開いた「お店の評価」・スクロールが戻っていた）。描き直すときもスクロールは保つ
+        const s2 = Store.getShop(shopId);
+        const key = (ps) => ps.map(p => p.id || '').sort().join(',');
+        if (!s2 || key(followerPostsForShop(s2)) === fpKey) return;
+        const sc = $('#modal'); const top = sc ? sc.scrollTop : 0; // 店の詳細は #modal（全画面）がスクロールする
+        showShop(shopId).then(() => { if (sc && isShopOpen(shopId)) sc.scrollTop = top; });
       });
     }
     // 店舗詳細は「店」が主役: 地図の表示切替に関係なく、この店に行った
     // フォロー中の人の記録も常に表示する（味覚一致率の高い順に並ぶ）
     loadCachedNetwork();
     const fps = followerPostsForShop(s).sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0));
+    const fpKey = fps.map(p => p.id || '').sort().join(',');
     // 評価は本人＋フォロワーの合算平均（小数第1位）
     const allRatings = [...vs.map(v => v.rating || 0), ...fps.map(p => p.rating || 0)].filter(r => r > 0);
     const avg = allRatings.length ? Math.round(allRatings.reduce((a, b) => a + b, 0) / allRatings.length * 10) / 10 : 0;
@@ -6033,6 +6067,8 @@ const Views = (() => {
 
   // ========== ホーム／フィード ==========
   const feedPosts = new Map();     // id → 投稿データ（詳細表示用）
+  const homeSquareOn = () => { try { return !!localStorage.getItem('gourmet.homeSquare'); } catch { return false; } };
+  let socialGen = 0;               // v423: ログアウト・別アカウント・フォローの変更で進める（取得中の古い結果を捨てる）
   let feedCache = null;            // { posts, time }：短時間の再表示は再取得しない
   const feedStats = new Map();     // id → { likes, liked, comments }（いいね/コメント数のキャッシュ）
   const FEED_TTL = 45000;          // キャッシュ有効時間（ミリ秒）
@@ -6178,21 +6214,29 @@ const Views = (() => {
     }
     // キャッシュが無い初回・プルリフレッシュは取得を待って描画
     if (!feedCache) box.innerHTML = SKEL_FEED;
-    await refetchFeed(false);
+    const got = await refetchFeed(false);
+    if (!got && !feedCache) { // v423: 読めなかったときは空の状態ではなく、読み直しのボタン
+      box.innerHTML = emptyBox(EMPTY_IC_PEOPLE, '投稿を読み込めませんでした', '<button class="btn" id="feed-retry">読み直す</button>');
+      const rb = $('#feed-retry'); if (rb) rb.addEventListener('click', () => renderFeed(true));
+      return;
+    }
     paintFeed(feedCache ? feedCache.posts : []);
   }
 
   // フィードを取得し直して控えを更新する。repaintChanged=true なら内容が変わったときだけ描き直す
   async function refetchFeed(repaintChanged) {
+    const gen = socialGen;
     let posts;
     try { posts = await Cloud.fetchFeed(); }
-    catch { posts = (feedCache && feedCache.posts) || []; }
+    catch { return false; } // v423: 失敗を「空のフィード」として控えない（45秒は取り直さず「まだ投稿がありません」が出ていた）
+    if (gen !== socialGen) return false; // v423: 取得中にログアウト・別アカウント・フォローの変更があったら捨てる
     const changed = !feedCache || JSON.stringify(feedCache.posts) !== JSON.stringify(posts);
     feedCache = { posts, time: Date.now() };
     try { localStorage.setItem(FEED_LS, JSON.stringify({ posts, time: Date.now() })); } catch { /* 容量超過時は諦める */ }
     if (changed) feedStats.clear(); // 取り直したら数値キャッシュも作り直す
     warmPhotos(posts);
     if (repaintChanged && changed) paintFeed(posts);
+    return true;
   }
 
   // 投稿一覧の描画（renderFeedの表示部分。裏の再取得後の差し替えでも使う）
@@ -6242,7 +6286,7 @@ const Views = (() => {
     box.className = 'feed-list mz-grid feed-mz';
     box.innerHTML = '';
     // 見た目が整う順（v331〜）: おすすめ／新着の順を土台に、直近4件の中から列が揃う写真を選ぶ。カードの下の段ぶん（投稿者といいね）は extra で見込む
-    const square = !!localStorage.getItem('gourmet.homeSquare'); // v378〜 設定→表示「ホームの写真」
+    const square = homeSquareOn(); // v378〜 設定→表示「ホームの写真」
     box.classList.toggle('feed-square', square);
     const shown = mzOrder(posts, p => (square ? 1 : (Number(p.ar) || 0)), mzCols(box), 0.28);
     appendChunked(box, shown.length, (i) => buildFeedCard(shown[i], shown, i));
@@ -6295,8 +6339,14 @@ const Views = (() => {
   function pickOnMap(center, cb) {
     closeModal();
     App.switchTab('map');
+    const t0 = Date.now();
     const start = () => {
-      if (!map || !mapLoaded) { setTimeout(start, 200); return; }
+      // v423: 地図を離れた・30秒たっても地図が描けない（接続なし）ときはやめる（以前は待ち続け、あとで急に位置指定が始まった）
+      if (document.body.dataset.tab !== 'map') return;
+      if (!map || !mapLoaded) {
+        if (Date.now() - t0 > 30000) { App.toast('地図を読み込めませんでした'); return; }
+        setTimeout(start, 200); return;
+      }
       if (center && center.lat != null) map.jumpTo({ center: [center.lon, center.lat], zoom: 17 });
       mapHasView = true;
       mapPick = { cb };
@@ -6370,7 +6420,7 @@ const Views = (() => {
         </div>` : ''}
       </div>`;
     const img = card.querySelector('.fcard-img');
-    if (localStorage.getItem('gourmet.homeSquare')) { // v378〜 正方形（読み込んだら行数だけ合わせる）
+    if (homeSquareOn()) { // v378〜 正方形（読み込んだら行数だけ合わせる）
       img.style.aspectRatio = '1 / 1'; img.addEventListener('load', () => mzFit(card));
       // v393: 写真なし・読み込み失敗でも行数を合わせる（mzWatch と同じく大きさの変化も見る）
       img.addEventListener('error', () => mzFit(card));
@@ -6759,8 +6809,8 @@ const Views = (() => {
     ov.querySelector('.nt-close').addEventListener('click', close);
     document.body.appendChild(ov);
 
-    let list = [];
-    try { list = await Cloud.fetchNotifications(); } catch { list = []; }
+    let list = [], fetched = false;
+    try { list = await Cloud.fetchNotifications(); fetched = true; } catch { list = []; }
     if (!list.length) {
       body.innerHTML = `<div class="empty"><p>まだお知らせはありません</p></div>`;
     } else {
@@ -6804,8 +6854,8 @@ const Views = (() => {
         });
       }
     }
-    // 既読にしてバッジを消す
-    try { await Cloud.markNotificationsRead(); } catch { /* noop */ }
+    // 既読にしてバッジを消す（v423: 読めたときだけ。読めずに既読にすると、見ていないお知らせが消えていた）
+    if (fetched && list.length) { try { await Cloud.markNotificationsRead(); } catch { /* noop */ } }
     refreshNotifBadge();
   }
 
@@ -7052,17 +7102,17 @@ const Views = (() => {
 
   // フォロー／解除の後: ホーム・地図・発見の他人の投稿を次に開いたとき取り直す（v394。以前は再起動まで古いまま）
   function onFollowChanged() {
-    feedCache = null; networkLoaded = false; exploreNetCache = null; exploreItems = null; tasteKey = '';
+    socialGen++; netFailAt = 0; feedCache = null; networkLoaded = false; networkLoading = null; exploreNetCache = null; exploreItems = null; tasteKey = '';
     try { localStorage.removeItem(FEED_LS); } catch { /* noop */ }
   }
   // 他人の投稿の控え（フィード・地図）をメモリからも消す（ログアウト／別アカウントでのログイン時）
   function clearSocialCaches() {
-    feedCache = null; feedStats.clear(); feedPosts.clear();
-    networkPosts = []; networkLoaded = false; tasteKey = ''; tasteRates = new Map();
+    socialGen++; netFailAt = 0; feedCache = null; feedStats.clear(); feedPosts.clear();
+    networkPosts = []; networkLoaded = false; networkLoading = null; tasteKey = ''; tasteRates = new Map();
     exploreNetCache = null; exploreItems = null; // v396: 発見・写真モードに前のアカウントのフォロー中の写真を残さない
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { searchNorm, fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { isSelecting, searchNorm, fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）

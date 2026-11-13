@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v422'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v423'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';
@@ -610,7 +610,7 @@ const App = (() => {
   function refreshCurrent() {
     if (currentTab === 'feed') Views.renderFeed();
     else if (currentTab === 'map') Views.refreshMap();
-    else if (currentTab === 'list') Views.renderList();
+    else if (currentTab === 'list') { if (!(Views.isSelecting && Views.isSelecting())) Views.renderList(); } // v423: 写真を選んでいる間は同期で描き直さない（選択が外れていた）
     else if (currentTab === 'profile') Views.renderProfile(); // 統計もプロフィール内で描画
   }
 
