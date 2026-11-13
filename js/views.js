@@ -1059,7 +1059,10 @@ const Views = (() => {
     // 地図の検索欄は普段は丸いボタンだけ。タップで開き、空のまま離れたら閉じる（v340〜）
     const msf = $('.map-search-field');
     $('#map-search-open').addEventListener('click', () => { msf.classList.remove('collapsed'); setTimeout(() => $('#map-search').focus(), 50); });
-    $('#map-search').addEventListener('blur', () => { setTimeout(() => { if (!$('#map-search').value.trim()) msf.classList.add('collapsed'); }, 200); });
+    // v417: 欄にまだフォーカスがあるときは閉じない（× で消して欄へ戻したとき、閉じて打てなくなる）
+    $('#map-search').addEventListener('blur', () => { setTimeout(() => { if (!$('#map-search').value.trim() && document.activeElement !== $('#map-search')) msf.classList.add('collapsed'); }, 200); });
+    // v417: 検索の語を消す ×（探すの検索欄と同じ。語があるときだけ出る）。消すと絞り込みと目印を外し、続けて打てるよう欄へ
+    $('#map-kw-clear').addEventListener('click', () => { const i = $('#map-search'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); });
     $('#map-search').addEventListener('focus', () => {
       $('#map-filter-panel').classList.remove('hidden');
       $('.map-scope').classList.add('hidden'); // 詳細検索と重なるため、パネル表示中は隠す

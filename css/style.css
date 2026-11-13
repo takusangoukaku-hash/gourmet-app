@@ -518,7 +518,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .search-field .kw-clear circle { fill: var(--muted); }
 .search-field .kw-clear path { stroke: var(--bg, #fff); stroke-width: 1.75; stroke-linecap: round; fill: none; }
 .search-field input:placeholder-shown + .kw-clear { display: none; }
-#flt-keyword { padding-right: 40px; }
+#flt-keyword, #map-search { padding-right: 40px; }
+.map-search-field.collapsed .kw-clear { display: none; }
 /* テキスト内に置く白黒ピクトグラム（駅・住所・地図・検索など） */
 .ic { width: 14px; height: 14px; vertical-align: -2px; stroke-width: 1.75; flex-shrink: 0; } /* 線画は1組・太さ1.75（v332〜） */
 .x-ic { width: 18px; height: 18px; stroke-width: 2; display: block; margin: auto; } /* 閉じる（絵文字✕の置き換え） */

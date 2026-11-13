@@ -23,7 +23,7 @@
 <!-- 見出しの書体は描画を止めずに後から読む（v370〜。読めるまでは代替の太字） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- ?v= はアプリのバージョンと合わせて更新する（古いキャッシュの混在防止） -->
-<link rel="stylesheet" href="css/style.css?v=416">
+<link rel="stylesheet" href="css/style.css?v=417">
 </head>
 <body>
 
@@ -162,6 +162,7 @@
           <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
         </svg></button>
         <input type="text" id="map-search" maxlength="100" placeholder="場所・駅名" autocomplete="off" aria-label="場所・駅名で探す">
+        <button type="button" id="map-kw-clear" class="kw-clear" aria-label="検索の語を消す"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m7 7 6 6M13 7l-6 6"/></svg></button>
       </div>
       <button type="button" id="map-wish-btn" class="map-wish-btn" title="行きたい店だけ" aria-label="行きたい店だけ表示">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -678,12 +679,12 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <!-- 地図(MapLibre)・EXIF(exifr)・グラフ(Chart.js)は必要になった画面で読み込む（js/app.js の loadLib。バージョン固定＋integrity付き） -->
-<script src="js/store.js?v=416"></script>
-<script src="js/api.js?v=416"></script>
-<script src="js/cloud.js?v=416"></script>
-<script src="js/register.js?v=416"></script>
-<script src="js/import.js?v=416"></script>
-<script src="js/views.js?v=416"></script>
-<script src="js/app.js?v=416"></script>
+<script src="js/store.js?v=417"></script>
+<script src="js/api.js?v=417"></script>
+<script src="js/cloud.js?v=417"></script>
+<script src="js/register.js?v=417"></script>
+<script src="js/import.js?v=417"></script>
+<script src="js/views.js?v=417"></script>
+<script src="js/app.js?v=417"></script>
 </body>
 </html>
