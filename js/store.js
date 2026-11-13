@@ -203,6 +203,37 @@ const Store = (() => {
   }
   // クラウドから取り込んだ写真をそのまま保存（通知しない）
   async function putPhotoRaw(rec) { await writePhoto(rec, false); }
+  // v419: 写真の記録を1つの取引の中で読んで直して書く（付け替え・統合用）。以前は読む取引と書く取引が別で、
+  //   その間に同期が本体（blob）を書き戻すと、本体の無い古い記録で上書きして本体が消えることがあった。
+  //   fn(rec) が false を返したら書かない。直した記録（無ければ null）を返す
+  function patchPhoto(id, fn) {
+    return db().then(d => new Promise((resolve, reject) => {
+      const tx = d.transaction(['photos', 'meta'], 'readwrite');
+      const ps = tx.objectStore('photos'), ms = tx.objectStore('meta');
+      let out = null;
+      const req = ps.get(id);
+      req.onsuccess = () => {
+        const rec = req.result;
+        if (!rec || fn(rec) === false) return;
+        const { thumb, thumbV, hasBlob, ...body } = rec;
+        ps.put(body);
+        out = body;
+        const mreq = ms.get(id);
+        mreq.onsuccess = () => {
+          const prev = mreq.result;
+          const m = metaOf(body);
+          if (prev && prev.thumbV) m.thumbV = prev.thumbV;
+          if (prev && prev.ar && !m.ar) m.ar = prev.ar;
+          ms.put(m);
+        };
+      };
+      tx.oncomplete = () => {
+        if (out && out.hash) { photoHashes[out.hash] = { shopId: out.shopId, visitId: out.visitId }; try { persistHashes(); } catch { /* noop */ } }
+        resolve(out);
+      };
+      tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の保存に失敗しました'));
+    }));
+  }
   // バックアップから復元した写真の登録時刻を元の値に戻す（並び順を保つため）
   async function setPhotoCreatedAt(id, createdAt) {
     const d = await db();
@@ -248,23 +279,23 @@ const Store = (() => {
   // 写真の店・訪問の付け替え（v364〜 店の統合がクラウド経由で届いたとき。通知は出さない）
   // metaAt: クラウドのメタの時刻（同じ値を控えて、次の同期で「こちらが新しい」と誤って押し返さないように）。省略時は今
   async function relinkPhoto(id, shopId, visitId, metaAt) {
-    const rec = await getPhotoRec(id).catch(() => null);
-    if (!rec || (rec.shopId === shopId && (!visitId || rec.visitId === visitId))) return false;
-    rec.shopId = shopId;
-    if (visitId) rec.visitId = visitId;
-    rec.metaAt = Number(metaAt) || Date.now();
-    await writePhoto(rec, false);
-    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash] = { shopId: rec.shopId, visitId: rec.visitId }; try { persistHashes(); } catch { /* noop */ } }
-    return true;
+    const rec = await patchPhoto(id, (r) => {
+      if (r.shopId === shopId && (!visitId || r.visitId === visitId)) return false;
+      r.shopId = shopId;
+      if (visitId) r.visitId = visitId;
+      r.metaAt = Number(metaAt) || Date.now();
+    }).catch(() => null);
+    return !!rec;
   }
   // 写真1枚を別の訪問・別の店へ付け替える（v366〜 投稿詳細の「…」から）。クラウドにはメタ情報だけ送り、前後の訪問の公開投稿を出し直す
   async function movePhoto(id, shopId, visitId) {
-    const rec = await getPhotoRec(id).catch(() => null);
-    if (!rec || !shopId || !visitId) return false;
-    const prevVisitId = rec.visitId;
-    rec.shopId = shopId; rec.visitId = visitId; rec.metaAt = Date.now(); // v392〜 付け替えの時刻（端末間で新しい方を採る）
-    await writePhoto(rec, false);
-    if (rec.hash && photoHashes[rec.hash]) { photoHashes[rec.hash] = { shopId, visitId }; try { persistHashes(); } catch { /* noop */ } }
+    if (!shopId || !visitId) return false;
+    let prevVisitId = '';
+    const rec = await patchPhoto(id, (r) => {
+      prevVisitId = r.visitId;
+      r.shopId = shopId; r.visitId = visitId; r.metaAt = Date.now(); // v392〜 付け替えの時刻（端末間で新しい方を採る）
+    });
+    if (!rec) return false;
     emit('photo', 'meta', { id, shopId, visitId, prevVisitId, metaAt: rec.metaAt });
     return true;
   }
@@ -491,11 +522,10 @@ const Store = (() => {
     for (const v of visits.filter(x => x.shopId === dropId)) updateVisit(v.id, { shopId: keepId });
     const metas = (await rawPhotos()).filter(m => m.shopId === dropId);
     for (const m of metas) {
-      const rec = await getPhotoRec(m.id).catch(() => null);
-      if (rec) {
-        rec.shopId = keepId; rec.metaAt = Date.now();
-        try { await writePhoto(rec, false); emit('photo', 'meta', metaOf(rec)); if (m.hash && photoHashes[m.hash]) photoHashes[m.hash].shopId = keepId; } catch { /* 下で残りを確かめる */ }
-      }
+      try {
+        const rec = await patchPhoto(m.id, (r) => { r.shopId = keepId; r.metaAt = Date.now(); }); // v419: 読み書きを1つの取引で
+        if (rec) emit('photo', 'meta', metaOf(rec));
+      } catch { /* 下で残りを確かめる */ }
     }
     if (metas.length) { try { persistHashes(); } catch { /* noop */ } }
     // v392〜 drop で達成になっていた行きたい店は keep を指すように（一覧の「記録」ボタンが消えないように）
@@ -610,8 +640,8 @@ const Store = (() => {
   function removeWish(id) {
     const w = wishes.find(x => x.id === id);
     if (!w) return;
+    markDeleted('wish', id); // v419: 墓標を先に（一覧の保存が空き不足で失敗しても、後で保存されたときに墓標の無い削除にならない）
     wishes = wishes.filter(x => x.id !== id); persistWishes();
-    markDeleted('wish', id);
     emit('wish', 'del', { id });
     pendingDel.wish.delete(id);
   }
