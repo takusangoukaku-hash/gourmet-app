@@ -262,7 +262,9 @@ const Register = (() => {
       comment: $('#f-comment').value, genres: [...selectedDishGenres],
       photos: pendingPhotos.map(p => ({ blob: p.file, hash: p.hash || '', ...(p.exifTime !== undefined ? { t: p.exifTime ? p.exifTime.getTime() : 0 } : {}) })), // 圧縮はせずそのまま（裏に回る間に終わらせるため）
     };
-    autoDraftChain = autoDraftChain.then(() => Store.addDraft(data)).catch(() => {});
+    // v415: 先に文字だけ（小さくすぐ書ける）を残してから写真つきで上書きする。写真が大きく、書き終わる前に iOS が終わらせても店名・★・ひとことは残る
+    const lite = data.photos.length ? Object.assign({}, data, { photos: [], liteOf: data.photos.length }) : null;
+    autoDraftChain = autoDraftChain.then(() => lite && Store.addDraft(lite)).then(() => Store.addDraft(data)).catch(() => {});
   }
   function autoDraftClear() {
     if (!autoDraftReady) return;
@@ -283,7 +285,7 @@ const Register = (() => {
           // フォームに戻したので控えは消す（次に裏へ回ったら書き直す）。普通の下書きから開いていたら、その下書きを保存で消せるよう戻す
           activeDraftId = null;
           if (d.fromDraftId) { try { if (await Store.getDraft(d.fromDraftId)) activeDraftId = d.fromDraftId; } catch {} }
-          App.toast('入力の途中から再開しました');
+          App.toast(d.liteOf ? '入力の途中から再開しました ・ 写真は戻せませんでした' : '入力の途中から再開しました');
         }
       }
       await Store.deleteDraft(AUTO_DRAFT);
@@ -439,6 +441,7 @@ const Register = (() => {
     if (d.station) $('#f-station').value = d.station;
     // v408: 自動の下書きは店名・★・ひとこと・ジャンルも戻す
     if (d.name) { $('#f-shop-name').value = String(d.name).slice(0, 100); forceStep2 = true; }
+    if (d.liteOf) forceStep2 = true; // v415: 写真の戻らなかった自動の下書きも記録の画面（2枚目）へ。★だけでも見えるように
     if (Number(d.rating) > 0) mountTasteStars(Math.min(5, Number(d.rating)));
     if (d.comment) { $('#f-comment').value = String(d.comment).slice(0, 2000); $('#reg-comment').classList.remove('hidden'); }
     if (Array.isArray(d.genres) && d.genres.length) { d.genres.forEach(g => selectedDishGenres.add(String(g))); userTouchedGenres = true; dishPicker.render(); updateGenrePill(); }
