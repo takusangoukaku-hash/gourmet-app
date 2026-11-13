@@ -553,7 +553,8 @@ const Store = (() => {
     const near = (w) => lat != null && lon != null && w.lat != null && w.lon != null && distMeters(lat, lon, w.lat, w.lon) < 100;
     const n = normName(name);
     const similar = (a, b) => !!a && !!b && (a === b || a.includes(b) || b.includes(a));
-    return wishes.find(w => !isDone(w) && ((n && normName(w.name) === n) || (near(w) && (!n || !w.name || similar(n, normName(w.name)))))) || null;
+    // v418: 外した直後（元に戻すの待ち）の行きたい店は見ない（以前は5秒以内に同じ店を入れ直すと、隠れたほうに重なって確定で消えた）
+    return wishes.find(w => !isDone(w) && !pendingDel.wish.has(w.id) && ((n && normName(w.name) === n) || (near(w) && (!n || !w.name || similar(n, normName(w.name)))))) || null;
   }
   function addWish(data) {
     const dup = findWish(data);
@@ -575,7 +576,13 @@ const Store = (() => {
     let n = 0;
     for (const w of wishes) {
       if (w.doneVisitId && w.doneVisitId === visitId) {
-        delete w.doneAt; delete w.doneShopId; delete w.doneVisitId;
+        // v418: 同じ店にまだ別の記録があれば、達成のままその記録（一番古いもの）に付け替える（以前は2回行った店でも最初の記録を消すと未達成に戻った）
+        const alt = w.doneShopId ? visits.filter(v => v.shopId === w.doneShopId && v.id !== visitId)
+          .sort((a, b) => (Date.parse(a.datetime) || 0) - (Date.parse(b.datetime) || 0))[0] : null;
+        if (alt) {
+          w.doneVisitId = alt.id;
+          w.doneAt = Math.max(Date.parse(alt.datetime) || Date.now(), Number(w.createdAt) || 0);
+        } else { delete w.doneAt; delete w.doneShopId; delete w.doneVisitId; }
         w.updatedAt = Date.now(); n++;
         emit('wish', 'put', w);
       }

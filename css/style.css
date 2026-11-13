@@ -2220,3 +2220,5 @@ body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いてい�
 @media (prefers-color-scheme: dark) { .star-chip:not(.on) { color: #b8860b; } }
 /* v409: 同期できていないときの帯の「設定で確かめる」 */
 .net-bar .nb-link { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+/* v418: 取り込みの保存中は一覧を押せない（待っている間に「飛ばす」・★を変えても記録は変わらないため） */
+#im-list.im-locked { pointer-events: none; opacity: .6; }

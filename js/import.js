@@ -21,6 +21,7 @@ const Import = (() => {
   let groups = [];        // 訪問候補
   let includeSkipped = false;
   let busy = false;
+  let saving = false; // v418: 保存中（閉じても続く）。保存が終わるまで次の取り込みを始めない（同じ写真を二重に記録しないため）
   let runToken = 0;
   let classifyPromise = null; // v396: 裏の AI 判定。記録するときに終わるのを待つ（待たずに保存するとジャンルが空になっていた）       // 開く・閉じる・「続けて写真を選ぶ」で進める。古い非同期の結果を捨てる印（v394〜）
 
@@ -39,6 +40,7 @@ const Import = (() => {
   }
   function open() {
     if (ov) return;
+    if (saving) { App.toast('前の取り込みを記録しています。終わってからもう一度開いてください'); return; }
     runToken++;
     groups = [];
     ov = document.createElement('div');
@@ -87,8 +89,9 @@ const Import = (() => {
 
   // ---------- 写真を読む → まとめる ----------
   async function handleFiles(all) {
-    const files = all.filter(f => f.type.startsWith('image/')).slice(0, IMPORT_BATCH);
-    if (all.length > IMPORT_BATCH) App.toast(`最初の${IMPORT_BATCH}枚だけ取り込みます。残りはもう一度「写真を選ぶ」から`);
+    const images = all.filter(f => f.type.startsWith('image/'));
+    const files = images.slice(0, IMPORT_BATCH);
+    if (images.length > IMPORT_BATCH) /* v418: 写真以外のファイルは数えない */ App.toast(`最初の${IMPORT_BATCH}枚だけ取り込みます。残りはもう一度「写真を選ぶ」から`);
     const tok = runToken;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
     prog.classList.remove('hidden');
@@ -98,13 +101,15 @@ const Import = (() => {
     const skipped = loadSkipped();
     const items = [];
     let already = 0, wasSkipped = 0;
+    const seenHash = new Set(); // v418: 同じ写真を1回に2枚選んだとき（コピー・共有で増えた同じ写真）、2回記録しない
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       bar.style.width = `${Math.round((i / files.length) * 60)}%`;
       ptext.textContent = `写真を読んでいます… ${i + 1}/${files.length}`;
       const hash = await Api.fileHash(f);
       if (tok !== runToken) { dropItems(items); return; }
-      if (hash && Store.findPhotoByHash(hash)) { already++; continue; }
+      if (hash && (Store.findPhotoByHash(hash) || seenHash.has(hash))) { already++; continue; }
+      if (hash) seenHash.add(hash);
       if (hash && !includeSkipped && skipped.has(hash)) { wasSkipped++; continue; }
       const ex = await Api.parseExif(f);
       if (tok !== runToken) { dropItems(items); return; }
@@ -304,7 +309,13 @@ const Import = (() => {
     const todo = groups.filter(ready);
     if (!todo.length) return;
     const tok = runToken;
-    busy = true;
+    busy = true; saving = true;
+    // v418: 保存の間は一覧を押せないようにする（以前は待っている間に「飛ばす」・★を外しても、その候補が記録された）
+    const listEl = $('#im-list', ov); if (listEl) listEl.classList.add('im-locked');
+    // 飛ばした写真は先に控える（保存の途中で閉じると一覧が空になり、飛ばした写真が次回また出ていた）
+    const skipHashes = [];
+    groups.filter(g => g.state === 'skip').forEach(g => g.photos.forEach(p => { if (p.hash) skipHashes.push(p.hash); }));
+    try {
     setStep(4);
     const btn = $('#im-save', ov); btn.disabled = true;
     const prog = $('#im-progress', ov), bar = $('.im-bar i', prog), ptext = $('.im-ptext', prog);
@@ -318,6 +329,7 @@ const Import = (() => {
     let done = 0, photosN = 0, newShops = 0, failed = 0, quotaFull = false;
     const toFill = []; // 新しく作った店（保存後に駅・県・市を後追いで補う）
     for (const g of todo) {
+      if (!ready(g)) continue; // v418: 念のため（★を外した・飛ばしたものは記録しない）
       if (ov && tok === runToken) {
         ptext.textContent = `記録しています… ${done + failed + 1}/${todo.length}`;
         bar.style.width = `${Math.round(((done + failed) / todo.length) * 100)}%`;
@@ -370,7 +382,7 @@ const Import = (() => {
     }
     try {
       // 飛ばした写真は次回出さない
-      groups.filter(g => g.state === 'skip').forEach(g => g.photos.forEach(p => { if (p.hash) skipped.add(p.hash); }));
+      skipHashes.forEach(h => skipped.add(h));
       saveSkipped(skipped);
     } catch (e) { console.error(e); }
     if (tok === runToken) busy = false;
@@ -389,11 +401,15 @@ const Import = (() => {
       sum.innerHTML = `<div class="im-sum-t">${done}回の訪問・${photosN}枚の写真を記録しました</div>
       <div class="im-sum-s">${newShops ? `新しい店 ${newShops}件` : ''}${quotaFull ? `　${esc(Store.QUOTA_MSG)}（失敗 ${failed}件・残り ${notTried}件は次回また出ます）` : failed ? `　${failed}件は保存に失敗しました（次回また出ます）` : ''}${rest ? `　★や店名が無かった ${rest}件は記録していません（次回また出ます）` : ''}</div>
       <div class="im-sum-b"><button type="button" class="btn primary" id="im-again">続けて写真を選ぶ</button><button type="button" class="btn" id="im-done">閉じる</button></div>`;
-      $('#im-again', ov).addEventListener('click', () => { runToken++; groups = []; sum.classList.add('hidden'); $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
+      $('#im-again', ov).addEventListener('click', () => { runToken++; groups.forEach(g => g.photos.forEach(p => { if (p.url) URL.revokeObjectURL(p.url); })); groups = []; sum.classList.add('hidden'); /* v418: 小さな写真の URL を返す */ $('.im-intro', ov).classList.remove('hidden'); setStep(1); });
       $('#im-done', ov).addEventListener('click', close);
     }
     if (typeof App !== 'undefined' && App.refreshCurrent) App.refreshCurrent();
-    fillShopInfo(toFill); // 裏で住所・県・市・最寄駅を補う（失敗は黙る）
+    fillShopInfo(toFill);
+    } finally {
+      saving = false;
+      if (listEl) listEl.classList.remove('im-locked');
+    } // 裏で住所・県・市・最寄駅を補う（失敗は黙る）
   }
 
   // 取り込みで作った店の、空いている 住所・県・市・最寄駅 だけを位置から後追いで埋める（v394〜。入っている値は上書きしない）
