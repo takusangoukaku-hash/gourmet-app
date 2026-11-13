@@ -86,6 +86,7 @@ const Cloud = (() => {
               try { localStorage.removeItem('gourmet.prefsAt'); } catch { /* noop */ } // v390〜 表示の好みは新しいアカウントのクラウド側を採用
               try { localStorage.removeItem('gourmet.keysClearPending'); } catch { /* noop */ } // v395: 前のアカウントで消し損ねた印で、次のアカウントのキーを消さない
               if (typeof Views !== 'undefined' && Views.clearSocialCaches) Views.clearSocialCaches();
+              resetAccountState(); // v421: 前のアカウントの控え（削除の控え・投稿の出し直し済み）を持ち越さない
               App.toast('別のアカウントでログインしたため、前のアカウントの端末内データを消去しました');
               App.refreshCurrent();
             } catch (e) { console.warn('端末データの消去に失敗:', e); }
@@ -125,6 +126,7 @@ const Cloud = (() => {
         } else {
           Store.setSyncHook(null);
           try { pending.clear(); } catch { /* noop */ } // v392: 書き込み待ちを次のアカウントへ持ち越さない
+          resetAccountState(); // v421
           setStatus('signedout');
         }
       });
@@ -190,6 +192,8 @@ const Cloud = (() => {
   // v394: 控えは取り込みより先に読み、読めなければ同期ごと止める（読めないまま全件を押し上げると、別端末で消した記録をクラウドへ戻してしまう）。
   // 返り値: kind → Map(id → at)
   let lastTombs = null; // 直近に読んだ控え（写真の同期で使う）
+  // v421: アカウントが変わった・ログアウトしたときに、アカウントごとの控えを空にする
+  function resetAccountState() { lastTombs = null; postsPublishedThisSession = false; }
   // オフラインの getDocs はサーバーではなく端末の控え（fromCache）で答えることがあるので、それも「読めなかった」とみなす
   const assertFresh = (snap, what) => { if (snap && snap.metadata && snap.metadata.fromCache) throw new Error(what + 'をサーバーから読めませんでした（オフライン）'); };
   async function fetchTombs() {
@@ -252,7 +256,7 @@ const Cloud = (() => {
     assertUser(uid);
     await pushAllRecords();
     lastPullAt = startedAt; // 読み込みを始めた時刻（この後に直されたものは次の差分で拾う）
-    if (full) lastFullPullAt = startedAt;
+    if (full) { lastFullPullAt = startedAt; lastFullDoneAt = startedAt; }
     lastPullWasFull = full;
     return n; // 別端末から取り込んだ記録の数
   }
@@ -322,6 +326,7 @@ const Cloud = (() => {
   // 見落としたまま「店の無い記録・記録の無い写真」を掃除すると、別端末の記録を消して全端末から消してしまうので、掃除は全件を読んだ直後だけにする。
   // 写真の同期で、こちらに無い記録の写真が見つかったら、次の読み込みを全件にする
   let lastPullWasFull = false;
+  let lastFullDoneAt = 0; // v421: 記録を全件読み終えた時刻（写真の同期が「次も全件」に戻しても、読み終えた事実は残す）
   const cleanupAfterPull = () => (lastPullWasFull ? Store.cleanupOrphans().catch(() => {}) : Promise.resolve());
   const noteRemote = (kind, r) => { if (remoteAt && user && remoteAtUid === user.uid && r && r.id) remoteAt[kind].set(r.id, Number(r.updatedAt) || 0); };
   const PULL_FULL_EVERY = 30 * 60 * 1000, PULL_SKEW = 10 * 60 * 1000;
@@ -364,6 +369,7 @@ const Cloud = (() => {
   // ローカル → クラウド（全レコードをupsert）
   // ローカル → クラウド。v396: クラウドに無い記録と、こちらの方が新しい記録だけ（remoteAt と比べる）
   async function pushAllRecords() {
+    const uid = user && user.uid; // v421: 押し上げの途中でアカウントが変わったら、残りを次の人の場所へ書かない
     const writes = [];
     const need = (kind, r) => { const at = remoteAt[kind].get(r.id); return at === undefined || (Number(r.updatedAt) || 0) > at; };
     for (const s of Store.rawShops()) if (need('shop', s)) writes.push(['shops', 'shop', s]);
@@ -372,12 +378,14 @@ const Cloud = (() => {
     // 400件ずつバッチ書き込み（Firestoreの上限 500 件対策）
     for (let i = 0; i < writes.length; i += 400) {
       const chunk = writes.slice(i, i + 400);
+      assertUser(uid);
       const batch = fb.fs.writeBatch(db);
       for (const [name, , r] of chunk) batch.set(dref(name, r.id), clean(r));
       await batch.commit();
       for (const [, kind, r] of chunk) remoteAt[kind].set(r.id, Number(r.updatedAt) || 0);
     }
     const prof = Store.getProfile();
+    assertUser(uid);
     if (remoteProfileAt < 0 || (Number(prof.updatedAt) || 0) > remoteProfileAt) {
       await fb.fs.setDoc(dref('meta', 'profile'), clean(prof));
       remoteProfileAt = Number(prof.updatedAt) || 0;
@@ -535,13 +543,15 @@ const Cloud = (() => {
 
   // skipPublish: 一括同期では1枚ごとの投稿公開を省き、呼び出し側で訪問単位にまとめて公開する
   async function uploadPhoto(p, skipPublish) {
-    const path = `users/${user.uid}/photos/${p.id}.jpg`;
+    const uid = user.uid; // v421: 上げている間にアカウントが変わったら、次の人の場所にメタを書かない
+    const path = `users/${uid}/photos/${p.id}.jpg`;
     // 一覧用のメタ情報しか持っていないことが多いので、本体はここで1枚だけ読む
     const body = p.blob || await Store.getPhotoBlob(p.id);
     if (!body) throw new Error('写真の本体が端末にありません: ' + p.id);
     await fb.st.uploadBytes(fb.st.ref(storage, path), body, { contentType: 'image/jpeg' });
     const { blob, thumb, hasBlob, thumbV, ...meta } = p; // blobはStorageへ。Firestoreにはメタ情報のみ
     const doc = clean({ ...meta, path, updatedAt: Date.now() }); // v397: updatedAt（別端末が差分で読めるように）
+    assertUser(uid);
     await fb.fs.setDoc(dref('photos', p.id), doc);
     notePhotoCache(p.id, doc);
     // フィード用の公開投稿も更新（@ユーザー名を設定している人のみ）
@@ -799,13 +809,18 @@ const Cloud = (() => {
   async function flush() {
     if (!user || !pending.size) return;
     const items = [...pending.values()]; pending.clear();
-    setStatus('syncing');
+    const quiet = !!syncRun; // v421: 全体の同期が走っている間は状態を触らない（そちらが決める。「同期中」のまま残らないように）
+    if (!quiet) setStatus('syncing');
+    let err = null;
     for (const it of items) {
       // v396: 送っている途中でアカウントが変わったら、残りを次の人の場所へ書かない（作った人の uid と比べる）
       if (!user || (it.uid && it.uid !== user.uid)) break;
-      try { await applyOneToCloud(it); } catch (e) { console.warn('同期の反映に失敗:', it.kind, e); }
+      try { await applyOneToCloud(it); } catch (e) { err = e; console.warn('同期の反映に失敗:', it.kind, e); }
     }
-    setStatus('synced');
+    // v421: 失敗があれば error（以前は必ず「同期済み」にして、v409 の「同期できていません」の数え方も打ち消していた）。
+    //   全体の同期が走っている間は、そちらが終わったときに状態を決めるので触らない
+    if (err) setStatus('error', err);
+    else if (!quiet) setStatus('synced');
   }
 
   // ---------- 自動バックアップ（記録＋写真の取りこぼし回収） ----------
@@ -1114,5 +1129,5 @@ const Cloud = (() => {
     publishPostForVisit, syncApiKeys, clearApiKeys, autoBackupSweep, syncPrefs,
     // 引っ張って更新（v363〜）。v397: 利用者が自分で頼んだ同期は全件を読む（差分では、別端末で書いてから遅れて届いた記録を最大 30 分見落とす）
     syncNow: () => { lastFullPullAt = 0; photoFullAt = 0; return autoBackupSweep(true); },
-    syncFull: async () => { const t0 = Date.now(); lastFullPullAt = 0; photoFullAt = 0; await autoBackupSweep(true); return lastPullWasFull && lastFullPullAt >= t0; } }; // v396: 全件を読み直す（設定の「店の無い記録を掃除」の前）。読み直せたら true
+    syncFull: async () => { const t0 = Date.now(); lastFullPullAt = 0; photoFullAt = 0; await autoBackupSweep(true); return lastPullWasFull && lastFullDoneAt >= t0; } }; // v396: 全件を読み直す（設定の「店の無い記録を掃除」の前）。読み直せたら true
 })();
