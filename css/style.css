@@ -509,6 +509,16 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
   width: 18px; height: 18px; stroke: var(--muted); stroke-width: 2; pointer-events: none;
 }
 .search-field input { padding-left: 38px; }
+.search-field .kw-clear { /* v416: 検索の語を消す × */
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; padding: 0; border: 0; background: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.search-field .kw-clear svg { width: 18px; height: 18px; }
+.search-field .kw-clear circle { fill: var(--muted); }
+.search-field .kw-clear path { stroke: var(--bg, #fff); stroke-width: 1.75; stroke-linecap: round; fill: none; }
+.search-field input:placeholder-shown + .kw-clear { display: none; }
+#flt-keyword { padding-right: 40px; }
 /* テキスト内に置く白黒ピクトグラム（駅・住所・地図・検索など） */
 .ic { width: 14px; height: 14px; vertical-align: -2px; stroke-width: 1.75; flex-shrink: 0; } /* 線画は1組・太さ1.75（v332〜） */
 .x-ic { width: 18px; height: 18px; stroke-width: 2; display: block; margin: auto; } /* 閉じる（絵文字✕の置き換え） */

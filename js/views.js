@@ -2110,6 +2110,8 @@ const Views = (() => {
       buildListGenreChips(); // 記録済みジャンルでチップを作り直す
     });
     $('#list-detail-toggle').addEventListener('click', openFilterSheet); // v373〜 下からのシート
+    // v416: 検索の語を消す ×（語があるときだけ CSS の :placeholder-shown で出る）。消したら描き直して、続けて打てるよう欄へ
+    $('#flt-kw-clear').addEventListener('click', () => { const i = $('#flt-keyword'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); });
     // 条件を外す（v367〜。ジャンル・★・都道府県をまとめて外す。並び替え・まとめては残す）
     $('#flt-clear').addEventListener('click', () => {
       $('#flt-dish-genre').value = ''; $('#flt-rating').value = ''; $('#flt-pref').value = ''; photoStation = '';

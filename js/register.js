@@ -241,6 +241,7 @@ const Register = (() => {
     //   前面に戻ってアプリが生きていれば消す（入力はそのまま残っている）。終わらされていたら次の起動で戻す（restoreAutoDraft）
     document.addEventListener('visibilitychange', () => { if (document.hidden) autoDraftSave(); else autoDraftClear(); });
     window.addEventListener('pagehide', autoDraftSave);
+    window.addEventListener('pageshow', (e) => { if (e.persisted) autoDraftClear(); }); // v416: 戻る・進むのキャッシュから戻ったときも、生きている入力があるので控えを消す
     restoreAutoDraft().finally(() => { autoDraftReady = true; refreshDraftsBanner(); });
     renderPreviews(); // 初期表示から「＋写真」タイルを出す
   }
@@ -249,8 +250,10 @@ const Register = (() => {
   const AUTO_DRAFT = 'auto';
   const AUTO_DRAFT_RESUME_MS = 12 * 3600 * 1000; // これより古いものは戻さず、普通の下書きの一覧へ
   let autoDraftChain = Promise.resolve(), autoDraftReady = false;
+  let autoDraftSaved = false; // v416: 裏に回ったあと1回だけ書く（visibilitychange と pagehide の両方が来ると写真を2回書いていた）。前面に戻ったら戻す
   function autoDraftSave() {
-    if (!autoDraftReady || !isDirty() || saving) return;
+    if (!autoDraftReady || !isDirty() || saving || autoDraftSaved) return;
+    autoDraftSaved = true;
     const data = {
       id: AUTO_DRAFT, auto: true, createdAt: Date.now(),
       // v414: 日付は決まっていなければ ''（以前は裏に回った日で固定し、写真ごとの撮影日も消えていた）。写真ごとの撮影日は t（0＝なし）
@@ -267,6 +270,7 @@ const Register = (() => {
     autoDraftChain = autoDraftChain.then(() => lite && Store.addDraft(lite)).then(() => Store.addDraft(data)).catch(() => {});
   }
   function autoDraftClear() {
+    autoDraftSaved = false;
     if (!autoDraftReady) return;
     autoDraftChain = autoDraftChain.then(() => Store.deleteDraft(AUTO_DRAFT)).catch(() => {});
   }
