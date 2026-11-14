@@ -2479,7 +2479,9 @@ const Views = (() => {
       if (minR && (Store.avgRating(s.id) || 0) < minR
         && !vs.some(v => (v.rating || 0) >= minR)) return false;
       if (kw) {
-        const hay = searchHay([s.name, s.station, s.station ? stationKey(s.station) + '駅' : '', s.pref, s.city, s.address, ...vs.map(v => v.comment || '')]); // v412: 「渋谷」と入れた店も「渋谷駅」で見つかる
+        // v412: 「渋谷」と入れた店も「渋谷駅」で見つかる。v427: 店のジャンルと記録の料理のジャンルも対象に（「ラーメン」で店が1件も出なかった）
+        const hay = searchHay([s.name, s.station, s.station ? stationKey(s.station) + '駅' : '', s.pref, s.city, s.address, s.shopGenre, shopLabelGenre(s),
+          ...vs.flatMap(v => [v.comment || '', ...(v.dishGenres || [])])]);
         if (!hay.includes(kw)) return false;
       }
       return true;
