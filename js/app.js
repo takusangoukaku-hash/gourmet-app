@@ -3,7 +3,7 @@
 // =====================================================
 const App = (() => {
   const $ = (sel) => document.querySelector(sel);
-  const APP_VERSION = 'v423'; // sw.js の VERSION・index.html の ?v= と合わせる
+  const APP_VERSION = 'v424'; // sw.js の VERSION・index.html の ?v= と合わせる
   // v396: 保存領域が使えない環境（プライベート・サイトデータを消した直後など）でも起動が止まらないよう、読み取りは例外を握る
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   let currentTab = 'register';

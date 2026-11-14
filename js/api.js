@@ -136,11 +136,12 @@ const Api = (() => {
       if (typeof exifr === 'undefined') await App.loadLib('exifr'); // 写真を選んだときに初めて読み込む
       const ex = await exifr.parse(file);
       if (!ex) return {};
-      return {
-        lat: (typeof ex.latitude === 'number') ? ex.latitude : null,
-        lon: (typeof ex.longitude === 'number') ? ex.longitude : null,
-        date: ex.DateTimeOriginal || ex.CreateDate || null,
-      };
+      // v424: 数でない・(0, 0)（位置の入っていない写真が書くことがある）の位置、読めない日付は無いものとする
+      let lat = numOK(ex.latitude) ? ex.latitude : null, lon = numOK(ex.longitude) ? ex.longitude : null;
+      if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) { lat = null; lon = null; }
+      let date = ex.DateTimeOriginal || ex.CreateDate || null;
+      if (date && isNaN(new Date(date).getTime())) date = null;
+      return { lat, lon, date };
     } catch { return {}; }
   }
 
@@ -161,7 +162,14 @@ const Api = (() => {
           body: 'data=' + encodeURIComponent(query),
           signal: ctrl ? ctrl.signal : undefined,
         });
-        if (res.ok) { if (timer) clearTimeout(timer); return await res.json(); }
+        if (res.ok) {
+          const j = await res.json(); // v424: 本文を読み終えるまで打ち切りの時計を止めない
+          // v424: 混雑時は 200 のまま「runtime error: … timed out」と空の結果を返すので、ミラーへ回す
+          if (j && typeof j.remark === 'string' && /runtime error|timed out|out of memory/i.test(j.remark) && !(j.elements || []).length) {
+            lastErr = new Error('Overpass ' + j.remark.slice(0, 80)); continue;
+          }
+          return j;
+        }
         lastErr = new Error('Overpass error ' + res.status);
       } catch (e) { lastErr = e; }
       finally { if (timer) clearTimeout(timer); }
@@ -179,7 +187,7 @@ const Api = (() => {
   nwr(around:${radius},${lat},${lon})[amenity~"^(restaurant|cafe|fast_food|bar|pub|food_court|ice_cream)$"];
   nwr(around:${radius},${lat},${lon})[shop~"^(bakery|confectionery|deli|pastry)$"];
 );
-out center 120;`; // id 順で返るため、近い店が切れないよう多めに取って距離で絞る
+out center 300;`; // id 順で返るため、近い店が切れないよう多めに取って距離で絞る（v424: 120 では新宿・渋谷の駅前などで近い店が切れた）
     // OSM（Overpass）と OpenPOI（営業許可データ）を並列に引いて統合する。片方が落ちても他方で続ける
     const [json, poi] = await Promise.all([
       overpass(q).catch(e => ({ elements: [], _err: e })),
@@ -210,7 +218,7 @@ out center 120;`; // id 順で返るため、近い店が切れないよう多�
   // ---------- Overpass: 最寄駅 ----------
   async function nearestStation(lat, lon) {
     if (!numOK(lat) || !numOK(lon)) return '';
-    const q = `[out:json][timeout:15];node(around:2000,${lat},${lon})[railway=station];out 30;`;
+    const q = `[out:json][timeout:15];node(around:2000,${lat},${lon})[railway=station];out 200;`; // v424: id 順に 30 で切ると、駅の多い都心で一番近い駅が漏れた
     try {
       const json = await overpass(q);
       const st = (json.elements || [])
@@ -218,7 +226,7 @@ out center 120;`; // id 順で返るため、近い店が切れないよう多�
           name: (e.tags && (e.tags['name:ja'] || e.tags.name)) || '',
           d: Store.distMeters(lat, lon, e.lat, e.lon),
         }))
-        .filter(s => s.name)
+        .filter(s => s.name && isFinite(s.d))
         .sort((a, b) => a.d - b.d)[0];
       if (!st) return '';
       return st.name.endsWith('駅') ? st.name : st.name + '駅';
@@ -243,7 +251,9 @@ out center 120;`; // id 順で返るため、近い店が切れないよう多�
   function fetchT(url, opts, ms = 12000) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
-    return fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal })).finally(() => clearTimeout(timer));
+    // v424: 見出しが届いた時点では時計を止めない（本文が届かず res.json() が止まったままになっていた）。
+    // 読み終えたあとの打ち切りは何も起こさない
+    return fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal })).catch(e => { clearTimeout(timer); throw e; });
   }
 
   // ---------- Nominatim: 逆ジオコーディング ----------
@@ -460,6 +470,7 @@ out center 25;`;
   // ---------- 予測検索: 入力中のリアルタイム候補（検索ボタンを押す前に表示） ----------
   // 無料の検索源のみ（Yahoo!／ホットペッパー／Photon）。Google は無料の検索源が1件も返さず、
   // 3文字以上入力されたときだけ（1文字ごとの課金を避ける）。Nominatim は利用規約で自動補完に使えない
+  let suggestGoogleCalls = 0; const suggestGoogleCache = new Map(), suggestGoogleEmpty = new Set(); // v424: 候補の Google の呼び出しを抑える
   async function suggestShops(query, ref) {
     if (proxyOn() && proxyServices == null) refreshProxyStatus(); // 裏で確認（予測は待たない）
     const lat = ref && ref.lat, lon = ref && ref.lon;
@@ -471,8 +482,18 @@ out center 25;`;
     ]);
     const free = mergeCandidates([poi, yahoo, hp, photon], ref);
     if (free.length || !hasGoogleKey() || query.length < 3) return free.slice(0, 6);
-    const google = await googlePlacesSearch(query, ref).catch(() => []);
-    return mergeCandidates([google], ref).slice(0, 6);
+    // v424: 打つたびの候補で Google（有料）を呼びすぎない。同じ語は控えを使い、Google で 0 件だった語を伸ばした語は呼ばない、1回の起動で 20 回まで
+    const qk = query.trim();
+    if (suggestGoogleCache.has(qk)) return suggestGoogleCache.get(qk);
+    if ([...suggestGoogleEmpty].some(p => qk.startsWith(p))) return [];
+    if (suggestGoogleCalls >= 20) return [];
+    suggestGoogleCalls++;
+    const google = await googlePlacesSearch(query, ref).catch(() => null);
+    if (!google) return [];
+    const out = mergeCandidates([google], ref).slice(0, 6);
+    if (!out.length) suggestGoogleEmpty.add(qk);
+    suggestGoogleCache.set(qk, out);
+    return out;
   }
 
   // ---------- 周辺の詳細検索: Overpass部分一致（個人店に強い・遅いので後追い用） ----------
@@ -555,7 +576,7 @@ out center 25;`;
   function openPoiToCandidate(r, strict) {
     if (!r || !r.name) return null;
     const la = Number(r.lat), lo = Number(r.lng);
-    if (!isFinite(la) || !isFinite(lo) || r.lat === '' || r.lng === '') return null;
+    if (r.lat == null || r.lng == null || r.lat === '' || r.lng === '' || !isFinite(la) || !isFinite(lo) || (la === 0 && lo === 0)) return null; // v424: null は Number で 0 になり (0, 0) の店になった
     const cat = String(r.category || '');
     const isFood = r.source === 'jff' || OPENPOI_FOOD.has(cat) || (r.attributions || []).some(a => /食品/.test(a));
     if (!isFood && (strict || cat !== 'unknown')) return null;
@@ -902,7 +923,7 @@ out center 25;`;
         ],
       }],
       output_config: { format: { type: 'json_schema', schema } },
-    });
+    }, { timeout: 25000, maxRetries: 1 }); // v424: 既定は10分×3回で、応答が止まると「判定中」のまま取り込みも進まなかった
 
     const text = response.content.find(b => b.type === 'text');
     if (!text || response.stop_reason === 'refusal') return { dishGenres: [], shopGenre: '' };
@@ -961,7 +982,9 @@ out center 25;`;
     const h = Math.max(1, Math.round(sh * scale));
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(src, 0, 0, w, h);
+    const g2 = canvas.getContext('2d');
+    g2.fillStyle = '#fff'; g2.fillRect(0, 0, w, h); // v424: 透明のある PNG（スクリーンショットなど）が JPEG で黒く塗られていた
+    g2.drawImage(src, 0, 0, w, h);
     if (src && src.close) { try { src.close(); } catch { /* noop */ } } // ImageBitmap のメモリを早く返す
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
     if (!blob) throw new Error('画像の圧縮に失敗しました');
@@ -971,7 +994,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v423',
+    FILE_VERSION: 'v424',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, geocodeAddress, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,

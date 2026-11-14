@@ -5,7 +5,7 @@
 //  - CDNライブラリ・地図タイル: キャッシュ優先（タイルは件数を制限）
 //  - 外部API（店舗検索・AI判定）: キャッシュしない
 // =====================================================
-const VERSION = 'v423'; // views.js の見直し（ホームの取得失敗を空として控えない・切り替え中の古い結果を捨てる・お知らせは読めたときだけ既読・マイページの描き直しで先頭へ戻さない・地図の店シートの重なり・位置の指定中はピンを開かない・写真の選択中は同期で描き直さない）
+const VERSION = 'v424'; // api.js・sw.js の見直し（Overpass の混雑の返事でミラーへ・最寄駅と周辺の店の取りこぼし・本文の読み込みにも打ち切り・OpenPOI の位置なし・透明の PNG・EXIF の (0,0)・候補の Google の呼びすぎ・消えないキャッシュに中身の分からない応答を入れない・diet/lab を扱わない）
 const CACHE = 'gourmet-' + VERSION;
 
 // index.html の ?v= と揃える（古いキャッシュの混在防止）。VERSION から自動で組み立てる
@@ -62,6 +62,8 @@ const cacheable = (res) => res && (res.ok || res.type === 'opaque');
 let tilePuts = 0;
 async function putCached(req, res) {
   const name = longCacheFor(new URL(req.url)) || CACHE;
+  // v424: 中身の分からない応答（opaque。404 も 200 に見える）は、消えない方のキャッシュ（タイル・ライブラリ）には入れない。版つきの方は次の版で消える
+  if (res.type === 'opaque' && name !== CACHE) return;
   const c = await caches.open(name);
   await c.put(req, res);
   // タイルは一定数ごとに古いものから間引く。v396: SW は使っていないと数十秒で止まり数え直しになる（50 に届かず間引かれなかった）ので、最初の1回も数える
@@ -77,6 +79,9 @@ self.addEventListener('fetch', (e) => {
   if (NETWORK_ONLY.some(h => url.hostname.endsWith(h))) return;
 
   if (url.origin === location.origin) {
+    // v424: 同じサイトの別のアプリ（diet/・lab/）のファイルは扱わない（初めて開いたとき、BITEMAP のキャッシュに入っていた）
+    const root0 = new URL('./', self.location).pathname;
+    if (url.pathname.startsWith(root0 + 'diet/') || url.pathname.startsWith(root0 + 'lab/')) return;
     // ?v= 付きのファイル（CSS/JS）は内容が版ごとに固定なので、キャッシュ優先で即返す。
     // 新版は index.html の ?v= が変わることで新しいURLとして取りに行く（更新の即時反映は保たれる）
     if (url.searchParams.has('v')) {
