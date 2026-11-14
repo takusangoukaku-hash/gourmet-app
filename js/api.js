@@ -909,7 +909,7 @@ out center 25;`;
 
     const client = await anthropicClient();
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
+      model: 'claude-haiku-5-5', // v425: 中継の Worker と同じ（分類には十分で、自分のキーの料金も安い）
       max_tokens: 1024,
       system: 'あなたは料理写真の分類器です。写真に写っている料理を指定されたジャンル一覧から選んで分類してください。料理が写っていない写真（外観・店内・メニュー表など）や判別が難しい場合は dishGenres を空配列、confident を false にしてください。',
       messages: [{
@@ -922,7 +922,7 @@ out center 25;`;
           { type: 'text', text: 'この料理写真を分類してください。' },
         ],
       }],
-      output_config: { format: { type: 'json_schema', schema } },
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema } }, // Worker と同じ
     }, { timeout: 25000, maxRetries: 1 }); // v424: 既定は10分×3回で、応答が止まると「判定中」のまま取り込みも進まなかった
 
     const text = response.content.find(b => b.type === 'text');
@@ -994,7 +994,7 @@ out center 25;`;
 
   return {
     // このファイル自身のバージョン（設定画面でキャッシュ混在を検出するために表示）
-    FILE_VERSION: 'v424',
+    FILE_VERSION: 'v425',
     DISH_GENRES, DISH_CATEGORIES, buildGenrePicker, SHOP_GENRES, parseExif, nearbyShops, nearestStation,
     reverseGeocode, searchPlaces, geocodeAddress, suggestPlaces, searchShopsFast, searchShopsNearby, suggestShops, mergeCandidates,
     guessGenres, compressImage, fileHash, canClassify,
