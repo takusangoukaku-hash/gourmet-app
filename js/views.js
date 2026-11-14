@@ -9,14 +9,14 @@ const Views = (() => {
   // 文字の「★」ベタ塗りをやめ、丸みのある星形にグラデーションで立体感を出す。
   // 平均値は 0.5 刻みに丸めて半星で表現する（例: 4.3 → ★4.5相当の半星）
   const STAR_PATH = 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z';
-  const STAR_EMPTY = '#e8e0d0';
+  const STAR_EMPTY = 'var(--star-empty, #e8e0d0)'; // v426: 暗色では濃く（style で入れる。属性の fill は var() を読まない）
   const starIc = (kind, size) => {
     const p = `d="${STAR_PATH}" stroke-width="3" stroke-linejoin="round"`;
     let body;
     if (kind === 'full') body = `<path ${p} fill="url(#star-grad)" stroke="#f5a300"/>`;
-    else if (kind === 'half') body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>` +
+    else if (kind === 'half') body = `<path ${p} style="fill:${STAR_EMPTY};stroke:${STAR_EMPTY}"/>` +
       `<path ${p} clip-path="url(#star-half)" fill="url(#star-grad)" stroke="#f5a300"/>`;
-    else body = `<path ${p} fill="${STAR_EMPTY}" stroke="${STAR_EMPTY}"/>`;
+    else body = `<path ${p} style="fill:${STAR_EMPTY};stroke:${STAR_EMPTY}"/>`;
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
   };
   // 星5個の並び。size は星1個の1辺(px)

@@ -3,6 +3,7 @@
    ピンク〜オレンジのグラデーションアクセント・モノクロのナビ
    ===================================================== */
 :root {
+  --star-empty: #e8e0d0;    /* v426: 空の星（明色） */
   /* Claude(Anthropic)風の配色: クリーム地・テラコッタのアクセント・墨色の文字 */
   --accent: #C6613F;        /* テラコッタ（Claudeのブランド色。やや濃くして白文字とのコントラスト確保） */
   --accent2: #D97757;       /* 明るいテラコッタ（グラデーションの相方） */
@@ -235,7 +236,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 
 .stars button { border: none; background: none; cursor: pointer; padding: 0 2px; }
 .stars button svg { width: 26px; height: 26px; display: block; }
-.stars button svg path { fill: #e8e0d0; stroke: #e8e0d0; stroke-width: 3; stroke-linejoin: round; }
+.stars button svg path { fill: var(--star-empty); stroke: var(--star-empty); stroke-width: 3; stroke-linejoin: round; } /* v426: 空の星は --star-empty（暗色では明るいクリームで、付いた星に見えた） */
 .stars button.on svg path { fill: url(#star-grad); stroke: #f5a300; }
 /* 0.5刻み入力の半星: 灰色の星の上に、左半分だけ金色の星(.sb-fill)を重ねる */
 .stars button svg .sb-fill { display: none; fill: url(#star-grad); stroke: #f5a300; }
@@ -1722,6 +1723,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
     --border-lite: #2F2C27;
     --field: #2B2723;
     --skel-hi: #3A3530;
+    --star-empty: #48423B;    /* v426: 空の星。暗色の地で「付いていない」と分かる濃さ */
     --cq0: #2E2A26; --cq1: #5A3A2B; --cq2: #8E4F33; --cq3: #C4653F; --cq4: #EE936A; --cq-line: #171412;
   }
   .app-header { background: rgba(23, 20, 18, .95); }
@@ -1757,6 +1759,7 @@ details.set-adv[open] > summary .set-row, details.set-adv[open] > summary { bord
 /* 今年のまとめ（v364〜） */
 #stat-year { margin: 0 0 12px; }
 .yc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.card > .yc-head:last-child { margin-bottom: 0; } /* v426: 見出しだけのカード（記録カード）の下に空いた帯を作らない */
 .yc-head b { font-size: 16px; font-weight: 700; }
 .yc-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .yc-nav { width: 28px; height: 28px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 18px; line-height: 1; padding: 0; cursor: pointer; }
