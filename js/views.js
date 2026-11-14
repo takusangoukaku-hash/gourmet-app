@@ -808,6 +808,20 @@ const Views = (() => {
       trackUserLocation: false,
       showUserLocation: true,
     }), 'bottom-right');
+    // v429: 「行きたい店を追加」の ＋ は右下のボタンの列（現在地・拡大縮小・方位・ⓘ）の上に置く。
+    // 固定の bottom: 168px では、iPhone で ⓘ が列の下に入ると列が上へ伸び、＋ が現在地のボタンに重なっていた
+    const placeAddBtn = () => {
+      const btn = $('#map-add'), view = $('#view-map');
+      const grp = document.querySelector('#map-canvas .maplibregl-ctrl-bottom-right');
+      if (!btn || !view || !grp) return;
+      const tops = [...grp.children].filter(c => c.offsetHeight > 0).map(c => c.getBoundingClientRect().top);
+      const vb = view.getBoundingClientRect().bottom;
+      if (!tops.length || !vb) return; // 地図を開いていない（大きさ 0）ときは測らない
+      btn.style.bottom = Math.max(120, Math.round(vb - Math.min(...tops) + 12)) + 'px';
+    };
+    map.on('load', placeAddBtn); map.on('resize', placeAddBtn);
+    if (window.ResizeObserver) { const g = document.querySelector('#map-canvas .maplibregl-ctrl-bottom-right'); if (g) new ResizeObserver(placeAddBtn).observe(g); }
+    window.__placeMapAddBtn = placeAddBtn;
     // 出典表示(ⓘ)は初期状態では閉じておき、タップしたときだけ詳細を開く
     // （MapLibreはデータ読み込みのたびに開き直すことがあるため、読み込み完了後に閉じる）
     const closeAttrib = () => {
@@ -2053,6 +2067,7 @@ const Views = (() => {
     const wb = $('#map-wish-btn');
     if (wb) wb.classList.remove('on'); // 「行きたいのみ」も解除
     refreshMap();
+    setTimeout(() => { if (window.__placeMapAddBtn) window.__placeMapAddBtn(); }, 0); // v429: タブを開いて大きさが決まってから ＋ の位置を測り直す
     setTimeout(startClusterPulse, 0); // v406: 地図を離れると波紋のループは止まるので、入るたびに再開（タブの切り替えが済んでから）
   }
 
