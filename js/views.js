@@ -3778,9 +3778,9 @@ const Views = (() => {
       const card = mzItem({
         name: shop.name || '', sub: mzSub(shopLabelGenre(shop) || '', shop.pref),
         badge: avg ? '★' + fmtR(avg) : '',
-        // v386〜 写真のタップは写真だけの全画面（その店の写真を左右送り）。お店の記録へは「記録を見る」（絞り込み中は、絞り込んだ店の中で前後へ送る）
-        onClick: () => openPhotoViewer(g.photos.map(ph => { const vv = vById.get(ph.visitId) || {}; return { ph, rating: vv.rating || 0, date: vv.datetime ? fmtDate(vv.datetime) : '' }; }), 0,
-          { onRecord: () => showShopFeed(shown, idx), shop, onChange: () => renderProfilePhotos() }),
+        // v433〜 写真のタップはお店の記録（利用者の希望。v386〜v432 は黒地の写真だけの全画面を挟んでいた）。
+        //   絞り込み中は、絞り込んだ店の中で前後へ送る。写真だけの全画面はお店の記録の写真のタップから開ける
+        onClick: () => showShopFeed(shown, idx),
       });
       setThumb(card.querySelector('img'), g.photos[0]); // 代表＝最新の写真
       return card;
