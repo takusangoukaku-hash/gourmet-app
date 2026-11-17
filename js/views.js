@@ -690,6 +690,11 @@ const Views = (() => {
   const colorByR = (prop) => ['match', ['get', prop],
     0, PIN_COLORS[0], 1, PIN_COLORS[1], 2, PIN_COLORS[2], 3, PIN_COLORS[3], 4, PIN_COLORS[4], 5, PIN_COLORS[5],
     PIN_COLORS[3]];
+  // v431: まとまりの件数の文字は丸と同じ色みの濃い色（グラデーションの丸に黒い文字が浮いていた）
+  const CLUSTER_TEXT = ['#1E293B', '#1E293B', '#0E1838', '#0B3A1E', '#4A2203', '#3A0808'];
+  const clusterTextByR = (prop) => ['match', ['get', prop],
+    0, CLUSTER_TEXT[0], 1, CLUSTER_TEXT[1], 2, CLUSTER_TEXT[2], 3, CLUSTER_TEXT[3], 4, CLUSTER_TEXT[4], 5, CLUSTER_TEXT[5],
+    CLUSTER_TEXT[3]];
   // 料理ジャンルフィルタ（複数選択可。空 = すべて表示）
   const mapGenreFilter = new Set();
   let buildMapGenreChips = null; // 地図の絞り込みパネルのジャンルチップを組み直す（initMapで実体を設定）
@@ -931,8 +936,9 @@ const Views = (() => {
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
-          'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true },
-        paint: { 'text-color': '#222222' } });
+          'text-size': 13, 'text-allow-overlap': true, 'text-ignore-placement': true },
+        // 地図の文字は細字しか無い（地理院の noto-jp）ので、同じ色の縁取り 0.35px で太字に見せる
+        paint: { 'text-color': clusterTextByR('maxR'), 'text-halo-color': clusterTextByR('maxR'), 'text-halo-width': 0.35 } });
       // symbol-sort-key: 値が大きいほど上に描画される。
       // ピンが重なったとき、評価（平均）の高い店が上に来るよう ravg を指定する。
       const RATING_ONTOP = ['coalesce', ['get', 'ravg'], 0];
