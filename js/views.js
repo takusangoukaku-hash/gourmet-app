@@ -748,11 +748,12 @@ const Views = (() => {
   // v398: まとまりの波紋。描くのは地図タブを開いていて、画面にまとまりがあるときだけ（それ以外は止めて電池を食わない）。
   //   約 20 回/秒に間引き、動きを減らす設定の端末では出さない
   let clusterPulseOn = false;
+  const CLUSTER_R = 21;
   function startClusterPulse() {
     if (clusterPulseOn || !map) return;
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     clusterPulseOn = true;
-    const PERIOD = 2400, R0 = 15, R1 = 39, OP0 = 0.5;
+    const PERIOD = 2400, W1 = 6, OP0 = 0.5;
     let last = 0, hasClusters = false, checkedAt = 0, idle = true;
     // v406: 地図を開いていない・裏に回ったときはループごと止める（以前は描かないだけで毎フレーム起きていた）。
     //   再開は地図タブに入ったとき（enterMapTab）と前面に戻ったとき。まとまりが無いあいだは 1 秒に1回の見回りだけ
@@ -760,7 +761,7 @@ const Views = (() => {
       if (!map || !map.getLayer('cluster-pulse')) { clusterPulseOn = false; return; }
       const active = document.body.dataset.tab === 'map' && !document.hidden;
       if (!active) {
-        if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-opacity', 0); idle = true; }
+        if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-stroke-opacity', 0); idle = true; }
         clusterPulseOn = false; return;
       }
       if (now - checkedAt > 1000) { // まとまりが見えているか（1 秒に1回だけ数える）
@@ -768,7 +769,7 @@ const Views = (() => {
         try { hasClusters = map.queryRenderedFeatures({ layers: ['clusters'] }).length > 0; } catch { hasClusters = false; }
       }
       if (!hasClusters) {
-        if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-opacity', 0); idle = true; }
+        if (!idle) { map.setPaintProperty('cluster-pulse', 'circle-stroke-opacity', 0); idle = true; }
         setTimeout(() => requestAnimationFrame(frame), 1000);
         return;
       }
@@ -778,8 +779,8 @@ const Views = (() => {
       idle = false;
       const t = (now % PERIOD) / PERIOD;
       const e = 1 - (1 - t) * (1 - t); // ease-out（現在地の波紋と同じ）
-      map.setPaintProperty('cluster-pulse', 'circle-radius', R0 + (R1 - R0) * e);
-      map.setPaintProperty('cluster-pulse', 'circle-opacity', OP0 * (1 - e));
+      map.setPaintProperty('cluster-pulse', 'circle-stroke-width', W1 * e);
+      map.setPaintProperty('cluster-pulse', 'circle-stroke-opacity', OP0 * (1 - e));
     };
     requestAnimationFrame(frame);
   }
@@ -912,18 +913,21 @@ const Views = (() => {
       // まとまり（クラスター）の見た目: Leaflet.markercluster 風の「丸＋外側の淡い輪」（v321〜）
       //   丸も輪も、中で一番評価の高い店の評価色（★5 の店を含めば赤）。中に件数を黒文字で出す
       //   v320 までの「乗せると範囲を囲む」表示と、件数での色分けはやめた
-      // v398: まとまりの丸から、現在地と同じ「波紋」が広がる（2.4 秒で 15px → 39px・薄くなって消える。色は丸と同じ）
+      // v398: まとまりの丸から、現在地と同じ「波紋」が広がる。v430〜 丸の縁（半径 21px）から外へ 6px だけ広がる帯（縁取りの幅を 0 → 6px。塗りの円だと丸の中に透けて見えた）
       map.addLayer({ id: 'cluster-pulse', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 15, 'circle-color': colorByR('maxR'), 'circle-opacity': 0,
-          'circle-radius-transition': { duration: 0 }, 'circle-opacity-transition': { duration: 0 } } });
+        paint: { 'circle-radius': CLUSTER_R, 'circle-opacity': 0, 'circle-blur': 0.1,
+          'circle-stroke-width': 0, 'circle-stroke-color': colorByR('maxR'), 'circle-stroke-opacity': 0,
+          'circle-stroke-width-transition': { duration: 0 }, 'circle-stroke-opacity-transition': { duration: 0 } } });
       startClusterPulse();
-      map.addLayer({ id: 'cluster-halo', type: 'circle', source: 'shops',
-        filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 20, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.35 } });
+      // v430〜 丸は濃い内側＋薄い輪の2色をやめ、中心が濃く縁へ薄くなるグラデーション。
+      //   縁のはっきりした薄い丸（clusters。タップもこれ）に、中心から縁へ消えていく丸（circle-blur 1）を重ねる
       map.addLayer({ id: 'clusters', type: 'circle', source: 'shops',
         filter: ['has', 'point_count'],
-        paint: { 'circle-radius': 15, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.75 } });
+        paint: { 'circle-radius': CLUSTER_R, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.28 } });
+      map.addLayer({ id: 'cluster-core', type: 'circle', source: 'shops',
+        filter: ['has', 'point_count'],
+        paint: { 'circle-radius': CLUSTER_R, 'circle-color': colorByR('maxR'), 'circle-opacity': 0.92, 'circle-blur': 1 } });
       map.addLayer({ id: 'cluster-count', type: 'symbol', source: 'shops',
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT,
@@ -1009,12 +1013,7 @@ const Views = (() => {
         });
       };
       map.on('click', 'clusters', zoomCluster);
-      map.on('click', 'cluster-halo', (e) => {
-        // 内側の丸と同時に反応したときは二重に動かさない
-        if (map.queryRenderedFeatures(e.point, { layers: ['clusters'] }).length) return;
-        zoomCluster(e);
-      });
-      ['pins', 'clusters', 'cluster-halo', 'wish-pins'].forEach(id => {
+      ['pins', 'clusters', 'wish-pins'].forEach(id => {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       });
@@ -2122,7 +2121,7 @@ const Views = (() => {
       paint: {
         'heatmap-radius': 32, 'heatmap-opacity': 0.6,
         'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 15, 2],
-      } }, 'cluster-halo'); // ピンとまとまりの下に描画
+      } }, 'cluster-pulse'); // ピンとまとまりの下に描画
   }
 
   // ========== 一覧 ==========
