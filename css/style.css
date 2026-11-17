@@ -628,6 +628,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 
 .sfs-visits { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .sfs-visits::-webkit-scrollbar { display: none; }
+.sfs-body .sfs-visits { margin: 0 -16px; } /* v432〜 .sfs-body の 16px と重なって 32px 内側から始まっていた。帯は端から端までスクロールし、最初の1枚は文字と同じ 16px から */
   
 
 .dvt { flex: 0 0 72px; width: 72px; border: none; background: none; padding: 0; cursor: pointer; }
@@ -828,7 +829,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 /* 写真タップ後の店舗フィード画面。店舗詳細(#modal)は静的要素で後から重ねられないため、
    この画面の方を一段下(z-index)にして「フィード → 店舗詳細」の順に重なるようにする */
 .modal.shopfeed-modal { z-index: 1990; background: var(--bg); }
-.modal.shopfeed-modal .modal-box { background: var(--bg); }
+.modal.shopfeed-modal .modal-box { background: var(--bg); padding: 0; } /* v432〜 写真を画面の横幅いっぱいに（箱の 20px の余白で左右に隙間が出ていた。文字は .sfs の中の 16px） */
 .shopfeed-modal .vl-body { padding: 0; }
 .shopfeed-modal .pf-shopfeed { padding: 0 0 28px; }
 
