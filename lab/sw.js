@@ -3,12 +3,12 @@
 //  - ネットワーク優先（更新を即反映、オフライン時はキャッシュ）
 //  - 更新時に消すのは lab- のキャッシュだけ
 // =====================================================
-const VERSION = 'v3'; // 全体を小さく: 1画面に10件前後が入る。毎日の後片付けは2行目（毎日）を省く
+const VERSION = 'v4'; // スイッチの向きを逆に（オン＝まだ・オフ＝済み）。後片付けは朝7時にすべてオンに戻る
 const CACHE = 'lab-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=3', './js/app.js?v=3',
+  './', './index.html', './css/style.css?v=4', './js/app.js?v=4',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

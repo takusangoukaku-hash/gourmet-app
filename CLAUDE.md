@@ -375,7 +375,7 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/diet/
 
 ## サブアプリ: ラボ片付け（`lab/`）
-- 研究室の後片付け（曜日で繰り返し・完了はその日だけ）と依頼事項（依頼者・期限）をトグルで管理する別 PWA。詳細は `lab/README.md`。
+- 研究室の後片付け（曜日で繰り返し・毎朝7時にすべてオンに戻る）と依頼事項（依頼者・期限）をトグルで管理（オン＝まだ・オフ＝済み）する別 PWA。詳細は `lab/README.md`。
 - 本体・diet とはコード・Service Worker・localStorage キー（`lab.*`）・キャッシュ名（`lab-*`）を分ける。本体の `APP_VERSION` は変更しない。
 - バージョン: `lab/js/app.js` の `APP_VERSION`、`lab/sw.js` の `VERSION` と `SHELL` の `?v=`、`lab/index.html` の `?v=`（2箇所）を揃える。
 - 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/lab/

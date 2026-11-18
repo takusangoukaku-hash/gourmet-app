@@ -4,7 +4,7 @@
 //  - 依頼事項: 一度きり。依頼者・期限つき。完了したら下に沈む
 //  - データは localStorage（lab.tasks.v1）のみ
 // =====================================================
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 const KEY = 'lab.tasks.v1';
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 月曜はじまり
@@ -26,6 +26,11 @@ function daysUntil(dateStr) {
   return Math.round((new Date(y, m - 1, d) - t) / 86400000);
 }
 
+// 1日の区切りは朝7時（7時前はまだ前の日の扱い。7時になると後片付けはすべてオンに戻る）
+const RESET_HOUR = 7;
+const workDate = () => new Date(Date.now() - RESET_HOUR * 3600000);
+const workDay = () => ymd(workDate());
+
 // ---------- データ ----------
 let tasks = load();
 function load() {
@@ -38,12 +43,12 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch { toast('保存できませんでした'); }
 }
 
-const isToday = (t) => t.kind !== 'clean' || !t.days?.length || t.days.includes(new Date().getDay());
-const isDone = (t) => t.kind === 'clean' ? t.doneDay === ymd() : !!t.doneAt;
+const isToday = (t) => t.kind !== 'clean' || !t.days?.length || t.days.includes(workDate().getDay());
+const isDone = (t) => t.kind === 'clean' ? t.doneDay === workDay() : !!t.doneAt;
 
 function toggle(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
-  if (t.kind === 'clean') t.doneDay = isDone(t) ? null : ymd();
+  if (t.kind === 'clean') t.doneDay = isDone(t) ? null : workDay();
   else t.doneAt = t.doneAt ? null : new Date().toISOString();
   save();
   buzz();
@@ -102,7 +107,7 @@ function itemHtml(t, rest = false) {
         <div class="title">${esc(t.title)}</div>
         ${(() => { const st = subText(t); return st ? `<div class="sub">${st}</div>` : ''; })()}
       </div>
-      <input type="checkbox" switch class="tg${NATIVE_SWITCH ? '' : ' custom'}" data-tg="${esc(t.id)}" ${done ? 'checked' : ''} ${rest ? 'disabled' : ''} aria-label="完了">
+      <input type="checkbox" switch class="tg${NATIVE_SWITCH ? '' : ' custom'}" data-tg="${esc(t.id)}" ${done ? '' : 'checked'} ${rest ? 'disabled' : ''} aria-label="未完了">
     </div>
   </div>`;
 }
@@ -135,9 +140,9 @@ function render() {
   const todo = [...cleanToday, ...reqs.filter(t => !t.doneAt)];
   const left = todo.filter(t => !isDone(t));
   const late = left.filter(t => t.kind === 'request' && t.due && daysUntil(t.due) <= 0).length;
-  const doneToday = cleanToday.filter(isDone).length + reqs.filter(t => t.doneAt && ymd(new Date(t.doneAt)) === ymd()).length;
+  const doneToday = cleanToday.filter(isDone).length + reqs.filter(t => t.doneAt && ymd(new Date(new Date(t.doneAt) - RESET_HOUR * 3600000)) === workDay()).length;
   const total = left.length + doneToday;
-  const now = new Date();
+  const now = workDate();
   const dateLabel = `${now.getMonth() + 1}月${now.getDate()}日（${WD[now.getDay()]}）`;
 
   if (!tasks.length) {
@@ -354,8 +359,8 @@ $('#sh-delete').onclick = () => { const id = cur?.id; closeSheet(); if (id) remo
 $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
 
 // 日付が変わったら（翌朝アプリを開いたとき）後片付けをオフに戻して描き直す
-let lastDay = ymd();
-function checkDay() { if (ymd() !== lastDay) { lastDay = ymd(); showRest = false; render(); } }
+let lastDay = workDay();
+function checkDay() { if (workDay() !== lastDay) { lastDay = workDay(); showRest = false; render(); } }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 setInterval(checkDay, 60000);
 
