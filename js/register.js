@@ -1225,11 +1225,12 @@ const Register = (() => {
     const name = $('#f-shop-name').value.trim();
     // 訪問日は自動記録（写真の撮影日→なければ当日）。編集画面から修正可能
     const dtVal = visitDate || toLocalInput(new Date());
-    if (!name) { App.toast('店名を入れてください'); return; }
-    if (!currentRating) { App.toast('味の評価（★）を選択してください'); return; }
+    // v434: 足りない欄を震わせる（理由はトーストのまま）
+    if (!name) { App.toast('店名を入れてください'); Views.shake($('#f-shop-name')); return; }
+    if (!currentRating) { App.toast('味の評価（★）を選択してください'); Views.shake($('#f-rating')); return; }
 
     const btn = $('#save-btn');
-    btn.disabled = true; btn.textContent = '保存中…'; saving = true;
+    btn.disabled = true; btn.textContent = '保存中…'; btn.classList.add('is-loading'); saving = true; // v434: ローディングボタン
     let createdShopId = null, createdVisitId = null; // 途中で失敗したときに取り消すため
     try {
       // --- 店舗の確定（既存 → 照合 → 新規） ---
@@ -1308,6 +1309,7 @@ const Register = (() => {
 
       // --- 訪問記録 ---
       const dishGenres = [...selectedDishGenres];
+      const openWishes = Store.wishes().length; // v434: この記録で行きたい店を達成したか（したらコンフェッティ）
       const visit = Store.addVisit({
         shopId: shop.id,
         // 日付のみ入力。タイムゾーンで日付がずれないよう正午として保存
@@ -1335,7 +1337,9 @@ const Register = (() => {
         Cloud.autoBackupSweep(true).catch(() => {});
       }
 
-      App.toast(`「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）`);
+      const achieved = Store.wishes().length < openWishes;
+      App.toast(`「${shop.name}」に記録しました（訪問${Store.visitCount(shop.id)}回目）` + (achieved ? ' ・ 行きたい店を達成' : ''));
+      if (achieved) Views.confetti();
       fillMissingAfterSave(shop.id, pos); // v394: 駅・県・市の取得が間に合わなかった分を後追い
       resetForm();
       App.switchTab('list');
@@ -1348,7 +1352,7 @@ const Register = (() => {
       App.toast(Store.isQuotaError(e) ? Store.QUOTA_MSG : '保存に失敗しました: ' + e.message, Store.isQuotaError(e) ? 6000 : undefined);
     } finally {
       saving = false;
-      btn.disabled = false; btn.textContent = '記録する'; // v393: index.html の表記に合わせる
+      btn.disabled = false; btn.textContent = '記録する'; btn.classList.remove('is-loading'); // v393: index.html の表記に合わせる
     }
   }
 

@@ -2227,3 +2227,25 @@ body.msh-open .map-panel { visibility: hidden; } /* 店シートを開いてい�
 .net-bar .nb-link { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
 /* v418: 取り込みの保存中は一覧を押せない（待っている間に「飛ばす」・★を変えても記録は変わらないため） */
 #im-list.im-locked { pointer-events: none; opacity: .6; }
+/* ---------- v434: 動きの部品（参考:「AIでアプリを作る時に使う、動きの名前24」） ---------- */
+/* 押した手応え: ボタン・タイルが押している間だけ少し縮む（iOS の押し心地。指を離すと戻る） */
+.btn, .msh-tile, .reg-pick-tile, .ex-cat, .act-row .act-btn, .wish-rec { transition: transform .12s ease; }
+.btn:active:not(:disabled), .msh-tile:active, .reg-pick-tile:active, .ex-cat:active, .act-row .act-btn:active, .wish-rec:active { transform: scale(.96); }
+/* ローディングボタン: 保存中は文字の左に回る輪 */
+.btn.is-loading::before { content: ''; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: ptr-rot .7s linear infinite; flex-shrink: 0; }
+/* シェイク: 足りない欄を横に震わせる */
+.shake { animation: shake .36s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shake { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+/* いいねのはじけ: 押して付けたときだけ♥が弾む */
+.pop .heart-ic { animation: likePop .42s cubic-bezier(.2,1.6,.4,1); }
+@keyframes likePop { 0% { transform: scale(.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+/* スプリング: 下からのシートは少し行きすぎて戻る */
+.action-sheet .as-box, .as-box { animation: asSlideUp .34s cubic-bezier(.2,1.2,.35,1); }
+/* コンフェッティの canvas（押す操作は下へ通す） */
+.confetti-cv { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5000; }
+@media (prefers-reduced-motion: reduce) {
+  .btn, .msh-tile, .reg-pick-tile, .ex-cat, .act-row .act-btn, .wish-rec { transition: none; }
+  .btn:active:not(:disabled), .msh-tile:active, .reg-pick-tile:active, .ex-cat:active, .act-row .act-btn:active, .wish-rec:active { transform: none; }
+  .shake, .pop .heart-ic { animation: none; }
+  .action-sheet .as-box, .as-box { animation: asSlideUp .18s ease-out; }
+}

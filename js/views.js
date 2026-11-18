@@ -3935,7 +3935,9 @@ const Views = (() => {
     const m = Store.matchShop({ name: w.name, lat: w.lat, lon: w.lon });
     const created = !m;
     const s = m || Store.addShop({ name: w.name || '', lat: w.lat != null ? w.lat : null, lon: w.lon != null ? w.lon : null, address: w.address || '', shopGenre: w.genre || 'その他', foundBy: 'wish' });
+    const openBefore = Store.wishes().length;
     const v = Store.addVisit({ shopId: s.id, rating: 0, dishGenres: [], datetime: new Date().toISOString(), visitType: '店内飲食' });
+    if (Store.wishes().length < openBefore) confetti(); // v434: 行きたい店を達成したごほうび
     if (created && s.lat != null && s.lon != null) { // 駅・県・市・住所を位置から補う（できる範囲で。失敗しても記録はそのまま）
       Promise.all([Api.reverseGeocode(s.lat, s.lon).catch(() => ({})), Api.nearestStation(s.lat, s.lon).catch(() => '')]).then(([geo, station]) => {
         const cur = Store.getShop(s.id); if (!cur) return;
@@ -3950,6 +3952,47 @@ const Views = (() => {
       undo: async () => { await Store.deleteVisit(v.id); if (created) await Store.deleteShop(s.id); if (afterChange) afterChange(); },
       commit: () => {},
     });
+  }
+  // v434〜 動きの部品（参考: 「AIでアプリを作る時に使う、動きの名前24」）。動きを減らす設定の端末では何もしない
+  const motionOK = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // シェイク: まちがえた・足りない欄を横に震わせる（トーストで理由を言うのは今までどおり）
+  function shake(el) {
+    if (!el || !motionOK()) return;
+    el.classList.remove('shake'); void el.offsetWidth; // 続けて押しても毎回震える
+    el.classList.add('shake');
+    el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+  }
+  // コンフェッティ: 行きたい店を達成したときだけの小さなごほうび（1.4 秒・画面の上半分から。押す操作は邪魔しない）
+  function confetti() {
+    if (!motionOK()) return;
+    const cv = document.createElement('canvas');
+    cv.className = 'confetti-cv';
+    const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    document.body.appendChild(cv);
+    const g = cv.getContext('2d'); g.scale(dpr, dpr);
+    const COLORS = ['#C6613F', '#F2C14E', '#3B82F6', '#22C55E', '#EF4444', '#8B5CF6'];
+    const ps = Array.from({ length: 70 }, () => ({
+      x: W / 2 + (Math.random() - .5) * 60, y: H * .32,
+      vx: (Math.random() - .5) * 9, vy: -4 - Math.random() * 7,
+      w: 5 + Math.random() * 4, h: 8 + Math.random() * 5,
+      r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3,
+      c: COLORS[(Math.random() * COLORS.length) | 0],
+    }));
+    const t0 = performance.now(), DUR = 1400;
+    const step = (now) => {
+      const t = now - t0;
+      g.clearRect(0, 0, W, H);
+      const fade = Math.max(0, 1 - Math.max(0, t - DUR * .6) / (DUR * .4));
+      for (const q of ps) {
+        q.vy += .28; q.vx *= .985; q.x += q.vx; q.y += q.vy; q.r += q.vr;
+        g.save(); g.globalAlpha = fade; g.translate(q.x, q.y); g.rotate(q.r);
+        g.fillStyle = q.c; g.fillRect(-q.w / 2, -q.h / 2, q.w, q.h * Math.abs(Math.cos(q.r * 2)) + 1);
+        g.restore();
+      }
+      if (t < DUR) requestAnimationFrame(step); else cv.remove();
+    };
+    requestAnimationFrame(step);
   }
   // 地図の店シートを片付ける（v392〜）。シートは自分の close() でしか消えず、詳細から「また来た」で記録へ移ると記録の画面の上に残っていた
   function closeMapSheets() {
@@ -6556,6 +6599,10 @@ const Views = (() => {
     const nEl = btn.querySelector('.fa-like-n');
     const wasLiked = btn.classList.contains('liked');
     btn.classList.toggle('liked', !wasLiked);
+    if (!wasLiked && motionOK()) { // v434: いいねのはじけ（押して付けたときだけ。描き直しで付いた♥は動かさない）
+      btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+      btn.addEventListener('animationend', () => btn.classList.remove('pop'), { once: true });
+    }
     const setN = (n) => { nEl.textContent = n > 0 ? String(n) : ''; }; // v393: 0 は出さない
     setN(Math.max(0, (parseInt(nEl.textContent) || 0) + (wasLiked ? -1 : 1)));
     const s = feedStats.get(id); // キャッシュも更新して整合を保つ
@@ -7134,7 +7181,7 @@ const Views = (() => {
     exploreNetCache = null; exploreItems = null; // v396: 発見・写真モードに前のアカウントのフォロー中の写真を残さない
     for (const k of [FEED_LS, NET_LS]) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
-  return { isSelecting, searchNorm, fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
+  return { shake, confetti, isSelecting, searchNorm, fmtDate, closeMapSheets, mzSelEnd, warmThumb, openMergeShops, similarShops, openActionSheet, enterProfileTab, openVisitEdit, openShopEdit, clearSocialCaches, refreshMap, enterMapTab, warmNetwork, initList, renderList, enterListTab, renderStats, initProfile, renderProfile, renderFeed, showShop, showMapShopSheet, showNetShopSheet, closeModal, showPublicProfile, starBtn, mountRatingStars, getMap: () => map, baseMapStyle,
     ratingPair, tasteBadge, // ratingPair / tasteBadge は動作確認用に公開（v323〜）
     ratingWord, // ★の意味（v374〜。register.js が使う）
     openWishAdd, parseWishInput, // 行きたい店の追加（v327〜。共有から開くときに app.js が使う）
