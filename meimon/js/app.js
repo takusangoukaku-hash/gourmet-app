@@ -1,12 +1,12 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a}]}]
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?}]}]（p: [緯度, 経度]＝駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300;
@@ -52,6 +52,20 @@ function norm(x) {
     .replace(/\s+/g, '');
 }
 const keyOf = (s) => s.n + '\u0000' + prefOf(s.a);
+// 位置: 数が2つで日本の範囲（緯度 20〜50・経度 120〜155）だけ受ける
+const okPos = (la, lo) => Number.isFinite(la) && Number.isFinite(lo) && la >= 20 && la <= 50 && lo >= 120 && lo <= 155;
+function parseCoord(t) {
+  const m = typeof t === 'string' && t.trim().match(/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?:\s*,\s*(c))?$/);
+  if (!m) return null;
+  const la = Number(m[1]), lo = Number(m[2]);
+  return okPos(la, lo) ? { p: [la, lo], c: m[3] ? 1 : 0 } : null;
+}
+// 保存済みの p / c を確かめる（正しくなければ空）
+function cleanPos(s) {
+  const p = s && s.p;
+  if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return {};
+  return s.c === 1 ? { p: [p[0], p[1]], c: 1 } : { p: [p[0], p[1]] };
+}
 const cap = (s, n) => String(s).slice(0, n);
 
 // ---------- データ ----------
@@ -64,7 +78,7 @@ function cleanList(l) {
   const shops = [];
   for (const s of l.shops) {
     if (!s || typeof s.n !== 'string' || !s.n.trim()) continue;
-    shops.push({ n: cap(s.n, MAX_NAME), a: typeof s.a === 'string' ? cap(s.a, MAX_AREA) : '' });
+    shops.push(Object.assign({ n: cap(s.n, MAX_NAME), a: typeof s.a === 'string' ? cap(s.a, MAX_AREA) : '' }, cleanPos(s)));
   }
   return { title: cap(l.title, MAX_TITLE) || DEFAULT_TITLE, shops };
 }
@@ -108,7 +122,7 @@ function shopNorm(s) {
 }
 
 // ---------- 取り込み ----------
-// "# タイトル" で一覧を始め、ほかの行は「店名<TAB>エリア」。# より前の店は「リスト」へ
+// "# タイトル" で一覧を始め、ほかの行は「店名<TAB>エリア」か「店名<TAB>エリア<TAB>緯度,経度[,c]」。# より前の店は「リスト」へ
 function parseText(text) {
   const out = []; // [{title, shops}]（同じタイトルは1つにまとめる）
   let cur = null;
@@ -120,12 +134,13 @@ function parseText(text) {
   for (let line of String(text).replace(/^﻿/, '').split(/\r\n|\r|\n/)) {
     if (!line.trim()) continue;
     if (line.trimStart().startsWith('#')) { start(line.trimStart().slice(1)); continue; }
-    const i = line.indexOf('\t');
-    const n = cap((i < 0 ? line : line.slice(0, i)).trim(), MAX_NAME);
-    const a = i < 0 ? '' : cap(line.slice(i + 1).trim(), MAX_AREA);
+    const parts = line.split('\t');
+    const n = cap(parts[0].trim(), MAX_NAME);
+    const a = cap((parts[1] || '').trim(), MAX_AREA);
     if (!n) continue;
     if (!cur) start(DEFAULT_TITLE);
-    cur.shops.push({ n, a });
+    const pc = parts.length > 2 ? parseCoord(parts[2]) : null;
+    cur.shops.push(pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : { n, a, p: pc.p }) : { n, a });
   }
   return out;
 }
@@ -179,7 +194,7 @@ function validateBackup(o) {
     for (const s of l.shops) {
       if (!isObj(s) || typeof s.n !== 'string' || typeof s.a !== 'string') return null;
       if (!s.n.trim()) continue;
-      shops.push({ n: cap(s.n, MAX_NAME), a: cap(s.a, MAX_AREA) });
+      shops.push(Object.assign({ n: cap(s.n, MAX_NAME), a: cap(s.a, MAX_AREA) }, cleanPos(s)));
     }
     total += shops.length;
     if (total > MAX_SHOPS) return null;
@@ -205,14 +220,16 @@ async function importBackup(file) {
 }
 
 // ---------- 画面の状態 ----------
-const view = { list: null, status: 'all', pref: '', q: '' }; // list: タイトル（詳細を開いているとき）
+const view = { list: null, status: 'all', pref: '', q: '', map: false, mg: '', mt: false }; // list: タイトル（詳細を開いているとき）／map: 地図を開いているとき（mg: ジャンル、mt: まだだけ）
 let homeQ = '';
 
 const app = $('#app');
 function render() {
+  leaveMap();
   app.replaceChildren();
-  if (view.list != null && lists.some(l => l.title === view.list)) renderDetail();
-  else { view.list = null; renderHome(); }
+  if (view.map && hasCoords()) renderMap();
+  else if (view.list != null && lists.some(l => l.title === view.list)) renderDetail();
+  else { view.map = false; view.list = null; renderHome(); }
 }
 
 // 一覧のジャンル（末尾の西暦4桁と地域の語を除く）
@@ -233,6 +250,7 @@ function renderHome() {
   const wrap = h('div', { class: 'wrap' });
   wrap.append(h('div', { class: 'bar' },
     h('h1', null, '百名店チェック'),
+    hasCoords() ? h('button', { class: 'btn small', 'data-open': 'map', onclick: openMap }, '地図') : null,
     h('button', { class: 'btn small', 'data-open': 'data', onclick: () => openSheet() }, 'データ')));
   if (!lists.length) {
     wrap.append(h('div', { class: 'empty' }, h('p', null, 'まだ一覧がありません'),
@@ -320,7 +338,10 @@ function closeList() {
   if (history.state && history.state.d) history.back();
   else { view.list = null; render(); }
 }
-window.addEventListener('popstate', () => { if (view.list != null) { view.list = null; render(); } });
+window.addEventListener('popstate', () => {
+  if (view.map) { view.map = false; render(); }
+  else if (view.list != null) { view.list = null; render(); }
+});
 
 function renderDetail() {
   const l = lists.find(x => x.title === view.list);
@@ -379,6 +400,187 @@ function renderDetail() {
   }
   paintChips(); paintRows();
 }
+
+// ---------- 地図 ----------
+// MapLibre は地図を開いたときだけ読み込む。店のデータは外へ送らない（地図の部品とタイルの取得だけ）
+const ML_VER = '4.7.1';
+const ML_CSS = { href: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.css`, integrity: 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V' };
+const ML_JS = { src: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.js`, integrity: 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj' };
+const MAP_STYLE = { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' };
+const PIN_COLOR = '#C6613F', PIN_DONE = '#9A9891';
+let mapObj = null, mapReady = false, mapToken = 0, mapLib = null, lastCam = null, mapPlaces = new Map();
+
+const hasCoords = () => lists.some(l => l.shops.some(s => s.p));
+const areaOf = (s) => String(s.a || '').trim().split(/\s+/).slice(1).join(' '); // 都道府県を除いたエリア
+function loadMapLib() {
+  if (window.maplibregl) return Promise.resolve();
+  if (mapLib) return mapLib;
+  const els = [];
+  mapLib = new Promise((res, rej) => {
+    const css = h('link', { rel: 'stylesheet', href: ML_CSS.href, integrity: ML_CSS.integrity, crossorigin: 'anonymous' });
+    const js = h('script', { src: ML_JS.src, integrity: ML_JS.integrity, crossorigin: 'anonymous' });
+    els.push(css, js);
+    js.onload = () => (window.maplibregl ? res() : rej(new Error('maplibre')));
+    js.onerror = () => rej(new Error('maplibre'));
+    document.head.append(css, js);
+  }).catch(e => { mapLib = null; for (const x of els) x.remove(); throw e; });
+  return mapLib;
+}
+
+function openMap() {
+  view.map = true; view.mg = ''; view.mt = false;
+  try { history.pushState({ m: 1 }, ''); } catch {}
+  render();
+}
+function closeMap() {
+  if (history.state && history.state.m) history.back();
+  else { view.map = false; render(); }
+}
+function leaveMap() {
+  mapToken++;
+  if (document.querySelector('#sheet-root .sheet-wrap.place')) closeSheet();
+  if (mapObj) {
+    try { const c = mapObj.getCenter(); lastCam = { center: [c.lng, c.lat], zoom: mapObj.getZoom() }; } catch {}
+    try { mapObj.remove(); } catch {}
+  }
+  mapObj = null; mapReady = false; mapPlaces = new Map();
+  window.__meimonMap = null;
+}
+
+// 絞り込み後の店を同じ位置ごとにまとめる
+function buildPlaces() {
+  const m = new Map();
+  for (const l of lists) {
+    if (view.mg && genreOf(l.title) !== view.mg) continue;
+    for (const s of l.shops) {
+      if (!s.p) continue;
+      if (view.mt && isVisited(l, s)) continue;
+      const k = s.p[0] + ',' + s.p[1];
+      let pl = m.get(k);
+      if (!pl) { pl = { k, lat: s.p[0], lon: s.p[1], coarse: !!s.c, label: areaOf(s) || s.a || s.n, items: [] }; m.set(k, pl); }
+      pl.items.push([l, s]);
+    }
+  }
+  return m;
+}
+function placesData() {
+  mapPlaces = buildPlaces();
+  const features = [];
+  for (const pl of mapPlaces.values()) {
+    const n = pl.items.length;
+    let d = 0; for (const [l, s] of pl.items) if (isVisited(l, s)) d++;
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pl.lon, pl.lat] },
+      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, label: pl.label } });
+  }
+  const fc = { type: 'FeatureCollection', features };
+  window.__meimonPlaces = fc;
+  return fc;
+}
+function refreshPlaces() {
+  const fc = placesData();
+  if (mapObj && mapReady) mapObj.getSource('places').setData(fc);
+}
+
+function renderMap() {
+  const genres = [];
+  for (const l of lists) if (l.shops.some(s => s.p)) { const g = genreOf(l.title); if (!genres.includes(g)) genres.push(g); }
+  const sel = h('select', { 'aria-label': 'ジャンル' }, h('option', { value: '' }, 'すべてのジャンル'), genres.map(g => h('option', { value: g }, g)));
+  sel.value = view.mg;
+  const chip = h('button', { class: 'chip', 'aria-pressed': view.mt ? 'true' : 'false' }, 'まだだけ');
+  const paintChip = () => { chip.className = 'chip' + (view.mt ? ' on' : ''); chip.setAttribute('aria-pressed', view.mt ? 'true' : 'false'); };
+  paintChip();
+  const changed = () => { closeSheet(); refreshPlaces(); };
+  sel.addEventListener('change', () => { view.mg = sel.value; changed(); });
+  chip.addEventListener('click', () => { view.mt = !view.mt; paintChip(); changed(); });
+  const box = h('div', { class: 'mapbox' });
+  const fail = h('div', { class: 'mapfail', hidden: true });
+  app.append(h('div', { class: 'mapview' }, box, fail,
+    h('div', { class: 'mapbar' }, h('button', { class: 'ibtn', 'aria-label': '戻る', onclick: closeMap }, icon('back')), sel, chip)));
+  startMap(box, fail);
+}
+function startMap(box, fail) {
+  const token = ++mapToken;
+  fail.hidden = true; fail.replaceChildren();
+  loadMapLib().then(() => {
+    if (token !== mapToken) return;
+    const fc = placesData();
+    const dark = !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    const opt = { container: box, style: dark ? MAP_STYLE.dark : MAP_STYLE.light, attributionControl: { compact: true }, dragRotate: false };
+    if (lastCam) { opt.center = lastCam.center; opt.zoom = lastCam.zoom; }
+    else {
+      const ps = [...mapPlaces.values()];
+      const la = ps.map(p => p.lat), lo = ps.map(p => p.lon);
+      opt.bounds = [[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]];
+      opt.fitBoundsOptions = { padding: 40, maxZoom: 13 };
+    }
+    const map = new maplibregl.Map(opt);
+    mapObj = map; window.__meimonMap = map;
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), 'bottom-right');
+    map.on('error', () => {}); // 文字（グリフ）やタイルが読めなくても地図は止めない
+    map.on('load', () => {
+      if (token !== mapToken) return;
+      map.addSource('places', { type: 'geojson', data: fc, cluster: true, clusterRadius: 44, clusterMaxZoom: 13,
+        clusterProperties: { n: ['+', ['get', 'n']], todo: ['+', ['get', 'todo']] } });
+      const isCl = ['has', 'point_count'];
+      const txt = { 'text-field': ['to-string', ['get', 'n']], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true };
+      const txtPaint = { 'text-color': '#ffffff' };
+      map.addLayer({ id: 'clusters', type: 'circle', source: 'places', filter: isCl,
+        paint: { 'circle-color': PIN_COLOR, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: 'cluster-n', type: 'symbol', source: 'places', filter: isCl, layout: txt, paint: txtPaint });
+      map.addLayer({ id: 'places-pt', type: 'circle', source: 'places', filter: ['!', isCl],
+        paint: { 'circle-color': ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': 11,
+          'circle-opacity': ['case', ['==', ['get', 'c'], 1], .55, 1], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['!', isCl], layout: txt, paint: txtPaint });
+      map.on('click', 'clusters', (e) => {
+        const f = e.features && e.features[0]; if (!f) return;
+        map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id)
+          .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z })).catch(() => {});
+      });
+      map.on('click', 'places-pt', (e) => { const f = e.features && e.features[0]; if (f) openPlace(f.properties.k); });
+      for (const id of ['clusters', 'places-pt']) {
+        map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+      }
+      mapReady = true; box.dataset.ready = '1';
+    });
+  }).catch(() => {
+    if (token !== mapToken) return;
+    fail.hidden = false;
+    fail.append(h('p', null, '地図を読み込めませんでした ・ 接続を確かめてください'),
+      h('button', { class: 'btn', onclick: () => startMap(box, fail) }, 'もう一度'));
+  });
+}
+
+// 場所（同じ位置の店）のシート。開いた時点の店を持ち、行った／まだを切り替えたら数と地図を更新する
+function openPlace(k) {
+  const pl = mapPlaces.get(k);
+  if (!pl) return;
+  closeSheet();
+  const items = pl.items.slice();
+  const cnt = h('span', { class: 'count' });
+  const rows = h('div');
+  const paint = () => {
+    let d = 0; for (const [l, s] of items) if (isVisited(l, s)) d++;
+    cnt.textContent = `${items.length} 店 ・ 行った ${d}`;
+    rows.replaceChildren();
+    for (const [l, s] of items) {
+      const q = [s.n, areaOf(s)].filter(Boolean).join(' ');
+      rows.append(h('div', { class: 'mrow' },
+        shopRow(l, s, true, () => { paint(); refreshPlaces(); }),
+        h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ')));
+    }
+  };
+  paint();
+  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': pl.label },
+    h('div', { class: 'bar' }, h('h2', null, pl.label), cnt,
+      h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
+    h('p', { class: 'hint pnote' }, pl.coarse ? '市の中心のおおよその位置です' : '駅の位置です（店の正確な場所ではありません）'),
+    rows);
+  sheetEl = h('div', { class: 'sheet-wrap place' }, sheet);
+  $('#sheet-root').append(sheetEl);
+}
+window.__meimonOpenPlace = openPlace;
 
 // ---------- 設定・データのシート ----------
 let sheetEl = null;

@@ -125,3 +125,26 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .btn.small { min-height: 36px; height: 36px; padding: 0 12px; font-size: 13px; flex: none; }
+
+/* 地図 */
+.mapview { position: fixed; inset: 0; z-index: 1; background: var(--bg); }
+.mapview .mapbox { position: absolute; inset: 0; }
+.mapview .maplibregl-ctrl-bottom-right { margin-bottom: env(safe-area-inset-bottom); margin-right: env(safe-area-inset-right); }
+.mapbar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 0 calc(env(safe-area-inset-left) + 12px);
+  pointer-events: none;
+}
+.mapbar > * { pointer-events: auto; box-shadow: 0 1px 6px rgba(0,0,0,.2), 0 0 0 1px var(--line); background: var(--bg); }
+.mapbar .ibtn { flex-shrink: 0; }
+.mapbar select { flex: 1; width: auto; height: 36px; padding: 0 12px; font-size: 16px; border-radius: 10px; }
+.mapbar .chip { flex-shrink: 0; }
+.mapbar .chip.on { background: var(--accent); }
+.mapfail { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 64px 24px 24px; text-align: center; color: var(--muted); background: var(--bg); }
+.mapfail p { margin: 0; }
+.sheet-wrap.place { background: transparent; pointer-events: none; }
+.sheet-wrap.place .sheet { pointer-events: auto; max-height: 70vh; box-shadow: 0 -2px 16px rgba(0,0,0,.2); }
+.pnote { margin: 0 0 4px; }
+.mrow { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.mrow .srow { flex: 1; min-width: 0; border-bottom: 0; }
+.mlink { flex-shrink: 0; font-size: 12px; color: var(--muted); text-decoration: underline; padding: 14px 4px; }

@@ -382,7 +382,8 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 
 ## サブアプリ: 百名店チェック（`meimon/`）
 - 百名店の一覧を利用者が貼り付け／テキストファイルで取り込み、行った店をチェックする別 PWA（行った／まだ だけ。ログイン・同期・写真・評価は無い）。詳細は `meimon/README.md`。
-- **店名の一覧・点数・口コミ・写真・ロゴをリポジトリに入れない**（公開リポジトリ）。一覧は端末の localStorage にだけ置く。外部への通信・自動で情報を集める処理は作らない。テストの見本も作り物の店名にする。
+- **店名の一覧・点数・口コミ・写真・ロゴをリポジトリに入れない**（公開リポジトリ）。一覧は端末の localStorage にだけ置く。自動で情報を集める処理は作らない。店のデータは外へ送らない。テストの見本も作り物の店名にする。
+- 地図（v2〜）: 取り込みの行の3つ目の欄 `緯度,経度[,c]`（c＝市の中心のおおよそ）を `p`／`c` で持ち、ホームの「地図」→ 同じ位置（駅・市）の店を1つのピンにまとめて出す（店の正確な位置ではない）。ピンのタップで店の一覧（行った／まだ・「地図アプリ」＝Google マップの検索）。MapLibre 4.7.1（unpkg、integrity 付き）と OpenFreeMap の positron／dark は地図を開いたときだけ読む＝外部への通信はこれだけ。座標は一覧のファイル側に入れて渡す（アプリは住所検索をしない）。テストは unpkg と openfreemap を route で差し替える（scratchpad の `meimon-map-test.js`）。
 - 本体・diet・lab とはコード・Service Worker・localStorage キー（`meimon.*`）・キャッシュ名（`meimon-*`）を分ける。本体の `APP_VERSION` は変更しない。
 - バージョン: `meimon/js/app.js` の `APP_VERSION`、`meimon/sw.js` の `VERSION` と `SHELL` の `?v=`、`meimon/index.html` の `?v=`（2箇所）を揃える。
 - 「行った」は 店名＋都道府県 の鍵で一覧とは別に持つ（一覧を貼り替えても残す）。取り込んだ文字は textContent／DOM API だけで入れる。
