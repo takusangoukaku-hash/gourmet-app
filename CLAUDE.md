@@ -379,3 +379,11 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - 本体・diet とはコード・Service Worker・localStorage キー（`lab.*`）・キャッシュ名（`lab-*`）を分ける。本体の `APP_VERSION` は変更しない。
 - バージョン: `lab/js/app.js` の `APP_VERSION`、`lab/sw.js` の `VERSION` と `SHELL` の `?v=`、`lab/index.html` の `?v=`（2箇所）を揃える。
 - 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/lab/
+
+## サブアプリ: 百名店チェック（`meimon/`）
+- 百名店の一覧を利用者が貼り付け／テキストファイルで取り込み、行った店をチェックする別 PWA（行った／まだ だけ。ログイン・同期・写真・評価は無い）。詳細は `meimon/README.md`。
+- **店名の一覧・点数・口コミ・写真・ロゴをリポジトリに入れない**（公開リポジトリ）。一覧は端末の localStorage にだけ置く。外部への通信・自動で情報を集める処理は作らない。テストの見本も作り物の店名にする。
+- 本体・diet・lab とはコード・Service Worker・localStorage キー（`meimon.*`）・キャッシュ名（`meimon-*`）を分ける。本体の `APP_VERSION` は変更しない。
+- バージョン: `meimon/js/app.js` の `APP_VERSION`、`meimon/sw.js` の `VERSION` と `SHELL` の `?v=`、`meimon/index.html` の `?v=`（2箇所）を揃える。
+- 「行った」は 店名＋都道府県 の鍵で一覧とは別に持つ（一覧を貼り替えても残す）。取り込んだ文字は textContent／DOM API だけで入れる。
+- 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/meimon/
