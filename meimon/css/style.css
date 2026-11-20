@@ -148,8 +148,18 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .pnote { margin: 0 0 4px; }
 .mrow { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
 .mrow .srow { flex: 1; min-width: 0; border-bottom: 0; }
-.mlink { flex-shrink: 0; font-size: 12px; color: var(--muted); text-decoration: underline; padding: 14px 4px; }
+.macts { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; }
+.mlink { font-size: 12px; color: var(--muted); text-decoration: underline; padding: 6px 4px; background: none; }
+/* 店の位置を直す: 中央の印と下の帯 */
+.pick { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.pickpin { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -22px 0 0 -11px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.4); box-sizing: border-box; }
+.pickbar { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); padding: 14px; border-radius: 14px; background: var(--bg); color: var(--fg); box-shadow: 0 2px 12px rgba(0,0,0,.3); pointer-events: auto; }
+.pickname { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickbar .hint { margin: 4px 0 12px; }
+.pickbar .rowb .btn { flex: 1; padding: 0 8px; font-size: 14px; }
+
 /* 現在地の青い点と、現在地へ寄せるボタン */
 .medot { width: 16px; height: 16px; border-radius: 50%; background: #1A73E8; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(26,115,232,.22), 0 1px 4px rgba(0,0,0,.35); box-sizing: content-box; }
 .mapview .locbtn { display: grid; place-items: center; width: 29px; height: 29px; color: #1C1B19; background: #fff; }
 .mapview .locbtn .ic { width: 18px; height: 18px; }
+.pickbar .rowb { display: flex; gap: 8px; }

@@ -6,9 +6,10 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
+const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
 const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300;
 const SEARCH_CAP = 200, LIST_CAP = 500;
 const DEFAULT_TITLE = 'リスト';
@@ -72,6 +73,7 @@ const cap = (s, n) => String(s).slice(0, n);
 // ---------- データ ----------
 let lists = loadLists();
 let visited = loadVisited();
+let fixedPos = loadFixedPos();
 let normCache = new WeakMap(); // shop -> 検索用の文字
 
 function cleanList(l) {
@@ -101,6 +103,30 @@ function loadVisited() {
     }
   } catch {}
   return m;
+}
+function cleanFixedPos(o) {
+  const m = Object.create(null);
+  if (o && typeof o === 'object' && !Array.isArray(o)) {
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      if (BAD_KEYS.has(k) || k.length > MAX_KEY || !Array.isArray(v) || v.length !== 2 || typeof v[0] !== 'number' || typeof v[1] !== 'number' || !okPos(v[0], v[1])) continue;
+      m[k] = [v[0], v[1]];
+    }
+  }
+  return m;
+}
+function loadFixedPos() {
+  try { return cleanFixedPos(JSON.parse(localStorage.getItem(POS_KEY) || '{}')); } catch { return Object.create(null); }
+}
+function saveFixedPos() {
+  try { localStorage.setItem(POS_KEY, JSON.stringify(fixedPos)); return true; }
+  catch { toast('保存できませんでした ・ 端末の空きが足りないかもしれません'); return false; }
+}
+// 地図に出す位置: 自分で直した位置 → 一覧の位置。{p, x, c} か null
+function posOf(s) {
+  const f = fixedPos[keyOf(s)];
+  if (f) return { p: f, x: 1, c: 0, fixed: 1 };
+  return s.p ? { p: s.p, x: s.x ? 1 : 0, c: s.c ? 1 : 0 } : null;
 }
 function saveAll() {
   try {
@@ -176,7 +202,7 @@ const readFile = (f) => new Promise((res, rej) => {
 
 // ---------- バックアップ ----------
 function exportBackup() {
-  const data = { app: 'meimon', version: 1, lists, visited: Object.assign({}, visited) };
+  const data = { app: 'meimon', version: 1, lists, visited: Object.assign({}, visited), pos: Object.assign({}, fixedPos) };
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const d = new Date(), p = (n) => String(n).padStart(2, '0');
   const a = h('a', { href: URL.createObjectURL(blob), download: `meimon-backup-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json` });
@@ -207,7 +233,7 @@ function validateBackup(o) {
     if (k.length > MAX_KEY) continue;
     if (o.visited[k]) vis.push(k);
   }
-  return { lists: ls, visited: vis };
+  return { lists: ls, visited: vis, pos: cleanFixedPos(o.pos) };
 }
 async function importBackup(file) {
   let data = null;
@@ -217,6 +243,7 @@ async function importBackup(file) {
   const r = mergeLists(data.lists);
   if (data.lists.length && !r.lists) { toast('店が多すぎて読み込めませんでした'); lists = before; return; }
   for (const k of data.visited) visited[k] = 1;
+  Object.assign(fixedPos, data.pos); saveFixedPos();
   if (saveAll()) toast(`${r.lists} リスト・${r.shops} 店を読み込みました`);
 }
 
@@ -412,7 +439,7 @@ const PIN_COLOR = '#C6613F', PIN_DONE = '#9A9891';
 let mapObj = null, mapReady = false, mapToken = 0, mapLib = null, lastCam = null, mapPlaces = new Map();
 let myPos = null, geoWatch = null, meMarker = null; // 現在地（[経度, 緯度]）
 
-const hasCoords = () => lists.some(l => l.shops.some(s => s.p));
+const hasCoords = () => lists.some(l => l.shops.some(s => s.p || fixedPos[keyOf(s)]));
 const areaOf = (s) => String(s.a || '').trim().split(/\s+/).slice(1).join(' '); // 都道府県を除いたエリア
 function loadMapLib() {
   if (window.maplibregl) return Promise.resolve();
@@ -445,7 +472,7 @@ function leaveMap() {
     try { const c = mapObj.getCenter(); lastCam = { center: [c.lng, c.lat], zoom: mapObj.getZoom() }; } catch {}
     try { mapObj.remove(); } catch {}
   }
-  stopGeo();
+  stopGeo(); endPick();
   mapObj = null; mapReady = false; mapPlaces = new Map();
   window.__meimonMap = null;
 }
@@ -456,11 +483,12 @@ function buildPlaces() {
   for (const l of lists) {
     if (view.mg && genreOf(l.title) !== view.mg) continue;
     for (const s of l.shops) {
-      if (!s.p) continue;
+      const ps = posOf(s);
+      if (!ps) continue;
       if (view.mt && isVisited(l, s)) continue;
-      const k = s.p[0] + ',' + s.p[1];
+      const k = ps.p[0] + ',' + ps.p[1];
       let pl = m.get(k);
-      if (!pl) { pl = { k, lat: s.p[0], lon: s.p[1], coarse: !!s.c, exact: !!s.x, label: s.x ? s.n : (areaOf(s) || s.a || s.n), items: [] }; m.set(k, pl); }
+      if (!pl) { pl = { k, lat: ps.p[0], lon: ps.p[1], coarse: !!ps.c, exact: !!ps.x, label: ps.x ? s.n : (areaOf(s) || s.a || s.n), items: [] }; m.set(k, pl); }
       else if (pl.exact && s.n !== pl.label) pl.label = areaOf(pl.items[0][1]) || pl.label; // 同じ位置に別の店（同じ建物など）
       pl.items.push([l, s]);
     }
@@ -601,6 +629,34 @@ function locateControl() {
   };
 }
 
+// 店の位置を自分で直す: 地図の中央の印を店の場所に合わせて「この位置にする」
+let pickEl = null;
+function endPick() { if (pickEl) { pickEl.remove(); pickEl = null; } }
+function startPick(s) {
+  const view0 = document.querySelector('.mapview');
+  if (!mapObj || !view0) return;
+  closeSheet(); endPick();
+  const k = keyOf(s);
+  const done = (msg) => { endPick(); refreshPlaces(); if (msg) toast(msg); };
+  pickEl = h('div', { class: 'pick' },
+    h('div', { class: 'pickpin', 'aria-hidden': 'true' }),
+    h('div', { class: 'pickbar' },
+      h('div', { class: 'pickname' }, s.n),
+      h('div', { class: 'hint' }, '地図を動かして、印を店の場所に合わせます'),
+      h('div', { class: 'rowb' },
+        h('button', { class: 'btn', type: 'button', onclick: () => endPick() }, 'やめる'),
+        fixedPos[k] ? h('button', { class: 'btn', type: 'button', onclick: () => { delete fixedPos[k]; saveFixedPos(); done('元の位置に戻しました'); } }, '元に戻す') : null,
+        h('button', { class: 'btn primary', type: 'button', onclick: () => {
+          const c = mapObj.getCenter();
+          const la = Math.round(c.lat * 1e5) / 1e5, lo = Math.round(c.lng * 1e5) / 1e5;
+          if (!okPos(la, lo)) return toast('この位置は使えません');
+          fixedPos[k] = [la, lo];
+          if (saveFixedPos()) done('位置を直しました');
+        } }, 'この位置にする'))));
+  view0.append(pickEl);
+  if (mapObj.getZoom() < 16) mapObj.easeTo({ zoom: 16 });
+}
+
 // 場所（同じ位置の店）のシート。開いた時点の店を持ち、行った／まだを切り替えたら数と地図を更新する
 function openPlace(k) {
   const pl = mapPlaces.get(k);
@@ -617,7 +673,9 @@ function openPlace(k) {
       const q = [s.n, areaOf(s)].filter(Boolean).join(' ');
       rows.append(h('div', { class: 'mrow' },
         shopRow(l, s, true, () => { paint(); refreshPlaces(); }),
-        h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ')));
+        h('span', { class: 'macts' },
+          h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ'),
+          h('button', { class: 'mlink', type: 'button', onclick: () => startPick(s) }, '位置を直す'))));
     }
   };
   paint();
@@ -684,7 +742,7 @@ function openSheet(focusText) {
     h('div', { class: 'sect' }, h('button', { class: 'btn danger block', onclick: () => {
       if (!lists.length && !Object.keys(visited).length) return toast('消すデータはありません');
       if (!confirm('すべての一覧と行った記録を消しますか？')) return;
-      lists = []; visited = Object.create(null); view.list = null;
+      lists = []; visited = Object.create(null); fixedPos = Object.create(null); saveFixedPos(); view.list = null;
       saveAll(); toast('すべて消しました'); done();
     } }, 'すべて消す')),
     h('p', { class: 'hint' }, '店の一覧はこの端末の中だけに保存されます'),
