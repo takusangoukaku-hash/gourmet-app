@@ -1,12 +1,12 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?}]}]（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?}]}]（u: 店のページの URL）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -63,10 +63,15 @@ function parseCoord(t) {
   return okPos(la, lo) ? { p: [la, lo], c: m[3] === 'c' ? 1 : 0, x: m[3] === 'x' ? 1 : 0 } : null;
 }
 // 保存済みの p / c を確かめる（正しくなければ空）
+// 店のページの URL（食べログの店のページだけ受ける。ほかは捨てる）
+const okUrl = (u) => typeof u === 'string' && u.length <= 120 && /^https:\/\/tabelog\.com\/[a-z]+\/A\d+\/A\d+\/\d+\/$/.test(u);
 function cleanPos(s) {
+  const out = okUrl(s && s.u) ? { u: s.u } : {};
   const p = s && s.p;
-  if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return {};
-  return s.c === 1 ? { p: [p[0], p[1]], c: 1 } : s.x === 1 ? { p: [p[0], p[1]], x: 1 } : { p: [p[0], p[1]] };
+  if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return out;
+  out.p = [p[0], p[1]];
+  if (s.c === 1) out.c = 1; else if (s.x === 1) out.x = 1;
+  return out;
 }
 const cap = (s, n) => String(s).slice(0, n);
 
@@ -167,7 +172,10 @@ function parseText(text) {
     if (!n) continue;
     if (!cur) start(DEFAULT_TITLE);
     const pc = parts.length > 2 ? parseCoord(parts[2]) : null;
-    cur.shops.push(pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : pc.x ? { n, a, p: pc.p, x: 1 } : { n, a, p: pc.p }) : { n, a });
+    const shop = pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : pc.x ? { n, a, p: pc.p, x: 1 } : { n, a, p: pc.p }) : { n, a };
+    const url = parts.slice(2, 5).map(x => x.trim()).find(okUrl); // 4つ目の欄（位置が無ければ3つ目）: 店のページ
+    if (url) shop.u = url;
+    cur.shops.push(shop);
   }
   return out;
 }
@@ -339,6 +347,9 @@ function updateSummary() {
     h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all}`)), progress(done, all)));
 }
 
+// 店のページ（食べログ）を開くリンク
+const pageLink = (s) => h('a', { class: 'mlink', href: s.u, target: '_blank', rel: 'noopener noreferrer' }, '食べログ');
+
 // 店の行（タップで行った／まだ）
 function shopRow(l, s, withTitle, after) {
   const on = isVisited(l, s);
@@ -421,7 +432,7 @@ function renderDetail() {
     }
     rows.replaceChildren();
     const frag = document.createDocumentFragment();
-    for (const s of list.slice(0, LIST_CAP)) frag.append(shopRow(l, s, false, paintRows));
+    for (const s of list.slice(0, LIST_CAP)) frag.append(s.u ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), pageLink(s)) : shopRow(l, s, false, paintRows));
     rows.append(frag);
     if (list.length > LIST_CAP) rows.append(h('div', { class: 'more' }, `ほか ${list.length - LIST_CAP} 件`));
     else if (!list.length) rows.append(h('div', { class: 'more' }, '該当する店がありません'));
@@ -674,6 +685,7 @@ function openPlace(k) {
       rows.append(h('div', { class: 'mrow' },
         shopRow(l, s, true, () => { paint(); refreshPlaces(); }),
         h('span', { class: 'macts' },
+          s.u ? pageLink(s) : null,
           h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ'),
           h('button', { class: 'mlink', type: 'button', onclick: () => startPick(s) }, '位置を直す'))));
     }
