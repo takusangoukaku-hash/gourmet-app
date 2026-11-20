@@ -383,7 +383,11 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 ## サブアプリ: 百名店チェック（`meimon/`）
 - 百名店の一覧を利用者が貼り付け／テキストファイルで取り込み、行った店をチェックする別 PWA（行った／まだ だけ。ログイン・同期・写真・評価は無い）。詳細は `meimon/README.md`。
 - **店名の一覧・点数・口コミ・写真・ロゴをリポジトリに入れない**（公開リポジトリ）。一覧は端末の localStorage にだけ置く。自動で情報を集める処理は作らない。店のデータは外へ送らない。テストの見本も作り物の店名にする。
-- 地図（v2〜）: 取り込みの行の3つ目の欄 `緯度,経度[,c]`（c＝市の中心のおおよそ）を `p`／`c` で持ち、ホームの「地図」→ 同じ位置（駅・市）の店を1つのピンにまとめて出す（店の正確な位置ではない）。ピンのタップで店の一覧（行った／まだ・「地図アプリ」＝Google マップの検索）。MapLibre 4.7.1（unpkg、integrity 付き）と OpenFreeMap の positron／dark は地図を開いたときだけ読む＝外部への通信はこれだけ。座標は一覧のファイル側に入れて渡す（アプリは住所検索をしない）。テストは unpkg と openfreemap を route で差し替える（scratchpad の `meimon-map-test.js`）。
+- 地図（v2〜、v3 で店の位置・色つきの地図・現在地）: 取り込みの行の3つ目の欄 `緯度,経度[,x|,c]`（x＝店の位置、何も無し＝駅の位置、c＝市の中心のおおよそ）を `p`／`x`／`c` で持ち、ホームの「地図」→ 同じ位置の店を1つの丸にまとめて出す（店の位置は濃い小さな丸、駅は少し薄い丸、市の中心はさらに薄い丸。2店以上は数字）。丸のタップで店の一覧（行った／まだ・「地図アプリ」＝Google マップの検索。駅・市のときだけ「店の正確な場所ではありません」の注）。
+  MapLibre 4.7.1（unpkg、integrity 付き）と OpenFreeMap の bright（明）／fiord（暗）は地図を開いたときだけ読む＝外部への通信はこれだけ。v2 の positron／dark は色が無く「背景に色を」と言われたので使わない。出典の表示は畳んでおく（開いたままだと幅360で下の1割をふさぐ）。
+  現在地は地図を開いている間だけ `watchPosition` で見て青い点 `.medot`（`showMe`／`startGeo`／`stopGeo`）。最初に開いたときだけ現在地（z14）へ寄せ、開き直したときは前の位置のまま。右下の `.locbtn` で現在地へ。maplibre の GeolocateControl は使わない（点が二重になる）。
+  店の位置は、利用者に渡す一覧のファイルを作るときに付ける（アプリは住所検索をしない。食べログからは集めない）: 駅・市の位置は公開の駅データ・住所データ、店の位置は Overture Maps の places（公開の S3）を「そろえた店名＋駅から 1.6km 以内（市は 12km）」で突き合わせ（scratchpad の `tools/geo.py`・`tools/match.py`。2026-11 の版で 6,290 店中 約 4,200 店。残りは駅・市のまま）。部分一致は誤りが混ざるので、地名だけの一致・候補が離れて複数あるものは採らない。
+  テストは unpkg を route で差し替える（scratchpad の `meimon-map-test.js`・`v3test.js`。本物のタイルで見るときは環境「gourmet-app」＝tiles.openfreemap.org が通る方で `realtile.js`）。
 - 本体・diet・lab とはコード・Service Worker・localStorage キー（`meimon.*`）・キャッシュ名（`meimon-*`）を分ける。本体の `APP_VERSION` は変更しない。
 - バージョン: `meimon/js/app.js` の `APP_VERSION`、`meimon/sw.js` の `VERSION` と `SHELL` の `?v=`、`meimon/index.html` の `?v=`（2箇所）を揃える。
 - 「行った」は 店名＋都道府県 の鍵で一覧とは別に持つ（一覧を貼り替えても残す）。取り込んだ文字は textContent／DOM API だけで入れる。

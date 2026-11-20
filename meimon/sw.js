@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v2'; // 地図（駅の位置にまとめて表示）
+const VERSION = 'v3'; // 地図: 店の位置（x）に対応・色つきの地図・現在地の青い点
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=2', './js/app.js?v=2',
+  './', './index.html', './css/style.css?v=3', './js/app.js?v=3',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

@@ -1,12 +1,12 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?}]}]（p: [緯度, 経度]＝駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?}]}]（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300;
@@ -36,6 +36,7 @@ const ICONS = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  locate: '<circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="7.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
 };
 function icon(name) {
@@ -55,16 +56,16 @@ const keyOf = (s) => s.n + '\u0000' + prefOf(s.a);
 // 位置: 数が2つで日本の範囲（緯度 20〜50・経度 120〜155）だけ受ける
 const okPos = (la, lo) => Number.isFinite(la) && Number.isFinite(lo) && la >= 20 && la <= 50 && lo >= 120 && lo <= 155;
 function parseCoord(t) {
-  const m = typeof t === 'string' && t.trim().match(/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?:\s*,\s*(c))?$/);
+  const m = typeof t === 'string' && t.trim().match(/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?:\s*,\s*([cx]))?$/);
   if (!m) return null;
   const la = Number(m[1]), lo = Number(m[2]);
-  return okPos(la, lo) ? { p: [la, lo], c: m[3] ? 1 : 0 } : null;
+  return okPos(la, lo) ? { p: [la, lo], c: m[3] === 'c' ? 1 : 0, x: m[3] === 'x' ? 1 : 0 } : null;
 }
 // 保存済みの p / c を確かめる（正しくなければ空）
 function cleanPos(s) {
   const p = s && s.p;
   if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return {};
-  return s.c === 1 ? { p: [p[0], p[1]], c: 1 } : { p: [p[0], p[1]] };
+  return s.c === 1 ? { p: [p[0], p[1]], c: 1 } : s.x === 1 ? { p: [p[0], p[1]], x: 1 } : { p: [p[0], p[1]] };
 }
 const cap = (s, n) => String(s).slice(0, n);
 
@@ -140,7 +141,7 @@ function parseText(text) {
     if (!n) continue;
     if (!cur) start(DEFAULT_TITLE);
     const pc = parts.length > 2 ? parseCoord(parts[2]) : null;
-    cur.shops.push(pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : { n, a, p: pc.p }) : { n, a });
+    cur.shops.push(pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : pc.x ? { n, a, p: pc.p, x: 1 } : { n, a, p: pc.p }) : { n, a });
   }
   return out;
 }
@@ -406,9 +407,10 @@ function renderDetail() {
 const ML_VER = '4.7.1';
 const ML_CSS = { href: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.css`, integrity: 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V' };
 const ML_JS = { src: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.js`, integrity: 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj' };
-const MAP_STYLE = { light: 'https://tiles.openfreemap.org/styles/positron', dark: 'https://tiles.openfreemap.org/styles/dark' };
+const MAP_STYLE = { light: 'https://tiles.openfreemap.org/styles/bright', dark: 'https://tiles.openfreemap.org/styles/fiord' }; // 色つきの地図（明: bright／暗: fiord）
 const PIN_COLOR = '#C6613F', PIN_DONE = '#9A9891';
 let mapObj = null, mapReady = false, mapToken = 0, mapLib = null, lastCam = null, mapPlaces = new Map();
+let myPos = null, geoWatch = null, meMarker = null; // 現在地（[経度, 緯度]）
 
 const hasCoords = () => lists.some(l => l.shops.some(s => s.p));
 const areaOf = (s) => String(s.a || '').trim().split(/\s+/).slice(1).join(' '); // 都道府県を除いたエリア
@@ -443,6 +445,7 @@ function leaveMap() {
     try { const c = mapObj.getCenter(); lastCam = { center: [c.lng, c.lat], zoom: mapObj.getZoom() }; } catch {}
     try { mapObj.remove(); } catch {}
   }
+  stopGeo();
   mapObj = null; mapReady = false; mapPlaces = new Map();
   window.__meimonMap = null;
 }
@@ -457,7 +460,8 @@ function buildPlaces() {
       if (view.mt && isVisited(l, s)) continue;
       const k = s.p[0] + ',' + s.p[1];
       let pl = m.get(k);
-      if (!pl) { pl = { k, lat: s.p[0], lon: s.p[1], coarse: !!s.c, label: areaOf(s) || s.a || s.n, items: [] }; m.set(k, pl); }
+      if (!pl) { pl = { k, lat: s.p[0], lon: s.p[1], coarse: !!s.c, exact: !!s.x, label: s.x ? s.n : (areaOf(s) || s.a || s.n), items: [] }; m.set(k, pl); }
+      else if (pl.exact && s.n !== pl.label) pl.label = areaOf(pl.items[0][1]) || pl.label; // 同じ位置に別の店（同じ建物など）
       pl.items.push([l, s]);
     }
   }
@@ -470,7 +474,7 @@ function placesData() {
     const n = pl.items.length;
     let d = 0; for (const [l, s] of pl.items) if (isVisited(l, s)) d++;
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pl.lon, pl.lat] },
-      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, label: pl.label } });
+      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, x: pl.exact ? 1 : 0, label: pl.label } });
   }
   const fc = { type: 'FeatureCollection', features };
   window.__meimonPlaces = fc;
@@ -516,7 +520,8 @@ function startMap(box, fail) {
     const map = new maplibregl.Map(opt);
     mapObj = map; window.__meimonMap = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), 'bottom-right');
+    map.addControl(locateControl(), 'bottom-right');
+    startGeo(!lastCam);
     map.on('error', () => {}); // 文字（グリフ）やタイルが読めなくても地図は止めない
     map.on('load', () => {
       if (token !== mapToken) return;
@@ -529,9 +534,9 @@ function startMap(box, fail) {
         paint: { 'circle-color': PIN_COLOR, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
       map.addLayer({ id: 'cluster-n', type: 'symbol', source: 'places', filter: isCl, layout: txt, paint: txtPaint });
       map.addLayer({ id: 'places-pt', type: 'circle', source: 'places', filter: ['!', isCl],
-        paint: { 'circle-color': ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': 11,
-          'circle-opacity': ['case', ['==', ['get', 'c'], 1], .55, 1], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-      map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['!', isCl], layout: txt, paint: txtPaint });
+        paint: { 'circle-color': ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': ['case', ['==', ['get', 'x'], 1], 8, 11],
+          'circle-opacity': ['case', ['==', ['get', 'c'], 1], .5, ['==', ['get', 'x'], 1], 1, .8], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['all', ['!', isCl], ['>', ['get', 'n'], 1]], layout: txt, paint: txtPaint });
       map.on('click', 'clusters', (e) => {
         const f = e.features && e.features[0]; if (!f) return;
         map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id)
@@ -542,6 +547,9 @@ function startMap(box, fail) {
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
       }
+      // 出典の表示は畳んでおく（ⓘ を押すと開く。幅の狭い画面では開いたままだと下の1割をふさぐ）
+      const at = box.querySelector('.maplibregl-ctrl-attrib');
+      if (at) { at.classList.remove('maplibregl-compact-show'); at.removeAttribute('open'); }
       mapReady = true; box.dataset.ready = '1';
     });
   }).catch(() => {
@@ -550,6 +558,47 @@ function startMap(box, fail) {
     fail.append(h('p', null, '地図を読み込めませんでした ・ 接続を確かめてください'),
       h('button', { class: 'btn', onclick: () => startMap(box, fail) }, 'もう一度'));
   });
+}
+
+// 現在地: 地図を開いている間だけ位置を見て、青い点で出す。最初に開いたときだけ現在地へ寄せる
+function showMe(first) {
+  if (!mapObj || !myPos || !window.maplibregl) return;
+  if (!meMarker) {
+    meMarker = new maplibregl.Marker({ element: h('div', { class: 'medot', role: 'img', 'aria-label': '現在地' }) }).setLngLat(myPos).addTo(mapObj);
+    if (first && okPos(myPos[1], myPos[0])) mapObj.jumpTo({ center: myPos, zoom: 14 });
+  } else meMarker.setLngLat(myPos);
+}
+function startGeo(first) {
+  if (!navigator.geolocation || geoWatch != null) return;
+  const token = mapToken;
+  try {
+    geoWatch = navigator.geolocation.watchPosition((pos) => {
+      if (token !== mapToken) return;
+      myPos = [pos.coords.longitude, pos.coords.latitude];
+      showMe(first); first = false;
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 });
+  } catch { geoWatch = null; }
+}
+function stopGeo() {
+  if (geoWatch != null) { try { navigator.geolocation.clearWatch(geoWatch); } catch {} }
+  geoWatch = null;
+  if (meMarker) { try { meMarker.remove(); } catch {} }
+  meMarker = null;
+}
+// 現在地へ寄せるボタン（地図の右下）
+function locateControl() {
+  let el = null;
+  return {
+    onAdd() {
+      el = h('div', { class: 'maplibregl-ctrl maplibregl-ctrl-group' },
+        h('button', { type: 'button', class: 'locbtn', 'aria-label': '現在地へ', onclick: () => {
+          if (myPos && mapObj) { showMe(false); mapObj.easeTo({ center: myPos, zoom: Math.max(mapObj.getZoom(), 14) }); }
+          else { if (geoWatch == null) startGeo(true); toast(navigator.geolocation ? '現在地を調べています' : 'この端末では現在地を使えません'); }
+        } }, icon('locate')));
+      return el;
+    },
+    onRemove() { if (el) el.remove(); el = null; },
+  };
 }
 
 // 場所（同じ位置の店）のシート。開いた時点の店を持ち、行った／まだを切り替えたら数と地図を更新する
@@ -575,7 +624,7 @@ function openPlace(k) {
   const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': pl.label },
     h('div', { class: 'bar' }, h('h2', null, pl.label), cnt,
       h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
-    h('p', { class: 'hint pnote' }, pl.coarse ? '市の中心のおおよその位置です' : '駅の位置です（店の正確な場所ではありません）'),
+    pl.exact ? null : h('p', { class: 'hint pnote' }, pl.coarse ? '市の中心のおおよその位置です' : '駅の位置です（店の正確な場所ではありません）'),
     rows);
   sheetEl = h('div', { class: 'sheet-wrap place' }, sheet);
   $('#sheet-root').append(sheetEl);
