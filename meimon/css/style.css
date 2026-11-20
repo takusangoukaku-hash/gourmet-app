@@ -163,3 +163,10 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .mapview .locbtn { display: grid; place-items: center; width: 29px; height: 29px; color: #1C1B19; background: #fff; }
 .mapview .locbtn .ic { width: 18px; height: 18px; }
 .pickbar .rowb { display: flex; gap: 8px; }
+/* 定休日 */
+.srow .ar.hol { font-size: 12px; }
+.srow .ar.hol .off { color: var(--accent); font-weight: 700; }
+.maplegend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 2; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 11px; box-shadow: 0 1px 6px rgba(0,0,0,.2); pointer-events: none; }
+.maplegend .lg { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; display: inline-block; }
+.maplegend .lg.on { background: #C6613F; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+.maplegend .lg.off { background: #fff; border: 3px solid #C6613F; }

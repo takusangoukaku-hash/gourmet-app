@@ -1,16 +1,16 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?}]}]（u: 店のページの URL）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?}]}]（u: 店のページの URL、h: 定休日の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
-const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300;
+const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300, MAX_HOL = 60;
 const SEARCH_CAP = 200, LIST_CAP = 500;
 const DEFAULT_TITLE = 'リスト';
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -67,6 +67,7 @@ function parseCoord(t) {
 const okUrl = (u) => typeof u === 'string' && u.length <= 120 && /^https:\/\/tabelog\.com\/[a-z]+\/A\d+\/A\d+\/\d+\/$/.test(u);
 function cleanPos(s) {
   const out = okUrl(s && s.u) ? { u: s.u } : {};
+  if (s && typeof s.h === 'string' && s.h.trim()) out.h = cap(s.h.trim(), MAX_HOL);
   const p = s && s.p;
   if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return out;
   out.p = [p[0], p[1]];
@@ -175,6 +176,8 @@ function parseText(text) {
     const shop = pc ? (pc.c ? { n, a, p: pc.p, c: 1 } : pc.x ? { n, a, p: pc.p, x: 1 } : { n, a, p: pc.p }) : { n, a };
     const url = parts.slice(2, 5).map(x => x.trim()).find(okUrl); // 4つ目の欄（位置が無ければ3つ目）: 店のページ
     if (url) shop.u = url;
+    const hol = cap((parts[4] || '').trim(), MAX_HOL); // 5つ目の欄: 定休日（例「月曜日、日曜日」）
+    if (hol) shop.h = hol;
     cur.shops.push(shop);
   }
   return out;
@@ -347,6 +350,20 @@ function updateSummary() {
     h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all}`)), progress(done, all)));
 }
 
+// 定休日: 「月曜日、日曜日」のような文から、毎週休む曜日（0=日〜6=土）を拾う。
+// 「第3月曜日」「祝日」「不定休」は拾わない（その日が休みか決められないので、休みとは言わない）
+const WD = '日月火水木金土';
+function closedDays(hText) {
+  const out = new Set();
+  for (const raw of String(hText || '').split(/[、,，・\/／\s]+/)) {
+    const m = raw.replace(/^毎週/, '').match(/^([日月火水木金土])(曜日?)?(定休|休み?)?$/);
+    if (m) out.add(WD.indexOf(m[1]));
+  }
+  return out;
+}
+const today = () => new Date().getDay();
+const closedToday = (s) => !!s.h && closedDays(s.h).has(today());
+
 // 店のページ（食べログ）を開くリンク
 const pageLink = (s) => h('a', { class: 'mlink', href: s.u, target: '_blank', rel: 'noopener noreferrer' }, '食べログ');
 
@@ -356,7 +373,8 @@ function shopRow(l, s, withTitle, after) {
   const row = h('button', { class: 'srow' + (on ? ' done' : ''), 'aria-pressed': on ? 'true' : 'false' },
     h('span', { class: 'tx' },
       h('div', { class: 'nm' }, s.n),
-      (s.a || withTitle) ? h('div', { class: 'ar' }, withTitle ? [l.title, s.a].filter(Boolean).join(' ・ ') : s.a) : null),
+      (s.a || withTitle) ? h('div', { class: 'ar' }, withTitle ? [l.title, s.a].filter(Boolean).join(' ・ ') : s.a) : null,
+      s.h ? h('div', { class: 'ar hol' }, closedToday(s) ? h('span', { class: 'off' }, '今日は定休日') : null, closedToday(s) ? ' ・ ' : null, '定休 ' + s.h) : null),
     h('span', { class: 'chk' }, icon('check')));
   row.addEventListener('click', () => {
     const k = keyOf(s);
@@ -511,9 +529,9 @@ function placesData() {
   const features = [];
   for (const pl of mapPlaces.values()) {
     const n = pl.items.length;
-    let d = 0; for (const [l, s] of pl.items) if (isVisited(l, s)) d++;
+    let d = 0, off = 0; for (const [l, s] of pl.items) { if (isVisited(l, s)) d++; if (closedToday(s)) off++; }
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pl.lon, pl.lat] },
-      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, x: pl.exact ? 1 : 0, label: pl.label } });
+      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, x: pl.exact ? 1 : 0, off: off === n ? 1 : 0, label: pl.label } });
   }
   const fc = { type: 'FeatureCollection', features };
   window.__meimonPlaces = fc;
@@ -538,6 +556,7 @@ function renderMap() {
   const box = h('div', { class: 'mapbox' });
   const fail = h('div', { class: 'mapfail', hidden: true });
   app.append(h('div', { class: 'mapview' }, box, fail,
+    h('div', { class: 'maplegend', 'aria-hidden': 'true' }, h('i', { class: 'lg off' }), '今日は定休日'),
     h('div', { class: 'mapbar' }, h('button', { class: 'ibtn', 'aria-label': '戻る', onclick: closeMap }, icon('back')), sel, chip)));
   startMap(box, fail);
 }
@@ -573,9 +592,13 @@ function startMap(box, fail) {
         paint: { 'circle-color': PIN_COLOR, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
       map.addLayer({ id: 'cluster-n', type: 'symbol', source: 'places', filter: isCl, layout: txt, paint: txtPaint });
       map.addLayer({ id: 'places-pt', type: 'circle', source: 'places', filter: ['!', isCl],
-        paint: { 'circle-color': ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': ['case', ['==', ['get', 'x'], 1], 8, 11],
-          'circle-opacity': ['case', ['==', ['get', 'c'], 1], .5, ['==', ['get', 'x'], 1], 1, .8], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-      map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['all', ['!', isCl], ['>', ['get', 'n'], 1]], layout: txt, paint: txtPaint });
+        paint: { 'circle-color': ['case', ['==', ['get', 'off'], 1], '#ffffff', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': ['case', ['==', ['get', 'x'], 1], 8, 11],
+          'circle-opacity': ['case', ['==', ['get', 'off'], 1], .9, ['==', ['get', 'c'], 1], .5, ['==', ['get', 'x'], 1], 1, .8],
+          // 今日が定休日の店（同じ位置の店が全部休み）は白抜き。縁の色が 行った／まだ
+          'circle-stroke-color': ['case', ['==', ['get', 'off'], 1], ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], '#ffffff'],
+          'circle-stroke-width': ['case', ['==', ['get', 'off'], 1], 3, 2] } });
+      map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['all', ['!', isCl], ['>', ['get', 'n'], 1]], layout: txt,
+        paint: { 'text-color': ['case', ['==', ['get', 'off'], 1], PIN_COLOR, '#ffffff'] } });
       map.on('click', 'clusters', (e) => {
         const f = e.features && e.features[0]; if (!f) return;
         map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id)

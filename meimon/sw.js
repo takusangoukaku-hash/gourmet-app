@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v6'; // おおよその位置（,c）の注を「町か市まで」に
+const VERSION = 'v7'; // 定休日（5つ目の欄）。今日が定休日の店は地図で白抜き
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=6', './js/app.js?v=6',
+  './', './index.html', './css/style.css?v=7', './js/app.js?v=7',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
