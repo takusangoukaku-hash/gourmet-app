@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -694,7 +694,7 @@ function openPlace(k) {
   const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': pl.label },
     h('div', { class: 'bar' }, h('h2', null, pl.label), cnt,
       h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
-    pl.exact ? null : h('p', { class: 'hint pnote' }, pl.coarse ? '市の中心のおおよその位置です' : '駅の位置です（店の正確な場所ではありません）'),
+    pl.exact ? null : h('p', { class: 'hint pnote' }, pl.coarse ? '町か市までのおおよその位置です（店の正確な場所ではありません）' : '駅の位置です（店の正確な場所ではありません）'),
     rows);
   sheetEl = h('div', { class: 'sheet-wrap place' }, sheet);
   $('#sheet-root').append(sheetEl);

@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v5'; // 店のページ（食べログ）へのリンク。一覧の4つ目の欄
+const VERSION = 'v6'; // おおよその位置（,c）の注を「町か市まで」に
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=5', './js/app.js?v=5',
+  './', './index.html', './css/style.css?v=6', './js/app.js?v=6',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
