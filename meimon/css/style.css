@@ -118,7 +118,7 @@ select { appearance: none; -webkit-appearance: none; padding-right: 12px; text-o
 input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 57px + 16px); transform: translateX(-50%);
   z-index: 40; width: max-content; max-width: min(88vw, 480px); padding: 10px 16px; border-radius: 10px;
   background: var(--fg); color: var(--bg); font-size: 14px; text-align: center;
   box-shadow: 0 4px 16px rgba(0,0,0,.2);
@@ -127,10 +127,10 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .btn.small { min-height: 36px; height: 36px; padding: 0 12px; font-size: 13px; flex: none; }
 
 /* 地図 */
-.mapview { position: fixed; inset: 0; z-index: 1; background: #E8E4DA; }
-@media (prefers-color-scheme: dark) { .mapview { background: #2B3440; } }
+.mapview { position: fixed; inset: 0 0 calc(57px + env(safe-area-inset-bottom)) 0; z-index: 1; background: #f6f4ef; }
+@media (prefers-color-scheme: dark) { .mapview { background: #212227; } }
 .mapview .mapbox { position: absolute; inset: 0; }
-.mapview .maplibregl-ctrl-bottom-right { margin-bottom: env(safe-area-inset-bottom); margin-right: env(safe-area-inset-right); }
+.mapview .maplibregl-ctrl-bottom-right { margin-right: env(safe-area-inset-right); }
 .mapbar {
   position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
   padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 0 calc(env(safe-area-inset-left) + 12px);
@@ -153,7 +153,7 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 /* 店の位置を直す: 中央の印と下の帯 */
 .pick { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .pickpin { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -22px 0 0 -11px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.4); box-sizing: border-box; }
-.pickbar { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); padding: 14px; border-radius: 14px; background: var(--bg); color: var(--fg); box-shadow: 0 2px 12px rgba(0,0,0,.3); pointer-events: auto; }
+.pickbar { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 14px; border-radius: 14px; background: var(--bg); color: var(--fg); box-shadow: 0 2px 12px rgba(0,0,0,.3); pointer-events: auto; }
 .pickname { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pickbar .hint { margin: 4px 0 12px; }
 .pickbar .rowb .btn { flex: 1; padding: 0 8px; font-size: 14px; }
@@ -166,7 +166,13 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 /* 定休日 */
 .srow .ar.hol { font-size: 12px; }
 .srow .ar.hol .off { color: var(--accent); font-weight: 700; }
-.maplegend { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 2; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 11px; box-shadow: 0 1px 6px rgba(0,0,0,.2); pointer-events: none; }
+.maplegend { position: absolute; left: 12px; bottom: 12px; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 11px; box-shadow: 0 1px 6px rgba(0,0,0,.2); pointer-events: none; }
 .maplegend .lg { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; display: inline-block; }
 .maplegend .lg.on { background: #C6613F; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
 .maplegend .lg.off { background: #fff; border: 3px solid #C6613F; }
+/* 下のタブ（リスト／地図）。背景はホームインジケータの裏まで */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; height: calc(57px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--bg); border-top: 1px solid var(--line); }
+.tabs .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 11px; background: none; }
+.tabs .tab .ic { width: 22px; height: 22px; }
+.tabs .tab.on { color: var(--accent); font-weight: 700; }
+#app { padding-bottom: calc(57px + env(safe-area-inset-bottom) + 24px); }

@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v7'; // 定休日（5つ目の欄）。今日が定休日の店は地図で白抜き
+const VERSION = 'v8'; // 下のタブ（リスト／地図）。地図の見た目を BITEMAP 本体と同じに
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=7', './js/app.js?v=7',
+  './', './index.html', './css/style.css?v=8', './js/mapstyle.js?v=8', './js/app.js?v=8',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v7';
+const APP_VERSION = 'v8';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -37,6 +37,8 @@ const ICONS = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  list: '<path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11"/><circle cx="4.5" cy="6.5" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="17.5" r=".6"/>',
+  map: '<path d="M9 4.5 3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5l-6-2zM9 4.5v13M15 6.5v13"/>',
   locate: '<circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="7.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
 };
@@ -266,9 +268,24 @@ const app = $('#app');
 function render() {
   leaveMap();
   app.replaceChildren();
-  if (view.map && hasCoords()) renderMap();
+  if (view.map) renderMap();
   else if (view.list != null && lists.some(l => l.title === view.list)) renderDetail();
-  else { view.map = false; view.list = null; renderHome(); }
+  else { view.list = null; renderHome(); }
+  paintTabs();
+}
+// 下のタブ（リスト／地図）
+function paintTabs() {
+  for (const b of document.querySelectorAll('#tabs .tab')) {
+    const on = (b.dataset.open === 'map') === !!view.map;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+}
+function initTabs() {
+  const nav = $('#tabs');
+  nav.append(
+    h('button', { class: 'tab', type: 'button', 'data-open': 'list', onclick: () => { closeSheet(); view.map = false; view.list = null; render(); window.scrollTo(0, 0); } }, icon('list'), h('span', null, 'リスト')),
+    h('button', { class: 'tab', type: 'button', 'data-open': 'map', onclick: () => { if (view.map) return; closeSheet(); openMap(); } }, icon('map'), h('span', null, '地図')));
 }
 
 // 一覧のジャンル（末尾の西暦4桁と地域の語を除く）
@@ -289,7 +306,6 @@ function renderHome() {
   const wrap = h('div', { class: 'wrap' });
   wrap.append(h('div', { class: 'bar' },
     h('h1', null, '百名店チェック'),
-    hasCoords() ? h('button', { class: 'btn small', 'data-open': 'map', onclick: openMap }, '地図') : null,
     h('button', { class: 'btn small', 'data-open': 'data', onclick: () => openSheet() }, 'データ')));
   if (!lists.length) {
     wrap.append(h('div', { class: 'empty' }, h('p', null, 'まだ一覧がありません'),
@@ -395,10 +411,7 @@ function closeList() {
   if (history.state && history.state.d) history.back();
   else { view.list = null; render(); }
 }
-window.addEventListener('popstate', () => {
-  if (view.map) { view.map = false; render(); }
-  else if (view.list != null) { view.list = null; render(); }
-});
+window.addEventListener('popstate', () => { if (!view.map && view.list != null) { view.list = null; render(); } });
 
 function renderDetail() {
   const l = lists.find(x => x.title === view.list);
@@ -463,7 +476,7 @@ function renderDetail() {
 const ML_VER = '4.7.1';
 const ML_CSS = { href: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.css`, integrity: 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V' };
 const ML_JS = { src: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.js`, integrity: 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj' };
-const MAP_STYLE = { light: 'https://tiles.openfreemap.org/styles/bright', dark: 'https://tiles.openfreemap.org/styles/fiord' }; // 色つきの地図（明: bright／暗: fiord）
+// 地図の見た目は js/mapstyle.js の baseMapStyle(dark)（BITEMAP 本体と同じ）
 const PIN_COLOR = '#C6613F', PIN_DONE = '#9A9891';
 let mapObj = null, mapReady = false, mapToken = 0, mapLib = null, lastCam = null, mapPlaces = new Map();
 let myPos = null, geoWatch = null, meMarker = null; // 現在地（[経度, 緯度]）
@@ -486,13 +499,8 @@ function loadMapLib() {
 }
 
 function openMap() {
-  view.map = true; view.mg = ''; view.mt = false;
-  try { history.pushState({ m: 1 }, ''); } catch {}
+  view.map = true;
   render();
-}
-function closeMap() {
-  if (history.state && history.state.m) history.back();
-  else { view.map = false; render(); }
 }
 function leaveMap() {
   mapToken++;
@@ -543,6 +551,11 @@ function refreshPlaces() {
 }
 
 function renderMap() {
+  if (!hasCoords()) {
+    app.append(h('div', { class: 'wrap' }, h('div', { class: 'empty' }, h('p', null, '位置つきの一覧を取り込むと、ここに地図が出ます'),
+      h('button', { class: 'btn primary', onclick: () => openSheet(true) }, '一覧を取り込む'))));
+    return;
+  }
   const genres = [];
   for (const l of lists) if (l.shops.some(s => s.p)) { const g = genreOf(l.title); if (!genres.includes(g)) genres.push(g); }
   const sel = h('select', { 'aria-label': 'ジャンル' }, h('option', { value: '' }, 'すべてのジャンル'), genres.map(g => h('option', { value: g }, g)));
@@ -557,7 +570,7 @@ function renderMap() {
   const fail = h('div', { class: 'mapfail', hidden: true });
   app.append(h('div', { class: 'mapview' }, box, fail,
     h('div', { class: 'maplegend', 'aria-hidden': 'true' }, h('i', { class: 'lg off' }), '今日は定休日'),
-    h('div', { class: 'mapbar' }, h('button', { class: 'ibtn', 'aria-label': '戻る', onclick: closeMap }, icon('back')), sel, chip)));
+    h('div', { class: 'mapbar' }, sel, chip)));
   startMap(box, fail);
 }
 function startMap(box, fail) {
@@ -567,7 +580,7 @@ function startMap(box, fail) {
     if (token !== mapToken) return;
     const fc = placesData();
     const dark = !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-    const opt = { container: box, style: dark ? MAP_STYLE.dark : MAP_STYLE.light, attributionControl: { compact: true }, dragRotate: false };
+    const opt = { container: box, style: baseMapStyle(dark), attributionControl: { compact: true }, dragRotate: false };
     if (lastCam) { opt.center = lastCam.center; opt.zoom = lastCam.zoom; }
     else {
       const ps = [...mapPlaces.values()];
@@ -586,7 +599,7 @@ function startMap(box, fail) {
       map.addSource('places', { type: 'geojson', data: fc, cluster: true, clusterRadius: 44, clusterMaxZoom: 13,
         clusterProperties: { n: ['+', ['get', 'n']], todo: ['+', ['get', 'todo']] } });
       const isCl = ['has', 'point_count'];
-      const txt = { 'text-field': ['to-string', ['get', 'n']], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true };
+      const txt = { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true };
       const txtPaint = { 'text-color': '#ffffff' };
       map.addLayer({ id: 'clusters', type: 'circle', source: 'places', filter: isCl,
         paint: { 'circle-color': PIN_COLOR, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
@@ -797,6 +810,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
 }
 
+initTabs();
 render();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
