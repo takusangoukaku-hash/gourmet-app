@@ -149,6 +149,11 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .mrow { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
 .mrow .srow { flex: 1; min-width: 0; border-bottom: 0; }
 .macts { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; }
+/* 地図の丸のシート: リンクは店の行の下に横並び（縦に積むと1店で 150px になる） */
+.place .mrow { flex-wrap: wrap; }
+.place .mrow .srow { flex: 1 1 100%; }
+.place .macts { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; width: 100%; gap: 0 8px; margin-top: -6px; }
+.mlink.rsv { color: var(--accent); font-weight: 700; }
 .mlink { font-size: 12px; color: var(--muted); text-decoration: underline; padding: 6px 4px; background: none; }
 /* 店の位置を直す: 中央の印と下の帯 */
 .pick { position: absolute; inset: 0; z-index: 5; pointer-events: none; }

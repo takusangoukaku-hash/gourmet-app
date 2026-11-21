@@ -1,12 +1,12 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?}]}]（u: 店のページの URL、h: 定休日の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -67,8 +67,16 @@ function parseCoord(t) {
 // 保存済みの p / c を確かめる（正しくなければ空）
 // 店のページの URL（食べログの店のページだけ受ける。ほかは捨てる）
 const okUrl = (u) => typeof u === 'string' && u.length <= 120 && /^https:\/\/tabelog\.com\/[a-z]+\/A\d+\/A\d+\/\d+\/$/.test(u);
+// 電話番号（0 で始まる 10〜11 桁の数字だけ。ハイフンなどは落とす）と予約サイト（https の URL だけ）
+const okTel = (t) => { const d = typeof t === 'string' ? t.replace(/[\s\-‐－ー()（）]/g, '') : ''; return /^0\d{9,10}$/.test(d) ? d : ''; };
+const okRsv = (u) => {
+  if (typeof u !== 'string' || u.length > 200 || !/^https:\/\//.test(u)) return false;
+  try { const x = new URL(u); return x.protocol === 'https:' && !x.username && !x.password && x.hostname.includes('.'); } catch (e) { return false; }
+};
 function cleanPos(s) {
   const out = okUrl(s && s.u) ? { u: s.u } : {};
+  if (s && okTel(s.t)) out.t = okTel(s.t);
+  if (s && okRsv(s.r)) out.r = s.r;
   if (s && typeof s.h === 'string' && s.h.trim()) out.h = cap(s.h.trim(), MAX_HOL);
   const p = s && s.p;
   if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number' || !okPos(p[0], p[1])) return out;
@@ -180,6 +188,10 @@ function parseText(text) {
     if (url) shop.u = url;
     const hol = cap((parts[4] || '').trim(), MAX_HOL); // 5つ目の欄: 定休日（例「月曜日、日曜日」）
     if (hol) shop.h = hol;
+    const tel = okTel((parts[5] || '').trim()); // 6つ目の欄: 電話番号
+    if (tel) shop.t = tel;
+    const rsv = (parts[6] || '').trim(); // 7つ目の欄: 予約サイト
+    if (okRsv(rsv)) shop.r = rsv;
     cur.shops.push(shop);
   }
   return out;
@@ -382,6 +394,12 @@ const closedToday = (s) => !!s.h && closedDays(s.h).has(today());
 
 // 店のページ（食べログ）を開くリンク
 const pageLink = (s) => h('a', { class: 'mlink', href: s.u, target: '_blank', rel: 'noopener noreferrer' }, '食べログ');
+// 店の行の右のリンク: 予約サイト・電話・食べログ（あるものだけ）
+const shopLinks = (s) => [
+  s.r ? h('a', { class: 'mlink rsv', href: s.r, target: '_blank', rel: 'noopener noreferrer' }, '予約') : null,
+  s.t ? h('a', { class: 'mlink', href: 'tel:' + s.t, 'aria-label': '電話 ' + s.t }, '電話') : null,
+  s.u ? pageLink(s) : null
+];
 
 // 店の行（タップで行った／まだ）
 function shopRow(l, s, withTitle, after) {
@@ -463,7 +481,7 @@ function renderDetail() {
     }
     rows.replaceChildren();
     const frag = document.createDocumentFragment();
-    for (const s of list.slice(0, LIST_CAP)) frag.append(s.u ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), pageLink(s)) : shopRow(l, s, false, paintRows));
+    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s))) : shopRow(l, s, false, paintRows));
     rows.append(frag);
     if (list.length > LIST_CAP) rows.append(h('div', { class: 'more' }, `ほか ${list.length - LIST_CAP} 件`));
     else if (!list.length) rows.append(h('div', { class: 'more' }, '該当する店がありません'));
@@ -759,7 +777,7 @@ function openPlace(k) {
       rows.append(h('div', { class: 'mrow' },
         shopRow(l, s, true, () => { paint(); refreshPlaces(); }),
         h('span', { class: 'macts' },
-          s.u ? pageLink(s) : null,
+          shopLinks(s),
           h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ'),
           h('button', { class: 'mlink', type: 'button', onclick: () => startPick(s) }, '位置を直す'))));
     }

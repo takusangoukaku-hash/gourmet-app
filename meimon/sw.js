@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v9'; // 地図の丸を料理の系統の色に。寄ると店名とジャンル。色の説明（畳める）
+const VERSION = 'v10'; // 電話番号と予約サイトのリンク（取り込みの6・7つ目の欄）
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=9', './js/mapstyle.js?v=9', './js/app.js?v=9',
+  './', './index.html', './css/style.css?v=10', './js/mapstyle.js?v=10', './js/app.js?v=10',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
