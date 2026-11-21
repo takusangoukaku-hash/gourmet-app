@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -478,6 +478,20 @@ const ML_CSS = { href: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl
 const ML_JS = { src: `https://unpkg.com/maplibre-gl@${ML_VER}/dist/maplibre-gl.js`, integrity: 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj' };
 // 地図の見た目は js/mapstyle.js の baseMapStyle(dark)（BITEMAP 本体と同じ）
 const PIN_COLOR = '#C6613F', PIN_DONE = '#9A9891';
+// 料理の系統（地図の丸の色）。ジャンルは一覧の題から。どれにも入らない・同じ位置に違う系統 → PIN_MIX
+const PIN_MIX = '#55524C';
+const FAMS = [
+  ['肉', '#C2352B', ['焼き鳥', 'すき焼き・しゃぶしゃぶ', '焼肉', 'ステーキ・鉄板焼き', '鳥料理', 'とんかつ', 'ハンバーガー']],
+  ['和食', '#1F7A5C', ['日本料理', '寿司', '天ぷら', '食堂', 'お好み焼き']],
+  ['麺', '#D98A00', ['ラーメン', 'そば', 'うどん']],
+  ['洋食', '#2F6FB7', ['フレンチ', 'イタリアン', 'ピザ', 'スペイン料理', '洋食', '創作料理・イノベーティブ']],
+  ['中華・アジア', '#8E44AD', ['中国料理', 'アジア・エスニック', 'カレー', '餃子']],
+  ['酒', '#7A5230', ['居酒屋', '立ち飲み', 'バー']],
+  ['甘味・喫茶', '#D6468C', ['和菓子・甘味処', '喫茶店', 'カフェ']]
+];
+function famOf(genre) { for (let i = 0; i < FAMS.length; i++) if (FAMS[i][2].includes(genre)) return i; return -1; }
+// 系統の番号（f・fmin）から色へ
+function famColor(prop) { const e = ['match', ['get', prop]]; FAMS.forEach((f, i) => e.push(i, f[1])); e.push(PIN_MIX); return e; }
 let mapObj = null, mapReady = false, mapToken = 0, mapLib = null, lastCam = null, mapPlaces = new Map();
 let myPos = null, geoWatch = null, meMarker = null; // 現在地（[経度, 緯度]）
 
@@ -537,9 +551,14 @@ function placesData() {
   const features = [];
   for (const pl of mapPlaces.values()) {
     const n = pl.items.length;
-    let d = 0, off = 0; for (const [l, s] of pl.items) { if (isVisited(l, s)) d++; if (closedToday(s)) off++; }
+    let d = 0, off = 0, g = null, f = null;
+    for (const [l, s] of pl.items) {
+      if (isVisited(l, s)) d++; if (closedToday(s)) off++;
+      const gg = genreOf(l.title), ff = famOf(gg);
+      g = g === null || g === gg ? gg : ''; f = f === null || f === ff ? ff : -1;
+    }
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pl.lon, pl.lat] },
-      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, x: pl.exact ? 1 : 0, off: off === n ? 1 : 0, label: pl.label } });
+      properties: { k: pl.k, n, d, todo: n - d, c: pl.coarse ? 1 : 0, x: pl.exact ? 1 : 0, off: off === n ? 1 : 0, label: pl.label, g: g || '', f } });
   }
   const fc = { type: 'FeatureCollection', features };
   window.__meimonPlaces = fc;
@@ -569,9 +588,20 @@ function renderMap() {
   const box = h('div', { class: 'mapbox' });
   const fail = h('div', { class: 'mapfail', hidden: true });
   app.append(h('div', { class: 'mapview' }, box, fail,
-    h('div', { class: 'maplegend', 'aria-hidden': 'true' }, h('i', { class: 'lg off' }), '今日は定休日'),
+    mapLegend(),
     h('div', { class: 'mapbar' }, sel, chip)));
   startMap(box, fail);
+}
+// 凡例: 系統の色・行った・今日は定休日。タップで畳む（覚える）
+function mapLegend() {
+  let mini = false; try { mini = localStorage.getItem('meimon.legend') === '0'; } catch (e) {}
+  const item = (cls, color, text) => h('span', { class: 'lgi' }, h('i', { class: 'lg ' + cls, style: color ? 'background:' + color : null }), text);
+  const body = h('span', { class: 'lgbody' }, FAMS.map(f => item('on', f[1], f[0])), item('on', PIN_DONE, '行った'), item('off', '', '今日は定休日'));
+  const el = h('button', { class: 'maplegend', type: 'button', 'aria-label': '色の説明' }, h('span', { class: 'lgt' }, '色の説明'), body);
+  const paint = () => { el.classList.toggle('mini', mini); el.setAttribute('aria-expanded', mini ? 'false' : 'true'); };
+  el.addEventListener('click', () => { mini = !mini; paint(); try { localStorage.setItem('meimon.legend', mini ? '0' : '1'); } catch (e) {} });
+  paint();
+  return el;
 }
 function startMap(box, fail) {
   const token = ++mapToken;
@@ -597,21 +627,29 @@ function startMap(box, fail) {
     map.on('load', () => {
       if (token !== mapToken) return;
       map.addSource('places', { type: 'geojson', data: fc, cluster: true, clusterRadius: 44, clusterMaxZoom: 13,
-        clusterProperties: { n: ['+', ['get', 'n']], todo: ['+', ['get', 'todo']] } });
+        clusterProperties: { n: ['+', ['get', 'n']], todo: ['+', ['get', 'todo']], fmin: ['min', ['get', 'f']], fmax: ['max', ['get', 'f']] } });
+      // まだの店は料理の系統の色、行った店は灰。まとまりは中が全部同じ系統のときだけその色
+      const ptColor = ['case', ['>', ['get', 'todo'], 0], famColor('f'), PIN_DONE];
+      const clColor = ['case', ['==', ['get', 'todo'], 0], PIN_DONE, ['==', ['get', 'fmin'], ['get', 'fmax']], famColor('fmin'), PIN_MIX];
       const isCl = ['has', 'point_count'];
       const txt = { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true };
       const txtPaint = { 'text-color': '#ffffff' };
       map.addLayer({ id: 'clusters', type: 'circle', source: 'places', filter: isCl,
-        paint: { 'circle-color': PIN_COLOR, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+        paint: { 'circle-color': clColor, 'circle-radius': ['step', ['get', 'n'], 16, 10, 20, 30, 25], 'circle-opacity': .85, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
       map.addLayer({ id: 'cluster-n', type: 'symbol', source: 'places', filter: isCl, layout: txt, paint: txtPaint });
       map.addLayer({ id: 'places-pt', type: 'circle', source: 'places', filter: ['!', isCl],
-        paint: { 'circle-color': ['case', ['==', ['get', 'off'], 1], '#ffffff', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], 'circle-radius': ['case', ['==', ['get', 'x'], 1], 8, 11],
+        paint: { 'circle-color': ['case', ['==', ['get', 'off'], 1], '#ffffff', ptColor], 'circle-radius': ['case', ['==', ['get', 'x'], 1], 8, 11],
           'circle-opacity': ['case', ['==', ['get', 'off'], 1], .9, ['==', ['get', 'c'], 1], .5, ['==', ['get', 'x'], 1], 1, .8],
           // 今日が定休日の店（同じ位置の店が全部休み）は白抜き。縁の色が 行った／まだ
-          'circle-stroke-color': ['case', ['==', ['get', 'off'], 1], ['case', ['>', ['get', 'todo'], 0], PIN_COLOR, PIN_DONE], '#ffffff'],
+          'circle-stroke-color': ['case', ['==', ['get', 'off'], 1], ptColor, '#ffffff'],
           'circle-stroke-width': ['case', ['==', ['get', 'off'], 1], 3, 2] } });
       map.addLayer({ id: 'places-n', type: 'symbol', source: 'places', filter: ['all', ['!', isCl], ['>', ['get', 'n'], 1]], layout: txt,
-        paint: { 'text-color': ['case', ['==', ['get', 'off'], 1], PIN_COLOR, '#ffffff'] } });
+        paint: { 'text-color': ['case', ['==', ['get', 'off'], 1], ptColor, '#ffffff'] } });
+      // 寄ったら丸の下に 店名（駅・市の位置ならその名前）とジャンル。重なるものは出さない
+      map.addLayer({ id: 'places-label', type: 'symbol', source: 'places', filter: ['!', isCl], minzoom: 14,
+        layout: { 'text-field': ['format', ['get', 'label'], {}, ['case', ['==', ['get', 'g'], ''], '', ['concat', '\n', ['get', 'g']]], { 'font-scale': .85, 'text-color': ptColor }],
+          'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 1.1], 'text-max-width': 9, 'text-padding': 4 },
+        paint: { 'text-color': dark ? '#F0EEE6' : '#33322E', 'text-halo-color': dark ? '#1F1E1C' : '#ffffff', 'text-halo-width': 1.4 } });
       map.on('click', 'clusters', (e) => {
         const f = e.features && e.features[0]; if (!f) return;
         map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id)

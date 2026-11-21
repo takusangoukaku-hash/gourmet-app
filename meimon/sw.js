@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v8'; // 下のタブ（リスト／地図）。地図の見た目を BITEMAP 本体と同じに
+const VERSION = 'v9'; // 地図の丸を料理の系統の色に。寄ると店名とジャンル。色の説明（畳める）
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=8', './js/mapstyle.js?v=8', './js/app.js?v=8',
+  './', './index.html', './css/style.css?v=9', './js/mapstyle.js?v=9', './js/app.js?v=9',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
