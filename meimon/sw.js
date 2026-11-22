@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v13'; // 地図の左下に「近い順の一覧」のボタン（文字つき）
+const VERSION = 'v14'; // 地図の色の説明は最初から畳んでおく
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=13', './js/mapstyle.js?v=13', './js/app.js?v=13',
+  './', './index.html', './css/style.css?v=14', './js/mapstyle.js?v=14', './js/app.js?v=14',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

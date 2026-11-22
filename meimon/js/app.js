@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -805,7 +805,7 @@ function renderMap() {
 }
 // 凡例: 系統の色・行った・今日は定休日。タップで畳む（覚える）
 function mapLegend() {
-  let mini = false; try { mini = localStorage.getItem('meimon.legend') === '0'; } catch (e) {}
+  let mini = true; try { mini = localStorage.getItem('meimon.legend') !== '1'; } catch (e) {} // 最初は畳んでおく（開いたら覚える）
   const item = (cls, color, text) => h('span', { class: 'lgi' }, h('i', { class: 'lg ' + cls, style: color ? 'background:' + color : null }), text);
   const body = h('span', { class: 'lgbody' }, FAMS.map(f => item('on', f[1], f[0])), item('on', PIN_DONE, '行った'), item('off', '', '営業時間外・定休日'));
   const el = h('button', { class: 'maplegend', type: 'button', 'aria-label': '色の説明' }, h('span', { class: 'lgt' }, '色の説明'), body);
