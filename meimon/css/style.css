@@ -138,7 +138,7 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 }
 .mapbar > * { pointer-events: auto; box-shadow: 0 1px 6px rgba(0,0,0,.2), 0 0 0 1px var(--line); background: var(--bg); }
 .mapbar .ibtn { flex-shrink: 0; }
-.mapbar select { flex: 1; width: auto; height: 36px; padding: 0 12px; font-size: 16px; border-radius: 10px; }
+.mapbar select { flex: 1; min-width: 0; width: auto; height: 36px; padding: 0 12px; font-size: 16px; border-radius: 10px; }
 .mapbar .chip { flex-shrink: 0; }
 .mapbar .chip.on { background: var(--accent); }
 .mapfail { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 64px 24px 24px; text-align: center; color: var(--muted); background: var(--bg); }
@@ -170,6 +170,8 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .pickbar .rowb { display: flex; gap: 8px; }
 /* 定休日 */
 .srow .ar.hol { font-size: 12px; }
+.srow .ar.hol .open { color: #1F7A5C; font-weight: 700; }
+@media (prefers-color-scheme: dark) { .srow .ar.hol .open { color: #5FC49E; } }
 .srow .ar.hol .off { color: var(--accent); font-weight: 700; }
 .maplegend { position: absolute; left: 12px; bottom: 12px; z-index: 2; max-width: calc(100% - 76px); padding: 6px 10px; border-radius: 10px; background: var(--bg); color: var(--fg); font-size: 11px; line-height: 1.5; text-align: left; box-shadow: 0 1px 6px rgba(0,0,0,.2); }
 .maplegend .lgt { display: none; }
