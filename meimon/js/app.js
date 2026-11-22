@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -796,7 +796,10 @@ function renderMap() {
   const box = h('div', { class: 'mapbox' });
   const fail = h('div', { class: 'mapfail', hidden: true });
   app.append(h('div', { class: 'mapview' }, box, fail,
-    mapLegend(),
+    // 左下: 「近い順の一覧」のボタンと色の説明
+    h('div', { class: 'mapleft' },
+      h('button', { class: 'nearbtn', type: 'button', 'aria-label': 'この範囲の店を一覧で', onclick: openInView }, icon('list'), h('span', null, '近い順の一覧')),
+      mapLegend()),
     h('div', { class: 'mapbar' }, sel, chipO, chip)));
   startMap(box, fail);
 }
@@ -918,8 +921,7 @@ function locateControl() {
         h('button', { type: 'button', class: 'locbtn', 'aria-label': '現在地へ', onclick: () => {
           if (myPos && mapObj) { showMe(false); mapObj.easeTo({ center: myPos, zoom: Math.max(mapObj.getZoom(), 14) }); }
           else { if (geoWatch == null) startGeo(true); toast(navigator.geolocation ? '現在地を調べています' : 'この端末では現在地を使えません'); }
-        } }, icon('locate')),
-        h('button', { type: 'button', class: 'locbtn', 'aria-label': 'この範囲の店を一覧で', onclick: openInView }, icon('list')));
+        } }, icon('locate')));
       return el;
     },
     onRemove() { if (el) el.remove(); el = null; },

@@ -190,3 +190,11 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 .tabs .tab .ic { width: 22px; height: 22px; }
 .tabs .tab.on { color: var(--accent); font-weight: 700; }
 #app { padding-bottom: calc(57px + env(safe-area-inset-bottom) + 24px); }
+
+/* 地図の左下: 「近い順の一覧」のボタン（文字つき）と、その下に色の説明 */
+.mapleft { position: absolute; left: 12px; bottom: 12px; z-index: 2; max-width: calc(100% - 76px); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+.mapleft > * { pointer-events: auto; }
+.mapleft .maplegend { position: static; max-width: 100%; }
+.nearbtn { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 10px; background: var(--accent); color: var(--on-accent, #fff); font-size: 14px; font-weight: 700; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+.nearbtn svg { width: 18px; height: 18px; }
+.nearbtn:active { opacity: .8; }
