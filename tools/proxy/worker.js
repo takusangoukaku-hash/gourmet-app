@@ -16,6 +16,9 @@
 //   CLASSIFY_BULK_PER_DAY（任意）「過去の写真をまとめて取り込む」からの判定の 1 端末あたり 1 日の上限。既定 200（v326〜）
 //   CLASSIFY_PER_MINUTE（任意）AI判定の全体で 1 分間の上限回数。既定 20
 //   CLASSIFY_MODEL   （任意）AI判定に使うモデル。既定 claude-haiku-5-5（分類には十分で安価）
+//   CALENDAR_PER_DAY （任意）カレンダーのスクショの読み取り（/calendar。日程あわせ yotei/ 用）の 1 端末あたり 1 日の上限枚数。既定 30
+//   CALENDAR_PER_MINUTE（任意）カレンダーの読み取りの全体で 1 分間の上限回数。既定 20
+//   CALENDAR_MODEL   （任意）カレンダーの読み取りに使うモデル。既定 claude-haiku-5-5（日単位の読み取りは上位モデルと差が無かった）
 //
 // 設定していないサービスは /status で false になり、アプリはそのサービスを呼ばない。
 // ※ 本当の課金上限は Google Cloud コンソールの「割り当て（Quotas）」で設定すること。ここでの回数制限は補助。
@@ -24,6 +27,21 @@ const DEFAULT_ORIGINS = ['https://takusangoukaku-hash.github.io'];
 const GOOGLE_FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,places.types';
 const CLASSIFY_MODEL_DEFAULT = 'claude-haiku-5-5';
 const CLASSIFY_SYSTEM = 'あなたは料理写真の分類器です。写真に写っている料理を、指定されたジャンル一覧の中から最も近いものを1〜3つ選んで dishGenres に入れてください（一覧に完全に一致する料理が無くても、最も近いジャンルを選ぶこと。例: 牛肉のステーキ→「ステーキ」、ローストビーフ→「ステーキ」か「洋食」、パエリア→「スペイン料理」）。料理や飲み物が写っていれば confident は true にしてください。confident を false にするのは、料理が写っていない写真（外観・店内・メニュー表・人物など）のときだけです。shopGenre は写真から推定される店の種類で、判断できなければ「不明」。';
+
+// カレンダーのスクショの読み取り（日程あわせ yotei/）。日付と予定の帯だけを取り出す。画像は保存しない
+const CALENDAR_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'brown', 'gray', 'other'];
+const CALENDAR_SYSTEM = [
+  'あなたはカレンダーアプリのスクリーンショットを読み取る係です。月表示・週表示・日表示・予定の一覧のどれでも、写っている予定を日付ごとに取り出します。',
+  '手順:',
+  '1. 画面の「YYYY年M月」などから年と月を読む。年が写っていなければ、利用者が伝える今日の日付に最も近い年にする。',
+  '2. 月表示は、列の曜日と日付の数字から各マスの日付を決める。前の月・次の月の日も含める。',
+  '3. first_date と last_date に、読み取れる範囲の最初の日と最後の日を入れる。月表示では、日付の数字が見えている最初のマスと最後のマス。画面の上や下で切れて日付の数字が見えない行は、予定が隠れているかもしれないので、範囲にも events にも入れない。',
+  '4. 各マスの色つきの帯・文字の予定を events に入れる。複数の日にまたがる帯は start と end に最初と最後の日を入れる。1日だけの予定は start と end が同じ。点（ドット）だけで題が読めない予定は title を空にして入れる。',
+  '5. 祝日・記念日・年中行事（海の日、敬老の日、七夕 など。アプリが自動で出すもの）は holiday を true にする。同じ祝日が2色で出ていても1つでよい。',
+  '6. 六曜（先勝・友引・先負・仏滅・大安・赤口）、広告、ボタン、時計は予定ではない。',
+  '推測で予定を足さない。見えたものだけを入れる。カレンダーの画面でなければ calendar を false にして events を空にする。',
+].join('\n');
+const ymdOk = (s) => typeof s === 'string' && /^20\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(s);
 
 // 簡易レート制限（インスタンスごとのメモリ。厳密ではないが連打の抑止には足りる）
 const buckets = new Map();
@@ -105,7 +123,7 @@ export default {
     if (path === '/' || path === '/status') {
       return json({
         ok: true,
-        services: { yahoo: !!env.YAHOO_APPID, hotpepper: !!env.HOTPEPPER_KEY, google: !!env.GOOGLE_KEY, classify: !!env.ANTHROPIC_KEY },
+        services: { yahoo: !!env.YAHOO_APPID, hotpepper: !!env.HOTPEPPER_KEY, google: !!env.GOOGLE_KEY, classify: !!env.ANTHROPIC_KEY, calendar: !!env.ANTHROPIC_KEY },
       }, 200, origin);
     }
 
@@ -222,6 +240,91 @@ export default {
         shopGenre: shopGenres.includes(out.shopGenre) ? out.shopGenre : '',
         confident: !!out.confident,
       }, 200, origin);
+    }
+
+    // カレンダーのスクショの読み取り（日程あわせ yotei/）。アプリは縮小したスクショ（JPEG の base64）を送る。
+    // 返すのは 写っている範囲（first_date〜last_date）と予定（日付・題・色・祝日か）だけ。画像も結果もここには残さない。
+    if (path === '/calendar') {
+      if (req.method !== 'POST') return json({ error: 'method' }, 405, origin);
+      if (!env.ANTHROPIC_KEY) return json({ error: '読み取りは提供していません' }, 404, origin);
+      let body = null;
+      try { body = await req.json(); } catch { body = null; }
+      const image = clean(body && body.image, 3_000_000); // base64。長辺 1568px の JPEG で 300〜500KB
+      if (!image || !/^[A-Za-z0-9+/=]+$/.test(image)) return json({ error: 'image が必要です' }, 400, origin);
+      const mediaType = ['image/jpeg', 'image/png', 'image/webp'].includes(body.mediaType) ? body.mediaType : 'image/jpeg';
+      const today = ymdOk(body.today) ? body.today : new Date(now).toISOString().slice(0, 10);
+      const perDay = Number(env.CALENDAR_PER_DAY) || 30;
+      const device = clean(body.device, 64) || ('ip:' + ip);
+      const overDay = '今日の読み取りの上限（' + perDay + '枚）に達しました。明日またお試しください';
+      if (limitedDay('cal-dev:' + device, perDay, now)) return json({ error: overDay }, 429, origin);
+      if (limitedDay('cal-ip:' + ip, perDay * 3, now)) return json({ error: overDay }, 429, origin);
+      if (limited('calendar', Number(env.CALENDAR_PER_MINUTE) || 20, now)) return json({ error: '読み取りが混み合っています。少し待ってからお試しください' }, 429, origin);
+
+      const schema = {
+        type: 'object',
+        properties: {
+          calendar: { type: 'boolean', description: 'カレンダーの画面なら true' },
+          first_date: { type: 'string', description: '読み取れた範囲の最初の日 YYYY-MM-DD。カレンダーでなければ空' },
+          last_date: { type: 'string', description: '読み取れた範囲の最後の日 YYYY-MM-DD。カレンダーでなければ空' },
+          events: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                start: { type: 'string', description: '最初の日 YYYY-MM-DD' },
+                end: { type: 'string', description: '最後の日 YYYY-MM-DD（1日だけなら start と同じ）' },
+                title: { type: 'string', description: '予定の題（見えた文字のまま。読めなければ空）' },
+                color: { type: 'string', enum: CALENDAR_COLORS, description: '帯・点の色' },
+                holiday: { type: 'boolean', description: '祝日・記念日・年中行事なら true' },
+              },
+              required: ['start', 'end', 'title', 'color', 'holiday'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['calendar', 'first_date', 'last_date', 'events'],
+        additionalProperties: false,
+      };
+      const payload = {
+        model: clean(env.CALENDAR_MODEL, 60) || CLASSIFY_MODEL_DEFAULT,
+        max_tokens: 6000,
+        system: CALENDAR_SYSTEM,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
+          { type: 'text', text: '今日は ' + today + ' です。このスクリーンショットの予定を読み取ってください。' },
+        ] }],
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+      };
+      let res;
+      try {
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) { return json({ error: '読み取りに接続できません' }, 502, origin); }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        // 上流のエラー文は出さず、種類だけ伝える
+        const kind = res.status === 401 ? '読み取りのキーが無効です（開発者側の設定）' : res.status === 429 ? '読み取りが混み合っています' : '読み取りに失敗しました';
+        return json({ error: kind, status: res.status }, res.status === 429 ? 429 : 502, origin);
+      }
+      if (!data || data.stop_reason === 'refusal') return json({ error: 'この画像は読み取れませんでした' }, 422, origin);
+      if (data.stop_reason === 'max_tokens') return json({ error: '予定が多すぎて読み取れませんでした。月を分けて撮り直してください' }, 422, origin);
+      const text = (data.content || []).find(b => b.type === 'text');
+      let out = null;
+      try { out = text ? JSON.parse(text.text) : null; } catch { out = null; }
+      if (!out) return json({ error: 'この画像は読み取れませんでした' }, 422, origin);
+      if (!out.calendar || !ymdOk(out.first_date) || !ymdOk(out.last_date) || out.first_date > out.last_date) {
+        return json({ calendar: false, first_date: '', last_date: '', events: [] }, 200, origin);
+      }
+      const events = (Array.isArray(out.events) ? out.events : []).slice(0, 300)
+        .filter(e => e && ymdOk(e.start) && ymdOk(e.end) && e.start <= e.end)
+        .map(e => ({
+          start: e.start, end: e.end, title: clean(e.title, 40),
+          color: CALENDAR_COLORS.includes(e.color) ? e.color : 'other', holiday: e.holiday === true,
+        }));
+      return json({ calendar: true, first_date: out.first_date, last_date: out.last_date, events }, 200, origin);
     }
 
     return json({ error: 'not found' }, 404, origin);

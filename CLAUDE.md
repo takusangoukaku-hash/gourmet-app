@@ -407,3 +407,16 @@ Firebase(Auth/Firestore/Storage) でクラウド同期・SNS機能。詳細は R
 - バージョン: `meimon/js/app.js` の `APP_VERSION`、`meimon/sw.js` の `VERSION` と `SHELL` の `?v=`、`meimon/index.html` の `?v=`（3箇所。v8 で `js/mapstyle.js` が増えた）を揃える。
 - 「行った」は 店名＋都道府県 の鍵で一覧とは別に持つ（一覧を貼り替えても残す）。取り込んだ文字は textContent／DOM API だけで入れる。
 - 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/meimon/
+
+## サブアプリ: 日程あわせ（`yotei/`）
+- 友達と予定を立てるとき、広い期間から「行ける人が多い日」を探す別アプリ（2026-11-22、利用者の発案）。幹事が期間（92日まで）を決めてリンク `?p=<24文字の乱数>` を作り、各自がカレンダーアプリのスクショを上げると日ごとの ○△× が下書きされ、確かめて送る。詳細は `yotei/README.md`。
+- 決めた経緯（戻さない）: ①決めるのは日だけ（時間帯は扱わない。日単位の読み取りは Haiku と上位モデルで差が無かった）②「全員が空いている日」ではなく「行ける人が多い順」（予定のある日を全部×にすると 10 人の重なりはほぼ 0 になる）③予定のある日の初期値は △、色の意味は人ごとに違うので確認の画面で色ごとに ○／△／× を選ばせて端末に覚える（`yotei.colors`）④スクショを LINE に貼る形（幹事だけが使う道具）は、予定の題が他人に見えるのでやめた ⑤手入力の画面は主役にしない（「スクショなしで入れる」の小さなリンクだけ。カレンダーを付けていない人のため）。
+- **予定の題・画像を保存しない・共有しない**: 共有するのは 名前 と days（期間の日ごとに o＝行ける／t＝微妙／x＝行けない／q＝不明 を並べた文字列）だけ。題は読んだ本人の画面（メモリ）の中だけで、localStorage にも入れない。テストの見本も作り物の題にする（利用者のスクショには応募先の企業名が写っている）。
+- 置き場: Firestore の `plans/{id}`（title・start・end・createdAt。作るだけ・一覧できない）と `plans/{id}/answers/{pid}`（name・days・at）。ログインなし・Firebase SDK なしで REST（`firestore.googleapis.com/v1/...`）を直接呼ぶ（`Db`）。ルールは `firebase/firestore.rules` の末尾（変えたら利用者にコンソールへの貼り付けを頼む）。リンクを知っている人は他人の答えも直せる（友達どうしの前提）。他人の文書は `cleanPlan`／`listAnswers` で形を確かめ、文字は textContent でだけ入れる。
+- 読み取り: `tools/proxy/worker.js` の `/calendar`（`ANTHROPIC_KEY`、既定は Haiku、1端末1日30枚）。アプリは長辺 1568px の JPEG に縮めて送り（`toJpegB64`）、`{calendar, first_date, last_date, events[{start, end, title, color, holiday}]}` を `cleanShot` で確かめる。写っている範囲（first〜last）の外の日は「不明」（q）で、「○月○日〜 はスクショに写っていません」と案内する（空いている扱いにしない）。読み取りの指示は「日付の数字が見えている行だけを範囲に入れる」（上で切れた行を範囲に入れると、予定が隠れた日を空いている扱いにする。実物のスクショで起きた。安全側＝不明に倒す）。祝日はモデルの `holiday` か、暦の祝日（`isHoliday`）＋題が「〜の日」など、で除く（色では分けられない＝利用者のアプリは祝日と予定が同じ青）。**Worker を変えたら利用者に貼り直しと Deploy を頼む**。
+- 状態の決め方 `statusOf(day)`: 手で決めた値 `over` → スクショに写っていれば色の決めごと（× が1つでもあれば ×、△ があれば △、無ければ ○）→ 前に送った答え `saved` → 不明。色を切り替えたら、その色の日の手直しは外す。
+- 結果: `tally`／`ranked`＝今日以降の日を ○の人数＋△×0.5 の多い順（同じなら × の少ない順）に 8 日、月の格子は濃いほど多い。「候補を送る」は上位 5 日の文字（最後は LINE のアンケートで決める想定）。
+- `yotei/sw.js` は何もキャッシュしない（本体の SW にこの画面を扱わせないためだけに置く）。バージョン: `yotei/js/app.js` の `APP_VERSION`、`yotei/sw.js` の `VERSION`、`yotei/index.html` の `?v=`（2箇所）。本体の `APP_VERSION` は変更しない。
+- テスト: scratchpad の `yotei-test.js`（偽の Firestore と偽の `/calendar`＝`yotei-fake.js` を route で返す。本番にはつながない）。
+- 本番URL: https://takusangoukaku-hash.github.io/gourmet-app/yotei/
+
