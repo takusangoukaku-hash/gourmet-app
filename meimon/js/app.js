@@ -1,12 +1,12 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?, w?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -73,10 +73,16 @@ const okRsv = (u) => {
   if (typeof u !== 'string' || u.length > 200 || !/^https:\/\//.test(u)) return false;
   try { const x = new URL(u); return x.protocol === 'https:' && !x.username && !x.password && x.hostname.includes('.'); } catch (e) { return false; }
 };
+// 店の公式サイト（http か https の URL。古い店のサイトは http だけのことがある）
+const okSite = (u) => {
+  if (typeof u !== 'string' || u.length > 200 || !/^https?:\/\//.test(u)) return false;
+  try { const x = new URL(u); return (x.protocol === 'https:' || x.protocol === 'http:') && !x.username && !x.password && x.hostname.includes('.'); } catch (e) { return false; }
+};
 function cleanPos(s) {
   const out = okUrl(s && s.u) ? { u: s.u } : {};
   if (s && okTel(s.t)) out.t = okTel(s.t);
   if (s && okRsv(s.r)) out.r = s.r;
+  if (s && okSite(s.w)) out.w = s.w;
   if (s && typeof s.o === 'string' && s.o.trim()) out.o = cap(s.o.trim(), MAX_HOURS);
   if (s && typeof s.h === 'string' && s.h.trim()) out.h = cap(s.h.trim(), MAX_HOL);
   const p = s && s.p;
@@ -195,6 +201,8 @@ function parseText(text) {
     if (okRsv(rsv)) shop.r = rsv;
     const hrs = cap((parts[7] || '').trim(), MAX_HOURS); // 8つ目の欄: 営業時間（例「月・火 11:30 - 14:00、17:00 - 22:00 / 土 11:30 - 15:00」）
     if (hrs) shop.o = hrs;
+    const site = (parts[8] || '').trim(); // 9つ目の欄: 店の公式サイト
+    if (okSite(site)) shop.w = site;
     cur.shops.push(shop);
   }
   return out;
@@ -546,6 +554,7 @@ const pageLink = (s) => h('a', { class: 'mlink', href: s.u, target: '_blank', re
 // 店の行の右のリンク: 予約サイト・電話・食べログ（あるものだけ）
 const shopLinks = (s) => [
   s.r ? h('a', { class: 'mlink rsv', href: s.r, target: '_blank', rel: 'noopener noreferrer' }, '予約') : null,
+  s.w ? h('a', { class: 'mlink', href: s.w, target: '_blank', rel: 'noopener noreferrer' }, '公式サイト') : null,
   s.t ? h('a', { class: 'mlink', href: 'tel:' + s.t, 'aria-label': '電話 ' + s.t }, '電話') : null,
   s.u ? pageLink(s) : null
 ];
@@ -642,7 +651,7 @@ function renderDetail() {
     }
     rows.replaceChildren();
     const frag = document.createDocumentFragment();
-    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r || posOf(s)) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s), mapLink(s))) : shopRow(l, s, false, paintRows));
+    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r || s.w || posOf(s)) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s), mapLink(s))) : shopRow(l, s, false, paintRows));
     rows.append(frag);
     if (list.length > LIST_CAP) rows.append(h('div', { class: 'more' }, `ほか ${list.length - LIST_CAP} 件`));
     else if (!list.length) rows.append(h('div', { class: 'more' }, '該当する店がありません'));
