@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -276,7 +276,7 @@ async function importBackup(file) {
 }
 
 // ---------- 画面の状態 ----------
-const view = { list: null, status: 'all', pref: '', q: '', map: false, mg: '', mt: false, mo: false }; // list: タイトル（詳細を開いているとき）／map: 地図を開いているとき（mg: ジャンル、mt: まだだけ）
+const view = { list: null, status: 'all', pref: '', q: '', map: false, mg: '', mt: false, mo: false, open: false }; // list: タイトル（詳細を開いているとき）／map: 地図を開いているとき（mg: ジャンル、mt: まだだけ）
 let homeQ = '';
 
 const app = $('#app');
@@ -299,7 +299,7 @@ function paintTabs() {
 function initTabs() {
   const nav = $('#tabs');
   nav.append(
-    h('button', { class: 'tab', type: 'button', 'data-open': 'list', onclick: () => { closeSheet(); view.map = false; view.list = null; render(); window.scrollTo(0, 0); } }, icon('list'), h('span', null, 'リスト')),
+    h('button', { class: 'tab', type: 'button', 'data-open': 'list', onclick: () => { closeSheet(); if (view.map) view.map = false; else view.list = null; render(); window.scrollTo(0, 0); } }, icon('list'), h('span', null, 'リスト')),
     h('button', { class: 'tab', type: 'button', 'data-open': 'map', onclick: () => { if (view.map) return; closeSheet(); openMap(); } }, icon('map'), h('span', null, '地図')));
 }
 
@@ -381,24 +381,68 @@ function updateSummary() {
     h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all}`)), progress(done, all)));
 }
 
-// 定休日: 「月曜日、日曜日」のような文から、毎週休む曜日（0=日〜6=土）を拾う。
-// 「第3月曜日」「祝日」「不定休」は拾わない（その日が休みか決められないので、休みとは言わない）
+// 定休日（h）: 「月曜日、第3火曜日、祝日」のような文から、毎週の曜日・第N曜日・祝日を拾う。
+// 「不定休」「年末年始」は拾わない（その日が休みか決められないので、休みとは言わない）
 const WD = '日月火水木金土';
-function closedDays(hText) {
-  const out = new Set();
-  for (const raw of String(hText || '').split(/[、,，・\/／\s]+/)) {
-    const m = raw.replace(/^毎週/, '').match(/^([日月火水木金土])(曜日?)?(定休|休み?)?$/);
-    if (m) out.add(WD.indexOf(m[1]));
+const closedCache = new Map();
+function closedInfo(hText) {
+  const key = String(hText || '');
+  if (closedCache.has(key)) return closedCache.get(key);
+  const out = { wd: new Set(), nth: [], hol: false };
+  for (const tok of key.split(/[、,，\/／\s]+/)) {
+    const m = tok.match(/^第([1-5１-５一二三四五・第]+)([日月火水木金土])(曜日?)?$/);
+    if (m) {
+      const n = new Set();
+      for (const ch of m[1]) { const i = '12345'.indexOf(ch) + 1 || '１２３４５'.indexOf(ch) + 1 || '一二三四五'.indexOf(ch) + 1; if (i) n.add(i); }
+      if (n.size) out.nth.push({ n, wd: WD.indexOf(m[2]) });
+      continue;
+    }
+    for (const raw of tok.split('・')) {
+      if (/^祝(日|祭日)?$/.test(raw)) { out.hol = true; continue; }
+      const w = raw.replace(/^毎週/, '').match(/^([日月火水木金土])(曜日?)?(定休|休み?)?$/);
+      if (w) out.wd.add(WD.indexOf(w[1]));
+    }
   }
+  if (closedCache.size > 20000) closedCache.clear();
+  closedCache.set(key, out);
   return out;
 }
-const today = () => new Date().getDay();
-const closedToday = (s) => !!s.h && closedDays(s.h).has(today());
+const closedDays = (hText) => closedInfo(hText).wd; // 毎週休む曜日（0=日〜6=土）
+
+// 祝日（国民の祝日・振替休日・国民の休日）。年ごとに「月-日」の集合を作って控える
+const holCache = new Map();
+function holidaysOf(y) {
+  if (holCache.has(y)) return holCache.get(y);
+  const set = new Set(), add = (m, d) => set.add(m + '-' + d);
+  const nthMon = (m, n) => { const first = new Date(y, m - 1, 1).getDay(); return 1 + ((8 - first) % 7) + (n - 1) * 7; };
+  const eq = (base) => Math.floor(base + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  add(1, 1); add(1, nthMon(1, 2)); add(2, 11); add(2, 23); add(3, eq(20.8431)); add(4, 29);
+  add(5, 3); add(5, 4); add(5, 5); add(7, nthMon(7, 3)); add(8, 11); add(9, nthMon(9, 3));
+  add(9, eq(23.2488)); add(10, nthMon(10, 2)); add(11, 3); add(11, 23);
+  const has = (dt) => set.has((dt.getMonth() + 1) + '-' + dt.getDate());
+  // 振替休日: 祝日が日曜なら、その後の最初の祝日でない日
+  for (const k of [...set]) {
+    const [m, d] = k.split('-').map(Number); const dt = new Date(y, m - 1, d);
+    if (dt.getDay() !== 0) continue;
+    do dt.setDate(dt.getDate() + 1); while (has(dt));
+    if (dt.getFullYear() === y) add(dt.getMonth() + 1, dt.getDate());
+  }
+  // 国民の休日: 前後が祝日の平日
+  for (const k of [...set]) {
+    const [m, d] = k.split('-').map(Number);
+    const mid = new Date(y, m - 1, d + 1), nx = new Date(y, m - 1, d + 2);
+    if (!has(mid) && has(nx) && mid.getDay() !== 0) add(mid.getMonth() + 1, mid.getDate());
+  }
+  holCache.set(y, set);
+  return set;
+}
+const isHoliday = (dt) => holidaysOf(dt.getFullYear()).has((dt.getMonth() + 1) + '-' + dt.getDate());
+const addDays = (dt, n) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + n);
 
 // ---- 営業時間（o）----
-// 形: 「月・火・木 16:30 - 22:30 / 水・土 11:30 - 14:00、16:30 - 22:30」。曜日が無い区切りは毎日。
+// 形: 「月・火・木 16:30 - 22:30 / 水・土 11:30 - 14:00、16:30 - 22:30」。曜日が無い区切りは毎日。「平日」は月〜金。
 // 終わりが始まり以下なら翌日まで（17:00 - 00:00）。「12:00」「18:00～」のように始まりだけの時刻は 2 時間とみなす。
-// 祝日・祝前日・祝後日は暦を持っていないので見ない（祝日だけの区切りは使わない）。読めない区切りが1つでもあれば null＝分からない。
+// 祝日・祝前日・祝後日の付いた区切りは、その日に当たればそちらを使う。読めない区切りが1つでもあれば null＝分からない。
 const SEAT_MIN = 120;
 const hoursCache = new Map();
 function parseHours(text) {
@@ -408,29 +452,30 @@ function parseHours(text) {
   for (const seg of String(text || '').split(/\s*[\/／]\s*/)) {
     const m = seg.trim().match(/^(?:([^\d\s]+)\s+)?(\d.*)$/);
     if (!m) { out = null; break; }
-    let days = null, hol = false;
+    const g = { days: null, hol: false, pre: false, post: false, ranges: [] };
     if (m[1]) {
-      days = new Set();
+      g.days = new Set();
       for (const d of m[1].split('・')) {
-        if (/^祝(日|前日|後日)$/.test(d)) { hol = true; continue; }
+        if (d === '祝日' || d === '祝') { g.hol = true; continue; }
+        if (d === '祝前日') { g.pre = true; continue; }
+        if (d === '祝後日') { g.post = true; continue; }
+        if (d === '平日') { for (let i = 1; i <= 5; i++) g.days.add(i); continue; }
         const i = d.length === 1 ? WD.indexOf(d) : -1;
-        if (i < 0) { days = null; out = null; break; }
-        days.add(i);
+        if (i < 0) { out = null; break; }
+        g.days.add(i);
       }
       if (!out) break;
-      if (!days.size && hol) continue; // 祝日だけの区切り
     }
-    const ranges = [];
     for (const r of m[2].split(/\s*[、,，]\s*/)) {
-      if (/^24時間(営業)?$/.test(r.trim())) { ranges.push([0, 1440]); continue; }
+      if (/^24時間(営業)?$/.test(r.trim())) { g.ranges.push([0, 1440]); continue; }
       // 終わりの無い「18:00 -」「11:00～完売」「10:00 - 売り切れまで」は始まりだけの時刻として読む
       const x = r.replace(/\s*[-－–~～〜]\s*(?:[^\d\s].*)?$/, '').split(/\s*[-－–~～〜]\s*/);
       const a = hm(x[0].trim()), b = x.length > 1 ? hm(x[1].trim()) : -2;
       if (a < 0 || b === -1 || x.length > 2) { out = null; break; }
-      ranges.push([a, b === -2 ? a + SEAT_MIN : (b <= a ? b + 1440 : b)]);
+      g.ranges.push([a, b === -2 ? a + SEAT_MIN : (b <= a ? b + 1440 : b)]);
     }
     if (!out) break;
-    out.push({ days, ranges });
+    out.push(g);
   }
   if (out && !out.length) out = null;
   if (hoursCache.size > 20000) hoursCache.clear();
@@ -438,31 +483,62 @@ function parseHours(text) {
   return out;
 }
 const fmtHM = (m) => { m %= 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
-// その曜日の営業時間（[[始まり, 終わり]]。終わりは 1440 を超えることがある）
-function rangesOn(ph, wd) { const out = []; for (const g of ph) if (!g.days || g.days.has(wd)) out.push(...g.ranges); return out.sort((a, b) => a[0] - b[0]); }
-// いま営業中か: 'open'／'closed'／''（分からない）。営業時間が無ければ定休日だけで見る
-function openState(s, now) {
-  now = now || new Date();
-  const wd = now.getDay(), min = now.getHours() * 60 + now.getMinutes();
-  const ph = s.o ? parseHours(s.o) : null;
-  if (!ph) return s.h && closedDays(s.h).has(wd) ? 'closed' : '';
-  if (rangesOn(ph, (wd + 6) % 7).some(r => r[1] > 1440 && min < r[1] - 1440)) return 'open'; // 前の日からの続き（深夜）
-  if (s.h && closedDays(s.h).has(wd)) return 'closed';
-  return rangesOn(ph, wd).some(r => min >= r[0] && min < r[1]) ? 'open' : 'closed';
+// その日の営業時間（[[始まり, 終わり]]。終わりは 1440 を超えることがある）。祝日 → 祝前日 → 祝後日 → 曜日 の順で当たる区切りを使う
+function dayRanges(ph, dt) {
+  const wd = dt.getDay();
+  const pick = (f) => { const out = []; for (const g of ph) if (f(g)) out.push(...g.ranges); return out.sort((a, b) => a[0] - b[0]); };
+  if (ph.some(g => g.hol) && isHoliday(dt)) return pick(g => g.hol);
+  if (ph.some(g => g.pre) && isHoliday(addDays(dt, 1))) return pick(g => g.pre);
+  if (ph.some(g => g.post) && isHoliday(addDays(dt, -1))) return pick(g => g.post);
+  return pick(g => !g.days || g.days.has(wd));
 }
+// その日が定休日か（毎週の曜日・第N曜日・祝日）。祝日用の営業時間がある店は、祝日なら開いているとみなす
+function closedOn(s, dt, ph) {
+  if (!s.h) return false;
+  const c = closedInfo(s.h), wd = dt.getDay(), hol = isHoliday(dt);
+  if (hol && ph && ph.some(g => g.hol)) return false;
+  if (hol && c.hol) return true;
+  if (c.wd.has(wd)) return true;
+  const n = Math.floor((dt.getDate() - 1) / 7) + 1;
+  return c.nth.some(x => x.wd === wd && x.n.has(n));
+}
+// いまの営業: {st: 'open'／'closed'／''（分からない）, until: 終わり, from: 次の始まり, dayOff: 今日は休み, ended: 今日は終了}
+function openInfo(s, now) {
+  now = now || new Date();
+  const min = now.getHours() * 60 + now.getMinutes();
+  const ph = s.o ? parseHours(s.o) : null;
+  if (!ph) return closedOn(s, now, null) ? { st: 'closed', dayOff: true } : { st: '' };
+  const yd = addDays(now, -1);
+  if (!closedOn(s, yd, ph)) { // 前の日からの続き（深夜）
+    const r = dayRanges(ph, yd).find(r => r[1] > 1440 && min < r[1] - 1440);
+    if (r) return { st: 'open', until: r[1] - 1440 };
+  }
+  if (closedOn(s, now, ph)) return { st: 'closed', dayOff: true };
+  const rs = dayRanges(ph, now);
+  if (!rs.length) return { st: 'closed', dayOff: true };
+  const cur = rs.find(r => min >= r[0] && min < r[1]);
+  if (cur) return { st: 'open', until: cur[1] };
+  const nx = rs.find(r => r[0] > min);
+  return nx ? { st: 'closed', from: nx[0] } : { st: 'closed', ended: true };
+}
+const openState = (s, now) => openInfo(s, now).st;
 // 今日の営業時間の文（「11:30 - 14:00、17:00 - 22:00」。今日の分が無ければ ''）
 function todayHours(s, now) {
   const ph = s.o ? parseHours(s.o) : null;
   if (!ph) return '';
-  return rangesOn(ph, (now || new Date()).getDay()).map(r => fmtHM(r[0]) + ' - ' + fmtHM(r[1])).join('、');
+  return dayRanges(ph, now || new Date()).map(r => fmtHM(r[0]) + ' - ' + fmtHM(r[1])).join('、');
 }
-// 店の行の営業の1行: 「営業中 ・ 今日 11:30 - 14:00 ・ 定休 月曜日」
-function hoursLine(s) {
+// 店の行の営業の1行: 「営業中 ・ 22:30 まで」「営業時間外 ・ 17:00 から」「今日は休み」。full（地図のシート）は下に営業時間と定休日の全文
+function hoursLine(s, full) {
   if (!s.h && !s.o) return null;
-  const st = openState(s), ph = s.o ? parseHours(s.o) : null, th = todayHours(s);
-  const tag = st === 'open' ? h('span', { class: 'open' }, '営業中') : st === 'closed' ? h('span', { class: 'off' }, ph ? '営業時間外' : '今日は定休日') : null;
-  const rest = [ph ? (th ? '今日 ' + th : null) : (s.o || null), s.h ? '定休 ' + s.h : null].filter(Boolean).join(' ・ ');
-  return h('div', { class: 'ar hol' }, tag, tag && rest ? ' ・ ' : null, rest);
+  const ph = s.o ? parseHours(s.o) : null, i = openInfo(s);
+  const tag = i.st === 'open' ? h('span', { class: 'open' }, '営業中')
+    : i.st === 'closed' ? h('span', { class: 'off' }, !ph ? '今日は定休日' : i.dayOff ? '今日は休み' : '営業時間外') : null;
+  const rest = ph ? (i.until != null ? fmtHM(i.until) + ' まで' : i.from != null ? fmtHM(i.from) + ' から' : i.ended ? '今日は終了' : '')
+    : [s.o || null, s.h ? '定休 ' + s.h : null].filter(Boolean).join(' ・ ');
+  const line = (tag || rest) ? h('div', { class: 'ar hol' }, tag, tag && rest ? ' ・ ' : null, rest) : null;
+  if (!full || !ph) return line;
+  return [line, h('div', { class: 'ar hrs' }, s.o), s.h ? h('div', { class: 'ar hrs' }, '定休 ' + s.h) : null];
 }
 
 // 店のページ（食べログ）を開くリンク
@@ -473,15 +549,18 @@ const shopLinks = (s) => [
   s.t ? h('a', { class: 'mlink', href: 'tel:' + s.t, 'aria-label': '電話 ' + s.t }, '電話') : null,
   s.u ? pageLink(s) : null
 ];
+// 「地図」: その店の場所へ地図を寄せて、店のシートを開く（位置のある店だけ）
+const mapLink = (s) => posOf(s) ? h('button', { class: 'mlink', type: 'button', onclick: () => showOnMap(s) }, '地図') : null;
 
 // 店の行（タップで行った／まだ）
-function shopRow(l, s, withTitle, after) {
+function shopRow(l, s, withTitle, after, opts) {
+  opts = opts || {};
   const on = isVisited(l, s);
   const row = h('button', { class: 'srow' + (on ? ' done' : ''), 'aria-pressed': on ? 'true' : 'false' },
     h('span', { class: 'tx' },
       h('div', { class: 'nm' }, s.n),
-      (s.a || withTitle) ? h('div', { class: 'ar' }, withTitle ? [l.title, s.a].filter(Boolean).join(' ・ ') : s.a) : null,
-      hoursLine(s)),
+      (s.a || withTitle || opts.extra) ? h('div', { class: 'ar' }, [withTitle ? l.title : null, s.a, opts.extra].filter(Boolean).join(' ・ ')) : null,
+      hoursLine(s, opts.full)),
     h('span', { class: 'chk' }, icon('check')));
   row.addEventListener('click', () => {
     const k = keyOf(s);
@@ -494,7 +573,7 @@ function shopRow(l, s, withTitle, after) {
 
 // ---------- 一覧の詳細 ----------
 function openList(title) {
-  view.list = title; view.status = 'all'; view.pref = ''; view.q = '';
+  view.list = title; view.status = 'all'; view.pref = ''; view.q = ''; view.open = false;
   try { history.pushState({ d: 1 }, ''); } catch {}
   render(); window.scrollTo(0, 0);
 }
@@ -518,6 +597,11 @@ function renderDetail() {
     const c = h('button', { class: 'chip', onclick: () => { view.status = k; paintChips(); paintRows(); } }, label);
     c.dataset.k = k; chips.append(c);
   }
+  // 営業時間のある一覧だけ「営業中」の絞り込み
+  const hasHours = l.shops.some(s => s.o);
+  if (!hasHours) view.open = false;
+  const chipO = hasHours ? h('button', { class: 'chip sep', onclick: () => { view.open = !view.open; paintChips(); paintRows(); } }, '営業中') : null;
+  if (chipO) chips.append(chipO);
   wrap.append(chips);
   const prefs = [...new Set(l.shops.map(s => prefOf(s.a)).filter(Boolean))];
   const fx = h('div', { class: 'fx' });
@@ -536,7 +620,10 @@ function renderDetail() {
   wrap.append(rows);
   app.append(wrap);
 
-  function paintChips() { for (const c of chips.children) c.className = 'chip' + (c.dataset.k === view.status ? ' on' : ''); }
+  function paintChips() {
+    for (const c of chips.children) if (c !== chipO) c.className = 'chip' + (c.dataset.k === view.status ? ' on' : '');
+    if (chipO) { chipO.className = 'chip sep' + (view.open ? ' on' : ''); chipO.setAttribute('aria-pressed', view.open ? 'true' : 'false'); }
+  }
   function paintHead() {
     const d = doneCount(l);
     cnt.textContent = `${d} / ${l.shops.length}`;
@@ -550,11 +637,12 @@ function renderDetail() {
       if (view.status !== 'all' && (view.status === 'done') !== isVisited(l, s)) continue;
       if (view.pref && prefOf(s.a) !== view.pref) continue;
       if (nq && !shopNorm(s).includes(nq)) continue;
+      if (view.open && openState(s) !== 'open') continue;
       list.push(s);
     }
     rows.replaceChildren();
     const frag = document.createDocumentFragment();
-    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s))) : shopRow(l, s, false, paintRows));
+    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r || posOf(s)) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s), mapLink(s))) : shopRow(l, s, false, paintRows));
     rows.append(frag);
     if (list.length > LIST_CAP) rows.append(h('div', { class: 'more' }, `ほか ${list.length - LIST_CAP} 件`));
     else if (!list.length) rows.append(h('div', { class: 'more' }, '該当する店がありません'));
@@ -604,6 +692,24 @@ function loadMapLib() {
 }
 
 function openMap() {
+  view.map = true;
+  render();
+}
+// 店を地図で見る: 絞り込みを外し、その店の場所へ寄せて店のシートを開く。地図を開いていなければ開く
+let pendingFocus = null;
+function showOnMap(s) {
+  const ps = posOf(s);
+  if (!ps) return;
+  const k = ps.p[0] + ',' + ps.p[1];
+  if (view.map && mapObj && mapReady && mapPlaces.has(k)) {
+    closeSheet();
+    mapObj.easeTo({ center: [ps.p[1], ps.p[0]], zoom: Math.max(mapObj.getZoom(), 16) });
+    openPlace(k);
+    return;
+  }
+  view.mg = ''; view.mt = false; view.mo = false;
+  pendingFocus = { center: [ps.p[1], ps.p[0]], k };
+  closeSheet();
   view.map = true;
   render();
 }
@@ -713,7 +819,9 @@ function startMap(box, fail) {
     const fc = placesData();
     const dark = !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     const opt = { container: box, style: baseMapStyle(dark), attributionControl: { compact: true }, dragRotate: false };
-    if (lastCam) { opt.center = lastCam.center; opt.zoom = lastCam.zoom; }
+    const focus = pendingFocus; pendingFocus = null;
+    if (focus) { opt.center = focus.center; opt.zoom = 16; }
+    else if (lastCam) { opt.center = lastCam.center; opt.zoom = lastCam.zoom; }
     else {
       const ps = [...mapPlaces.values()];
       const la = ps.map(p => p.lat), lo = ps.map(p => p.lon);
@@ -724,7 +832,7 @@ function startMap(box, fail) {
     mapObj = map; window.__meimonMap = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
     map.addControl(locateControl(), 'bottom-right');
-    startGeo(!lastCam);
+    startGeo(!lastCam && !focus);
     map.on('error', () => {}); // 文字（グリフ）やタイルが読めなくても地図は止めない
     map.on('load', () => {
       if (token !== mapToken) return;
@@ -766,6 +874,7 @@ function startMap(box, fail) {
       const at = box.querySelector('.maplibregl-ctrl-attrib');
       if (at) { at.classList.remove('maplibregl-compact-show'); at.removeAttribute('open'); }
       mapReady = true; box.dataset.ready = '1';
+      if (focus) openPlace(focus.k);
     });
   }).catch(() => {
     if (token !== mapToken) return;
@@ -809,7 +918,8 @@ function locateControl() {
         h('button', { type: 'button', class: 'locbtn', 'aria-label': '現在地へ', onclick: () => {
           if (myPos && mapObj) { showMe(false); mapObj.easeTo({ center: myPos, zoom: Math.max(mapObj.getZoom(), 14) }); }
           else { if (geoWatch == null) startGeo(true); toast(navigator.geolocation ? '現在地を調べています' : 'この端末では現在地を使えません'); }
-        } }, icon('locate')));
+        } }, icon('locate')),
+        h('button', { type: 'button', class: 'locbtn', 'aria-label': 'この範囲の店を一覧で', onclick: openInView }, icon('list')));
       return el;
     },
     onRemove() { if (el) el.remove(); el = null; },
@@ -844,6 +954,49 @@ function startPick(s) {
   if (mapObj.getZoom() < 16) mapObj.easeTo({ zoom: 16 });
 }
 
+// 店の行＋リンク（地図のシート用）。onChange: 行った／まだを切り替えたあと
+function placeRow(l, s, onChange, extra, jump) {
+  const q = [s.n, areaOf(s)].filter(Boolean).join(' ');
+  return h('div', { class: 'mrow' },
+    shopRow(l, s, true, onChange, { full: !jump, extra }),
+    h('span', { class: 'macts' },
+      shopLinks(s),
+      jump ? mapLink(s) : null,
+      h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ'),
+      jump ? null : h('button', { class: 'mlink', type: 'button', onclick: () => startPick(s) }, '位置を直す')));
+}
+const distM = (a, b) => { const R = 6371000, r = Math.PI / 180, x = (b[0] - a[0]) * r * Math.cos((a[1] + b[1]) * r / 2), y = (b[1] - a[1]) * r; return Math.sqrt(x * x + y * y) * R; };
+const fmtDist = (m) => m < 1000 ? Math.round(m / 10) * 10 + 'm' : (m / 1000).toFixed(m < 10000 ? 1 : 0) + 'km';
+// いま見えている範囲の店を、現在地（無ければ地図の中央）から近い順に並べたシート。絞り込み（ジャンル・営業中・まだだけ）はそのまま効く
+const INVIEW_CAP = 60;
+function openInView() {
+  if (!mapObj || !mapReady) return;
+  closeSheet();
+  const b = mapObj.getBounds(), c = mapObj.getCenter();
+  const me = myPos && b.contains(myPos) ? myPos : null, ref = me || [c.lng, c.lat];
+  const all = [];
+  for (const pl of mapPlaces.values()) {
+    if (!b.contains([pl.lon, pl.lat])) continue;
+    const d = distM(ref, [pl.lon, pl.lat]);
+    for (const [l, s] of pl.items) all.push([l, s, d]);
+  }
+  all.sort((x, y) => x[2] - y[2]);
+  const items = all.slice(0, INVIEW_CAP);
+  const cnt = h('span', { class: 'count' }), rows = h('div');
+  const paint = () => {
+    cnt.textContent = all.length > INVIEW_CAP ? `近い ${INVIEW_CAP} 店 / ${all.length} 店` : `${all.length} 店`;
+    rows.replaceChildren();
+    for (const [l, s, d] of items) rows.append(placeRow(l, s, () => { paint(); refreshPlaces(); }, me ? fmtDist(d) : '', true));
+    if (!items.length) rows.append(h('div', { class: 'more' }, 'この範囲に店がありません'));
+  };
+  paint();
+  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': 'この範囲の店' },
+    h('div', { class: 'bar' }, h('h2', null, me ? '近い順' : 'この範囲の店'), cnt,
+      h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
+    rows);
+  sheetEl = h('div', { class: 'sheet-wrap place inview' }, sheet);
+  $('#sheet-root').append(sheetEl);
+}
 // 場所（同じ位置の店）のシート。開いた時点の店を持ち、行った／まだを切り替えたら数と地図を更新する
 function openPlace(k) {
   const pl = mapPlaces.get(k);
@@ -856,15 +1009,7 @@ function openPlace(k) {
     let d = 0; for (const [l, s] of items) if (isVisited(l, s)) d++;
     cnt.textContent = `${items.length} 店 ・ 行った ${d}`;
     rows.replaceChildren();
-    for (const [l, s] of items) {
-      const q = [s.n, areaOf(s)].filter(Boolean).join(' ');
-      rows.append(h('div', { class: 'mrow' },
-        shopRow(l, s, true, () => { paint(); refreshPlaces(); }),
-        h('span', { class: 'macts' },
-          shopLinks(s),
-          h('a', { class: 'mlink', href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }, '地図アプリ'),
-          h('button', { class: 'mlink', type: 'button', onclick: () => startPick(s) }, '位置を直す'))));
-    }
+    for (const [l, s] of items) rows.append(placeRow(l, s, () => { paint(); refreshPlaces(); }));
   };
   paint();
   const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': pl.label },

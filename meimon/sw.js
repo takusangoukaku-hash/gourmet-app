@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v11'; // 営業時間（8つ目の欄）。営業中／営業時間外を行と地図の丸に。地図に「営業中」の絞り込み
+const VERSION = 'v12'; // 祝日・第N曜日の判定、「何時まで／何時から」、リストの営業中の絞り込み、地図へ寄せる、この範囲の店の一覧
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=11', './js/mapstyle.js?v=11', './js/app.js?v=11',
+  './', './index.html', './css/style.css?v=12', './js/mapstyle.js?v=12', './js/app.js?v=12',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
