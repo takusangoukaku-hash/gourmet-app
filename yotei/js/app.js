@@ -8,10 +8,11 @@
 // =====================================================
 (() => {
 'use strict';
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 const PROXY = 'https://bitemap-search.takusangoukaku.workers.dev';
 const FS = 'https://firestore.googleapis.com/v1/projects/gourmet-app-62586/databases/(default)/documents';
 const MAX_DAYS = 92;      // 期間の上限（Firestore のルールの days は 100 文字まで）
+const MAX_PEOPLE = 50;   // 予定の人数の上限（Firestore のルールと同じ）
 const MAX_SHOTS = 12;     // 1回に読むスクショの上限
 const SHOT_LONG = 1568;   // 送る画像の長辺
 const ID_RE = /^[a-z0-9]{20,40}$/;
@@ -126,10 +127,11 @@ function cleanPlan(o) {
   if (!o) return null;
   const a = parse(o.start), b = parse(o.end);
   if (!a || !b || b < a || diffDays(a, b) + 1 > MAX_DAYS) return null;
-  return { title: String(o.title || '').slice(0, 60) || '予定', start: o.start, end: o.end };
+  const people = Math.round(Number(o.people) || 0);
+  return { title: String(o.title || '').slice(0, 60) || '予定', start: o.start, end: o.end, people: people >= 1 && people <= MAX_PEOPLE ? people : 0 };
 }
 const Db = {
-  createPlan: (id, p) => fsReq('POST', '/plans?documentId=' + id, enc({ title: p.title, start: p.start, end: p.end, createdAt: Date.now() })),
+  createPlan: (id, p) => fsReq('POST', '/plans?documentId=' + id, enc(Object.assign({ title: p.title, start: p.start, end: p.end, createdAt: Date.now() }, p.people ? { people: p.people } : {}))),
   async getPlan(id) { return cleanPlan(dec(await fsReq('GET', '/plans/' + id))); },
   async listAnswers(id, n) {
     const r = await fsReq('GET', '/plans/' + id + '/answers?pageSize=100');
@@ -190,6 +192,7 @@ function showHome() {
   const fTitle = h('input', { id: 'f-title', maxlength: 60, placeholder: '夏の旅行', autocomplete: 'off' });
   const fStart = h('input', { id: 'f-start', type: 'date', value: ymd(t0) });
   const fEnd = h('input', { id: 'f-end', type: 'date', value: ymd(addDays(t0, 60)) });
+  const fPeople = h('input', { id: 'f-people', type: 'number', inputmode: 'numeric', min: 1, max: MAX_PEOPLE, step: 1, placeholder: '決まっていなければ空のまま', autocomplete: 'off' });
   const btn = h('button', { class: 'btn primary big', type: 'submit', text: 'リンクをつくる' });
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
@@ -197,19 +200,28 @@ function showHome() {
     if (!title) { shake(fTitle); toast('予定の名前を入れてください'); return; }
     if (!a || !b || b < a) { shake(fEnd); toast('期間を確かめてください'); return; }
     if (diffDays(a, b) + 1 > MAX_DAYS) { shake(fEnd); toast('期間は ' + MAX_DAYS + ' 日までです'); return; }
+    const pv = fPeople.value.trim(), people = pv ? Math.round(Number(pv)) : 0;
+    if (pv && !(people >= 1 && people <= MAX_PEOPLE)) { shake(fPeople); toast('人数は 1〜' + MAX_PEOPLE + ' 人で入れてください'); return; }
     btn.disabled = true;
-    const id = randId(24), plan = { title, start: ymd(a), end: ymd(b) };
+    const id = randId(24), plan = { title, start: ymd(a), end: ymd(b), people };
     try {
-      await Db.createPlan(id, plan);
+      try { await Db.createPlan(id, plan); }
+      catch (err) {
+        // 保存先のルールが古いと人数つきでは作れない。人数なしで作り直す
+        if (!people || err.status !== 403) throw err;
+        plan.people = 0; await Db.createPlan(id, plan);
+        setTimeout(() => toast('人数は保存できませんでした ・ 予定は人数なしでつくりました'), 0);
+      }
       remember(id, plan);
       go(id);
-      toast('リンクができました ・ 「リンクを送る」で友達へ');
+      if (!people || plan.people) toast('リンクができました ・ 「リンクを送る」で友達へ');
     } catch (err) { btn.disabled = false; toast('つくれませんでした ・ 通信を確かめてください'); }
   } },
     h('label', { class: 'field' }, h('span', { text: '予定の名前' }), fTitle),
     h('div', { class: 'row2' },
       h('label', { class: 'field' }, h('span', { text: 'いつから' }), fStart),
       h('label', { class: 'field' }, h('span', { text: 'いつまで' }), fEnd)),
+    h('label', { class: 'field' }, h('span', { text: '人数（自分も入れて）' }), fPeople),
     btn);
   const list = recent();
   app.replaceChildren(h('div', { class: 'wrap' },
@@ -286,10 +298,12 @@ async function showPlan(id, keepScroll) {
   remember(id, plan, pid);
   const rows = tally(plan, answers), n = answers.length, top = ranked(rows).slice(0, 8);
   // 濃淡の段階は回答した人数から決める（○の人数が 9割以上／7割以上／5割以上／それ未満）
-  const T = [0.9, 0.7, 0.5].map(k => Math.max(1, Math.ceil(n * k)));
+  // 予定の人数 people があればそれを分母にする（まだ答えていない人がいるうちは濃くならない）。回答の方が多ければ回答の人数
+  const base = Math.max(plan.people || 0, n), of = plan.people ? '／' + base + '人' : '';
+  const T = [0.9, 0.7, 0.5].map(k => Math.max(1, Math.ceil(base * k)));
   const tierOf = (r) => { const o = r.o.length; return o >= T[0] ? 1 : o >= T[1] ? 2 : o >= T[2] ? 3 : 4; };
   const range = (a, b) => (a === b ? a : a + '–' + b) + '人';
-  const legend = [[1, T[0], n], [2, T[1], T[0] - 1], [3, T[2], T[1] - 1], [4, 0, T[2] - 1]].filter(x => x[1] <= x[2]);
+  const legend = [[1, T[0], base], [2, T[1], T[0] - 1], [3, T[2], T[1] - 1], [4, 0, T[2] - 1]].filter(x => x[1] <= x[2]);
   const detail = h('div', { class: 'pday', id: 'p-detail' });
   function showDay(day) {
     const r = rows.find(x => x.day === day); if (!r) return;
@@ -301,7 +315,7 @@ async function showPlan(id, keepScroll) {
     setKids(detail, 
       h('div', { class: 'pday-top' },
         h('span', { class: 'pday-num t' + tierOf(r), text: parse(day).getDate() }),
-        h('div', { class: 'pday-main' }, h('b', { text: fmtS(day) }), h('span', { class: 'who', text: r.o.length + '人が行ける ・ 回答 ' + n + '人' }))),
+        h('div', { class: 'pday-main' }, h('b', { text: fmtS(day) }), h('span', { class: 'who', text: r.o.length + '人が行ける ・ 回答 ' + n + '人' + of }))),
       h('div', { class: 'pday-counts' }, cnt('○', 'o', '行ける'), cnt('△', 't', '微妙'), cnt('×', 'x', '行けない'), cnt('？', 'q', '不明')),
       who('△', r.t), who('×', r.x), who('不明', r.q));
   }
@@ -319,8 +333,8 @@ async function showPlan(id, keepScroll) {
     h('div', { class: 'btns' },
       h('button', { class: 'btn', id: 'p-share', type: 'button', text: 'リンクを送る', onclick: () => share('「' + plan.title + '」の日程あわせ ・ カレンダーのスクショで答えられます', planUrl(id)) }),
       top.length ? h('button', { class: 'btn', id: 'p-cands', type: 'button', text: '候補を送る', onclick: () =>
-        share('「' + plan.title + '」の候補（' + n + '人が回答）\n' + top.slice(0, 5).map(r => fmtS(r.day) + ' ' + countsText(r)).join('\n')) }) : null),
-    h('h2', { class: 'sec', text: '回答 ' + n + '人' }),
+        share('「' + plan.title + '」の候補（' + n + '人' + of + 'が回答）\n' + top.slice(0, 5).map(r => fmtS(r.day) + ' ' + countsText(r)).join('\n')) }) : null),
+    h('h2', { class: 'sec', id: 'p-count', text: '回答 ' + n + '人' + of + (plan.people > n ? ' ・ あと' + (plan.people - n) + '人' : '') }),
     n ? h('div', { class: 'chips' }, answers.map(a => h('span', { class: 'chip' + (a.pid === pid ? ' me' : ''), text: a.name })))
       : h('p', { class: 'empty', text: 'まだ答えがありません' }),
     top.length ? h('h2', { class: 'sec', text: '行ける人が多い日' }) : null,
