@@ -8,7 +8,7 @@
 // =====================================================
 (() => {
 'use strict';
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 const PROXY = 'https://bitemap-search.takusangoukaku.workers.dev';
 const FS = 'https://firestore.googleapis.com/v1/projects/gourmet-app-62586/databases/(default)/documents';
 const MAX_DAYS = 92;      // 期間の上限（Firestore のルールの days は 100 文字まで）
@@ -37,6 +37,8 @@ const svg = (d) => {
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); s.append(p);
   return s;
 };
+// replaceChildren は null を「null」という文字にするので、無いものを除いてから入れる
+const setKids = (el, ...kids) => el.replaceChildren(...kids.flat().filter(k => k != null && k !== false));
 const IC_BACK = 'M15 5l-7 7 7 7', IC_RELOAD = 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5';
 let toastTimer = 0;
 function toast(msg) {
@@ -283,18 +285,29 @@ async function showPlan(id, keepScroll) {
   if (pid && !answers.some(a => a.pid === pid)) pid = ''; // 消されていた
   remember(id, plan, pid);
   const rows = tally(plan, answers), n = answers.length, top = ranked(rows).slice(0, 8);
-  const detail = h('div', { class: 'detail', id: 'p-detail' }, h('span', { class: 'who', text: '日をタップすると、だれが行けるか分かります' }));
+  // 濃淡の段階は回答した人数から決める（○の人数が 9割以上／7割以上／5割以上／それ未満）
+  const T = [0.9, 0.7, 0.5].map(k => Math.max(1, Math.ceil(n * k)));
+  const tierOf = (r) => { const o = r.o.length; return o >= T[0] ? 1 : o >= T[1] ? 2 : o >= T[2] ? 3 : 4; };
+  const range = (a, b) => (a === b ? a : a + '–' + b) + '人';
+  const legend = [[1, T[0], n], [2, T[1], T[0] - 1], [3, T[2], T[1] - 1], [4, 0, T[2] - 1]].filter(x => x[1] <= x[2]);
+  const detail = h('div', { class: 'pday', id: 'p-detail' });
   function showDay(day) {
     const r = rows.find(x => x.day === day); if (!r) return;
-    document.querySelectorAll('.cell.sel').forEach(c => c.classList.remove('sel'));
-    const c = $('.cell[data-day="' + day + '"]'); if (c) c.classList.add('sel');
-    const line = (mark, names) => names.length ? h('div', {}, h('span', { text: mark + ' ' }), h('span', { class: 'who', text: names.join('、') })) : null;
-    detail.replaceChildren(h('b', { text: fmtS(day) }), line('○', r.o), line('△', r.t), line('×', r.x), line('不明', r.q));
+    document.querySelectorAll('.cell.sel, .top.sel').forEach(c => c.classList.remove('sel'));
+    document.querySelectorAll('[data-day="' + day + '"]').forEach(c => c.classList.add('sel'));
+    const cnt = (mark, k, label) => h('div', { class: 'pc ' + k + (r[k].length ? '' : ' zero') },
+      h('span', { class: 'pc-m', text: mark }), h('b', { text: r[k].length + '人' }), h('small', { text: label }));
+    const who = (mark, names) => names.length ? h('div', { class: 'pday-who' }, h('span', { text: mark + ' ' }), h('span', { class: 'who', text: names.join('、') })) : null;
+    setKids(detail, 
+      h('div', { class: 'pday-top' },
+        h('span', { class: 'pday-num t' + tierOf(r), text: parse(day).getDate() }),
+        h('div', { class: 'pday-main' }, h('b', { text: fmtS(day) }), h('span', { class: 'who', text: r.o.length + '人が行ける ・ 回答 ' + n + '人' }))),
+      h('div', { class: 'pday-counts' }, cnt('○', 'o', '行ける'), cnt('△', 't', '微妙'), cnt('×', 'x', '行けない'), cnt('？', 'q', '不明')),
+      who('△', r.t), who('×', r.x), who('不明', r.q));
   }
   const grids = n ? monthGrids(plan, (day) => {
-    const r = rows.find(x => x.day === day), ratio = n ? r.score / n : 0;
-    return { cls: 'heat' + (ratio > 0.55 ? ' hi' : ''), mark: r.o.length || r.t.length ? '○' + r.o.length : '', label: countsText(r),
-      style: '--a:' + ratio.toFixed(2), onclick: () => showDay(day) };
+    const r = rows.find(x => x.day === day);
+    return { cls: 'heat t' + tierOf(r), mark: '', label: countsText(r), onclick: () => showDay(day) };
   }) : [];
   app.replaceChildren(h('div', { class: 'wrap' },
     h('header', { class: 'bar' },
@@ -311,21 +324,15 @@ async function showPlan(id, keepScroll) {
     n ? h('div', { class: 'chips' }, answers.map(a => h('span', { class: 'chip' + (a.pid === pid ? ' me' : ''), text: a.name })))
       : h('p', { class: 'empty', text: 'まだ答えがありません' }),
     top.length ? h('h2', { class: 'sec', text: '行ける人が多い日' }) : null,
-    top.length ? h('div', { class: 'rank' }, top.map(r => {
-      const who = [r.t.length ? '△ ' + r.t.join('、') : '', r.x.length ? '× ' + r.x.join('、') : '', r.q.length ? '不明 ' + r.q.join('、') : ''].filter(Boolean).join(' ／ ');
-      return h('button', { class: 'rank-row', type: 'button', onclick: () => { showDay(r.day); detail.scrollIntoView({ block: 'center', behavior: 'smooth' }); } },
-        h('div', { class: 'rank-top' },
-          h('span', { class: 'rank-date', text: fmtS(r.day) }),
-          r.o.length === n ? h('span', { class: 'rank-all', text: '全員○' }) : null,
-          h('span', { class: 'rank-n' }, h('span', { class: 'o', text: '○' + r.o.length }),
-            r.t.length ? h('span', { class: 't', text: ' △' + r.t.length }) : null,
-            r.x.length ? h('span', { class: 'x', text: ' ×' + r.x.length }) : null,
-            r.q.length ? h('span', { class: 'q', text: ' 不明' + r.q.length }) : null)),
-        who ? h('div', { class: 'rank-who', text: who }) : null);
+    top.length ? h('div', { class: 'tops', id: 'p-tops' }, top.map(r => {
+      const d = parse(r.day);
+      return h('button', { class: 'top t' + tierOf(r), type: 'button', 'data-day': r.day, 'aria-label': fmtS(r.day) + ' ' + countsText(r), onclick: () => showDay(r.day) },
+        h('b', { text: (d.getMonth() + 1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')' }), h('small', { text: r.o.length + '人' }));
     })) : null,
-    n ? h('h2', { class: 'sec', text: 'カレンダー' }) : null,
+    n ? h('div', { class: 'tlegend', id: 'p-legend' }, legend.map(x => h('span', {}, h('i', { class: 't' + x[0] }), range(x[1], x[2])))) : null,
     grids, n ? detail : null,
   ));
+  if (n) showDay(top.length ? top[0].day : rows[0].day);
   if (keepScroll) window.scrollTo(0, y);
 }
 // 前面に戻ったら読み直す（ほかの人の答えを拾う）
@@ -509,7 +516,7 @@ function renderAnswer() {
     const evs = ans.byDay.get(day) || [];
     const text = evs.length ? evs.map(e => (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '')).join('、')
       : ans.cover.has(day) ? '予定なし' : ans.shots.length ? 'スクショに写っていません' : '';
-    detail.replaceChildren(h('b', { text: fmtS(day) + ' ・ ' + LABEL[statusOf(day, days.indexOf(day))] }), text ? h('span', { class: 'who', text }) : null);
+    setKids(detail, h('b', { text: fmtS(day) + ' ・ ' + LABEL[statusOf(day, days.indexOf(day))] }), text ? h('span', { class: 'who', text }) : null);
   }
   const grids = monthGrids(plan, (day) => {
     const st = statusOf(day, days.indexOf(day));
@@ -548,7 +555,7 @@ function renderAnswer() {
     } }) : null,
     h('div', { class: 'sticky' }, send),
   ));
-  if (ans.sel) showDay(ans.sel); else detail.replaceChildren(h('span', { class: 'who', text: '色の点は予定のある日です ・ 題はあなたにしか見えません' }));
+  if (ans.sel) showDay(ans.sel); else setKids(detail, h('span', { class: 'who', text: '色の点は予定のある日です ・ 題はあなたにしか見えません' }));
   window.scrollTo(0, y);
 }
 
