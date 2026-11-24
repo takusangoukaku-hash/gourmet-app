@@ -8,7 +8,7 @@
 // =====================================================
 (() => {
 'use strict';
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 const PROXY = 'https://bitemap-search.takusangoukaku.workers.dev';
 const FS = 'https://firestore.googleapis.com/v1/projects/gourmet-app-62586/databases/(default)/documents';
 const MAX_DAYS = 92;      // 期間の上限（Firestore のルールの days は 100 文字まで）
@@ -146,7 +146,7 @@ const Db = {
 };
 
 // ---- この端末の控え ----
-// yotei.plans: 開いたことのある予定 [{id, title, start, end, pid, at}]（pid＝この端末が出した答えの id）
+// yotei.plans: 開いたことのある予定（v4〜 画面には出さない。この端末が出した答えの id を覚えておくためだけ） [{id, title, start, end, pid, at}]（pid＝この端末が出した答えの id）
 function recent() { const v = ls.get('yotei.plans', []); return Array.isArray(v) ? v.filter(p => p && ID_RE.test(p.id)) : []; }
 function remember(id, plan, pid) {
   const list = recent(), old = list.find(p => p.id === id) || {};
@@ -223,13 +223,9 @@ function showHome() {
       h('label', { class: 'field' }, h('span', { text: 'いつまで' }), fEnd)),
     h('label', { class: 'field' }, h('span', { text: '人数（自分も入れて）' }), fPeople),
     btn);
-  const list = recent();
   app.replaceChildren(h('div', { class: 'wrap' },
     h('header', { class: 'bar' }, h('h1', { text: '日程あわせ' })),
     form,
-    list.length ? h('h2', { class: 'sec', text: '最近の予定' }) : null,
-    list.length ? h('div', { class: 'recent' }, list.map(p => h('button', { type: 'button', onclick: () => go(p.id) },
-      h('b', { text: p.title }), h('small', { text: fmtS(p.start) + ' 〜 ' + fmtS(p.end) + (p.pid ? ' ・ 回答済み' : '') })))) : null,
   ));
 }
 
