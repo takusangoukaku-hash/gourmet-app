@@ -18,6 +18,7 @@
 //   CLASSIFY_MODEL   （任意）AI判定に使うモデル。既定 claude-haiku-5-5（分類には十分で安価）
 //   CALENDAR_PER_DAY （任意）カレンダーのスクショの読み取り（/calendar。日程あわせ yotei/ 用）の 1 端末あたり 1 日の上限枚数。既定 30
 //   CALENDAR_PER_MINUTE（任意）カレンダーの読み取りの全体で 1 分間の上限回数。既定 20
+//   CALENDAR_MAX_TOKENS（任意）カレンダーの読み取りの出力の上限。既定 16000（4000〜32000）
 //   CALENDAR_MODEL   （任意）カレンダーの読み取りに使うモデル。既定 claude-haiku-5-5（日単位の読み取りは上位モデルと差が無かった）
 //
 // 設定していないサービスは /status で false になり、アプリはそのサービスを呼ばない。
@@ -292,7 +293,8 @@ export default {
       };
       const payload = {
         model: clean(env.CALENDAR_MODEL, 60) || CLASSIFY_MODEL_DEFAULT,
-        max_tokens: 6000,
+        // 出力の上限。予定 1 件が 80 トークンほど＋考える分。6000 では、時刻の欄を足した v6 で 30 件ほどの月が切れた
+        max_tokens: Math.min(32000, Math.max(4000, Number(env.CALENDAR_MAX_TOKENS) || 16000)),
         system: CALENDAR_SYSTEM,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
