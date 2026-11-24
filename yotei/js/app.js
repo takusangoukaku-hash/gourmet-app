@@ -8,7 +8,7 @@
 // =====================================================
 (() => {
 'use strict';
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 const PROXY = 'https://bitemap-search.takusangoukaku.workers.dev';
 const FS = 'https://firestore.googleapis.com/v1/projects/gourmet-app-62586/databases/(default)/documents';
 const MAX_DAYS = 92;      // 期間の上限（Firestore のルールの days は 100 文字まで）
@@ -50,6 +50,7 @@ function shake(el) { if (!el) return; el.classList.remove('shake'); void el.offs
 const ls = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 保存できなくても動く */ } },
+  del(k) { try { localStorage.removeItem(k); } catch { /* 同上 */ } },
 };
 function randId(n) {
   const a = 'abcdefghijklmnopqrstuvwxyz0123456789', b = new Uint8Array(n);
@@ -151,7 +152,24 @@ function recent() { const v = ls.get('yotei.plans', []); return Array.isArray(v)
 function remember(id, plan, pid, made) {
   const list = recent(), old = list.find(p => p.id === id) || {};
   const item = { id, title: plan.title, start: plan.start, end: plan.end, pid: pid === undefined ? (old.pid || '') : pid, made: !!(made || old.made), at: Date.now() };
-  ls.set('yotei.plans', [item, ...list.filter(p => p.id !== id)].slice(0, 20));
+  const rest = list.filter(p => p.id !== id);
+  ls.set('yotei.plans', [item, ...rest].slice(0, 20));
+  rest.slice(19).forEach(p => ls.del(EV_KEY + p.id)); // 一覧から押し出された予定の控えも消す
+}
+// 自分の予定の題と時刻の控え（この端末だけ。Firestore には送らない）: 日 → [{title, color, hol, time, endTime}]
+const EV_KEY = 'yotei.ev.';
+const HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function myEvents(id) {
+  const v = ls.get(EV_KEY + id, null), out = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const day of Object.keys(v)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(v[day])) continue;
+    const list = v[day].filter(e => e && typeof e === 'object').slice(0, 30).map(e => ({
+      title: String(e.title || '').slice(0, 60), color: COLORS[e.color] ? e.color : 'other', hol: !!e.hol,
+      time: HM_RE.test(e.time) ? e.time : '', endTime: HM_RE.test(e.endTime) ? e.endTime : '' }));
+    if (list.length) out[day] = list;
+  }
+  return out;
 }
 const myPid = (id) => (recent().find(p => p.id === id) || {}).pid || '';
 function deviceId() { let d = ls.get('yotei.device', ''); if (!/^[a-z0-9]{16,40}$/.test(d)) { d = randId(24); ls.set('yotei.device', d); } return d; }
@@ -295,7 +313,7 @@ async function showPlan(id, keepScroll) {
   lastLoad = Date.now();
   cur = { id, plan, answers };
   let pid = myPid(id);
-  if (pid && !answers.some(a => a.pid === pid)) pid = ''; // 消されていた
+  if (pid && !answers.some(a => a.pid === pid)) { pid = ''; ls.del(EV_KEY + id); } // 消されていた
   remember(id, plan, pid);
   const rows = tally(plan, answers), n = answers.length, top = ranked(rows).slice(0, 8);
   // 濃淡の段階は回答した人数から決める（○の人数が 9割以上／7割以上／5割以上／それ未満）
@@ -306,6 +324,7 @@ async function showPlan(id, keepScroll) {
   const range = (a, b) => (a === b ? a : a + '–' + b) + '人';
   const legend = [[1, T[0], base], [2, T[1], T[0] - 1], [3, T[2], T[1] - 1], [4, 0, T[2] - 1]].filter(x => x[1] <= x[2]);
   const detail = h('div', { class: 'pday', id: 'p-detail' });
+  const mineEv = pid ? myEvents(id) : {};
   function showDay(day) {
     const r = rows.find(x => x.day === day); if (!r) return;
     document.querySelectorAll('.cell.sel, .top.sel').forEach(c => c.classList.remove('sel'));
@@ -318,7 +337,9 @@ async function showPlan(id, keepScroll) {
         h('span', { class: 'pday-num t' + tierOf(r), text: parse(day).getDate() }),
         h('div', { class: 'pday-main' }, h('b', { text: fmtS(day) }), h('span', { class: 'who', text: r.o.length + '人が行ける ・ 回答 ' + n + '人' + of }))),
       h('div', { class: 'pday-counts' }, cnt('○', 'o', '行ける'), cnt('△', 't', '微妙'), cnt('×', 'x', '行けない'), cnt('？', 'q', '不明')),
-      who('△', r.t), who('×', r.x), who('不明', r.q));
+      who('△', r.t), who('×', r.x), who('不明', r.q),
+      mineEv[day] ? h('div', { class: 'pday-mine', id: 'p-mine' },
+        h('small', { text: 'あなたの予定 ・ あなたにしか見えません' }), mineEv[day].map(evRow)) : null);
   }
   const grids = n ? monthGrids(plan, (day) => {
     const r = rows.find(x => x.day === day);
@@ -367,6 +388,7 @@ function newAnswer(pid) {
     pid: pid || '', name: mine ? mine.name : String(ls.get('yotei.name', '') || '').slice(0, 20),
     saved: mine ? mine.days : '',            // 前に送った答え（スクショに写っていない日の代わり）
     shots: [], cover: new Set(), byDay: new Map(),
+    kept: mine ? myEvents(cur.id) : {},      // 前に読んだ予定の控え（スクショに写っていない日の一覧に出す）
     rules: Object.assign({}, ls.get('yotei.colors', {})), // 色 → o／t／x（端末に覚える）
     over: {},                                 // 日 → 手で決めた値
     manual: !!mine,                           // スクショなしで格子へ進む
@@ -396,6 +418,8 @@ function rebuild() {
     }
   }
 }
+// 一覧・内訳に出す予定: スクショに写っている日は読んだもの、写っていない日は前の控え
+const eventsOf = (day) => ans.cover.has(day) ? (ans.byDay.get(day) || []) : (ans.kept[day] || []);
 const realEvents = (day) => (ans.byDay.get(day) || []).filter(e => !e.hol);
 function statusOf(day, i) {
   if (ans.over[day]) return ans.over[day];
@@ -495,6 +519,8 @@ function missingText(days) {
 }
 // 予定1件の文字: 「10:00–12:00 題」「10:00 題」「題」
 const evTime = (e) => e.time ? e.time.replace(/^0/, '') + (e.endTime ? '–' + e.endTime.replace(/^0/, '') : '') : '';
+const evRow = (e) => { const dot = h('i'); dot.style.background = e.hol ? 'var(--line)' : COLORS[e.color][1];
+  return h('div', { class: 'ev' + (e.hol ? ' hol' : '') }, dot, h('span', { class: 'ev-t', text: evTime(e) || (e.hol ? '' : '終日') }), h('span', { class: 'ev-n', text: (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '') })); };
 const evText = (e) => (evTime(e) ? evTime(e) + ' ' : '') + (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '');
 function renderAnswer() {
   const plan = cur.plan, days = planDays(plan), y = window.scrollY;
@@ -539,7 +565,7 @@ function renderAnswer() {
   const detail = h('div', { class: 'detail', id: 'a-detail' });
   function showDay(day) {
     ans.sel = day;
-    const evs = ans.byDay.get(day) || [];
+    const evs = eventsOf(day);
     const text = evs.length ? evs.map(evText).join('、')
       : ans.cover.has(day) ? '予定なし' : ans.shots.length ? 'スクショに写っていません' : '';
     setKids(detail, h('b', { text: fmtS(day) + ' ・ ' + LABEL[statusOf(day, days.indexOf(day))] }), text ? h('span', { class: 'who', text }) : null);
@@ -551,7 +577,7 @@ function renderAnswer() {
       onclick: () => { ans.over[day] = st === 'o' ? 't' : st === 't' ? 'x' : 'o'; ans.sel = day; renderAnswer(); } };
   });
   // 読み取った予定を日付 → 時間の順に並べる（自分の画面だけ。送らない）。日の行を押すと ○△× が切り替わる
-  const evDays = days.filter(day => (ans.byDay.get(day) || []).length);
+  const evDays = days.filter(day => eventsOf(day).length);
   const evList = evDays.length ? h('section', { class: 'evs', id: 'a-events' },
     h('h2', { class: 'sec', text: '読み取った予定 ・ あなたにしか見えません' }),
     evDays.map(day => {
@@ -560,8 +586,7 @@ function renderAnswer() {
         h('button', { class: 'ev-head s-' + st, type: 'button', 'data-evday': day, 'aria-label': fmtS(day) + ' ' + LABEL[st] + ' 押すと切り替え',
           onclick: () => { ans.over[day] = st === 'o' ? 't' : st === 't' ? 'x' : 'o'; ans.sel = day; renderAnswer(); } },
           h('b', { text: fmtS(day) }), h('span', { class: 'ev-mark', text: MARK[st] })),
-        ans.byDay.get(day).map(e => { const dot = h('i'); dot.style.background = e.hol ? 'var(--line)' : COLORS[e.color][1];
-          return h('div', { class: 'ev' + (e.hol ? ' hol' : '') }, dot, h('span', { class: 'ev-t', text: evTime(e) || (e.hol ? '' : '終日') }), h('span', { class: 'ev-n', text: (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '') })); }));
+        eventsOf(day).map(evRow));
     })) : null;
   const send = h('button', { class: 'btn primary big', id: 'a-send', type: 'button', disabled: !!ans.busy, text: 'この内容で送る', onclick: async () => {
     const nm = name.value.trim();
@@ -570,6 +595,9 @@ function renderAnswer() {
     const pid = ans.pid || randId(20), str = days.map((d, i) => statusOf(d, i)).join('');
     try {
       await Db.putAnswer(cur.id, pid, { name: nm, days: str });
+      // 題と時刻はこの端末にだけ控える（結果の画面で自分の予定を見るため。送らない）
+      const keep = {}; days.forEach(d => { const l = eventsOf(d); if (l.length) keep[d] = l; });
+      if (Object.keys(keep).length) ls.set(EV_KEY + cur.id, keep); else ls.del(EV_KEY + cur.id);
       ls.set('yotei.name', nm);
       remember(cur.id, plan, pid);
       ans = null;
@@ -589,7 +617,7 @@ function renderAnswer() {
     grids, detail, evList,
     ans.pid ? h('button', { class: 'link danger', id: 'a-del', type: 'button', text: '自分の答えを消す', onclick: async () => {
       if (!window.confirm('自分の答えを消しますか？')) return;
-      try { await Db.delAnswer(cur.id, ans.pid); remember(cur.id, plan, ''); ans = null; await showPlan(cur.id); toast('消しました'); }
+      try { await Db.delAnswer(cur.id, ans.pid); ls.del(EV_KEY + cur.id); remember(cur.id, plan, ''); ans = null; await showPlan(cur.id); toast('消しました'); }
       catch (e) { toast('消せませんでした'); }
     } }) : null,
     h('div', { class: 'sticky' }, send),
