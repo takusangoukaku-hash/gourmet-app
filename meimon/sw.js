@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v16'; // 待ち時間のページへのリンク（取り込みの 10 個目の欄）
+const VERSION = 'v17'; // 題の末尾が「3.7以上」の一覧も同じジャンルにまとめる
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=16', './js/mapstyle.js?v=16', './js/app.js?v=16',
+  './', './index.html', './css/style.css?v=17', './js/mapstyle.js?v=17', './js/app.js?v=17',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
