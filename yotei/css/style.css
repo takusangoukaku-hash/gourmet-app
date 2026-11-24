@@ -129,6 +129,16 @@ input[type=date] { -webkit-appearance: none; appearance: none; max-width: 100%; 
 .seg button.on.x { background: var(--ng); color: var(--fg); }
 .legend { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
 
+.ev-day { border-bottom: 1px solid var(--line); padding: 6px 0 8px; }
+.ev-head { display: flex; align-items: center; width: 100%; min-height: 40px; text-align: left; gap: 8px; background: none !important; color: var(--fg) !important; }
+.ev-head b { flex: 1; font-size: 15px; }
+.ev-mark { width: 36px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; }
+.ev-head.s-o .ev-mark { background: var(--ok); color: var(--ok-fg); } .ev-head.s-t .ev-mark { background: var(--mid); color: var(--mid-fg); }
+.ev-head.s-x .ev-mark { background: var(--ng); color: var(--ng-fg); } .ev-head.s-q .ev-mark { background: var(--field); color: var(--muted); }
+.ev { display: flex; align-items: baseline; gap: 8px; font-size: 14px; padding: 2px 0; }
+.ev i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+.ev-t { width: 84px; flex-shrink: 0; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev-n { flex: 1; min-width: 0; } .ev.hol .ev-n { color: var(--muted); }
 .sticky {
   position: sticky; bottom: 0; margin: 16px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   background: var(--bg); border-top: 1px solid var(--line);

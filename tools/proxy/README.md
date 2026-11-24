@@ -60,7 +60,7 @@ const SEARCH_PROXY = ((typeof window !== 'undefined' && window.__searchProxy) ||
 - 1 IP あたり 1 分 60 回、Google は全体で 1 分 30 回に制限（メモリ上の簡易制限。確実な上限は Google 側の割り当てで）。
 - Google へは店名と位置だけを送り、FieldMask（課金区分）とページ数は Worker 側で固定する。
 - `/classify`（AI判定）: アプリは縮小した写真（768px JPEG の base64）とジャンル一覧を送る。モデル・プロンプト・出力形式・回数の上限は Worker 側で固定。
-- `/calendar`（カレンダーのスクショの読み取り。日程あわせ `yotei/` 用）: アプリは縮小したスクショ（長辺 1568px の JPEG の base64）と今日の日付を送り、写っている範囲（最初と最後の日）と予定（日付・題・色・祝日か）が返る。キーは `/classify` と同じ `ANTHROPIC_KEY`。画像も結果も Worker には残さない。上限は 1 端末 1 日 30 枚（`CALENDAR_PER_DAY`）・全体で 1 分 20 回（`CALENDAR_PER_MINUTE`）。`worker.js` を変えたら、ダッシュボードの **Edit code** に貼り直して **Deploy** する。
+- `/calendar`（カレンダーのスクショの読み取り。日程あわせ `yotei/` 用）: アプリは縮小したスクショ（長辺 1568px の JPEG の base64）と今日の日付を送り、写っている範囲（最初と最後の日）と予定（日付・時刻・題・色・祝日か）が返る。キーは `/classify` と同じ `ANTHROPIC_KEY`。画像も結果も Worker には残さない。上限は 1 端末 1 日 30 枚（`CALENDAR_PER_DAY`）・全体で 1 分 20 回（`CALENDAR_PER_MINUTE`）。`worker.js` を変えたら、ダッシュボードの **Edit code** に貼り直して **Deploy** する。
   写真は Worker に保存しない。上流のエラー文はそのまま返さず種類だけ返す。
 - 利用者が ⚙️ で自分のキーを入れた場合はそちらが優先され、開発者の枠は使われない。
 - Worker の URL を知っている人がブラウザ外から Origin を偽装して呼ぶことは技術的には可能。キー自体は漏れないので、

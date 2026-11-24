@@ -8,7 +8,7 @@
 // =====================================================
 (() => {
 'use strict';
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 const PROXY = 'https://bitemap-search.takusangoukaku.workers.dev';
 const FS = 'https://firestore.googleapis.com/v1/projects/gourmet-app-62586/databases/(default)/documents';
 const MAX_DAYS = 92;      // 期間の上限（Firestore のルールの days は 100 文字まで）
@@ -384,7 +384,13 @@ function rebuild() {
       for (let d = parse(from), e = parse(to); d && e && d <= e; d = addDays(d, 1)) {
         const day = ymd(d), list = ans.byDay.get(day) || [];
         const hol = ev.holiday || (isHoliday(d) && HOL_TITLE.test(ev.title));
-        if (!list.some(x => x.title === ev.title && (x.color === ev.color || (hol && x.hol)))) list.push({ title: ev.title, color: ev.color, hol });
+        // 時刻は始まる日にだけ付ける（何日も続く予定の2日目からは終日の扱い）
+        const first = day === ev.start, time = first ? ev.time : '', endTime = first && ev.start === ev.end ? ev.endTime : '';
+        const same = list.find(x => x.title === ev.title && (x.color === ev.color || (hol && x.hol)));
+        if (!same) list.push({ title: ev.title, color: ev.color, hol, time, endTime });
+        else if (!same.time && time) { same.time = time; same.endTime = endTime; } // 別のスクショ（週の表示など）に時刻が写っていた
+        // 時間順（時刻の無いもの＝終日・不明 が先、あとは早い順）
+        list.sort((p, q) => (p.time || '') < (q.time || '') ? -1 : (p.time || '') > (q.time || '') ? 1 : 0);
         ans.byDay.set(day, list);
       }
     }
@@ -421,6 +427,8 @@ async function toJpegB64(file) {
   return btoa(bin);
 }
 // 読み取りの結果を確かめてから使う（形のおかしいものは捨てる）
+// 時刻は HH:MM だけ（古い Worker は時刻を返さない → 空）
+const hm = (v) => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(v || '')); return m ? m[0] : ''; };
 function cleanShot(r) {
   if (!r || r.calendar !== true) return null;
   const a = parse(r.first_date), b = parse(r.last_date);
@@ -429,7 +437,7 @@ function cleanShot(r) {
     const s = parse(e && e.start), t = parse(e && e.end);
     if (!s || !t || t < s || diffDays(s, t) > 45) return null;
     if (ymd(t) < r.first_date || ymd(s) > r.last_date) return null;
-    return { start: ymd(s), end: ymd(t), title: String(e.title || '').slice(0, 40), color: COLORS[e.color] ? e.color : 'other', holiday: e.holiday === true };
+    return { start: ymd(s), end: ymd(t), title: String(e.title || '').slice(0, 40), time: hm(e.time), endTime: hm(e.end_time), color: COLORS[e.color] ? e.color : 'other', holiday: e.holiday === true };
   }).filter(Boolean);
   return { first: r.first_date, last: r.last_date, events };
 }
@@ -485,6 +493,9 @@ function missingText(days) {
   if (from) out.push(from === prev ? fmtS(from) : fmtS(from) + '〜' + fmtS(prev));
   return out.length > 3 ? out.slice(0, 3).join('、') + ' ほか' : out.join('、');
 }
+// 予定1件の文字: 「10:00–12:00 題」「10:00 題」「題」
+const evTime = (e) => e.time ? e.time.replace(/^0/, '') + (e.endTime ? '–' + e.endTime.replace(/^0/, '') : '') : '';
+const evText = (e) => (evTime(e) ? evTime(e) + ' ' : '') + (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '');
 function renderAnswer() {
   const plan = cur.plan, days = planDays(plan), y = window.scrollY;
   const back = h('button', { class: 'ibtn', type: 'button', 'aria-label': 'もどる', onclick: () => { ans = null; showPlan(cur.id); } }, svg(IC_BACK));
@@ -529,7 +540,7 @@ function renderAnswer() {
   function showDay(day) {
     ans.sel = day;
     const evs = ans.byDay.get(day) || [];
-    const text = evs.length ? evs.map(e => (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '')).join('、')
+    const text = evs.length ? evs.map(evText).join('、')
       : ans.cover.has(day) ? '予定なし' : ans.shots.length ? 'スクショに写っていません' : '';
     setKids(detail, h('b', { text: fmtS(day) + ' ・ ' + LABEL[statusOf(day, days.indexOf(day))] }), text ? h('span', { class: 'who', text }) : null);
   }
@@ -539,6 +550,19 @@ function renderAnswer() {
       dots: realEvents(day).map(e => COLORS[e.color][1]),
       onclick: () => { ans.over[day] = st === 'o' ? 't' : st === 't' ? 'x' : 'o'; ans.sel = day; renderAnswer(); } };
   });
+  // 読み取った予定を日付 → 時間の順に並べる（自分の画面だけ。送らない）。日の行を押すと ○△× が切り替わる
+  const evDays = days.filter(day => (ans.byDay.get(day) || []).length);
+  const evList = evDays.length ? h('section', { class: 'evs', id: 'a-events' },
+    h('h2', { class: 'sec', text: '読み取った予定 ・ あなたにしか見えません' }),
+    evDays.map(day => {
+      const st = statusOf(day, days.indexOf(day));
+      return h('div', { class: 'ev-day' },
+        h('button', { class: 'ev-head s-' + st, type: 'button', 'data-evday': day, 'aria-label': fmtS(day) + ' ' + LABEL[st] + ' 押すと切り替え',
+          onclick: () => { ans.over[day] = st === 'o' ? 't' : st === 't' ? 'x' : 'o'; ans.sel = day; renderAnswer(); } },
+          h('b', { text: fmtS(day) }), h('span', { class: 'ev-mark', text: MARK[st] })),
+        ans.byDay.get(day).map(e => { const dot = h('i'); dot.style.background = e.hol ? 'var(--line)' : COLORS[e.color][1];
+          return h('div', { class: 'ev' + (e.hol ? ' hol' : '') }, dot, h('span', { class: 'ev-t', text: evTime(e) || (e.hol ? '' : '終日') }), h('span', { class: 'ev-n', text: (e.title || '（題なし）') + (e.hol ? '（祝日など）' : '') })); }));
+    })) : null;
   const send = h('button', { class: 'btn primary big', id: 'a-send', type: 'button', disabled: !!ans.busy, text: 'この内容で送る', onclick: async () => {
     const nm = name.value.trim();
     if (!nm) { shake(name); name.focus(); toast('名前を入れてください'); return; }
@@ -562,7 +586,7 @@ function renderAnswer() {
     h('div', { class: 'btns' }, h('button', { class: 'btn', id: 'a-more', type: 'button', disabled: !!ans.busy, text: ans.shots.length ? 'スクショを足す' : 'スクショから読む', onclick: pickFiles })),
     busy,
     h('p', { class: 'legend', text: '○ 行ける ・ △ 微妙 ・ × 行けない ／ 日をタップで切り替え' }),
-    grids, detail,
+    grids, detail, evList,
     ans.pid ? h('button', { class: 'link danger', id: 'a-del', type: 'button', text: '自分の答えを消す', onclick: async () => {
       if (!window.confirm('自分の答えを消しますか？')) return;
       try { await Db.delAnswer(cur.id, ans.pid); remember(cur.id, plan, ''); ans = null; await showPlan(cur.id); toast('消しました'); }

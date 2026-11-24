@@ -37,10 +37,13 @@ const CALENDAR_SYSTEM = [
   '2. 月表示は、列の曜日と日付の数字から各マスの日付を決める。前の月・次の月の日も含める。',
   '3. first_date と last_date に、読み取れる範囲の最初の日と最後の日を入れる。月表示では、日付の数字が見えている最初のマスと最後のマス。画面の上や下で切れて日付の数字が見えない行は、予定が隠れているかもしれないので、範囲にも events にも入れない。',
   '4. 各マスの色つきの帯・文字の予定を events に入れる。複数の日にまたがる帯は start と end に最初と最後の日を入れる。1日だけの予定は start と end が同じ。点（ドット）だけで題が読めない予定は title を空にして入れる。',
-  '5. 祝日・記念日・年中行事（海の日、敬老の日、七夕 など。アプリが自動で出すもの）は holiday を true にする。同じ祝日が2色で出ていても1つでよい。',
-  '6. 六曜（先勝・友引・先負・仏滅・大安・赤口）、広告、ボタン、時計は予定ではない。',
+  '5. 予定の開始時刻が写っていれば time に、終了時刻が写っていれば end_time に、24時間の HH:MM で入れる（「午後3時」は 15:00）。時刻が写っていない・終日の予定は空にする。時刻を推測で作らない。',
+  '6. 祝日・記念日・年中行事（海の日、敬老の日、七夕 など。アプリが自動で出すもの）は holiday を true にする。同じ祝日が2色で出ていても1つでよい。',
+  '7. 六曜（先勝・友引・先負・仏滅・大安・赤口）、広告、ボタン、時計は予定ではない。',
   '推測で予定を足さない。見えたものだけを入れる。カレンダーの画面でなければ calendar を false にして events を空にする。',
 ].join('\n');
+// 時刻は HH:MM（0:00〜23:59）だけ通す。1桁の時は 0 を足す。それ以外は空
+const hmOk = (s) => { const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(s || '').trim()); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
 const ymdOk = (s) => typeof s === 'string' && /^20\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(s);
 
 // 簡易レート制限（インスタンスごとのメモリ。厳密ではないが連打の抑止には足りる）
@@ -243,7 +246,7 @@ export default {
     }
 
     // カレンダーのスクショの読み取り（日程あわせ yotei/）。アプリは縮小したスクショ（JPEG の base64）を送る。
-    // 返すのは 写っている範囲（first_date〜last_date）と予定（日付・題・色・祝日か）だけ。画像も結果もここには残さない。
+    // 返すのは 写っている範囲（first_date〜last_date）と予定（日付・時刻・題・色・祝日か）だけ。画像も結果もここには残さない。
     if (path === '/calendar') {
       if (req.method !== 'POST') return json({ error: 'method' }, 405, origin);
       if (!env.ANTHROPIC_KEY) return json({ error: '読み取りは提供していません' }, 404, origin);
@@ -275,9 +278,11 @@ export default {
                 end: { type: 'string', description: '最後の日 YYYY-MM-DD（1日だけなら start と同じ）' },
                 title: { type: 'string', description: '予定の題（見えた文字のまま。読めなければ空）' },
                 color: { type: 'string', enum: CALENDAR_COLORS, description: '帯・点の色' },
+                time: { type: 'string', description: '開始時刻 HH:MM（24時間）。写っていなければ空' },
+                end_time: { type: 'string', description: '終了時刻 HH:MM（24時間）。写っていなければ空' },
                 holiday: { type: 'boolean', description: '祝日・記念日・年中行事なら true' },
               },
-              required: ['start', 'end', 'title', 'color', 'holiday'],
+              required: ['start', 'end', 'title', 'time', 'end_time', 'color', 'holiday'],
               additionalProperties: false,
             },
           },
@@ -322,6 +327,7 @@ export default {
         .filter(e => e && ymdOk(e.start) && ymdOk(e.end) && e.start <= e.end)
         .map(e => ({
           start: e.start, end: e.end, title: clean(e.title, 40),
+          time: hmOk(e.time), end_time: hmOk(e.end_time),
           color: CALENDAR_COLORS.includes(e.color) ? e.color : 'other', holiday: e.holiday === true,
         }));
       return json({ calendar: true, first_date: out.first_date, last_date: out.last_date, events }, 200, origin);
