@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -316,11 +316,11 @@ function initTabs() {
     h('button', { class: 'tab', type: 'button', 'data-open': 'map', onclick: () => { if (view.map) return; closeSheet(); openMap(); } }, icon('map'), h('span', null, '地図')));
 }
 
-// 一覧のジャンル（末尾の西暦4桁と地域の語を除く）
+// 一覧のジャンル（末尾の西暦4桁・「3.7以上」・地域の語を除く）
 function genreOf(title) {
   let t = title.trim();
   for (let i = 0; i < 2; i++) {
-    t = t.replace(/\s*\d{4}$/, '').replace(/\s*(TOKYO|EAST|WEST|HOKKAIDO|KANAGAWA|AICHI|OSAKA|KAGAWA)$/, '');
+    t = t.replace(/\s*\d{4}$/, '').replace(/\s*\d(\.\d)?以上$/, '').replace(/\s*(TOKYO|EAST|WEST|HOKKAIDO|KANAGAWA|AICHI|OSAKA|KAGAWA)$/, '');
   }
   return t.trim() || title;
 }
