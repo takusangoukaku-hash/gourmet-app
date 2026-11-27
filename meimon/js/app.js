@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -400,6 +400,7 @@ function areaList(key) {
 // 1つ上の画面の鍵（区・駅 → 都道府県。それ以外はホーム＝null）
 const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
 let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
+let subSort = 'n'; try { if (localStorage.getItem('meimon.subsort') === 'p') subSort = 'p'; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
 // 「一覧 11月27日 12:34 に取り込み」（取り込んだ日時を控えていれば）
 function importedText() {
@@ -697,8 +698,14 @@ function renderDetail() {
       prog.replaceChildren(progress(d0, l.shops.length));
       const m = new Map();
       for (const s of l.shops) { const n = subName(s, areaSub); let g = m.get(n); if (!g) { g = { n, all: 0, done: 0 }; m.set(n, g); } g.all++; if (visited[keyOf(s)] === 1) g.done++; }
-      // 店の多い順（同じなら名前順）。「その他」は最後
-      const rows = [...m.values()].sort((a, b) => (a.n === 'その他') - (b.n === 'その他') || b.all - a.all || a.n.localeCompare(b.n, 'ja'));
+      // 並び: 店の多い順／割合の高い順（同じ割合なら行った数 → 店の数 → 名前）。「その他」は最後
+      const sorts = h('div', { class: 'filters subsort' });
+      for (const [k, label] of [['n', '店の多い順'], ['p', '割合の高い順']]) sorts.append(h('button', { class: 'chip' + (subSort === k ? ' on' : ''), 'aria-pressed': subSort === k ? 'true' : 'false',
+        onclick: () => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} render(); } }, label));
+      wrap.append(sorts);
+      const byN = (a, b) => b.all - a.all || a.n.localeCompare(b.n, 'ja');
+      const rows = [...m.values()].sort((a, b) => (a.n === 'その他') - (b.n === 'その他') ||
+        (subSort === 'p' ? (b.done / b.all - a.done / a.all || b.done - a.done) : 0) || byN(a, b));
       for (const g of rows) wrap.append(h('button', { class: 'lrow', onclick: () => openList(AREA_KEY + l.pref + SUB_SEP + areaSub + ':' + g.n) },
         h('div', { class: 'top' }, h('span', { class: 't' }, g.n), h('span', { class: 'count' }, countText(g.done, g.all))), progress(g.done, g.all)));
       app.append(wrap);
