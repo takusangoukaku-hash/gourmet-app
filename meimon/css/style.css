@@ -201,3 +201,7 @@ input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; poin
 
 /* ホームの ジャンル別／エリア別 */
 .homesegs { margin: 4px 0 4px; }
+
+/* 版の表示と、新しい版の帯 */
+h1 .hver { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.upbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(57px + env(safe-area-inset-bottom) + 12px); z-index: 30; height: 44px; padding: 0 18px; border-radius: 10px; background: var(--accent); color: var(--on-accent, #fff); font-size: 14px; font-weight: 700; box-shadow: 0 2px 10px rgba(0,0,0,.25); white-space: nowrap; }

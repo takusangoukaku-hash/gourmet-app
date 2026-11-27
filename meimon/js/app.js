@@ -1,16 +1,16 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?, w?, q?, m?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?, w?, q?, m?, g?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
-const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300, MAX_HOL = 60, MAX_HOURS = 200, MAX_CITY = 20;
+const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300, MAX_HOL = 60, MAX_HOURS = 200, MAX_CITY = 20, MAX_GROUP = 30;
 const SEARCH_CAP = 200, LIST_CAP = 500;
 const DEFAULT_TITLE = 'リスト';
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -87,6 +87,7 @@ function cleanPos(s) {
   if (s && okSite(s.w)) out.w = s.w;
   if (s && okWait(s.q)) out.q = s.q;
   if (s && typeof s.m === 'string' && s.m.trim()) out.m = cap(s.m.trim(), MAX_CITY);
+  if (s && typeof s.g === 'string' && s.g.trim()) out.g = cap(s.g.trim(), MAX_GROUP);
   if (s && typeof s.o === 'string' && s.o.trim()) out.o = cap(s.o.trim(), MAX_HOURS);
   if (s && typeof s.h === 'string' && s.h.trim()) out.h = cap(s.h.trim(), MAX_HOL);
   const p = s && s.p;
@@ -211,6 +212,8 @@ function parseText(text) {
     if (okWait(wait)) shop.q = wait;
     const cty = cap((parts[10] || '').trim(), MAX_CITY); // 11 個目の欄: 市区町村（「渋谷区」「横浜市中区」）
     if (cty) shop.m = cty;
+    const grp = cap((parts[11] || '').trim(), MAX_GROUP); // 12 個目の欄: 同じ場所の駅のまとまり（「新宿駅周辺」）
+    if (grp) shop.g = grp;
     cur.shops.push(shop);
   }
   return out;
@@ -235,6 +238,7 @@ function importText(text) {
   const r = mergeLists(parsed);
   if (!r.lists) { toast('店が多すぎて取り込めませんでした'); return false; }
   if (!saveAll()) return false;
+  try { localStorage.setItem('meimon.importedAt', String(Date.now())); } catch (e) {}
   toast(`${r.lists} リスト・${r.shops} 店を取り込みました`);
   return true;
 }
@@ -337,7 +341,7 @@ function renderHome() {
   let done = 0; for (const l of lists) done += doneCount(l);
   const wrap = h('div', { class: 'wrap' });
   wrap.append(h('div', { class: 'bar' },
-    h('h1', null, '百名店チェック'),
+    h('h1', null, '百名店チェック', h('small', { class: 'hver' }, APP_VERSION)),
     h('button', { class: 'btn small', 'data-open': 'data', onclick: () => openSheet() }, 'データ')));
   if (!lists.length) {
     wrap.append(h('div', { class: 'empty' }, h('p', null, 'まだ一覧がありません'),
@@ -381,7 +385,8 @@ function areaGroups() {
 // 一覧の詳細に渡す「エリアの一覧」（題＝都道府県。src: 店 → もとの一覧）
 // 鍵: AREA_KEY + 都道府県 [+ SUB_SEP + 'c'（区・市）か 's'（駅）+ ':' + 名前]
 const SUB_SEP = '\u0002';
-const subName = (s, kind) => (kind === 'c' ? s.m : areaOf(s)) || 'その他';
+// 駅ごと: 同じ場所の駅のまとまり（g）があればそれ、無ければ駅の名前
+const subName = (s, kind) => (kind === 'c' ? s.m : (s.g || areaOf(s))) || 'その他';
 function areaList(key) {
   if (typeof key !== 'string' || !key.startsWith(AREA_KEY)) return null;
   const [pf, sub] = key.slice(AREA_KEY.length).split(SUB_SEP);
@@ -396,6 +401,14 @@ function areaList(key) {
 const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
 let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
+// 「一覧 11月27日 12:34 に取り込み」（取り込んだ日時を控えていれば）
+function importedText() {
+  let t = 0; try { t = Number(localStorage.getItem('meimon.importedAt')) || 0; } catch (e) {}
+  if (!t) return '';
+  const d = new Date(t), z = (n) => String(n).padStart(2, '0');
+  return `一覧 ${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${z(d.getMinutes())} に取り込み`;
+}
+const verLine = () => h('div', { class: 'ver' }, [`アプリ ${APP_VERSION}`, importedText()].filter(Boolean).join(' ・ '));
 function progress(done, all) {
   const i = h('i'); i.style.width = (all ? Math.round(done / all * 100) : 0) + '%';
   return h('div', { class: 'progress' }, i);
@@ -428,6 +441,7 @@ function renderHomeBody() {
         h('div', { class: 'top' }, h('span', { class: 't' }, g.pref), h('span', { class: 'count' }, countText(d, g.shops.length))),
         progress(d, g.shops.length)));
     }
+    homeBody.append(verLine());
     return;
   }
   const groups = new Map();
@@ -445,6 +459,7 @@ function renderHomeBody() {
         progress(d, l.shops.length)));
     }
   }
+  homeBody.append(verLine());
 }
 function updateSummary() {
   const big = app.querySelector('.summary');
@@ -1191,7 +1206,7 @@ function openSheet(focusText) {
       saveAll(); toast('すべて消しました'); done();
     } }, 'すべて消す')),
     h('p', { class: 'hint' }, '店の一覧はこの端末の中だけに保存されます'),
-    h('div', { class: 'ver' }, `百名店チェック ${APP_VERSION}`));
+    verLine());
   sheetEl = h('div', { class: 'sheet-wrap', onclick: (e) => { if (e.target === sheetEl) closeSheet(); } }, sheet);
   $('#sheet-root').append(sheetEl);
   if (focusText) ta.focus();
@@ -1209,6 +1224,21 @@ function toast(msg) {
 
 initTabs();
 render();
+// 版が変わったら知らせる（初めて開いたときは出さない）
+try {
+  const prev = localStorage.getItem('meimon.ver');
+  if (prev && prev !== APP_VERSION) setTimeout(() => toast(`${APP_VERSION} に更新しました`), 400);
+  localStorage.setItem('meimon.ver', APP_VERSION);
+} catch (e) {}
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    // 前面に戻ったときに新しい版が無いか見に行く
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // 開いている間に新しい版が入ったら、下に帯を出す（押すと読み直す）
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || document.querySelector('.upbar')) return;
+    document.body.append(h('button', { class: 'upbar', type: 'button', onclick: () => location.reload() }, '新しい版があります ・ 更新'));
+  });
 }

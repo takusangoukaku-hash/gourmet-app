@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v19'; // 都道府県の中を 区・市ごと／駅ごと に分けて見られる（取り込みの 11 個目の欄＝市区町村）
+const VERSION = 'v20'; // 同じ場所の駅をまとめる（12 個目の欄）。版の表示・更新のお知らせ・一覧を取り込んだ日時
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=19', './js/mapstyle.js?v=19', './js/app.js?v=19',
+  './', './index.html', './css/style.css?v=20', './js/mapstyle.js?v=20', './js/app.js?v=20',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
