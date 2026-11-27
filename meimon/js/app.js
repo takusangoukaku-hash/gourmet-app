@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -695,7 +695,10 @@ function renderDetail() {
     if (!kinds.some(k => k[0] === areaSub)) areaSub = 'shops';
     const segs = h('div', { class: 'filters subsegs' });
     for (const [k, label] of kinds) segs.append(h('button', { class: 'chip' + (areaSub === k ? ' on' : ''), 'aria-pressed': areaSub === k ? 'true' : 'false',
-      onclick: () => { areaSub = k; try { localStorage.setItem('meimon.sub', k); } catch (e) {} render(); } }, label));
+      onclick: () => {
+        // 区・市ごと → 駅ごと では店の数の絞り込みを外す（区・市の 20 店以上のままだと駅がほとんど消える）
+        if (k === 's' && areaSub === 'c' && subMin) { subMin = 0; try { localStorage.setItem('meimon.submin', '0'); } catch (e) {} }
+        areaSub = k; try { localStorage.setItem('meimon.sub', k); } catch (e) {} render(); } }, label));
     wrap.append(segs);
     if (areaSub !== 'shops') {
       const d0 = doneCount(l);
