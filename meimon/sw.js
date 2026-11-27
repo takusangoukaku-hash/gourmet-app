@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v17'; // 題の末尾が「3.7以上」の一覧も同じジャンルにまとめる
+const VERSION = 'v18'; // ホームにエリア別（都道府県ごとの行った数と割合）。数の横に割合
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=17', './js/mapstyle.js?v=17', './js/app.js?v=17',
+  './', './index.html', './css/style.css?v=18', './js/mapstyle.js?v=18', './js/app.js?v=18',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

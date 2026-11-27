@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -289,7 +289,7 @@ async function importBackup(file) {
 }
 
 // ---------- 画面の状態 ----------
-const view = { list: null, status: 'all', pref: '', q: '', map: false, mg: '', mt: false, mo: false, open: false }; // list: タイトル（詳細を開いているとき）／map: 地図を開いているとき（mg: ジャンル、mt: まだだけ）
+const view = { list: null, status: 'all', pref: '', q: '', map: false, mg: '', mt: false, mo: false, open: false, genre: '' }; // list: タイトル（詳細を開いているとき）／map: 地図を開いているとき（mg: ジャンル、mt: まだだけ）
 let homeQ = '';
 
 const app = $('#app');
@@ -297,7 +297,7 @@ function render() {
   leaveMap();
   app.replaceChildren();
   if (view.map) renderMap();
-  else if (view.list != null && lists.some(l => l.title === view.list)) renderDetail();
+  else if (view.list != null && currentList()) renderDetail();
   else { view.list = null; renderHome(); }
   paintTabs();
 }
@@ -328,6 +328,7 @@ function prefOf(a) { return String(a || '').trim().split(/\s+/)[0] || ''; }
 
 // ---------- ホーム ----------
 let homeBody = null;
+let homeMode = 'genre'; try { if (localStorage.getItem('meimon.home') === 'area') homeMode = 'area'; } catch (e) {}
 function renderHome() {
   const all = totalShops();
   let done = 0; for (const l of lists) done += doneCount(l);
@@ -341,7 +342,7 @@ function renderHome() {
     app.append(wrap); homeBody = null; return;
   }
   const sum = h('div', { class: 'summary' },
-    h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all}`)),
+    h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all} ・ ${pct(done, all)}`)),
     progress(done, all));
   const q = h('input', { class: 'search', type: 'search', placeholder: '店名・エリアを全リストから探す', maxlength: 100, 'aria-label': '店を探す', value: homeQ, autocomplete: 'off' });
   q.value = homeQ;
@@ -351,6 +352,36 @@ function renderHome() {
   app.append(wrap);
   renderHomeBody();
 }
+// 割合の文字（10% 未満は小数1桁。0 は 0%）
+function pct(done, all) {
+  if (!all || !done) return '0%';
+  const v = done / all * 100;
+  return (v < 10 ? Math.round(v * 10) / 10 : Math.round(v)) + '%';
+}
+const countText = (done, all) => `${done} / ${all} ・ ${pct(done, all)}`;
+// エリア（都道府県）ごとの店。同じ店（店名＋都道府県）が複数の一覧にあっても1店と数える
+const PREF_ORDER = '北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県'.split(' ');
+const AREA_KEY = '\u0001area:';
+function areaGroups() {
+  const m = new Map();
+  for (const l of lists) for (const s of l.shops) {
+    const pf = prefOf(s.a) || 'その他';
+    let g = m.get(pf);
+    if (!g) { g = { pref: pf, seen: new Set(), shops: [], src: new Map() }; m.set(pf, g); }
+    const k = keyOf(s);
+    if (g.seen.has(k)) continue;
+    g.seen.add(k); g.shops.push(s); g.src.set(s, l);
+  }
+  const ord = (pf) => { const i = PREF_ORDER.indexOf(pf); return i < 0 ? 999 : i; };
+  return [...m.values()].sort((a, b) => ord(a.pref) - ord(b.pref));
+}
+// 一覧の詳細に渡す「エリアの一覧」（題＝都道府県。src: 店 → もとの一覧）
+function areaList(key) {
+  if (typeof key !== 'string' || !key.startsWith(AREA_KEY)) return null;
+  const g = areaGroups().find(x => x.pref === key.slice(AREA_KEY.length));
+  return g ? { title: g.pref, shops: g.shops, src: g.src, area: true } : null;
+}
+const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
 function progress(done, all) {
   const i = h('i'); i.style.width = (all ? Math.round(done / all * 100) : 0) + '%';
   return h('div', { class: 'progress' }, i);
@@ -369,6 +400,22 @@ function renderHomeBody() {
     if (hits.length > SEARCH_CAP) homeBody.append(h('div', { class: 'more' }, `ほか ${hits.length - SEARCH_CAP} 件`));
     return;
   }
+  // ジャンル別／エリア別の切り替え（覚える）
+  const segs = h('div', { class: 'filters homesegs' });
+  for (const [k, label] of [['genre', 'ジャンル別'], ['area', 'エリア別']]) {
+    segs.append(h('button', { class: 'chip' + (homeMode === k ? ' on' : ''), 'aria-pressed': homeMode === k ? 'true' : 'false',
+      onclick: () => { homeMode = k; try { localStorage.setItem('meimon.home', k); } catch (e) {} renderHomeBody(); } }, label));
+  }
+  homeBody.append(segs);
+  if (homeMode === 'area') {
+    for (const g of areaGroups()) {
+      let d = 0; for (const s of g.shops) if (visited[keyOf(s)] === 1) d++;
+      homeBody.append(h('button', { class: 'lrow' + (d ? '' : ' zero'), onclick: () => openList(AREA_KEY + g.pref) },
+        h('div', { class: 'top' }, h('span', { class: 't' }, g.pref), h('span', { class: 'count' }, countText(d, g.shops.length))),
+        progress(d, g.shops.length)));
+    }
+    return;
+  }
   const groups = new Map();
   for (const l of lists) {
     const g = genreOf(l.title);
@@ -380,7 +427,7 @@ function renderHomeBody() {
     for (const l of ls) {
       const d = doneCount(l);
       homeBody.append(h('button', { class: 'lrow', onclick: () => openList(l.title) },
-        h('div', { class: 'top' }, h('span', { class: 't' }, l.title), h('span', { class: 'count' }, `${d} / ${l.shops.length}`)),
+        h('div', { class: 'top' }, h('span', { class: 't' }, l.title), h('span', { class: 'count' }, countText(d, l.shops.length))),
         progress(d, l.shops.length)));
     }
   }
@@ -391,7 +438,7 @@ function updateSummary() {
   let done = 0; for (const l of lists) done += doneCount(l);
   const all = totalShops();
   big.replaceWith(h('div', { class: 'summary' },
-    h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all}`)), progress(done, all)));
+    h('div', { class: 'big' }, `行った ${done}`, h('small', null, `/ 全 ${all} ・ ${pct(done, all)}`)), progress(done, all)));
 }
 
 // 定休日（h）: 「月曜日、第3火曜日、祝日」のような文から、毎週の曜日・第N曜日・祝日を拾う。
@@ -588,7 +635,7 @@ function shopRow(l, s, withTitle, after, opts) {
 
 // ---------- 一覧の詳細 ----------
 function openList(title) {
-  view.list = title; view.status = 'all'; view.pref = ''; view.q = ''; view.open = false;
+  view.list = title; view.status = 'all'; view.pref = ''; view.q = ''; view.open = false; view.genre = '';
   try { history.pushState({ d: 1 }, ''); } catch {}
   render(); window.scrollTo(0, 0);
 }
@@ -599,7 +646,7 @@ function closeList() {
 window.addEventListener('popstate', () => { if (!view.map && view.list != null) { view.list = null; render(); } });
 
 function renderDetail() {
-  const l = lists.find(x => x.title === view.list);
+  const l = currentList();
   const wrap = h('div', { class: 'wrap' });
   const cnt = h('span', { class: 'count' });
   const prog = h('div');
@@ -627,6 +674,17 @@ function renderDetail() {
     sel.addEventListener('change', () => { view.pref = sel.value; paintRows(); });
     fx.append(sel);
   }
+  // エリアの一覧では、ジャンルで絞れる
+  const srcOf = (s) => l.src ? l.src.get(s) : l;
+  if (l.area) {
+    const gs = [...new Set(l.shops.map(s => genreOf(srcOf(s).title)))];
+    if (gs.length >= 2) {
+      const sel = h('select', { 'aria-label': 'ジャンル' }, h('option', { value: '' }, 'すべてのジャンル'), gs.map(g => h('option', { value: g }, g)));
+      sel.value = gs.includes(view.genre) ? view.genre : (view.genre = '');
+      sel.addEventListener('change', () => { view.genre = sel.value; paintRows(); });
+      fx.append(sel);
+    }
+  }
   const q = h('input', { type: 'search', placeholder: '店名・エリア', maxlength: 100, 'aria-label': '絞り込み', autocomplete: 'off' });
   q.addEventListener('input', () => { view.q = q.value; paintRows(); });
   fx.append(q);
@@ -641,7 +699,7 @@ function renderDetail() {
   }
   function paintHead() {
     const d = doneCount(l);
-    cnt.textContent = `${d} / ${l.shops.length}`;
+    cnt.textContent = countText(d, l.shops.length);
     prog.replaceChildren(progress(d, l.shops.length));
   }
   function paintRows() {
@@ -651,13 +709,14 @@ function renderDetail() {
     for (const s of l.shops) {
       if (view.status !== 'all' && (view.status === 'done') !== isVisited(l, s)) continue;
       if (view.pref && prefOf(s.a) !== view.pref) continue;
+      if (l.area && view.genre && genreOf(srcOf(s).title) !== view.genre) continue;
       if (nq && !shopNorm(s).includes(nq)) continue;
       if (view.open && openState(s) !== 'open') continue;
       list.push(s);
     }
     rows.replaceChildren();
     const frag = document.createDocumentFragment();
-    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r || s.w || s.q || posOf(s)) ? h('div', { class: 'mrow' }, shopRow(l, s, false, paintRows), h('span', { class: 'macts' }, shopLinks(s), mapLink(s))) : shopRow(l, s, false, paintRows));
+    for (const s of list.slice(0, LIST_CAP)) frag.append((s.u || s.t || s.r || s.w || s.q || posOf(s)) ? h('div', { class: 'mrow' }, shopRow(srcOf(s), s, !!l.area, paintRows), h('span', { class: 'macts' }, shopLinks(s), mapLink(s))) : shopRow(srcOf(s), s, !!l.area, paintRows));
     rows.append(frag);
     if (list.length > LIST_CAP) rows.append(h('div', { class: 'more' }, `ほか ${list.length - LIST_CAP} 件`));
     else if (!list.length) rows.append(h('div', { class: 'more' }, '該当する店がありません'));
