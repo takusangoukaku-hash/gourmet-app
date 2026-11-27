@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -400,6 +400,8 @@ function areaList(key) {
 // 1つ上の画面の鍵（区・駅 → 都道府県。それ以外はホーム＝null）
 const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
 let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
+const SUB_MIN = 3;
+let subMin = false; try { subMin = localStorage.getItem('meimon.submin') === '1'; } catch (e) {}
 let subSort = 'n'; try { if (localStorage.getItem('meimon.subsort') === 'p') subSort = 'p'; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
 // 「一覧 11月27日 12:34 に取り込み」（取り込んだ日時を控えていれば）
@@ -702,10 +704,14 @@ function renderDetail() {
       const sorts = h('div', { class: 'filters subsort' });
       for (const [k, label] of [['n', '店の多い順'], ['p', '割合の高い順']]) sorts.append(h('button', { class: 'chip' + (subSort === k ? ' on' : ''), 'aria-pressed': subSort === k ? 'true' : 'false',
         onclick: () => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} render(); } }, label));
+      // 店の少ない駅（1/1 で 100%）を外す絞り込み
+      sorts.append(h('button', { class: 'chip sep' + (subMin ? ' on' : ''), 'aria-pressed': subMin ? 'true' : 'false',
+        onclick: () => { subMin = !subMin; try { localStorage.setItem('meimon.submin', subMin ? '1' : '0'); } catch (e) {} render(); } }, SUB_MIN + '店以上'));
       wrap.append(sorts);
       const byN = (a, b) => b.all - a.all || a.n.localeCompare(b.n, 'ja');
-      const rows = [...m.values()].sort((a, b) => (a.n === 'その他') - (b.n === 'その他') ||
+      const rows = [...m.values()].filter(g => !subMin || g.all >= SUB_MIN).sort((a, b) => (a.n === 'その他') - (b.n === 'その他') ||
         (subSort === 'p' ? (b.done / b.all - a.done / a.all || b.done - a.done) : 0) || byN(a, b));
+      if (!rows.length) wrap.append(h('p', { class: 'empty' }, SUB_MIN + '店以上の' + (areaSub === 'c' ? '区・市' : '駅') + 'はありません'));
       for (const g of rows) wrap.append(h('button', { class: 'lrow', onclick: () => openList(AREA_KEY + l.pref + SUB_SEP + areaSub + ':' + g.n) },
         h('div', { class: 'top' }, h('span', { class: 't' }, g.n), h('span', { class: 'count' }, countText(g.done, g.all))), progress(g.done, g.all)));
       app.append(wrap);
