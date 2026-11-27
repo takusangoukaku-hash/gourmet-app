@@ -1,16 +1,16 @@
 // =====================================================
 // 百名店チェック: 百名店の一覧を取り込み、行った店をチェックする PWA
 //  - 店のデータはアプリに含めない。利用者が貼り付け／ファイルで取り込み、localStorage にだけ保存する
-//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?, w?, q?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
+//  - lists: meimon.lists.v1 = [{title, shops:[{n, a, p?, c?, x?, u?, h?, t?, r?, o?, w?, q?, m?}]}]（u: 店のページの URL、h: 定休日の文、t: 電話番号、r: 予約サイト、o: 営業時間の文）（p: [緯度, 経度]。x: 1＝店の位置、何も無ければ駅の位置、c: 1＝市の中心のおおよその位置）
 //  - visited: meimon.visited.v1 = {店名 + '\u0000' + 都道府県: 1}（行った店だけ。一覧をまたいで共通＝
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
-const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300, MAX_HOL = 60, MAX_HOURS = 200;
+const MAX_NAME = 100, MAX_AREA = 60, MAX_TITLE = 60, MAX_SHOPS = 20000, MAX_KEY = 300, MAX_HOL = 60, MAX_HOURS = 200, MAX_CITY = 20;
 const SEARCH_CAP = 200, LIST_CAP = 500;
 const DEFAULT_TITLE = 'リスト';
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -86,6 +86,7 @@ function cleanPos(s) {
   if (s && okRsv(s.r)) out.r = s.r;
   if (s && okSite(s.w)) out.w = s.w;
   if (s && okWait(s.q)) out.q = s.q;
+  if (s && typeof s.m === 'string' && s.m.trim()) out.m = cap(s.m.trim(), MAX_CITY);
   if (s && typeof s.o === 'string' && s.o.trim()) out.o = cap(s.o.trim(), MAX_HOURS);
   if (s && typeof s.h === 'string' && s.h.trim()) out.h = cap(s.h.trim(), MAX_HOL);
   const p = s && s.p;
@@ -208,6 +209,8 @@ function parseText(text) {
     if (okSite(site)) shop.w = site;
     const wait = (parts[9] || '').trim(); // 10 個目の欄: 待ち時間のページ
     if (okWait(wait)) shop.q = wait;
+    const cty = cap((parts[10] || '').trim(), MAX_CITY); // 11 個目の欄: 市区町村（「渋谷区」「横浜市中区」）
+    if (cty) shop.m = cty;
     cur.shops.push(shop);
   }
   return out;
@@ -376,11 +379,22 @@ function areaGroups() {
   return [...m.values()].sort((a, b) => ord(a.pref) - ord(b.pref));
 }
 // 一覧の詳細に渡す「エリアの一覧」（題＝都道府県。src: 店 → もとの一覧）
+// 鍵: AREA_KEY + 都道府県 [+ SUB_SEP + 'c'（区・市）か 's'（駅）+ ':' + 名前]
+const SUB_SEP = '\u0002';
+const subName = (s, kind) => (kind === 'c' ? s.m : areaOf(s)) || 'その他';
 function areaList(key) {
   if (typeof key !== 'string' || !key.startsWith(AREA_KEY)) return null;
-  const g = areaGroups().find(x => x.pref === key.slice(AREA_KEY.length));
-  return g ? { title: g.pref, shops: g.shops, src: g.src, area: true } : null;
+  const [pf, sub] = key.slice(AREA_KEY.length).split(SUB_SEP);
+  const g = areaGroups().find(x => x.pref === pf);
+  if (!g) return null;
+  if (!sub) return { title: g.pref, shops: g.shops, src: g.src, area: true, pref: g.pref };
+  const kind = sub[0], name = sub.slice(2);
+  const shops = g.shops.filter(s => subName(s, kind) === name);
+  return shops.length ? { title: name, shops, src: g.src, area: true, pref: g.pref, sub: kind } : null;
 }
+// 1つ上の画面の鍵（区・駅 → 都道府県。それ以外はホーム＝null）
+const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
+let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
 function progress(done, all) {
   const i = h('i'); i.style.width = (all ? Math.round(done / all * 100) : 0) + '%';
@@ -641,9 +655,9 @@ function openList(title) {
 }
 function closeList() {
   if (history.state && history.state.d) history.back();
-  else { view.list = null; render(); }
+  else { view.list = parentKey(view.list); render(); }
 }
-window.addEventListener('popstate', () => { if (!view.map && view.list != null) { view.list = null; render(); } });
+window.addEventListener('popstate', () => { if (!view.map && view.list != null) { view.list = parentKey(view.list); view.status = 'all'; view.q = ''; view.open = false; view.genre = ''; render(); } });
 
 function renderDetail() {
   const l = currentList();
@@ -654,6 +668,28 @@ function renderDetail() {
     h('button', { class: 'ibtn', 'aria-label': '戻る', onclick: closeList }, icon('back')),
     h('h2', null, l.title), cnt));
   wrap.append(prog);
+  // 都道府県の画面は「店／区・市／駅」で切り替えられる（区・市は市区町村の入った一覧のときだけ）
+  if (l.area && !l.sub) {
+    const kinds = [['shops', '店'], ...(l.shops.some(s => s.m) ? [['c', '区・市ごと']] : []), ['s', '駅ごと']];
+    if (!kinds.some(k => k[0] === areaSub)) areaSub = 'shops';
+    const segs = h('div', { class: 'filters subsegs' });
+    for (const [k, label] of kinds) segs.append(h('button', { class: 'chip' + (areaSub === k ? ' on' : ''), 'aria-pressed': areaSub === k ? 'true' : 'false',
+      onclick: () => { areaSub = k; try { localStorage.setItem('meimon.sub', k); } catch (e) {} render(); } }, label));
+    wrap.append(segs);
+    if (areaSub !== 'shops') {
+      const d0 = doneCount(l);
+      cnt.textContent = countText(d0, l.shops.length);
+      prog.replaceChildren(progress(d0, l.shops.length));
+      const m = new Map();
+      for (const s of l.shops) { const n = subName(s, areaSub); let g = m.get(n); if (!g) { g = { n, all: 0, done: 0 }; m.set(n, g); } g.all++; if (visited[keyOf(s)] === 1) g.done++; }
+      // 店の多い順（同じなら名前順）。「その他」は最後
+      const rows = [...m.values()].sort((a, b) => (a.n === 'その他') - (b.n === 'その他') || b.all - a.all || a.n.localeCompare(b.n, 'ja'));
+      for (const g of rows) wrap.append(h('button', { class: 'lrow', onclick: () => openList(AREA_KEY + l.pref + SUB_SEP + areaSub + ':' + g.n) },
+        h('div', { class: 'top' }, h('span', { class: 't' }, g.n), h('span', { class: 'count' }, countText(g.done, g.all))), progress(g.done, g.all)));
+      app.append(wrap);
+      return;
+    }
+  }
   const chips = h('div', { class: 'filters' });
   for (const [k, label] of [['all', 'すべて'], ['todo', 'まだ'], ['done', '行った']]) {
     const c = h('button', { class: 'chip', onclick: () => { view.status = k; paintChips(); paintRows(); } }, label);
