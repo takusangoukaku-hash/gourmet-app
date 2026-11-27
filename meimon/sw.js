@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v24'; // 並びのボタンを1行に（店数順／割合順／残り順）
+const VERSION = 'v25'; // 並びを1つのボタンにまとめ、押すと選択肢が開く
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=24', './js/mapstyle.js?v=24', './js/app.js?v=24',
+  './', './index.html', './css/style.css?v=25', './js/mapstyle.js?v=25', './js/app.js?v=25',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

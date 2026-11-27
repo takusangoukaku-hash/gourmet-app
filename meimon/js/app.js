@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -702,9 +702,9 @@ function renderDetail() {
       for (const s of l.shops) { const n = subName(s, areaSub); let g = m.get(n); if (!g) { g = { n, all: 0, done: 0 }; m.set(n, g); } g.all++; if (visited[keyOf(s)] === 1) g.done++; }
       // 並び: 店の多い順／割合の高い順（同じ割合なら行った数 → 店の数 → 名前）。「その他」は最後
       const sorts = h('div', { class: 'filters subsort' });
-      // 幅360で「3店以上」まで1行に収めるため、文字は短く（読み上げは長い名前）
-      for (const [k, label, full] of [['n', '店数順', '店の多い順'], ['p', '割合順', '割合の高い順'], ['r', '残り順', '残りの少ない順']]) sorts.append(h('button', { class: 'chip' + (subSort === k ? ' on' : ''), 'aria-label': full, 'aria-pressed': subSort === k ? 'true' : 'false',
-        onclick: () => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} render(); } }, label));
+      // 並びは1つのボタンにまとめ、押すと選択肢のシートが開く（今の並びを文字で出す）
+      sorts.append(h('button', { class: 'chip sortbtn', 'aria-haspopup': 'dialog', 'aria-label': '並び: ' + SUB_SORTS.find(x => x[0] === subSort)[1],
+        onclick: openSubSort }, h('span', null, SUB_SORTS.find(x => x[0] === subSort)[1]), h('span', { class: 'caret', 'aria-hidden': 'true' }, '⌄')));
       // 店の少ない駅（1/1 で 100%）を外す絞り込み
       sorts.append(h('button', { class: 'chip sep' + (subMin ? ' on' : ''), 'aria-pressed': subMin ? 'true' : 'false',
         onclick: () => { subMin = !subMin; try { localStorage.setItem('meimon.submin', subMin ? '1' : '0'); } catch (e) {} render(); } }, SUB_MIN + '店以上'));
@@ -1167,6 +1167,20 @@ window.__meimonOpenPlace = openPlace;
 
 // ---------- 設定・データのシート ----------
 let sheetEl = null;
+// 区・市ごと／駅ごとの並びを選ぶシート
+const SUB_SORTS = [['n', '店の多い順'], ['p', '割合の高い順'], ['r', '残りの少ない順']];
+function openSubSort() {
+  closeSheet();
+  const pick = (k) => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} closeSheet(); render(); };
+  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': '並び' },
+    h('div', { class: 'bar' }, h('h2', null, '並び'),
+      h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
+    ...SUB_SORTS.map(([k, label]) => h('button', { class: 'optrow' + (subSort === k ? ' on' : ''), 'aria-pressed': subSort === k ? 'true' : 'false', onclick: () => pick(k) },
+      h('span', null, label), h('span', { class: 'mark', 'aria-hidden': 'true' }, subSort === k ? '✓' : ''))));
+  sheetEl = h('div', { class: 'sheet-wrap sortsheet' }, sheet);
+  sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
+  $('#sheet-root').append(sheetEl);
+}
 function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } }
 function openSheet(focusText) {
   closeSheet();
