@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -400,8 +400,10 @@ function areaList(key) {
 // 1つ上の画面の鍵（区・駅 → 都道府県。それ以外はホーム＝null）
 const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
 let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
-const SUB_MIN = 3;
-let subMin = false; try { subMin = localStorage.getItem('meimon.submin') === '1'; } catch (e) {}
+// 店の少ない駅・区を隠す下限（0＝すべて）。v22〜v25 は 3 店だけで '1' と覚えていた
+const SUB_MINS = [0, 3, 5, 10];
+let subMin = 0; try { const v = localStorage.getItem('meimon.submin'); subMin = v === '1' ? 3 : (SUB_MINS.includes(+v) ? +v : 0); } catch (e) {}
+const subMinLabel = (n) => n ? n + '店以上' : 'すべて';
 let subSort = 'n'; try { const v = localStorage.getItem('meimon.subsort'); if (v === 'p' || v === 'r') subSort = v; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
 // 「一覧 11月27日 12:34 に取り込み」（取り込んだ日時を控えていれば）
@@ -706,15 +708,15 @@ function renderDetail() {
       sorts.append(h('button', { class: 'chip sortbtn', 'aria-haspopup': 'dialog', 'aria-label': '並び: ' + SUB_SORTS.find(x => x[0] === subSort)[1],
         onclick: openSubSort }, h('span', null, SUB_SORTS.find(x => x[0] === subSort)[1]), h('span', { class: 'caret', 'aria-hidden': 'true' }, '⌄')));
       // 店の少ない駅（1/1 で 100%）を外す絞り込み
-      sorts.append(h('button', { class: 'chip sep' + (subMin ? ' on' : ''), 'aria-pressed': subMin ? 'true' : 'false',
-        onclick: () => { subMin = !subMin; try { localStorage.setItem('meimon.submin', subMin ? '1' : '0'); } catch (e) {} render(); } }, SUB_MIN + '店以上'));
+      sorts.append(h('button', { class: 'chip sep sortbtn minbtn' + (subMin ? ' on' : ''), 'aria-haspopup': 'dialog', 'aria-label': '店の数: ' + subMinLabel(subMin),
+        onclick: openSubMin }, h('span', null, subMin ? subMinLabel(subMin) : '店の数'), h('span', { class: 'caret', 'aria-hidden': 'true' }, '⌄')));
       wrap.append(sorts);
       const byN = (a, b) => b.all - a.all || a.n.localeCompare(b.n, 'ja');
-      const rows = [...m.values()].filter(g => !subMin || g.all >= SUB_MIN).sort((a, b) => (a.n === 'その他') - (b.n === 'その他') ||
+      const rows = [...m.values()].filter(g => g.all >= subMin).sort((a, b) => (a.n === 'その他') - (b.n === 'その他') ||
         (subSort === 'p' ? (b.done / b.all - a.done / a.all || b.done - a.done) :
           // 残りの少ない順: 全部行った所は後ろ（あと少しの所を上に）。同じ残りなら行った数の多い方
           subSort === 'r' ? ((a.all === a.done) - (b.all === b.done) || (a.all - a.done) - (b.all - b.done) || b.done - a.done) : 0) || byN(a, b));
-      if (!rows.length) wrap.append(h('p', { class: 'empty' }, SUB_MIN + '店以上の' + (areaSub === 'c' ? '区・市' : '駅') + 'はありません'));
+      if (!rows.length) wrap.append(h('p', { class: 'empty' }, subMin + '店以上の' + (areaSub === 'c' ? '区・市' : '駅') + 'はありません'));
       for (const g of rows) wrap.append(h('button', { class: 'lrow', onclick: () => openList(AREA_KEY + l.pref + SUB_SEP + areaSub + ':' + g.n) },
         h('div', { class: 'top' }, h('span', { class: 't' }, g.n), h('span', { class: 'count' }, subSort === 'r' && g.all > g.done ? 'あと ' + (g.all - g.done) + ' ・ ' + countText(g.done, g.all) : countText(g.done, g.all))), progress(g.done, g.all)));
       app.append(wrap);
@@ -1169,18 +1171,19 @@ window.__meimonOpenPlace = openPlace;
 let sheetEl = null;
 // 区・市ごと／駅ごとの並びを選ぶシート
 const SUB_SORTS = [['n', '店の多い順'], ['p', '割合の高い順'], ['r', '残りの少ない順']];
-function openSubSort() {
+function openOptSheet(title, opts, cur, onPick) {
   closeSheet();
-  const pick = (k) => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} closeSheet(); render(); };
-  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': '並び' },
-    h('div', { class: 'bar' }, h('h2', null, '並び'),
+  const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    h('div', { class: 'bar' }, h('h2', null, title),
       h('button', { class: 'ibtn', 'aria-label': '閉じる', onclick: closeSheet }, icon('close'))),
-    ...SUB_SORTS.map(([k, label]) => h('button', { class: 'optrow' + (subSort === k ? ' on' : ''), 'aria-pressed': subSort === k ? 'true' : 'false', onclick: () => pick(k) },
-      h('span', null, label), h('span', { class: 'mark', 'aria-hidden': 'true' }, subSort === k ? '✓' : ''))));
+    ...opts.map(([k, label]) => h('button', { class: 'optrow' + (cur === k ? ' on' : ''), 'aria-pressed': cur === k ? 'true' : 'false', onclick: () => { closeSheet(); onPick(k); render(); } },
+      h('span', null, label), h('span', { class: 'mark', 'aria-hidden': 'true' }, cur === k ? '✓' : ''))));
   sheetEl = h('div', { class: 'sheet-wrap sortsheet' }, sheet);
   sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
   $('#sheet-root').append(sheetEl);
 }
+function openSubSort() { openOptSheet('並び', SUB_SORTS, subSort, (k) => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} }); }
+function openSubMin() { openOptSheet('店の数', SUB_MINS.map(n => [n, subMinLabel(n)]), subMin, (n) => { subMin = n; try { localStorage.setItem('meimon.submin', String(n)); } catch (e) {} }); }
 function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } }
 function openSheet(focusText) {
   closeSheet();
