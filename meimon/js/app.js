@@ -6,7 +6,7 @@
 //    年が替わって一覧を貼り替えても、同じ店が別の一覧にあっても「行った」が残る）
 //  - 取り込んだ文字は textContent / DOM API だけで入れる（innerHTML に入れない）
 // =====================================================
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 const LISTS_KEY = 'meimon.lists.v1';
 const VISITED_KEY = 'meimon.visited.v1';
 const POS_KEY = 'meimon.pos.v1'; // 自分で直した店の位置 {店名 + '\u0000' + 都道府県: [緯度, 経度]}（一覧の位置より優先。貼り替えても残る）
@@ -401,15 +401,9 @@ function areaList(key) {
 const parentKey = (key) => typeof key === 'string' && key.startsWith(AREA_KEY) && key.includes(SUB_SEP) ? key.split(SUB_SEP)[0] : null;
 let areaSub = 'shops'; try { const v = localStorage.getItem('meimon.sub'); if (v === 'c' || v === 's') areaSub = v; } catch (e) {}
 // 店の少ない駅・区を隠す下限（0＝すべて）。v22〜v25 は 3 店だけで '1' と覚えていた
-// 駅ごと（s）と区・市ごと（c）で別々に覚える（区・市は店が多いので 20 店以上まで）。v26 までは1つの値を両方に使っていた
-const SUB_MINS = { s: [0, 3, 5, 10], c: [0, 3, 5, 10, 20] };
-const subMins = { s: 0, c: 0 };
-try {
-  const rd = (k) => localStorage.getItem(k);
-  const old = rd('meimon.submin'), vs = old === '1' ? 3 : +old, vc = rd('meimon.submin.c') == null ? vs : +rd('meimon.submin.c');
-  if (SUB_MINS.s.includes(vs)) subMins.s = vs;
-  if (SUB_MINS.c.includes(vc)) subMins.c = vc;
-} catch (e) {}
+// 駅ごと・区・市ごとで同じ値を使う（v27 だけ別々に覚えていた。その区・市の値 meimon.submin.c は捨てる）
+const SUB_MINS = [0, 3, 5, 10, 20];
+let subMin = 0; try { const v = localStorage.getItem('meimon.submin'); subMin = v === '1' ? 3 : (SUB_MINS.includes(+v) ? +v : 0); localStorage.removeItem('meimon.submin.c'); } catch (e) {}
 const subMinLabel = (n) => n ? n + '店以上' : 'すべて';
 let subSort = 'n'; try { const v = localStorage.getItem('meimon.subsort'); if (v === 'p' || v === 'r') subSort = v; } catch (e) {}
 const currentList = () => lists.find(x => x.title === view.list) || areaList(view.list);
@@ -715,7 +709,6 @@ function renderDetail() {
       sorts.append(h('button', { class: 'chip sortbtn', 'aria-haspopup': 'dialog', 'aria-label': '並び: ' + SUB_SORTS.find(x => x[0] === subSort)[1],
         onclick: openSubSort }, h('span', null, SUB_SORTS.find(x => x[0] === subSort)[1]), h('span', { class: 'caret', 'aria-hidden': 'true' }, '⌄')));
       // 店の少ない駅（1/1 で 100%）を外す絞り込み
-      const subMin = subMins[areaSub];
       sorts.append(h('button', { class: 'chip sep sortbtn minbtn' + (subMin ? ' on' : ''), 'aria-haspopup': 'dialog', 'aria-label': '店の数: ' + subMinLabel(subMin),
         onclick: openSubMin }, h('span', null, subMin ? subMinLabel(subMin) : '店の数'), h('span', { class: 'caret', 'aria-hidden': 'true' }, '⌄')));
       wrap.append(sorts);
@@ -1191,7 +1184,7 @@ function openOptSheet(title, opts, cur, onPick) {
   $('#sheet-root').append(sheetEl);
 }
 function openSubSort() { openOptSheet('並び', SUB_SORTS, subSort, (k) => { subSort = k; try { localStorage.setItem('meimon.subsort', k); } catch (e) {} }); }
-function openSubMin() { const k = areaSub === 'c' ? 'c' : 's'; openOptSheet('店の数', SUB_MINS[k].map(n => [n, subMinLabel(n)]), subMins[k], (n) => { subMins[k] = n; try { localStorage.setItem(k === 'c' ? 'meimon.submin.c' : 'meimon.submin', String(n)); } catch (e) {} }); }
+function openSubMin() { openOptSheet('店の数', SUB_MINS.map(n => [n, subMinLabel(n)]), subMin, (n) => { subMin = n; try { localStorage.setItem('meimon.submin', String(n)); } catch (e) {} }); }
 function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } }
 function openSheet(focusText) {
   closeSheet();
