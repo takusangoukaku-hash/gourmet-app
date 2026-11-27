@@ -4,12 +4,12 @@
 //  - 同じオリジンの GET のうち、自分のスコープの下だけ扱う
 //  - 更新時に消すのは meimon- のキャッシュだけ
 // =====================================================
-const VERSION = 'v23'; // 区・市ごと／駅ごと に「残り少ない順」の並び
+const VERSION = 'v24'; // 並びのボタンを1行に（店数順／割合順／残り順）
 const CACHE = 'meimon-' + VERSION;
 
 // index.html の ?v= と揃える
 const SHELL = [
-  './', './index.html', './css/style.css?v=23', './js/mapstyle.js?v=23', './js/app.js?v=23',
+  './', './index.html', './css/style.css?v=24', './js/mapstyle.js?v=24', './js/app.js?v=24',
   './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
